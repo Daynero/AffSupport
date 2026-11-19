@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary, type TeamAssigneeSummary } from '../../api/team';
 import { taskDeleteTitleKey, useI18n } from '../../i18n';
-import { Empty, Input, Switch } from '../../components/ui/index';
+import { crossfadeLayout } from '../../lib/navigation';
+import { Empty, Input, Reveal, Switch } from '../../components/ui/index';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
 import { useTeam } from '../TeamContext';
@@ -565,17 +566,21 @@ export function TaskSpace({
         query={tasks.query}
         onQueryChange={tasks.setQuery}
         date={tasks.filter}
-        onDateChange={tasks.setFilter}
+        /* A filter, a scope or a sort is one move (058): the board that was there stays
+           until the one that answers is ready, and the two crossfade — it used to cut to
+           the new cards in a single frame. Typing in the search is not held: letters must
+           land as they are typed. */
+        onDateChange={next => crossfadeLayout(() => tasks.setFilter(next), true)}
         status={tasks.statusFilter}
-        onStatusChange={tasks.setStatusFilter}
+        onStatusChange={next => crossfadeLayout(() => tasks.setStatusFilter(next), true)}
         accounts={accounts}
         scope={scope}
-        onScopeChange={setScope}
+        onScopeChange={next => crossfadeLayout(() => setScope(next), true)}
         labels={labels.labels}
         labelIds={tasks.labelIds}
-        onLabelIdsChange={tasks.setLabelIds}
+        onLabelIdsChange={next => crossfadeLayout(() => tasks.setLabelIds(next), true)}
         sort={tasks.sort}
-        onSortChange={tasks.setSort}
+        onSortChange={next => crossfadeLayout(() => tasks.setSort(next), true)}
         /* The eye and "Unfold all" lived in the heading beside the title — an icon nobody could
            name and a button that looked like an action on the board (024). They are how the
            cards are drawn, so they sit with the order, as Linear's Display does. */
@@ -604,12 +609,6 @@ export function TaskSpace({
         <p className="team-inline-error" role="alert">
           {t('teamTaskCreateFailed')}
         </p>
-      )}
-      {/* The shape of the board that is coming, so the cards do not push the
-          filters when they land — with the sentence still there, because a
-          shimmer alone is indistinguishable from a stuck screen. */}
-      {tasks.loading && tasks.tasks.length === 0 && (
-        <LabeledSkeleton label="teamTasksLoadingList" rows={3} />
       )}
       {tasks.error && (
         <ErrorState className="team-inline-error" message={t('teamTasksLoadFailed')} />
@@ -675,40 +674,57 @@ export function TaskSpace({
           </Button>
         </div>
       )}
-      <div className="team-task-grid" onPointerDown={marquee.onPointerDown}>
-        {tasks.tasks.map(task => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            canEdit={can('edit')}
-            showProgress={progressShown}
-            expanded={expandedIds.has(task.id)}
-            onExpandedChange={next =>
-              setExpandedIds(current => {
-                const ids = new Set(current);
-                if (next) ids.add(task.id);
-                else ids.delete(task.id);
-                return ids;
-              })
-            }
-            onDuplicate={
-              can('edit') && client.copyTasks ? () => taskClipboard.duplicate([task.id]) : undefined
-            }
-            duplicating={taskClipboard.copying}
-            onOpen={() => setOpenTask(task)}
-            onUpdate={patch => tasks.update(task, patch, { checkVersion: false })}
-            members={members}
-            labels={labels.labels}
-            actions={can('edit') ? cardActions(task) : undefined}
-            selected={can('edit') ? selectedIds.has(task.id) : undefined}
-            onSelectedChange={
-              can('edit')
-                ? (next, modifiers) => listSelection.select(task.id, next, modifiers?.shiftKey)
-                : undefined
-            }
+      {/* The shape of the board that is coming — cards, not rows — so the cards
+          do not push the filters when they land, with the sentence still there,
+          because a shimmer alone is indistinguishable from a stuck screen. */}
+      <Reveal
+        busy={tasks.loading && tasks.tasks.length === 0}
+        placeholder={
+          <LabeledSkeleton
+            label="teamTasksLoadingList"
+            rows={6}
+            shape="tile"
+            className="team-task-grid"
           />
-        ))}
-      </div>
+        }
+      >
+        <div className="team-task-grid" onPointerDown={marquee.onPointerDown}>
+          {tasks.tasks.map(task => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              canEdit={can('edit')}
+              showProgress={progressShown}
+              expanded={expandedIds.has(task.id)}
+              onExpandedChange={next =>
+                setExpandedIds(current => {
+                  const ids = new Set(current);
+                  if (next) ids.add(task.id);
+                  else ids.delete(task.id);
+                  return ids;
+                })
+              }
+              onDuplicate={
+                can('edit') && client.copyTasks
+                  ? () => taskClipboard.duplicate([task.id])
+                  : undefined
+              }
+              duplicating={taskClipboard.copying}
+              onOpen={() => setOpenTask(task)}
+              onUpdate={patch => tasks.update(task, patch, { checkVersion: false })}
+              members={members}
+              labels={labels.labels}
+              actions={can('edit') ? cardActions(task) : undefined}
+              selected={can('edit') ? selectedIds.has(task.id) : undefined}
+              onSelectedChange={
+                can('edit')
+                  ? (next, modifiers) => listSelection.select(task.id, next, modifiers?.shiftKey)
+                  : undefined
+              }
+            />
+          ))}
+        </div>
+      </Reveal>
       {tasks.hasMore && (
         <Button
           type="button"

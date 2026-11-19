@@ -190,10 +190,18 @@ export function ExplorerProvider({
     [childrenByParent]
   );
 
+  // Letting go of the selection takes the details pane away, and the list widens by a third.
+  // The pane sees itself out and dissolves that reflow as it goes (PreviewPane), whichever
+  // way the selection was lost — so nothing here has to hold the screen for it.
+  const select = useCallback((materialId: string | null) => setSelectedId(materialId), []);
+
   const openFolder = useCallback(
     (next: string | null) => {
-      setCurrentFolderId(next);
-      onFolderChange?.(next);
+      // With an address to write to, the folder changes through it: whoever writes the
+      // address also keeps the old list on screen until the new one is read (058). Changed
+      // here first, the explorer cut to a skeleton before anything could hold it.
+      if (onFolderChange) onFolderChange(next);
+      else setCurrentFolderId(next);
     },
     [onFolderChange]
   );
@@ -229,7 +237,7 @@ export function ExplorerProvider({
       refresh: read,
       refreshStrict: () => read(true),
       selectedId,
-      select: setSelectedId,
+      select,
       selectedIds,
       selectedRows,
       toggleSelected: (row: TeamMaterialRow) =>

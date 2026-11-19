@@ -137,6 +137,10 @@
 html {
   min-width: 320px;
   background: var(--color-bg);
+  /* The scrollbar's room is kept even when a dialog locks the page (058,
+     FR-021): on systems with classic scrollbars the page used to shift
+     sideways by the bar's width each time a dialog opened and closed. */
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -242,12 +246,61 @@ a {
 }
 
 /* Route content swaps inside the persistent shell; the topbar stays mounted.
-   During a route view transition (navigation.ts adds .wishly-page-transition
-   to <html>) the viewport forms its own `wishly-page` group, so only the page
-   content crossfades — never the header. The class gate keeps route and theme
+   During a route view transition navigation.ts puts one class on <html> (058):
+
+   - .wishly-page-transition — the page viewport is the `wishly-page` group, so
+     the page content crossfades and the header does not;
+   - .wishly-section-transition — only the space body (`wishly-section`) moves;
+     the space header, banners and tabs stay where they are.
+
+   In both, the topbar is its own group so it stays painted above the moving
+   content (content scrolled under the fixed bar must not slide over it), and
+   its two clusters are groups of their own so that, when the shell width
+   changes at the workspace boundary, the logo and the actions glide to their
+   new places instead of jumping. The class gate keeps route and theme
    transitions independent. */
 :root.wishly-page-transition .page-viewport {
   view-transition-name: wishly-page;
+}
+:root.wishly-section-transition .team-space-shell-body {
+  view-transition-name: wishly-section;
+}
+:root:is(.wishly-page-transition, .wishly-section-transition) .topbar {
+  view-transition-name: wishly-topbar;
+}
+:root.wishly-page-transition .topbar-lead {
+  view-transition-name: wishly-topbar-lead;
+}
+:root.wishly-page-transition .topbar-actions {
+  view-transition-name: wishly-topbar-actions;
+}
+
+/* A screen the router moved focus to (058, FR-024) is not a control; the
+   ring would only say that the page changed, which the page already says. */
+.page-viewport > main[tabindex='-1']:focus,
+.page-viewport[tabindex='-1']:focus,
+.team-space-shell-body[tabindex='-1']:focus {
+  outline: none;
+}
+
+/* Browsers without the View Transitions API: what was just mounted fades in
+   (navigation.ts sets data-nav-enter for one motion). The old screen is
+   already gone, the new one fills the same place on the next frame. */
+:root[data-nav-enter='page'] .page-viewport > *,
+:root[data-nav-enter='section'] .team-space-shell-body > :not([hidden]) {
+  /* A rise, not a fade: the old screen is already gone, and any opacity
+     below 1 would show the honeycomb through the new one. */
+  animation: ui-content-rise var(--motion-fast) var(--ease-out-curve) both;
+}
+@keyframes ui-content-rise {
+  from {
+    transform: translateY(4px);
+  }
+}
+@keyframes ui-content-enter {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Entrance for freshly mounted pages: first load, browsers without the View
@@ -3835,11 +3888,14 @@ body:has(.public-home) {
   padding: var(--space-4);
   background: var(--overlay-backdrop);
   backdrop-filter: blur(5px);
-  animation: fade-in var(--dur-section) var(--ease-enter);
+  animation: fade-in var(--dur-section) var(--ease-soft-out);
 }
 
 .modal-backdrop-nested {
   z-index: var(--layer-modal-nested);
+  /* One veil for a stack of dialogs (058, FR-020). */
+  background: transparent;
+  backdrop-filter: none;
 }
 
 /* Shared dialog surface for the Modal primitive. The size classes below set
@@ -3863,7 +3919,8 @@ body:has(.public-home) {
   border-radius: var(--radius-xl);
   background: var(--color-surface);
   box-shadow: var(--shadow-xl);
-  animation: modal-rise var(--dur-layout) var(--ease-enter);
+  /* The soft curve (058): on the steep one a dialog this size was there in three frames. */
+  animation: modal-rise var(--dur-layout) var(--ease-soft-out);
 }
 
 /* The same fit guarantees for every other dialog surface. Matching the role
@@ -5102,6 +5159,18 @@ body:has(.public-home) {
   ::view-transition-new(theme-toggle),
   ::view-transition-old(wishly-page),
   ::view-transition-new(wishly-page),
+  ::view-transition-group(wishly-page),
+  ::view-transition-old(wishly-section),
+  ::view-transition-new(wishly-section),
+  ::view-transition-group(wishly-section),
+  ::view-transition-old(wishly-topbar-lead),
+  ::view-transition-new(wishly-topbar-lead),
+  ::view-transition-group(wishly-topbar-lead),
+  ::view-transition-old(wishly-topbar-actions),
+  ::view-transition-new(wishly-topbar-actions),
+  ::view-transition-group(wishly-topbar-actions),
+  :root[data-nav-enter] .page-viewport > *,
+  :root[data-nav-enter] .team-space-shell-body > *,
   .page-enter {
     animation: none !important;
   }
@@ -6595,20 +6664,272 @@ body:has(.public-home) {
    Route transitions — a short crossfade of the page content
    only; the persistent topbar remains mounted.
    ============================================================ */
-/* The old page stays opaque under the new one while it fades in (024): fading both at once left
-   each half transparent mid-way, and the honeycomb behind the page flashed through. */
+/* A complementary crossfade (058, R1). Old and new change opacity over the
+   same time on the same curve, and the browser blends the pair with
+   plus-lighter: where both screens are opaque the sum stays at 100% for the
+   whole transition, so nothing behind them — the honeycomb — shows through,
+   and where only one has a card the card fades rather than pops.
+
+   The 024 version held the old page opaque under the new one instead. That
+   kept the honeycomb hidden, but the old page stayed fully visible wherever
+   the new one was transparent and vanished in the last frame: two screens on
+   top of each other, then a blink. With plus-lighter it also brightened
+   wherever both were opaque. */
+/* A transition's pictures take no input: a second press during one lands on
+   the live page under them instead of being swallowed for a third of a second. */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-group(wishly-page) {
+  animation-duration: var(--motion-base);
+  animation-timing-function: var(--ease-fade);
+}
 ::view-transition-old(wishly-page) {
-  animation: none;
-  opacity: 1;
+  animation: wishly-page-out var(--motion-base) var(--ease-fade) both;
 }
 ::view-transition-new(wishly-page) {
-  animation: wishly-page-in var(--dur-section) var(--ease-standard) both;
+  animation: wishly-page-in var(--motion-base) var(--ease-fade) both;
+}
+/* Pages fade *through* (058, second pass): the one leaving is gone in the
+   first two fifths, the one arriving starts a moment before that ends. Two
+   pages have nothing in common but the shell, and a plain crossfade showed
+   both at half strength on top of each other for a third of the move — the
+   overlap this feature exists to remove. Between them the shell's own ground
+   is seen for a few frames; it is the same before and after, so nothing
+   blinks. Sections keep the plain crossfade: they share a panel, and where
+   both are opaque nothing shows through. */
+@keyframes wishly-page-out {
+  40%,
+  to {
+    opacity: 0;
+  }
 }
 @keyframes wishly-page-in {
+  from,
+  30% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes wishly-route-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Sections of a space: the same crossfade, on the short clock — it is the
+   move people make most, and with a full board on either side every extra
+   frame of it reads as lag (owner, beta: "pressed and waited a second"). The
+   even curve is what keeps 150ms a fade and not a cut. Less travel, too. Both kinds run on an even in-out curve:
+   with the steep ease-out the whole change happened in the first few frames
+   and read as a cut, not a crossfade (058, beta feedback). */
+::view-transition-group(wishly-section) {
+  animation-duration: var(--motion-fast);
+  animation-timing-function: var(--ease-fade);
+}
+::view-transition-old(wishly-section) {
+  animation: wishly-route-out var(--motion-fast) var(--ease-fade) both;
+}
+::view-transition-new(wishly-section) {
+  animation: wishly-section-in var(--motion-fast) var(--ease-fade) both;
+}
+/* The two pictures of a section add up, they do not cover each other. The
+   browser's own crossfade blends the pair with plus-lighter — but it does so
+   from inside its default animation, and naming an animation here replaced
+   that one, blend and all. Without it two half-faded pictures of the same
+   panel let a quarter of what is behind them through: on every move inside a
+   space the whole ground dimmed and the honeycomb showed in it (owner, beta:
+   "everything blinks", "the ground goes out"). Said outright, what is the same
+   in both pictures stays exactly as it is and only what differs dissolves. */
+::view-transition-old(wishly-section),
+::view-transition-new(wishly-section) {
+  mix-blend-mode: plus-lighter;
+}
+::view-transition-image-pair(wishly-section) {
+  isolation: isolate;
+}
+@keyframes wishly-section-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(2px);
   }
+}
+
+/* Direction (058). Where the next screen sits decides which way things move:
+   a section to the right comes in from the right and pushes the old one left,
+   and the way back mirrors it; a page you go into rises towards you while the
+   one you leave steps back, and Back plays that in reverse. The fade is the
+   same complementary pair; only the travel differs, and it is short — the
+   screens are neighbours, not far apart. */
+:root[data-nav-dir='forward']::view-transition-old(wishly-section) {
+  animation-name: wishly-out-left;
+}
+:root[data-nav-dir='forward']::view-transition-new(wishly-section) {
+  animation-name: wishly-in-right;
+}
+:root[data-nav-dir='back']::view-transition-old(wishly-section) {
+  animation-name: wishly-out-right;
+}
+:root[data-nav-dir='back']::view-transition-new(wishly-section) {
+  animation-name: wishly-in-left;
+}
+:root[data-nav-dir='forward']::view-transition-old(wishly-page) {
+  animation-name: wishly-out-away;
+}
+:root[data-nav-dir='forward']::view-transition-new(wishly-page) {
+  animation-name: wishly-in-rise;
+}
+:root[data-nav-dir='back']::view-transition-old(wishly-page) {
+  animation-name: wishly-out-sink;
+}
+:root[data-nav-dir='back']::view-transition-new(wishly-page) {
+  animation-name: wishly-in-near;
+}
+@keyframes wishly-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+}
+@keyframes wishly-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+@keyframes wishly-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+@keyframes wishly-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+}
+/* No scale on a page: it is scaled about the middle of a box that can be
+   several screens tall, which moved its top by tens of pixels — the space was
+   seen being resized on the way out (owner, beta). Travel is by distance. */
+@keyframes wishly-out-away {
+  40%,
+  to {
+    opacity: 0;
+  }
+}
+@keyframes wishly-in-rise {
+  from,
+  30% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes wishly-out-sink {
+  40%,
+  to {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes wishly-in-near {
+  from,
+  30% {
+    opacity: 0;
+  }
+}
+
+/* The hero (058): a tool's card on the launcher becomes the tool's screen. One
+   group carries both; it is clipped to a card's corners so the growing screen
+   stays inside a surface the whole way. The old picture leaves early —
+   stretched, it is only a hint of where the motion began. There is no way
+   back through it: a screen folding into its card read as being resized. */
+::view-transition-group(wishly-hero) {
+  animation-duration: var(--motion-spring);
+  animation-timing-function: var(--ease-spring);
+  overflow: clip;
+  border-radius: var(--radius-xl);
+}
+::view-transition-old(wishly-hero) {
+  animation: wishly-route-out var(--motion-fast) var(--ease-out-curve) both;
+}
+::view-transition-new(wishly-hero) {
+  animation: ui-content-enter var(--motion-base) var(--ease-out-curve) both;
+}
+/* The frame around the moving content. The root (honeycomb, canvas) and the
+   topbar are the same before and after, so they do not crossfade: the old
+   picture is dropped and the live page shows through at once. The topbar's
+   clusters glide (group transform) on the page's clock. */
+:root:is(.wishly-page-transition, .wishly-section-transition)::view-transition-old(root),
+:root:is(.wishly-page-transition, .wishly-section-transition)::view-transition-old(wishly-topbar) {
+  display: none;
+}
+:root:is(.wishly-page-transition, .wishly-section-transition)::view-transition-new(root),
+:root:is(.wishly-page-transition, .wishly-section-transition)::view-transition-new(wishly-topbar) {
+  animation: none;
+}
+/* The topbar's clusters only travel when the shell changes width — between
+   pages. Inside a section they would run their full clock for nothing and keep
+   the transition open twice as long as the fade anyone sees. */
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-group(
+    wishly-topbar-lead
+  ),
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-group(
+    wishly-topbar-actions
+  ),
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-new(
+    wishly-topbar-lead
+  ),
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-new(
+    wishly-topbar-actions
+  ) {
+  animation: none;
+}
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-old(
+    wishly-topbar-lead
+  ),
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-old(
+    wishly-topbar-actions
+  ) {
+  display: none;
+}
+/* The page's own box changes height with the section in it; that follows on
+   the section's clock, not the page's, or the transition stays open — and the
+   next press waits — for twice as long as anything is seen to move. */
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-group(
+    wishly-page
+  ) {
+  animation-duration: var(--motion-fast);
+}
+/* A move inside a section — a tab, a filter, a folder — leaves the page around
+   it as it was: the space's header, the panel's own ground. Its two pictures
+   are the same, and they must dissolve as one: the page's fade-through (out,
+   then in) played here took the whole ground away for a moment and showed the
+   honeycomb through it (owner, beta). A plain complementary pair: where both
+   are opaque the sum stays opaque. The class is named twice to stand above
+   the rules that pick a direction. */
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-old(
+    wishly-page
+  ) {
+  animation: wishly-route-out var(--motion-base) var(--ease-fade) both;
+}
+:root:is(.wishly-section-transition):is(.wishly-section-transition)::view-transition-new(
+    wishly-page
+  ) {
+  animation: ui-content-enter var(--motion-base) var(--ease-fade) both;
+}
+::view-transition-group(wishly-topbar-lead),
+::view-transition-group(wishly-topbar-actions) {
+  animation-duration: var(--motion-base);
+  animation-timing-function: var(--ease-fade);
+}
+::view-transition-old(wishly-topbar-lead),
+::view-transition-old(wishly-topbar-actions) {
+  animation: wishly-route-out var(--motion-base) var(--ease-fade) both;
+}
+::view-transition-new(wishly-topbar-lead),
+::view-transition-new(wishly-topbar-actions) {
+  animation: ui-content-enter var(--motion-base) var(--ease-fade) both;
 }
 
 /* ============================================================
@@ -7816,6 +8137,12 @@ body:has(.public-home) {
   display: grid;
   gap: var(--space-5);
   min-width: 0;
+  /* One frame for every section (058): the space fills the window below the
+     topbar, and the body takes what the chrome leaves. Each section used to be
+     as tall as its content, so the panel's bottom edge jumped with every tab —
+     from the explorer's 520px to the tasks' 400px and back. */
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: calc(100dvh - var(--app-header-height) - 98px);
 }
 .team-space-shell-header {
   display: flex;
@@ -8023,6 +8350,16 @@ body:has(.public-home) {
   display: grid;
   gap: var(--space-4);
   min-width: 0;
+  /* The open section fills the body (058); its panel keeps its own rows at
+     the top and grows only at the bottom. */
+  grid-template-rows: minmax(0, 1fr);
+}
+.team-space-shell-body > div:not([hidden]) {
+  display: grid;
+  min-height: 0;
+}
+.team-space-shell-body :is(.team-panel, .team-space-settings) {
+  align-content: start;
 }
 
 /* Live Drive-sync indicator. Uses semantic tokens so it adapts to the dark
@@ -9921,7 +10258,7 @@ body {
   transition:
     border-color var(--motion-fast) ease,
     box-shadow var(--motion-fast) ease,
-    transform var(--motion-fast) ease;
+    transform var(--motion-spring) var(--ease-spring);
 }
 .team-task-card:hover {
   border-color: color-mix(in oklab, var(--color-accent) 42%, var(--color-border));
@@ -12238,20 +12575,6 @@ button.team-landing-tile:hover {
   font-size: var(--text-label);
 }
 
-/* The access check happens over a dimmed backdrop, so its caption sits above
-   that layer rather than behind it. */
-.team-workspace-gate-checking {
-  position: fixed;
-  z-index: var(--layer-modal);
-  inset: 50% auto auto 50%;
-  margin: 0;
-  color: var(--color-text);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  transform: translate(-50%, -50%);
-}
-
 /* Discard control on an unfinished space card (010 US4). Quiet by default so a
    destructive action does not compete with "continue setup", which is what the
    owner usually wants. */
@@ -13239,7 +13562,7 @@ button.team-landing-tile:hover {
   overflow: visible;
   transition:
     border-color var(--dur-control) var(--ease-standard),
-    transform var(--dur-control) var(--ease-standard),
+    transform var(--motion-spring) var(--ease-spring),
     box-shadow var(--dur-control) var(--ease-standard);
 }
 /* The compressor's card, in the space.
@@ -13251,8 +13574,9 @@ button.team-landing-tile:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
-.team-explorer-tile:active {
-  transform: translateY(-1px) scale(0.992);
+.team-explorer-tile:active:not(:has(:is(input, label, [aria-haspopup]):active)) {
+  transform: scale(var(--press-scale-surface));
+  transition-duration: var(--motion-press);
 }
 .team-explorer-tile:focus-within {
   border-color: var(--color-accent);
@@ -13327,6 +13651,13 @@ button.team-landing-tile:hover {
   display: grid;
   place-items: center;
   color: var(--color-text-muted);
+}
+/* The icon standing in for a picture that did not load arrives where an empty
+   tile was: it fades in, like the picture would have. */
+@media (prefers-reduced-motion: no-preference) {
+  .team-explorer-tile-icon.is-fallback {
+    animation: ui-content-enter var(--motion-fast) var(--ease-fade);
+  }
 }
 /* Inline, like the glyph it replaced (024). The reset makes every svg a block,
    which is right for a picture and wrong for an icon set in a line of text: the
@@ -13644,6 +13975,47 @@ button.team-landing-tile:hover {
   max-height: calc(100dvh - var(--explorer-pane-top) - var(--space-3));
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Over the copy of the list that fades beside it while the list takes its new width. */
+  z-index: calc(var(--layer-header) + 1);
+  /* Which way the card comes from: the side it stands on. Stacked under the list, or as a
+     sheet at the bottom of a phone, that is from below. */
+  --pane-from-x: var(--space-6);
+  --pane-from-y: 0px;
+}
+@media (max-width: 1023px) {
+  .team-explorer-pane {
+    --pane-from-x: 0px;
+    --pane-from-y: var(--space-5);
+  }
+}
+/* The card comes in from the side and leaves the same way (058): it used to be swapped in
+   with the whole panel crossfading around it. The leaving one is a copy (`leaveCopy`). The
+   list beside it does not fade: its tiles and rows travel to where the new width puts them
+   (`lib/layout-move.ts`), in the same time and on the same curve as the card. */
+@media (prefers-reduced-motion: no-preference) {
+  .team-explorer-pane {
+    animation: team-pane-in var(--motion-base) var(--ease-soft-out);
+  }
+  .team-explorer-pane.is-leaving {
+    animation: team-pane-out var(--motion-fast) var(--ease-fade) both;
+  }
+}
+/* Solid by the middle of its way: the list's columns close up beneath it as it comes, and a
+   card still half transparent showed them through its own text. */
+@keyframes team-pane-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--pane-from-x), var(--pane-from-y));
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes team-pane-out {
+  to {
+    opacity: 0;
+    transform: translate(var(--pane-from-x), var(--pane-from-y));
+  }
 }
 /* In a height-capped column the pieces would otherwise shrink to fit — a squashed preview
    instead of a scroll. Each keeps its own size. */
@@ -15255,27 +15627,28 @@ input[type='number'] {
 .instant-tip {
   position: fixed;
   z-index: var(--layer-toast);
-  /* Wide enough for a long file name, wrapping (and breaking a single
-     unbroken run of characters) rather than running off the screen. */
-  max-width: min(560px, calc(100vw - 32px));
-  padding: 9px 12px;
+  /* A hint is a footnote (058): caption-sized, a hairline edge, tight to its
+     words. It was the size of a card and arrived on every hover. Still wraps —
+     and breaks a single unbroken run, a long file name — rather than running
+     off the screen. */
+  max-width: min(var(--tooltip-width), calc(100vw - 32px));
+  padding: 3px var(--space-2);
   transform: translateX(-50%);
-  border: 1px solid var(--purple-700);
+  border: 1px solid var(--tooltip-border);
   border-radius: var(--radius-sm);
-  /* Light words on the dark plum, in both themes. It was the accent's own
-     "on" colour, which is dark — dark on dark, and "Готово" over a status
-     button could not be read (024). */
-  color: var(--purple-50);
-  background: var(--purple-900);
-  box-shadow: var(--shadow-menu);
-  font-size: var(--text-md);
-  font-weight: 500;
+  /* Light words on a dark ground, in both themes. */
+  color: var(--tooltip-text);
+  background: var(--tooltip-surface);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-caption);
+  font-weight: 400;
   line-height: 1.35;
   text-align: center;
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: normal;
   pointer-events: none;
+  animation: ui-fade-in var(--motion-fast) var(--ease-out-curve);
 }
 
 /* Light theme flips the intake zone: purple field, honey type and dashes. */

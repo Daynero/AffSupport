@@ -3,13 +3,49 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
- * Instant hover hints for icon-only controls.
+ * Hover hints for icon-only controls.
  *
- * Native `title` waits about a second before the OS shows it, and a CSS
- * ::after bubble gets clipped by any scrolling ancestor. So one listener
- * watches for `[data-tip]` under the pointer and renders the bubble into a
- * body portal — instant, and never cropped by a panel's overflow.
+ * A CSS ::after bubble gets clipped by any scrolling ancestor, and a native
+ * `title` is drawn by the OS in its own type. So one listener watches for
+ * `[data-tip]` under the pointer and renders the bubble into a body portal —
+ * never cropped by a panel's overflow, and in the product's own small label.
+ *
+ * It used to be instant, and with a hint on almost everything the page
+ * flickered with labels as the pointer crossed it (058, owner: "they are
+ * plainly annoying"). Now a hint waits `TIP_DELAY_MS` on a still pointer;
+ * once one is up, the next control answers at once, so reading along a
+ * toolbar is not a string of waits. And a hint that only repeats what the
+ * control already says in full is not shown at all.
  */
+export const TIP_DELAY_MS = 450;
+/** After a hint closes, how long its neighbours still answer without the wait. */
+export const TIP_WARM_MS = 400;
+
+function sameWords(a: string, b: string): boolean {
+  const plain = (value: string) => value.replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
+  return plain(a) === plain(b);
+}
+
+/** Whether any text inside `host` is cut off by its box. */
+function truncated(host: HTMLElement): boolean {
+  if (host.scrollWidth > host.clientWidth + 1 || host.scrollHeight > host.clientHeight + 1)
+    return true;
+  for (const node of host.querySelectorAll<HTMLElement>('*')) {
+    if (node.scrollWidth > node.clientWidth + 1) return true;
+  }
+  return false;
+}
+
+/**
+ * A hint that says what is already on the control, word for word, adds
+ * nothing — unless those words are cut off, which is the one case such a
+ * `title` is there for.
+ */
+export function redundantTip(host: HTMLElement, text: string): boolean {
+  const visible = host.textContent ?? '';
+  if (!visible.trim() || !sameWords(visible, text)) return false;
+  return !truncated(host);
+}
 export function InstantTips() {
   const [tip, setTip] = useState<{
     text: string;
@@ -33,6 +69,10 @@ export function InstantTips() {
   useEffect(() => {
     let activeHost: HTMLElement | null = null;
     let activeText = '';
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    let pendingHost: HTMLElement | null = null;
+    let shownUntil = 0;
+    let showing = false;
     const allowed = tooltipAnchorAllowed;
     const place = (host: HTMLElement, text: string) => {
       const rect = host.getBoundingClientRect();
@@ -85,19 +125,43 @@ export function InstantTips() {
         return;
       }
       const text = host.getAttribute('data-tip');
-      if (!text) {
+      if (!text || redundantTip(host, text)) {
         clear();
         return;
       }
-      activeHost = host;
-      activeText = text;
-      place(host, text);
+      // Still over the same control: the hint is up, or its wait is running.
+      if (host === activeHost || host === pendingHost) return;
+      const show = () => {
+        pending = null;
+        pendingHost = null;
+        if (!host.isConnected || !allowed(host)) return;
+        activeHost = host;
+        activeText = host.getAttribute('data-tip') ?? text;
+        showing = true;
+        place(host, activeText);
+      };
+      if (pending) clearTimeout(pending);
+      if (showing || Date.now() < shownUntil) {
+        show();
+        return;
+      }
+      pendingHost = host;
+      pending = setTimeout(show, TIP_DELAY_MS);
     };
     const onOut = (event: MouseEvent) => {
       const host = (event.target as HTMLElement | null)?.closest?.('[data-tip]');
-      if (host) clear();
+      if (!host) return;
+      // Moving between the parts of one control is not leaving it.
+      const next = event.relatedTarget;
+      if (next instanceof Node && host.contains(next)) return;
+      clear();
     };
     const clear = () => {
+      if (pending) clearTimeout(pending);
+      pending = null;
+      pendingHost = null;
+      if (showing) shownUntil = Date.now() + TIP_WARM_MS;
+      showing = false;
       activeHost = null;
       activeText = '';
       setTip(null);
@@ -126,6 +190,7 @@ export function InstantTips() {
     window.addEventListener('scroll', clear, true);
     window.addEventListener('resize', clear);
     return () => {
+      if (pending) clearTimeout(pending);
       observer.disconnect();
       window.removeEventListener(OVERLAY_OPEN_EVENT, clear);
       document.removeEventListener('mouseover', onOver);

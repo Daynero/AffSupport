@@ -35,6 +35,48 @@ const PAGE_SIZE = 100;
 const FOLDER_PAGE_TIMEOUT_MS = 12_000;
 const EMPTY_ROWS: TeamMaterialRow[] = [];
 
+/**
+ * Folders already read in this session, as they were last shown (058).
+ *
+ * Going back to a folder used to start from nothing: the list was emptied,
+ * read again, and shown when the answer came — half a second of the previous
+ * folder, or of a placeholder, on every step between two folders someone is
+ * comparing. A folder seen before is now shown at once as it was, and the same
+ * read that always ran brings it up to date underneath.
+ *
+ * Kept per client, so nothing outlives the session that read it, and under the
+ * hook's own scope key — who is asking, with which rights, for which folder
+ * and kinds. A folder that was empty is not remembered: "nothing here" is a
+ * statement, and it is only made by a read.
+ */
+interface RememberedFolder {
+  rows: TeamMaterialRow[];
+  total: number | null;
+  next: FolderPageCursor | null;
+  hidden: number;
+  pages: number;
+}
+const REMEMBERED_FOLDERS = 24;
+const remembered = new WeakMap<object, Map<string, RememberedFolder>>();
+
+function recall(client: object, scopeKey: string): RememberedFolder | null {
+  return remembered.get(client)?.get(scopeKey) ?? null;
+}
+
+function remember(client: object, scopeKey: string, folder: RememberedFolder | null) {
+  let folders = remembered.get(client);
+  if (!folders) {
+    if (!folder) return;
+    folders = new Map();
+    remembered.set(client, folders);
+  }
+  // Re-inserted, so the map's order is the order of use and the first key is the oldest.
+  folders.delete(scopeKey);
+  if (!folder) return;
+  folders.set(scopeKey, folder);
+  if (folders.size > REMEMBERED_FOLDERS) folders.delete(folders.keys().next().value as string);
+}
+
 export interface FolderPageState {
   rows: TeamMaterialRow[];
   total: number | null;
@@ -107,6 +149,8 @@ export function useFolderPage(input: {
 
   /** How many rows the filter has taken out of the count so far. */
   const hiddenSoFar = useRef(0);
+  /** The rows on show are remembered ones, not yet confirmed by a read of this visit. */
+  const fromMemory = useRef(false);
 
   const fetchPage = useCallback(
     async (after: FolderPageCursor | null, replace: boolean, reportFailure = false) => {
@@ -211,7 +255,9 @@ export function useFolderPage(input: {
                 !reportFailure &&
                 visible.length === 0 &&
                 dataScopeRef.current === scopeKey &&
-                rowsRef.current.length > 0
+                rowsRef.current.length > 0 &&
+                // Remembered rows are not this visit's: an empty answer replaces them.
+                !fromMemory.current
               )) {
                 hiddenSoFar.current = hidden;
                 loadedPages.current = pagesRead;
@@ -220,6 +266,7 @@ export function useFolderPage(input: {
                 setTotal(Math.max(0, totalRows - hidden));
                 setNext(cursor);
               }
+              fromMemory.current = false;
               setDataScope(scopeKey);
               setError(false);
               read.succeed();
@@ -295,10 +342,18 @@ export function useFolderPage(input: {
       }
     );
     coordinator.current = owner;
-    setRows([]);
-    setTotal(null);
-    setNext(null);
-    loadedPages.current = 1;
+    // A folder read before is shown as it was while this read brings it up to date.
+    const seen = recall(client, scopeKey);
+    setRows(seen?.rows ?? []);
+    setTotal(seen?.total ?? null);
+    setNext(seen?.next ?? null);
+    loadedPages.current = seen?.pages ?? 1;
+    fromMemory.current = Boolean(seen);
+    if (seen) {
+      hiddenSoFar.current = seen.hidden;
+      setDataScope(scopeKey);
+      setError(false);
+    }
     const visible = () => {
       if (document.visibilityState !== 'hidden') void refreshWindow();
     };
@@ -313,7 +368,19 @@ export function useFolderPage(input: {
       for (const controller of controllers.current) controller.abort();
       controllers.current.clear();
     };
-  }, [performRefresh, refreshWindow]);
+  }, [performRefresh, refreshWindow, client, scopeKey]);
+
+  // What a completed read shows is what the folder is remembered as.
+  useEffect(() => {
+    if (dataScope !== scopeKey || loading || error) return;
+    remember(
+      client,
+      scopeKey,
+      rows.length > 0
+        ? { rows, total, next, hidden: hiddenSoFar.current, pages: loadedPages.current }
+        : null
+    );
+  }, [client, scopeKey, dataScope, loading, error, rows, total, next]);
 
   useEffect(() => {
     if (revision === 0 || document.visibilityState === 'hidden') return;
@@ -332,10 +399,12 @@ export function useFolderPage(input: {
     [scopeKey, refreshWindow]
   );
 
+  // The render before the effect above has run: a folder seen before is already there.
+  const seen = dataScope === scopeKey ? null : recall(client, scopeKey);
   return {
-    rows: dataScope === scopeKey ? rows : EMPTY_ROWS,
-    total: dataScope === scopeKey ? total : null,
-    loading: loading || dataScope !== scopeKey,
+    rows: dataScope === scopeKey ? rows : (seen?.rows ?? EMPTY_ROWS),
+    total: dataScope === scopeKey ? total : (seen?.total ?? null),
+    loading: loading || (dataScope !== scopeKey && !seen),
     error: dataScope === scopeKey && error,
     hasMore: dataScope === scopeKey && next !== null,
     loadMore: () => {

@@ -348,8 +348,11 @@ export function TaskCard({
           />
         )}
         {task.assigneeLabelSnapshot && (
-          <span className="team-task-assignee" title={t('teamTaskAssignee')}>
+          /* A person's name beside a person icon needs no hint saying "assignee" (058); the
+             word stays for a reader who cannot see the icon. */
+          <span className="team-task-assignee">
             <UserRound size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <span className="visually-hidden">{t('teamTaskAssignee')}: </span>
             {task.assigneeLabelSnapshot}
           </span>
         )}

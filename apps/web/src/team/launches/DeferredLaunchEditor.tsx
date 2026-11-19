@@ -137,5 +137,14 @@ export function DeferredLaunchEditor({
         onRetry={() => setAttempt(current => current + 1)}
       />
     );
-  return <LoadingState shape="block" count={1} label={t('launchesSettings')} />;
+  // As tall as the editor it stands for (058): a strip of a placeholder had the dialog's footer
+  // right under it, and the editor then pushed the footer out of the window.
+  return (
+    <LoadingState
+      shape="block"
+      count={1}
+      label={t('launchesSettings')}
+      className="launch-editor-loading"
+    />
+  );
 }

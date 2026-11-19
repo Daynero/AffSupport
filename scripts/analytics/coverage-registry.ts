@@ -48,7 +48,8 @@ export type CapabilityTool =
   | 'link'
   | 'update'
   | 'onboarding'
-  | 'analytics';
+  | 'analytics'
+  | 'navigation';
 export type CapabilityPlatform = 'macos' | 'windows';
 
 export interface CapabilitySignal {
@@ -2271,6 +2272,30 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     producerStatus: 'emitted',
     source: 'events',
     note: "Isolated by flow_step='theme' and setting_name='theme'; setting_value is light or dark. The `themes` command groups users by their latest signal in the period."
+  },
+  {
+    // 058 — one event per route change. The attempt opens at the request and
+    // ends settled (content ready, then two seconds of layout watched),
+    // superseded, cancelled or with a chunk that did not load.
+    id: 'navigation.route',
+    tool: 'navigation',
+    title: 'Navigation · move between screens smoothly',
+    stages: ['terminal'],
+    stageEvents: {
+      terminal: ['navigation_attempt_finished']
+    },
+    start: [{ event: 'navigation_attempt_finished', correlate: 'flow_id' }],
+    terminal: [{ event: 'navigation_attempt_finished', correlate: 'flow_id' }],
+    platforms: BOTH,
+    unobservable: [
+      'a single flashed frame inside the compositor (the frame-by-frame smoke test is the evidence)',
+      'attempts in a tab closed before its queue was sent (read as unknown, not as failure)',
+      'public pages before sign-in (analytics needs an account)',
+      'ordinary attempts outside the 10% sample (anomalies are always sent)'
+    ],
+    producerStatus: 'emitted',
+    source: 'events',
+    note: 'Sampled: every attempt with a skeleton, a skipped or degraded motion, a non-settled final, layout shift above 0.05 or a long frame; 10% of the rest; at most 60 per analytics session.'
   }
 ];
 

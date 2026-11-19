@@ -251,7 +251,8 @@ export const QUERY_EVENT_NAMES: readonly string[] = Object.freeze(
       ...emittedOnly(ONBOARDING_STAGE_EVENTS),
       ...emittedOnly(UPDATE_STAGE_EVENTS),
       ...TEAM_WORKSPACE_EVENTS,
-      ...LINK_EVENT_NAMES
+      ...LINK_EVENT_NAMES,
+      'navigation_attempt_finished'
     ])
   ].sort()
 );
@@ -930,6 +931,135 @@ export async function getThemeUsage(period: ResolvedPeriod): Promise<{
   const dark = rows.find(row => row.theme === 'dark')?.users ?? 0;
   const light = rows.find(row => row.theme === 'light')?.users ?? 0;
   return { dark, light, users_with_theme_signal: dark + light };
+}
+
+export interface NavigationSliceRow {
+  motion: string;
+  screen: string;
+  mode: string;
+  final: string;
+  attempts: number;
+  p50_ms: number | null;
+  p95_ms: number | null;
+  with_skeleton: number;
+  shifted: number;
+  stalled: number;
+}
+
+export interface NavigationCohortRow {
+  web_build_id: string;
+  browser_family: string;
+  platform: string;
+  attempts: number;
+  animated: number;
+  with_skeleton: number;
+  shifted: number;
+  stalled: number;
+  not_settled: number;
+}
+
+export interface NavigationExampleRow {
+  flow_id: string | null;
+  occurred_at: string;
+  from_screen: string;
+  to_screen: string;
+  motion: string;
+  mode: string;
+  final: string;
+  skeleton_ms: number | null;
+  layout_shift_milli: number | null;
+  long_frame_count: number | null;
+}
+
+export interface NavigationData {
+  attempts: number;
+  users: number;
+  slices: NavigationSliceRow[];
+  cohorts: NavigationCohortRow[];
+  examples: NavigationExampleRow[];
+  sampling: string;
+}
+
+/**
+ * Navigation smoothness (058): every route change that was sent — all
+ * anomalies and a 10% sample of the rest — sliced by motion, destination,
+ * mode and final, and by build, browser and platform; with recent attempts
+ * that did not settle or that showed a skeleton, shifted or stalled.
+ */
+export async function getNavigation(period: ResolvedPeriod, limit = 10): Promise<NavigationData> {
+  const params = rangeParams(period);
+  const number = (key: string) =>
+    `case when jsonb_typeof(e.properties -> '${key}') = 'number' then (e.properties ->> '${key}')::numeric end`;
+  const totals = await queryOne<{ attempts: number; users: number }>(
+    `select count(*)::int as attempts, count(distinct e.user_id)::int as users
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and e.event_name = 'navigation_attempt_finished'`,
+    params
+  );
+  const slices = await query<NavigationSliceRow>(
+    `select coalesce(e.properties ->> 'nav_motion', 'unknown') as motion,
+            coalesce(e.properties ->> 'nav_to_screen', 'unknown') as screen,
+            coalesce(e.properties ->> 'nav_mode', 'unknown') as mode,
+            coalesce(e.properties ->> 'nav_final', 'unknown') as final,
+            count(*)::int as attempts,
+            percentile_cont(0.5) within group (order by ${number('duration_ms')}) as p50_ms,
+            percentile_cont(0.95) within group (order by ${number('duration_ms')}) as p95_ms,
+            count(*) filter (where ${number('skeleton_ms')} > 0)::int as with_skeleton,
+            count(*) filter (where ${number('layout_shift_milli')} > 50)::int as shifted,
+            count(*) filter (where ${number('long_frame_count')} > 0)::int as stalled
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and e.event_name = 'navigation_attempt_finished'
+     group by 1, 2, 3, 4
+     order by attempts desc, motion, screen, mode, final
+     limit 200`,
+    params
+  );
+  const cohorts = await query<NavigationCohortRow>(
+    `select coalesce(e.web_build_id, 'unknown') as web_build_id,
+            coalesce(e.properties ->> 'browser_family', 'unknown') as browser_family,
+            coalesce(e.platform, 'unknown') as platform,
+            count(*)::int as attempts,
+            count(*) filter (where e.properties ->> 'nav_mode' = 'animated')::int as animated,
+            count(*) filter (where ${number('skeleton_ms')} > 0)::int as with_skeleton,
+            count(*) filter (where ${number('layout_shift_milli')} > 50)::int as shifted,
+            count(*) filter (where ${number('long_frame_count')} > 0)::int as stalled,
+            count(*) filter (where e.properties ->> 'nav_final' <> 'settled')::int as not_settled
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and e.event_name = 'navigation_attempt_finished'
+     group by 1, 2, 3
+     order by attempts desc, web_build_id, browser_family, platform
+     limit 100`,
+    params
+  );
+  const examples = await query<NavigationExampleRow>(
+    `select e.flow_id::text as flow_id, e.occurred_at::text as occurred_at,
+            coalesce(e.properties ->> 'nav_from_screen', 'unknown') as from_screen,
+            coalesce(e.properties ->> 'nav_to_screen', 'unknown') as to_screen,
+            coalesce(e.properties ->> 'nav_motion', 'unknown') as motion,
+            coalesce(e.properties ->> 'nav_mode', 'unknown') as mode,
+            coalesce(e.properties ->> 'nav_final', 'unknown') as final,
+            ${number('skeleton_ms')}::int as skeleton_ms,
+            ${number('layout_shift_milli')}::int as layout_shift_milli,
+            ${number('long_frame_count')}::int as long_frame_count
+     from public.analytics_events e
+     where ${EVENTS_RANGE} and e.event_name = 'navigation_attempt_finished'
+       and (e.properties ->> 'nav_final' <> 'settled'
+            or ${number('skeleton_ms')} > 0
+            or ${number('layout_shift_milli')} > 50
+            or ${number('long_frame_count')} > 0)
+     order by e.occurred_at desc, e.id desc
+     limit ${Math.max(1, Math.min(100, Math.trunc(limit)))}`,
+    params
+  );
+  return {
+    attempts: totals?.attempts ?? 0,
+    users: totals?.users ?? 0,
+    slices,
+    cohorts,
+    examples,
+    sampling:
+      'every attempt with a skeleton, a degraded or skipped motion, a non-settled final, layout shift above 0.05 or a long frame; 10% of the rest; at most 60 per analytics session'
+  };
 }
 
 /** Interaction signals `features` declares but cannot count — nothing emits them. */

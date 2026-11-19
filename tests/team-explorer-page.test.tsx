@@ -251,6 +251,70 @@ describe('incomplete folder refresh', () => {
     expect(view.result.current.rows).toHaveLength(0);
   });
 
+  it('shows a folder seen before at once, and brings it up to date under that', async () => {
+    let second = [row(2)];
+    const client = {
+      listFolderPage: vi.fn(async (_team: string, input: { parentFolderId: string | null }) => {
+        const rows = input.parentFolderId === 'first' ? [row(1)] : second;
+        return { rows, total: rows.length, next: null };
+      })
+    };
+    const view = renderHook(
+      ({ parentFolderId }) => useFolderPage({ teamId: TEAM, client, parentFolderId }),
+      { initialProps: { parentFolderId: 'first' } }
+    );
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
+    // A folder not seen yet starts from nothing, as before.
+    view.rerender({ parentFolderId: 'second' });
+    expect(view.result.current.rows).toHaveLength(0);
+    expect(view.result.current.loading).toBe(true);
+    await waitFor(() => expect(view.result.current.rows.map(item => item.id)).toEqual(['id-2']));
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
+
+    // Back to the first: there in the same render, no placeholder to sit through.
+    view.rerender({ parentFolderId: 'first' });
+    expect(view.result.current.rows.map(item => item.id)).toEqual(['id-1']);
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
+
+    // And the second, which changed meanwhile: as it was, then as it is.
+    second = [row(2), row(3)];
+    const reads = client.listFolderPage.mock.calls.length;
+    view.rerender({ parentFolderId: 'second' });
+    expect(view.result.current.rows.map(item => item.id)).toEqual(['id-2']);
+    await waitFor(() =>
+      expect(view.result.current.rows.map(item => item.id)).toEqual(['id-2', 'id-3'])
+    );
+    // It was read again — what is remembered is only what is shown meanwhile.
+    expect(client.listFolderPage.mock.calls.length).toBeGreaterThan(reads);
+  });
+
+  it('lets an empty answer replace remembered rows, even while a scan is unfinished', async () => {
+    let first = [row(1)];
+    const client = {
+      listFolderPage: vi.fn(async (_team: string, input: { parentFolderId: string | null }) => {
+        const rows = input.parentFolderId === 'first' ? first : [row(2)];
+        return { rows, total: rows.length, next: null };
+      })
+    };
+    const view = renderHook(
+      ({ parentFolderId }) =>
+        useFolderPage({ teamId: TEAM, client, parentFolderId, preserveOnEmpty: true }),
+      { initialProps: { parentFolderId: 'first' } }
+    );
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
+    view.rerender({ parentFolderId: 'second' });
+    await waitFor(() => expect(view.result.current.loading).toBe(false));
+    first = [];
+    view.rerender({ parentFolderId: 'first' });
+    expect(view.result.current.rows).toHaveLength(1);
+    await waitFor(() => expect(view.result.current.rows).toHaveLength(0));
+    // An empty folder is not remembered: next time it is read before anything is said.
+    view.rerender({ parentFolderId: 'second' });
+    view.rerender({ parentFolderId: 'first' });
+    expect(view.result.current.rows).toHaveLength(0);
+    expect(view.result.current.loading).toBe(true);
+  });
+
   it('keeps visible rows through a transient empty read, then accepts a confirmed empty result', async () => {
     const first = { rows: [row(1)], total: 1, next: null };
     const empty = { rows: [], total: 0, next: null };

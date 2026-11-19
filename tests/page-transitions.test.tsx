@@ -58,7 +58,12 @@ vi.mock('../apps/web/src/analytics/service.js', () => ({
 }));
 
 import ProtectedSoty from '../apps/web/src/ProtectedSoty';
-import { navigateTo, useBrowserRoute, usePageEntrance } from '../apps/web/src/lib/navigation';
+import {
+  navigateTo,
+  resetNavigationForTests,
+  useBrowserRoute,
+  usePageEntrance
+} from '../apps/web/src/lib/navigation';
 
 function installViewTransitionStub() {
   let finish!: () => void;
@@ -98,6 +103,7 @@ function EntranceProbe() {
 }
 
 beforeEach(() => {
+  resetNavigationForTests();
   localStorage.clear();
   sessionStorage.clear();
   localStorage.setItem('language', 'en');
@@ -151,8 +157,11 @@ describe('route changes without the View Transitions API', () => {
     expect(screen.getByTestId('path').textContent).toBe('/account');
     expect(location.pathname).toBe('/account');
     expect(document.documentElement.classList.contains('wishly-page-transition')).toBe(false);
-    // Without a view transition the freshly mounted page plays its entrance.
-    expect(screen.getByTestId('entrance').textContent).toBe('enter');
+    // Without a view transition the page arrives as it is (058): fading it in
+    // from nothing showed the honeycomb. The fallback rise comes from
+    // data-nav-enter, which moves without touching opacity.
+    expect(screen.getByTestId('entrance').textContent).toBe('silent');
+    expect(document.documentElement.dataset.navEnter).toBe('page');
   });
 
   it('skips the view transition while a theme transition is running', () => {
@@ -202,9 +211,9 @@ describe('route view transitions', () => {
     await act(() => Promise.resolve());
     expect(document.documentElement.classList.contains('wishly-page-transition')).toBe(false);
 
-    // The next mount outside a transition plays the entrance again.
+    // A page mounted by an instant swap does not fade in from nothing either.
     Reflect.deleteProperty(document, 'startViewTransition');
     act(() => navigateTo('/account'));
-    expect(screen.getByTestId('entrance').textContent).toBe('enter');
+    expect(screen.getByTestId('entrance').textContent).toBe('silent');
   });
 });

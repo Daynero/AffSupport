@@ -1,17 +1,117 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useState, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
+import { dropAutoGhost } from './auto-crossfade';
+import { fetchPendingSince } from './fetch-activity';
+import { isLiteMotion, reportAnimatedTransition } from './motion-quality';
+import { motionBetween, screenOf, type MotionKind, type ScreenKind } from './motion-registry';
+import {
+  beginNavigationAttempt,
+  type NavHistory,
+  type NavMode,
+  type NavSkipReason,
+  type NavigationAttempt
+} from './navigation-analytics';
 
 const NAVIGATION_EVENT = 'wishly-navigation';
 export const BEFORE_NAVIGATION_EVENT = 'wishly-before-navigation';
 
 /**
- * While a route view transition runs, this class on <html> gives the page
- * viewport its `wishly-page` view-transition-name (styles.css). Gating by
- * class keeps route and theme motion independent.
+ * While a route view transition runs, one of these classes on <html> names
+ * the group that moves (styles.css): the page viewport for a `page` move, the
+ * space body for a `section` move. Gating by class keeps route and theme
+ * motion independent, and keeps the two route motions from naming both.
  */
 const PAGE_TRANSITION_CLASS = 'wishly-page-transition';
+const SECTION_TRANSITION_CLASS = 'wishly-section-transition';
+
+/**
+ * How long a navigation waits for the destination's code before it moves
+ * anyway (058, FR-006). Until then the current screen stays; after it, the
+ * destination's skeleton stands in. Mirrors `--delay-skeleton` in tokens.css.
+ */
+export const WAIT_BEFORE_SKELETON_MS = 300;
+
+/**
+ * A `replace` this soon after a route change is the app correcting the
+ * address it just arrived at (a redirect), not a second move: it applies
+ * instantly, inside the change already on screen (FR-013).
+ */
+const REDIRECT_WINDOW_MS = 1_000;
+
+/** Fallback entrance (no View Transitions API) lasts this long at most. */
+const FALLBACK_ENTER_CLEAR_MS = 400;
+
+/**
+ * After a navigation has already waited out the skeleton delay for code that
+ * did not arrive, the skeleton must not wait a second time: `data-nav-waited`
+ * on <html> drops its delay for this long (styles/components.css).
+ */
+const NAV_WAITED_CLEAR_MS = 1_500;
+let navWaitedTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Right after a route change the destination is often still asking for its
+ * data. A skeleton that appears then must appear at once — a delayed one
+ * leaves the transition crossfading into an empty viewport with the honeycomb
+ * showing (058, beta smoke). `data-nav-recent` on <html> marks that window.
+ */
+const NAV_RECENT_CLEAR_MS = 1_500;
+let navRecentTimer: ReturnType<typeof setTimeout> | null = null;
+
+function markNavigationRecent() {
+  const root = document.documentElement;
+  root.dataset.navRecent = 'true';
+  if (navRecentTimer) clearTimeout(navRecentTimer);
+  navRecentTimer = setTimeout(() => {
+    delete root.dataset.navRecent;
+    navRecentTimer = null;
+  }, NAV_RECENT_CLEAR_MS);
+}
+
+function markNavigationWaited() {
+  const root = document.documentElement;
+  root.dataset.navWaited = 'true';
+  if (navWaitedTimer) clearTimeout(navWaitedTimer);
+  navWaitedTimer = setTimeout(() => {
+    delete root.dataset.navWaited;
+    navWaitedTimer = null;
+  }, NAV_WAITED_CLEAR_MS);
+}
+
+/* ---------------------------------------------------------------------------
+ * Route preparers (058, FR-007). A part of the app that owns lazily loaded
+ * screens registers one; every navigation asks them what its destination
+ * needs, so a link anywhere — a tile, a menu item, a toast's action — waits
+ * for the destination's code instead of crossfading into an empty viewport.
+ * ------------------------------------------------------------------------- */
+
+export type RoutePreparer = (path: string) => Promise<unknown> | void;
+const routePreparers = new Set<RoutePreparer>();
+
+export function registerRoutePreparer(preparer: RoutePreparer): () => void {
+  routePreparers.add(preparer);
+  return () => routePreparers.delete(preparer);
+}
+
+function prepareRoute(path: string): Promise<unknown> | void {
+  const pending: Promise<unknown>[] = [];
+  routePreparers.forEach(preparer => {
+    try {
+      const result = preparer(path);
+      if (result) pending.push(result);
+    } catch {
+      // A preparer that throws prepares nothing; the screen's own Suspense copes.
+    }
+  });
+  return pending.length > 0 ? Promise.all(pending) : undefined;
+}
 
 let routeTransitionActive = false;
+let activeTransition: ViewTransition | null = null;
+let transitionSeq = 0;
+let navigationSeq = 0;
+let lastCommitAt = Number.NEGATIVE_INFINITY;
+let fallbackEnterTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** True while a route change is being applied inside a view transition. */
 export function isRouteTransitionActive() {
@@ -26,50 +126,466 @@ export function prefersReducedMotion(): boolean {
   );
 }
 
+function now(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+/* ---------------------------------------------------------------------------
+ * Scroll memory (058, FR-017). The browser's own restoration cannot know when
+ * the next page has rendered, so it is switched off and done here: every
+ * history entry carries a key, positions are remembered per key, a new page
+ * opens at the top and Back returns to where the person was. The scroll is
+ * applied in a layout effect right after the new route commits — before the
+ * frame is painted and before a view transition takes its snapshot.
+ * ------------------------------------------------------------------------- */
+
+const ENTRY_KEY_FIELD = 'wishlyEntry';
+const scrollPositions = new Map<string, number>();
+let entryCounter = 0;
+
+function newEntryKey(): string {
+  entryCounter += 1;
+  return `${Date.now().toString(36)}-${entryCounter}`;
+}
+
+function stateKey(state: unknown): string | null {
+  if (state && typeof state === 'object' && ENTRY_KEY_FIELD in state) {
+    const value = (state as Record<string, unknown>)[ENTRY_KEY_FIELD];
+    return typeof value === 'string' ? value : null;
+  }
+  return null;
+}
+
+/** The current entry's key, minted on first use for entries made elsewhere. */
+function currentEntryKey(): string {
+  const existing = stateKey(history.state);
+  if (existing) return existing;
+  const key = newEntryKey();
+  const base =
+    history.state && typeof history.state === 'object'
+      ? (history.state as Record<string, unknown>)
+      : {};
+  try {
+    history.replaceState({ ...base, [ENTRY_KEY_FIELD]: key }, '');
+  } catch {
+    // A state that cannot be cloned keeps no scroll memory; nothing else breaks.
+  }
+  return key;
+}
+
+function rememberScroll() {
+  if (typeof window === 'undefined') return;
+  scrollPositions.set(currentEntryKey(), window.scrollY);
+}
+
+/** What the next committed route should do with scroll and focus. */
+let pendingArrival: { motion: Exclude<MotionKind, 'none'>; scrollTop: number } | null = null;
+
+function settleArrival() {
+  const arrival = pendingArrival;
+  pendingArrival = null;
+  if (!arrival) return;
+  if (window.scrollY !== arrival.scrollTop) {
+    try {
+      window.scrollTo({ top: arrival.scrollTop, left: 0, behavior: 'instant' as ScrollBehavior });
+    } catch {
+      // Very old engines: scrolling is best effort.
+    }
+  }
+  settleFocus(arrival.motion);
+}
+
 /**
- * Applies a route state change, wrapped in a View Transition (a short
- * crossfade of the `wishly-page` group) when the browser supports it.
- *
- * Falls back to a plain synchronous swap when the API is missing, motion is
- * reduced, a theme transition is mid-flight (both would fight over the same
- * snapshots), or another route transition is already running.
- *
- * Lazy chunks: every in-app page (home, tools, account, admin) lives inside
- * the one lazily loaded ProtectedSoty chunk, so in-app route swaps are
- * synchronous and the transition never captures an empty fallback. The only
- * lazy boundary crossed by navigation is the rarely visited legal chunk; if
- * it suspends, the transition crossfades to a loading screen painted on the
- * legal surface itself, so the global honeycomb cannot flash through before
- * the page then renders.
+ * Focus follows the person into the new screen only when it has nowhere else
+ * to be (FR-024): the element that held it was removed or hidden with the old
+ * screen. A tab, a menu item or a search field that is still on screen keeps
+ * it — moving focus away from a tab would break the keyboard's tab strip.
  */
-function commitRouteChange(apply: () => void) {
-  const root = typeof document !== 'undefined' ? document.documentElement : null;
+function settleFocus(motion: Exclude<MotionKind, 'none'>) {
+  const active = document.activeElement as HTMLElement | null;
+  const lost =
+    !active ||
+    active === document.body ||
+    !active.isConnected ||
+    active.closest('[hidden]') !== null;
+  if (!lost) return;
+  const target =
+    (motion === 'section' ? document.querySelector('.team-space-shell-body') : null) ??
+    document.querySelector('.page-viewport > main') ??
+    document.querySelector('.page-viewport');
+  if (!(target instanceof HTMLElement)) return;
+  if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+  target.focus({ preventScroll: true });
+}
+
+/* ---------------------------------------------------------------------------
+ * Committing a route change.
+ * ------------------------------------------------------------------------- */
+
+function instantMode(
+  motion: Exclude<MotionKind, 'none'>
+): { mode: NavMode; reason: NavSkipReason } | null {
+  const root = document.documentElement;
+  if (prefersReducedMotion()) return { mode: 'instant_reduced', reason: 'none' };
+  if (document.visibilityState === 'hidden') return { mode: 'instant_hidden', reason: 'none' };
+  if (!('startViewTransition' in document))
+    return { mode: 'fallback_enter', reason: 'unsupported' };
+  // Both would fight over the same snapshots; the theme fade is already moving
+  // the whole screen.
+  if (root.classList.contains('is-theming')) return { mode: 'skipped', reason: 'theme_active' };
+  if (motion === 'page' && isLiteMotion()) return { mode: 'instant_lite', reason: 'none' };
+  return null;
+}
+
+/**
+ * Without the View Transitions API the new content still arrives softly: a
+ * short fade on what was just mounted (`data-nav-enter`, styles.css). The old
+ * content is already gone, but the new one fills the same place on the next
+ * frame, so there is no empty screen to see.
+ */
+function markFallbackEnter(motion: Exclude<MotionKind, 'none'>) {
+  const root = document.documentElement;
+  root.dataset.navEnter = motion;
+  if (fallbackEnterTimer) clearTimeout(fallbackEnterTimer);
+  fallbackEnterTimer = setTimeout(() => {
+    delete root.dataset.navEnter;
+    fallbackEnterTimer = null;
+  }, FALLBACK_ENTER_CLEAR_MS);
+}
+
+/**
+ * How long a transition may hold the old screen while the new one finishes
+ * loading what it shows at once (a lazy section, an access check, the first
+ * page of a list). Long enough for a warm load, short enough not to feel stuck.
+ */
+export const SETTLE_BEFORE_REVEAL_MS = 350;
+const SETTLE_POLL_MS = 16;
+/** After data lands in state, how long its render is given before the screen is shown. */
+const COMMIT_AFTER_DATA_MS = 24;
+const LOADING_SELECTOR = '.ui-route-skeleton, .ui-skeleton, [aria-busy="true"]';
+
+function isLoading(scope: ParentNode): boolean {
+  for (const node of scope.querySelectorAll<HTMLElement>(LOADING_SELECTOR)) {
+    if (node.closest('[hidden], [inert], .is-closing')) continue;
+    if (node.getClientRects().length > 0) return true;
+  }
+  return false;
+}
+
+/**
+ * Resolves when the arrived screen shows content rather than placeholders, or
+ * after `SETTLE_BEFORE_REVEAL_MS`. While a view transition's update is
+ * pending the browser keeps the old screen on display, so the new one is
+ * revealed once, already filled — instead of a route skeleton, then a data
+ * skeleton, then the content, each in its own shape (058, beta feedback).
+ * Rendering is paused meanwhile, so this polls on timers, not frames.
+ */
+function screenSettled(
+  motion: Exclude<MotionKind, 'none'>,
+  id: number,
+  sameScreen: boolean
+): Promise<void> {
+  const scope =
+    (motion === 'section' ? document.querySelector('.team-space-shell-body') : null) ??
+    document.querySelector('.page-viewport') ??
+    document.body;
+  // Another screen that is already filled is shown now: every tick spent here is a frame the
+  // press goes unanswered. Within one screen the first look waits a tick — state a component
+  // derives from the new route in an effect (a folder, a selection) renders right after the
+  // commit, not inside it.
+  if (!sameScreen && !isLoading(scope)) return Promise.resolve();
+  return new Promise(resolve => {
+    const startedAt = now();
+    const check = () => {
+      if (
+        id !== transitionSeq ||
+        !isLoading(scope) ||
+        now() - startedAt >= SETTLE_BEFORE_REVEAL_MS
+      ) {
+        resolve();
+        return;
+      }
+      setTimeout(check, SETTLE_POLL_MS);
+    };
+    setTimeout(check, SETTLE_POLL_MS);
+  });
+}
+
+/**
+ * Applies a route state change, wrapped in a View Transition when the browser
+ * supports it and nothing argues against motion.
+ *
+ * - `page`: the page viewport crossfades (complementary opacity, so where both
+ *   screens are opaque nothing behind them shows through), and the topbar's
+ *   two clusters glide to their new places when the shell width changes.
+ * - `section`: only the space body crossfades; the space header and tabs stay.
+ * - A newer navigation skips the running transition and starts its own: only
+ *   the last destination ever plays (FR-012).
+ */
+function commitRouteChange(
+  apply: () => void,
+  motion: MotionKind,
+  scrollTop: number,
+  attempt: NavigationAttempt | null,
+  history: NavHistory = 'push'
+) {
+  const from = committedRoute ?? currentRoute();
+  const to = currentRoute();
+  lastCommitAt = now();
+  if (motion === 'none' || typeof document === 'undefined') {
+    apply();
+    return;
+  }
+  pendingArrival = { motion, scrollTop };
+  markNavigationRecent();
+  const instant = instantMode(motion);
+  if (instant) {
+    activeTransition?.skipTransition();
+    attempt?.committed(instant.mode, instant.reason);
+    apply();
+    if (instant.mode === 'fallback_enter') markFallbackEnter(motion);
+    return;
+  }
+
+  const root = document.documentElement;
+  const id = ++transitionSeq;
+  // Starting a new transition skips the running one; its cleanup sees a newer
+  // id and leaves this one's class alone.
+  activeTransition?.skipTransition();
+  root.classList.remove(PAGE_TRANSITION_CLASS, SECTION_TRANSITION_CLASS);
+  root.classList.add(motion === 'section' ? SECTION_TRANSITION_CLASS : PAGE_TRANSITION_CLASS);
+  root.dataset.navDir = directionOf(from, to, motion, history);
+  const hero = motion === 'page' ? heroFor(from, to) : null;
+  if (hero?.from) hero.from.style.viewTransitionName = HERO_NAME;
+  let heroTarget: HTMLElement | null = null;
+  routeTransitionActive = true;
+  attempt?.committed('animated', 'none');
+  // flushSync commits the React route state inside the transition callback, so
+  // the "new" snapshot is captured only after the next page has rendered
+  // (mirrors the synchronous applyTheme commit in theme.ts).
+  const transition = document.startViewTransition(async () => {
+    // This transition carries the change; the copy a press left (auto-crossfade) steps aside.
+    dropAutoGhost();
+    flushSync(apply);
+    if (hero) {
+      if (hero.from?.isConnected) hero.from.style.viewTransitionName = '';
+      heroTarget = hero.to();
+      if (heroTarget) heroTarget.style.viewTransitionName = HERO_NAME;
+    }
+    await screenSettled(motion, id, screenOf(from) === screenOf(to));
+  });
+  activeTransition = transition;
+  const finish = () => {
+    // The hero's name comes off whoever wore it, even when a newer transition took over:
+    // two elements under one name would cancel that one.
+    if (hero?.from) hero.from.style.viewTransitionName = '';
+    if (heroTarget) heroTarget.style.viewTransitionName = '';
+    if (id !== transitionSeq) return;
+    routeTransitionActive = false;
+    activeTransition = null;
+    root.classList.remove(PAGE_TRANSITION_CLASS, SECTION_TRANSITION_CLASS);
+    delete root.dataset.navDir;
+    reportAnimatedTransition(attempt?.animationDone() ?? 0);
+  };
+  transition.finished.then(finish, finish);
+  // `ready` and `updateCallbackDone` reject when the transition is skipped —
+  // which a newer navigation does on purpose. Nothing awaits them, so each
+  // rejection would surface as an uncaught `InvalidStateError`.
+  transition.ready.then(
+    () => {
+      attempt?.animationStarted();
+      // A cascade is for arriving somewhere; between sections it is only a wait.
+      if (motion === 'page') markStagger();
+    },
+    () => {}
+  );
+  transition.updateCallbackDone.catch(() => {});
+}
+
+/* ---------------------------------------------------------------------------
+ * Feel (058): which way a move goes, what lands as a cascade, and the card
+ * that becomes its screen. Styles are in styles.css and components.css; this
+ * only names the facts they key on.
+ * ------------------------------------------------------------------------- */
+
+export type NavDirection = 'forward' | 'back' | 'none';
+
+/** Sections in the order their tabs stand, left to right. */
+const SECTION_ORDER: readonly ScreenKind[] = [
+  'team_explorer',
+  'team_tasks',
+  'team_launches',
+  'team_accounts',
+  'team_members',
+  'team_trash'
+];
+
+/**
+ * A section to the right of the current one is `forward`, to the left `back`;
+ * the same section with another folder has no side to come from. A page that
+ * is gone into is `forward`; the browser's Back (and Forward — the history
+ * does not say which) is `back`.
+ */
+export function directionOf(
+  from: string,
+  to: string,
+  motion: Exclude<MotionKind, 'none'>,
+  history: NavHistory
+): NavDirection {
+  if (motion === 'section') {
+    const a = SECTION_ORDER.indexOf(screenOf(from));
+    const b = SECTION_ORDER.indexOf(screenOf(to));
+    if (a === -1 || b === -1 || a === b) return 'none';
+    return b > a ? 'forward' : 'back';
+  }
+  return history === 'pop' ? 'back' : 'forward';
+}
+
+const STAGGER_CLEAR_MS = 900;
+let staggerTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** The screen has just arrived: its grids may land as a cascade, once. */
+function markStagger() {
+  const root = document.documentElement;
+  root.dataset.navStagger = 'true';
+  if (staggerTimer) clearTimeout(staggerTimer);
+  staggerTimer = setTimeout(() => {
+    delete root.dataset.navStagger;
+    staggerTimer = null;
+  }, STAGGER_CLEAR_MS);
+}
+
+const HERO_NAME = 'wishly-hero';
+
+/** What a card on the launcher is the card of: a tool's path, or a space's. */
+function heroKey(route: string): string | null {
+  const pathname = route.split(/[?#]/u, 1)[0] ?? '';
+  const screen = screenOf(route);
+  if (screen === 'tool') return pathname;
+  const space = /^\/team\/[^/]+/u.exec(pathname);
+  return space ? space[0] : null;
+}
+
+function onScreen(node: HTMLElement): boolean {
+  const rect = node.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+}
+
+function pageSurface(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('.page-viewport > main');
+}
+
+function heroCard(key: string): HTMLElement | null {
+  for (const node of document.querySelectorAll<HTMLElement>('[data-morph]')) {
+    if (node.dataset.morph === key && onScreen(node)) return node;
+  }
+  return null;
+}
+
+/**
+ * The pair that morphs into each other: a tool's card on the launcher grows
+ * into the tool's page. Null for every other move, and when the card is not
+ * on screen to start from.
+ */
+function heroFor(
+  from: string,
+  to: string
+): { from: HTMLElement | null; to: () => HTMLElement | null } | null {
+  // Only into a tool, and only forwards. Folding a whole space back into its card read as
+  // the space being resized on the way out (owner, beta), and a space is too large and too
+  // late with its data to grow out of a card either.
+  if (screenOf(from) !== 'tools_home' || screenOf(to) !== 'tool') return null;
+  const key = heroKey(to);
+  const card = key ? heroCard(key) : null;
+  return card ? { from: card, to: pageSurface } : null;
+}
+
+const QUIET_MS = 40;
+
+/**
+ * Resolves when the screen has stopped changing after a change made at
+ * `since`: nothing marked as loading, no request begun since then still
+ * unanswered, and the page untouched for a few frames — or at the cap. For a
+ * list that answers a filter without saying when (most of them).
+ */
+function viewSettled(since: number): Promise<void> {
+  const scope =
+    document.querySelector('.team-space-shell-body') ??
+    document.querySelector('.page-viewport') ??
+    document.body;
+  return new Promise(resolve => {
+    let lastChange = now();
+    const observer =
+      typeof MutationObserver === 'undefined'
+        ? null
+        : new MutationObserver(() => {
+            lastChange = now();
+          });
+    observer?.observe(scope, { subtree: true, childList: true, characterData: true });
+    const check = () => {
+      const at = now();
+      const waiting = isLoading(scope) || fetchPendingSince(since);
+      if ((!waiting && at - lastChange >= QUIET_MS) || at - since >= SETTLE_BEFORE_REVEAL_MS) {
+        observer?.disconnect();
+        resolve();
+        return;
+      }
+      setTimeout(check, SETTLE_POLL_MS);
+    };
+    setTimeout(check, SETTLE_POLL_MS);
+  });
+}
+
+/**
+ * A change of layout within a screen — a side pane arriving, the grid beside
+ * it reflowing to make room, a list answering a filter — crossfaded on the
+ * section's clock instead of cut (058, beta feedback: "something changes
+ * size", "it jerks when I change a filter"). Given `settled`, the old picture
+ * is held until that promise resolves — or, for `true`, until the screen has
+ * stopped changing (`viewSettled`) — capped, so a change that waits for data
+ * is one move. Applied at once when motion is off, and never while a
+ * route transition runs: starting a transition would skip that one.
+ */
+export function crossfadeLayout(apply: () => void, settled?: Promise<unknown> | boolean) {
   if (
-    !root ||
-    !('startViewTransition' in document) ||
-    prefersReducedMotion() ||
+    typeof document === 'undefined' ||
+    activeTransition ||
     routeTransitionActive ||
-    root.classList.contains('is-theming')
+    instantMode('section')
   ) {
     apply();
     return;
   }
-  routeTransitionActive = true;
-  root.classList.add(PAGE_TRANSITION_CLASS);
+  const root = document.documentElement;
+  const id = ++transitionSeq;
+  root.classList.add(SECTION_TRANSITION_CLASS);
+  const transition = document.startViewTransition(async () => {
+    const since = now();
+    dropAutoGhost();
+    flushSync(apply);
+    if (!settled) return;
+    // The change asks for data (a filter, a period): the old picture stays until the answer
+    // is on the page, so the screen changes once — not to an in-between state and then again.
+    if (settled === true) {
+      await viewSettled(since);
+      return;
+    }
+    await Promise.race([
+      settled.then(
+        // One more turn of the task queue: the answer is in state, the commit follows it.
+        () => new Promise(resolve => setTimeout(resolve, COMMIT_AFTER_DATA_MS)),
+        () => undefined
+      ),
+      new Promise(resolve => setTimeout(resolve, SETTLE_BEFORE_REVEAL_MS))
+    ]);
+  });
+  activeTransition = transition;
   const finish = () => {
-    routeTransitionActive = false;
-    root.classList.remove(PAGE_TRANSITION_CLASS);
+    if (id !== transitionSeq) return;
+    activeTransition = null;
+    root.classList.remove(SECTION_TRANSITION_CLASS);
   };
-  // flushSync commits the React route state inside the transition callback, so
-  // the "new" snapshot is captured only after the next page has rendered
-  // (mirrors the synchronous applyTheme commit in theme.ts).
-  const transition = document.startViewTransition(() => flushSync(apply));
   transition.finished.then(finish, finish);
-  // `ready` and `updateCallbackDone` reject when the transition is skipped —
-  // which a redirect does every time, because the route changes again before
-  // the animation can start. Nothing awaits them, so each rejection surfaced in
-  // the console as an uncaught `InvalidStateError` with no stack to explain it.
-  // A skipped transition is ordinary; `finished` above still runs the cleanup.
   transition.ready.catch(() => {});
   transition.updateCallbackDone.catch(() => {});
 }
@@ -82,7 +598,12 @@ function commitRouteChange(apply: () => void) {
  * the API, connection-state branch swaps) fade-rise in via `.page-enter`.
  */
 export function usePageEntrance(): boolean {
-  const [entering] = useState(() => !routeTransitionActive);
+  // A page mounted by an instant route change (reduced or lite motion, a
+  // browser without the API) arrives as it is: fading it in from nothing put
+  // the honeycomb on screen for the first frames (058, beta smoke).
+  const [entering] = useState(
+    () => !routeTransitionActive && now() - lastCommitAt > REDIRECT_WINDOW_MS
+  );
   return entering;
 }
 
@@ -91,12 +612,10 @@ export function currentRoute() {
 }
 
 /**
- * The team workspace changes the shell width and mounts a substantial lazy
- * surface. Keeping the previous page's View Transition snapshot above it made
- * the workspace and the tools menu visibly coexist, and that snapshot could
- * also receive pointer input while the real destination was already mounted.
- * Crossing this boundary is therefore a direct swap. Transitions within the
- * tools area and within a workspace still use the normal page motion.
+ * Whether two routes sit on either side of the team workspace boundary. The
+ * boundary used to be crossed with a direct swap because the old page's
+ * snapshot stayed opaque above the workspace; with the complementary
+ * crossfade (058, R1/R2) it moves like any other page change.
  */
 export function crossesTeamBoundary(from: string, to: string): boolean {
   const isTeamRoute = (route: string) => {
@@ -106,18 +625,116 @@ export function crossesTeamBoundary(from: string, to: string): boolean {
   return isTeamRoute(from) !== isTeamRoute(to);
 }
 
+export interface NavigateOptions {
+  /** Replace the current history entry instead of adding one. */
+  replace?: boolean;
+  /**
+   * How the screen moves. Left out, it is read from the two routes
+   * (`motionBetween`): another area is `page`, another section of the same
+   * space is `section`, the same screen with a different query is `none`.
+   */
+  motion?: MotionKind;
+  /**
+   * Loads what the destination needs before the route changes — its code
+   * chunk, usually. The current screen stays until it resolves or
+   * `WAIT_BEFORE_SKELETON_MS` passes, whichever is first. Return nothing when
+   * it is already loaded: the navigation then happens synchronously.
+   */
+  prepare?: () => Promise<unknown> | void;
+}
+
+interface NavigationDetail {
+  motion: MotionKind;
+  history: NavHistory;
+  attempt: NavigationAttempt | null;
+  /** Kept for listeners written before `motion`. */
+  animate: boolean;
+}
+
 /**
- * `animate: false` swaps the route with no page crossfade — for adjustments
- * within a screen (a folder, a view toggle, a selection written to the URL),
- * where the View Transition of the whole page read as a flicker on every
- * click. A section change keeps the default crossfade.
+ * Moves to `path`.
+ *
+ * The older positional form still works: `navigateTo(path, replace, animate)`,
+ * where `animate: false` means `motion: 'none'` — for adjustments within a
+ * screen (a folder, a view toggle, a selection written to the URL).
  */
-export function navigateTo(path: string, replace = false, animate = true) {
-  if (path === currentRoute()) return;
-  if (!navigationAllowed(path, replace, animate)) return;
-  if (replace) history.replaceState(null, '', path);
-  else history.pushState(null, '', path);
-  window.dispatchEvent(new CustomEvent(NAVIGATION_EVENT, { detail: { animate } }));
+export function navigateTo(
+  path: string,
+  replaceOrOptions: boolean | NavigateOptions = false,
+  animate = true
+) {
+  const options: NavigateOptions =
+    typeof replaceOrOptions === 'object'
+      ? replaceOrOptions
+      : { replace: replaceOrOptions, ...(animate ? {} : { motion: 'none' as const }) };
+  const from = currentRoute();
+  if (path === from) return;
+  const replace = options.replace ?? false;
+  // A replace right after a navigation is a redirect finishing it, not a move of its own —
+  // unless the caller said how it moves (a folder opened soon after arriving).
+  const redirect =
+    replace &&
+    options.motion === undefined &&
+    (routeTransitionActive || now() - lastCommitAt < REDIRECT_WINDOW_MS);
+  const motion: MotionKind = redirect ? 'none' : (options.motion ?? motionBetween(from, path));
+  const historyKind: NavHistory = replace ? 'replace' : 'push';
+  const start =
+    motion === 'none'
+      ? null
+      : { from: screenOf(from), to: screenOf(path), motion, history: historyKind };
+
+  if (!navigationAllowed(path, replace, motion !== 'none')) {
+    if (start) beginNavigationAttempt(start, { standalone: true }).finish('cancelled');
+    return;
+  }
+
+  const seq = ++navigationSeq;
+  const attempt = start ? beginNavigationAttempt(start) : null;
+  const go = () => {
+    // A newer navigation was asked for while this one waited; it owns the
+    // screen now, and this one never happens.
+    if (seq !== navigationSeq) return;
+    attempt?.prepared();
+    rememberScroll();
+    const state = { [ENTRY_KEY_FIELD]: newEntryKey() };
+    if (replace) history.replaceState(state, '', path);
+    else history.pushState(state, '', path);
+    const detail: NavigationDetail = {
+      motion,
+      history: historyKind,
+      attempt,
+      animate: motion !== 'none'
+    };
+    window.dispatchEvent(new CustomEvent(NAVIGATION_EVENT, { detail }));
+  };
+
+  let pending: Promise<unknown> | void;
+  try {
+    // A change within the screen needs no new code; only a move to another
+    // screen asks the preparers.
+    pending = options.prepare
+      ? options.prepare()
+      : motion === 'none'
+        ? undefined
+        : prepareRoute(path);
+  } catch {
+    pending = undefined;
+  }
+  if (!pending) {
+    go();
+    return;
+  }
+  const settled = pending.then(
+    () => true,
+    () => true
+  );
+  const timeout = new Promise<boolean>(resolve =>
+    setTimeout(() => resolve(false), WAIT_BEFORE_SKELETON_MS)
+  );
+  void Promise.race([settled, timeout]).then(arrived => {
+    if (!arrived && seq === navigationSeq) markNavigationWaited();
+    go();
+  });
 }
 
 function navigationAllowed(path: string, replace: boolean, animate: boolean): boolean {
@@ -129,46 +746,133 @@ function navigationAllowed(path: string, replace: boolean, animate: boolean): bo
   );
 }
 
+let scrollTrackingInstalled = false;
+
+function installScrollTracking() {
+  if (scrollTrackingInstalled || typeof window === 'undefined') return;
+  scrollTrackingInstalled = true;
+  try {
+    history.scrollRestoration = 'manual';
+  } catch {
+    // Not settable in some embedded views; the browser then restores alone.
+  }
+  currentEntryKey();
+  let queued = false;
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        scrollPositions.set(currentEntryKey(), window.scrollY);
+      });
+    },
+    { passive: true }
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * One router for every listener.
+ *
+ * Several components read the route (the shell, the team space, the menus).
+ * They used to subscribe to navigation each on its own, and each committed the
+ * change itself — so one click started as many view transitions as there were
+ * listeners, every one skipping the one before it, and the screen jumped
+ * instead of crossfading (058, beta feedback). Now the window listeners are
+ * installed once, a navigation is committed once, and every listener's state
+ * is set inside that one commit.
+ * ------------------------------------------------------------------------- */
+
+const routeListeners = new Set<(route: string) => void>();
+let committedRoute: string | null = null;
+
+function applyRouteToListeners() {
+  const next = currentRoute();
+  committedRoute = next;
+  routeListeners.forEach(listener => listener(next));
+}
+
+function onNavigationEvent(event: Event) {
+  const detail = (event as CustomEvent<Partial<NavigationDetail>>).detail ?? {};
+  const motion: MotionKind = detail.motion ?? (detail.animate === false ? 'none' : 'page');
+  commitRouteChange(
+    applyRouteToListeners,
+    motion,
+    0,
+    detail.attempt ?? null,
+    detail.history ?? 'push'
+  );
+}
+
+function onPopStateEvent() {
+  const next = currentRoute();
+  const from = committedRoute ?? next;
+  if (next === from) return;
+  if (!navigationAllowed(next, false, true)) {
+    // popstate arrives after the URL moves. Restore the visible route without
+    // applying it, so a dirty editor remains mounted after a canceled Back.
+    history.pushState({ [ENTRY_KEY_FIELD]: newEntryKey() }, '', from);
+    return;
+  }
+  // A navigation still waiting for its chunk loses to Back.
+  navigationSeq += 1;
+  const motion = motionBetween(from, next);
+  const attempt =
+    motion === 'none'
+      ? null
+      : beginNavigationAttempt({
+          from: screenOf(from),
+          to: screenOf(next),
+          motion,
+          history: 'pop'
+        });
+  attempt?.prepared();
+  const scrollTop = scrollPositions.get(currentEntryKey()) ?? 0;
+  commitRouteChange(applyRouteToListeners, motion, scrollTop, attempt, 'pop');
+}
+
+function subscribeRoute(listener: (route: string) => void): () => void {
+  if (routeListeners.size === 0) {
+    committedRoute = currentRoute();
+    window.addEventListener('popstate', onPopStateEvent);
+    window.addEventListener(NAVIGATION_EVENT, onNavigationEvent);
+  }
+  routeListeners.add(listener);
+  return () => {
+    routeListeners.delete(listener);
+    if (routeListeners.size > 0) return;
+    window.removeEventListener('popstate', onPopStateEvent);
+    window.removeEventListener(NAVIGATION_EVENT, onNavigationEvent);
+    committedRoute = null;
+  };
+}
+
 export function useBrowserRoute() {
   const [route, setRoute] = useState(currentRoute);
-  const routeRef = useRef(route);
+
+  // Runs after the new route's DOM is committed and before it is painted (and,
+  // inside a view transition, before the new snapshot is taken). Only the
+  // first listener to run finds the arrival; the rest see it settled.
+  useLayoutEffect(() => {
+    settleArrival();
+  }, [route]);
+
   useEffect(() => {
-    const apply = () => {
-      const next = currentRoute();
-      routeRef.current = next;
-      setRoute(next);
-    };
-    const applyNavigation = (animate: boolean) => {
-      const next = currentRoute();
-      if (animate && !crossesTeamBoundary(routeRef.current, next)) commitRouteChange(apply);
-      else apply();
-    };
-    const onNavigation = (event: Event) => {
-      const animate = (event as CustomEvent<{ animate?: boolean }>).detail?.animate !== false;
-      applyNavigation(animate);
-    };
-    const onPopState = () => {
-      const next = currentRoute();
-      if (next === routeRef.current) return;
-      if (!navigationAllowed(next, false, true)) {
-        // popstate arrives after the URL moves. Restore the visible route without
-        // applying it, so a dirty editor remains mounted after a canceled Back.
-        history.pushState(null, '', routeRef.current);
-        return;
-      }
-      applyNavigation(true);
-    };
-    window.addEventListener('popstate', onPopState);
-    window.addEventListener(NAVIGATION_EVENT, onNavigation);
-    return () => {
-      window.removeEventListener('popstate', onPopState);
-      window.removeEventListener(NAVIGATION_EVENT, onNavigation);
-    };
+    installScrollTracking();
+    const unsubscribe = subscribeRoute(setRoute);
+    // A navigation committed between this component's render and now.
+    setRoute(currentRoute());
+    return unsubscribe;
   }, []);
   return route;
 }
 
-export function internalLink(event: MouseEvent<HTMLAnchorElement>, path: string, animate = true) {
+export function internalLink(
+  event: MouseEvent<HTMLAnchorElement>,
+  path: string,
+  animateOrOptions: boolean | Omit<NavigateOptions, 'replace'> = true
+) {
   if (
     event.defaultPrevented ||
     event.button !== 0 ||
@@ -179,5 +883,44 @@ export function internalLink(event: MouseEvent<HTMLAnchorElement>, path: string,
   )
     return;
   event.preventDefault();
-  navigateTo(path, false, animate);
+  if (typeof animateOrOptions === 'object') navigateTo(path, animateOrOptions);
+  else navigateTo(path, false, animateOrOptions);
 }
+
+/** Tests only. */
+export function resetNavigationForTests() {
+  routeTransitionActive = false;
+  activeTransition = null;
+  transitionSeq = 0;
+  navigationSeq = 0;
+  lastCommitAt = Number.NEGATIVE_INFINITY;
+  pendingArrival = null;
+  scrollPositions.clear();
+  if (fallbackEnterTimer) clearTimeout(fallbackEnterTimer);
+  fallbackEnterTimer = null;
+  if (navWaitedTimer) clearTimeout(navWaitedTimer);
+  navWaitedTimer = null;
+  if (navRecentTimer) clearTimeout(navRecentTimer);
+  navRecentTimer = null;
+  if (staggerTimer) clearTimeout(staggerTimer);
+  staggerTimer = null;
+  routePreparers.clear();
+  if (typeof document !== 'undefined') {
+    delete document.documentElement.dataset.navEnter;
+    delete document.documentElement.dataset.navWaited;
+    delete document.documentElement.dataset.navRecent;
+    delete document.documentElement.dataset.navStagger;
+    delete document.documentElement.dataset.navDir;
+  }
+}
+
+declare global {
+  interface Window {
+    /** Dev and beta only: lets the frame-by-frame smoke test drive the router (058). */
+    __sotyNavigate?: typeof navigateTo;
+  }
+}
+
+// The beta also runs as a production build, so motion is judged at production speed (058).
+if ((import.meta.env.DEV || import.meta.env.MODE === 'beta') && typeof window !== 'undefined')
+  window.__sotyNavigate = navigateTo;

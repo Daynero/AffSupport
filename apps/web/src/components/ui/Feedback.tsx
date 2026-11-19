@@ -18,6 +18,8 @@ import {
   type SyntheticEvent
 } from 'react';
 import { uiClasses, type UiColor, type UiSize } from './types';
+import { skeletonVisible } from '../../lib/navigation-analytics';
+import type { RouteSkeletonVariant } from '../../lib/motion-registry';
 
 /**
  * Feedback (021, T021, T024).
@@ -94,6 +96,129 @@ export function Skeleton({ shape = 'text', count = 1, label, className, ...props
       {Array.from({ length: count }, (_, index) => (
         <span key={index} className={`ui-skeleton ui-skeleton--${shape}`} aria-hidden="true" />
       ))}
+    </div>
+  );
+}
+
+/** Longer than the fade and the cascade it starts: twelve steps and the last item's rise. */
+export const REVEAL_ARRIVAL_MS = 800;
+
+export interface RevealProps {
+  /** The content is still loading what it shows first. */
+  busy: boolean;
+  /** What stands in meanwhile — a skeleton in the content's own shape. */
+  placeholder: ReactNode;
+  children: ReactNode;
+  /** Classes for the content's box (it replaces the parent's flow for its children). */
+  className?: string;
+}
+
+/**
+ * Loading → content, in one piece and without a cut (058, beta feedback).
+ *
+ * While `busy`, the placeholder is shown and the content is mounted but
+ * hidden, so everything inside it — lists, lazy parts, their own reads — can
+ * load at once instead of popping in one after another. When it is ready it
+ * replaces the placeholder whole. If the placeholder was actually on screen
+ * the content fades in over it; if it was ready before anything was painted
+ * (a transition held the old screen meanwhile) it simply is there.
+ *
+ * The box is `aria-busy` while loading, which is also what a route
+ * transition waits for before it reveals the new screen.
+ */
+export function Reveal({ busy, placeholder, children, className }: RevealProps) {
+  const [placeholderPainted, setPlaceholderPainted] = useState(false);
+  useEffect(() => {
+    if (!busy || typeof requestAnimationFrame !== 'function') return;
+    // Frames do not run while a transition holds the old screen, so content
+    // that is ready by then never had a placeholder to fade over.
+    const frame = requestAnimationFrame(() => setPlaceholderPainted(true));
+    return () => cancelAnimationFrame(frame);
+  }, [busy]);
+  const arriving = !busy && placeholderPainted;
+  // The arrival lasts as long as the cascade inside it (components.css), then the box is
+  // ordinary again.
+  useEffect(() => {
+    if (!arriving) return;
+    const timer = setTimeout(() => setPlaceholderPainted(false), REVEAL_ARRIVAL_MS);
+    return () => clearTimeout(timer);
+  }, [arriving]);
+  return (
+    <>
+      {busy && placeholder}
+      <div
+        className={uiClasses('reveal', { className, states: { arriving } })}
+        hidden={busy}
+        aria-busy={busy || undefined}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
+export interface RouteSkeletonProps {
+  /** The shape of the screen that is coming (lib/motion-registry.ts). */
+  variant: RouteSkeletonVariant;
+  /** What is loading, for a reader who cannot see the shimmer. */
+  label?: string;
+  className?: string;
+}
+
+const ROUTE_SKELETON_ROWS = 6;
+const ROUTE_SKELETON_TILES = 8;
+const ROUTE_SKELETON_COLUMNS = 3;
+
+/**
+ * The stand-in for a screen whose code is still on its way (058, FR-006).
+ *
+ * It has the screen's outline — a heading, a toolbar, rows or tiles or
+ * columns — so that when the screen lands nothing around it moves. It does
+ * not appear at once: a navigation keeps the current screen for
+ * `--delay-skeleton` first, and the skeleton itself then fades in slowly, so
+ * one replaced a moment after it appeared is barely there rather than a
+ * flash (FR-008). It also tells navigation analytics how long it stood.
+ */
+export function RouteSkeleton({ variant, label, className }: RouteSkeletonProps) {
+  useEffect(() => skeletonVisible(), []);
+  const bar = (shape: SkeletonProps['shape'], key?: number) => (
+    <span key={key} className={`ui-skeleton ui-skeleton--${shape}`} aria-hidden="true" />
+  );
+  const repeat = (count: number, shape: SkeletonProps['shape']) =>
+    Array.from({ length: count }, (_, index) => bar(shape, index));
+  return (
+    <div
+      className={uiClasses('route-skeleton', { variant: undefined, className })}
+      data-variant={variant}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      {label && <span className="visually-hidden">{label}</span>}
+      {(variant === 'tool' ||
+        variant === 'settings' ||
+        variant === 'lobby' ||
+        variant === 'workspace') && <div className="ui-route-skeleton-head">{bar('text')}</div>}
+      {variant === 'workspace' && <div className="ui-route-skeleton-toolbar">{bar('row')}</div>}
+      {(variant === 'list' || variant === 'tiles' || variant === 'board') && (
+        <div className="ui-route-skeleton-toolbar">{bar('row')}</div>
+      )}
+      {variant === 'tool' && <div className="ui-route-skeleton-body">{repeat(2, 'block')}</div>}
+      {(variant === 'settings' || variant === 'list') && (
+        <div className="ui-route-skeleton-body">{repeat(ROUTE_SKELETON_ROWS, 'row')}</div>
+      )}
+      {(variant === 'lobby' || variant === 'tiles' || variant === 'workspace') && (
+        <div className="ui-route-skeleton-grid">{repeat(ROUTE_SKELETON_TILES, 'tile')}</div>
+      )}
+      {variant === 'board' && (
+        <div className="ui-route-skeleton-columns">
+          {Array.from({ length: ROUTE_SKELETON_COLUMNS }, (_, column) => (
+            <div key={column} className="ui-route-skeleton-body">
+              {repeat(3, 'block')}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -307,47 +432,56 @@ export function Tooltip({
  * in half-painted. A cached one fades too: it still replaces a holder that was
  * on screen a moment ago, and a snap there is the flicker this exists to stop.
  */
-export const FadeImage = forwardRef<HTMLImageElement, ImgHTMLAttributes<HTMLImageElement>>(
-  function FadeImage({ className, onLoad, src, ...props }, forwarded) {
-    /** The address that has decoded; a new address fades in again. */
-    const [loadedFor, setLoadedFor] = useState<string | undefined>(undefined);
+export const FadeImage = forwardRef<
+  HTMLImageElement,
+  ImgHTMLAttributes<HTMLImageElement> & {
     /**
-     * The address the holder has been painted for. A cached picture decodes before the first
-     * frame, and a style that is already final when first computed has nothing to fade from —
-     * so it waits for one painted frame at the holder.
+     * Shown the moment it has decoded, with no fade of its own: for a picture that replaces
+     * another under a crossfade that is already carrying the change (058). Two fades at once
+     * let the holder show through between them.
      */
-    const [paintedFor, setPaintedFor] = useState<string | undefined>(undefined);
-    useEffect(() => {
-      let second = 0;
-      const first = requestAnimationFrame(() => {
-        second = requestAnimationFrame(() => setPaintedFor(src));
-      });
-      return () => {
-        cancelAnimationFrame(first);
-        cancelAnimationFrame(second);
-      };
-    }, [src]);
-    const ref = useCallback(
-      (element: HTMLImageElement | null) => {
-        if (element?.complete && element.naturalWidth > 0) setLoadedFor(src);
-        if (typeof forwarded === 'function') forwarded(element);
-        else if (forwarded) forwarded.current = element;
-      },
-      [forwarded, src]
-    );
-    const loaded = src !== undefined && loadedFor === src && paintedFor === src;
-    return (
-      <img
-        {...props}
-        ref={ref}
-        src={src}
-        className={['ui-fade-image', className].filter(Boolean).join(' ')}
-        data-loaded={loaded || undefined}
-        onLoad={(event: SyntheticEvent<HTMLImageElement>) => {
-          setLoadedFor(src);
-          onLoad?.(event);
-        }}
-      />
-    );
+    immediate?: boolean;
   }
-);
+>(function FadeImage({ className, onLoad, src, immediate, ...props }, forwarded) {
+  /** The address that has decoded; a new address fades in again. */
+  const [loadedFor, setLoadedFor] = useState<string | undefined>(undefined);
+  /**
+   * The address the holder has been painted for. A cached picture decodes before the first
+   * frame, and a style that is already final when first computed has nothing to fade from —
+   * so it waits for one painted frame at the holder.
+   */
+  const [paintedFor, setPaintedFor] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setPaintedFor(src));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [src]);
+  const ref = useCallback(
+    (element: HTMLImageElement | null) => {
+      if (element?.complete && element.naturalWidth > 0) setLoadedFor(src);
+      if (typeof forwarded === 'function') forwarded(element);
+      else if (forwarded) forwarded.current = element;
+    },
+    [forwarded, src]
+  );
+  const loaded = src !== undefined && loadedFor === src && paintedFor === src;
+  return (
+    <img
+      {...props}
+      ref={ref}
+      src={src}
+      className={['ui-fade-image', className].filter(Boolean).join(' ')}
+      data-loaded={loaded || undefined}
+      data-immediate={immediate || undefined}
+      onLoad={(event: SyntheticEvent<HTMLImageElement>) => {
+        setLoadedFor(src);
+        onLoad?.(event);
+      }}
+    />
+  );
+});

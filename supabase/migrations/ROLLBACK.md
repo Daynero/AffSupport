@@ -3248,3 +3248,13 @@ Forward correction only. Copy retains the reviewed input expectation without res
 ## 20261208130000 — resumed R2 integrity
 
 Forward recovery only. Keep full-source verification and ready guards: restoring the old ready RPC would allow mixed resumed content to be published. Checkpoints and staging-cleanup obligations are private and may coexist with older readers. Before activation, drain legacy R2 claim invocations and deploy the matching worker plus additive schema as a coordinated cutover; a DB lease cannot cancel an already signed provider request. Keep copy object keys generation-unique and never reuse them. Do not use the public purge queue for ready staging cleanup. A rollback must pause new R2 copies or ship a compatible forward worker; existing public ready objects and diagnostic history remain intact. No production migration or rollout was performed during implementation.
+
+## 20261218100000 — navigation analytics guard (058)
+
+Additive only: `analytics_properties_are_safe_v2` keeps every previous key, value,
+bound and privacy filter, and admits the eleven `navigation_attempt_finished`
+keys (closed screen, motion, mode, skip-reason, final and history vocabularies;
+four bounded integers). Restoring the 20261208122000 body is safe at any time —
+the web client then loses only its navigation-smoothness events, which the guard
+rejects whole; no stored row changes. Prefer a forward migration if a client that
+emits the event is already live.

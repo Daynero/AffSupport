@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(42);
+select plan(47);
 
 -- 031: the property guard admits every key the client sends, one accepted
 -- payload per key added by 20261117100000_analytics_guard_contract.sql, then the
@@ -119,6 +119,19 @@ select ok(not public.analytics_properties_are_safe_v2('{"rejected_events":"home_
 select ok(not public.analytics_properties_are_safe_v2(
   '{"evicted_events":"e1,e2,e3,e4,e5,e6,e7,e8,e9,e10,e11"}'::jsonb),
   'an event list of eleven names is rejected');
+
+-- 058: navigation smoothness — closed vocabularies and bounded integers.
+select ok(public.analytics_properties_are_safe_v2(
+  '{"nav_from_screen":"tool","nav_to_screen":"team_tasks","nav_motion":"page","nav_mode":"animated","nav_skip_reason":"none","nav_final":"settled","nav_history":"push","prepare_ms":120,"skeleton_ms":0,"layout_shift_milli":12,"long_frame_count":0,"duration_ms":340,"browser_family":"chrome"}'::jsonb),
+  'a navigation attempt is accepted');
+select ok(not public.analytics_properties_are_safe_v2('{"nav_to_screen":"team_settings"}'::jsonb),
+  'a screen outside the registry is rejected');
+select ok(not public.analytics_properties_are_safe_v2('{"nav_final":"done"}'::jsonb),
+  'an unknown navigation final is rejected');
+select ok(not public.analytics_properties_are_safe_v2('{"layout_shift_milli":100001}'::jsonb),
+  'a layout shift above the bound is rejected');
+select ok(not public.analytics_properties_are_safe_v2('{"long_frame_count":"2"}'::jsonb),
+  'a string long-frame count is rejected');
 
 -- The allowlist itself stays closed.
 select ok(not public.analytics_properties_are_safe_v2('{"unknown_key":1}'::jsonb),

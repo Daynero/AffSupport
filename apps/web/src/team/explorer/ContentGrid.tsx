@@ -6,7 +6,7 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { EmptyState, ErrorState, Popover, FadeImage } from '../../components/ui/index';
+import { EmptyState, ErrorState, Popover, FadeImage, Reveal } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { ExternalLink, FolderOpen, Paperclip } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
@@ -23,6 +23,7 @@ import {
 import type { CreativeRanksState } from '../ranks/useCreativeRanks';
 import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
+import { knownBroken, markBroken } from './brokenPictures';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
 import { useMaterialDrag } from './materialDrag';
@@ -165,9 +166,6 @@ export function ContentGrid({
         </h2>
         {/* No "Items: N" (024, FR-096): the tree beside it already counts the folder. */}
       </div>
-      {page.loading && page.rows.length === 0 && (
-        <LabeledSkeleton label="teamMaterialsLoading" rows={4} />
-      )}
       {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
@@ -188,38 +186,51 @@ export function ContentGrid({
           action={emptyState ? undefined : emptyAction}
         />
       )}
-      <ul className="team-explorer-grid" role="list">
-        {rows.map(row => (
-          <Tile
-            key={row.id}
-            row={row}
-            session={session}
-            client={client}
-            render={renders.get(row.id) ?? null}
-            selected={selectedId === row.id}
-            checked={selectedIds.has(row.id)}
-            drag={drag.dragProps(row)}
-            dropTarget={drag.dropTarget === row.id}
-            onOpenFolder={openFolder}
-            onSelect={select}
-            onPress={press}
-            onToggle={toggleSelected}
-            onPreview={onPreview}
-            actions={actions}
-            tagging={tagging}
-            companions={companionRows?.get(row.id) ?? NO_COMPANIONS}
-            rank={
-              ranks?.known && carriesRank(row)
-                ? (ranks.ranks.get(row.id) ?? emptyRank(row.id))
-                : null
-            }
-            rankNow={ranks?.now ?? 0}
-            companionSelected={Boolean(
-              companionRows?.get(row.id)?.some(companion => companion.id === selectedId)
-            )}
+      {/* Tiles stand in for tiles (058): rows here made the grid change shape twice. */}
+      <Reveal
+        busy={page.loading && page.rows.length === 0}
+        placeholder={
+          <LabeledSkeleton
+            label="teamMaterialsLoading"
+            rows={8}
+            shape="tile"
+            className="team-explorer-grid"
           />
-        ))}
-      </ul>
+        }
+      >
+        <ul className="team-explorer-grid" role="list">
+          {rows.map(row => (
+            <Tile
+              key={row.id}
+              row={row}
+              session={session}
+              client={client}
+              render={renders.get(row.id) ?? null}
+              selected={selectedId === row.id}
+              checked={selectedIds.has(row.id)}
+              drag={drag.dragProps(row)}
+              dropTarget={drag.dropTarget === row.id}
+              onOpenFolder={openFolder}
+              onSelect={select}
+              onPress={press}
+              onToggle={toggleSelected}
+              onPreview={onPreview}
+              actions={actions}
+              tagging={tagging}
+              companions={companionRows?.get(row.id) ?? NO_COMPANIONS}
+              rank={
+                ranks?.known && carriesRank(row)
+                  ? (ranks.ranks.get(row.id) ?? emptyRank(row.id))
+                  : null
+              }
+              rankNow={ranks?.now ?? 0}
+              companionSelected={Boolean(
+                companionRows?.get(row.id)?.some(companion => companion.id === selectedId)
+              )}
+            />
+          ))}
+        </ul>
+      </Reveal>
       <MorePages
         hasMore={page.hasMore}
         loading={page.loading}
@@ -275,9 +286,15 @@ function Tile({
   companionSelected?: boolean;
 }) {
   const { t, language } = useI18n();
-  const [broken, setBroken] = useState(false);
+  const pictureKey = `${row.id}:${row.driveVersion}`;
+  const [broken, setBroken] = useState(() => knownBroken(pictureKey));
+  /** It failed while this tile was on screen: the icon arrives, rather than was there. */
+  const [fellBack, setFellBack] = useState(false);
+  useEffect(() => {
+    setBroken(knownBroken(pictureKey));
+    setFellBack(false);
+  }, [pictureKey]);
   const rankLeague = rank ? leagueOf(rank.rankCredit) : null;
-  useEffect(() => setBroken(false), [row.id, row.driveVersion]);
 
   const thumbnail =
     !broken && session && row.thumbnailReady && (row.kind === 'image' || row.kind === 'video')
@@ -338,10 +355,17 @@ function Tile({
             alt=""
             loading="lazy"
             decoding="async"
-            onError={() => setBroken(true)}
+            onError={() => {
+              markBroken(pictureKey);
+              setBroken(true);
+              setFellBack(true);
+            }}
           />
         ) : (
-          <span className="team-explorer-tile-icon" aria-hidden="true">
+          <span
+            className={`team-explorer-tile-icon${fellBack ? ' is-fallback' : ''}`}
+            aria-hidden="true"
+          >
             <KindIcon kind={row.kind} />
           </span>
         )}

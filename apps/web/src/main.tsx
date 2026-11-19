@@ -1,3 +1,5 @@
+// First, before any client captures `fetch` (lib/fetch-activity.ts).
+import './lib/install-fetch-activity';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Root from './Root';

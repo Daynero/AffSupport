@@ -1,17 +1,18 @@
 import { workspaceAnnouncementEnabled } from '../lib/feature-flags';
 import { SpaceComingSoon } from './SpaceComingSoon';
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { LockKeyhole } from 'lucide-react';
 import { useOptionalAuth } from '../auth/AuthContext';
 import { Modal } from '../components/Modal';
 import { ToastProvider, useToasts } from '../components/toast';
 import { Button } from '../components/ui';
 import { ICON_STROKE } from '../components/icons';
-import { Alert, Empty } from '../components/ui/index';
+import { Alert, Empty, RouteSkeleton } from '../components/ui/index';
 import type { TeamContextSnapshot, TeamInvitationSummary } from '../api/team';
 import { spaceTariffApi, teamApi } from '../api/team';
 import { useI18n } from '../i18n';
 import { navigateTo, useBrowserRoute, usePageEntrance } from '../lib/navigation';
+import { recoverableLazy } from '../lib/recoverable-lazy';
 import { configuredTeamDirectAddMode } from '../lib/config';
 import { readRememberedSpaceId, useTeam } from './TeamContext';
 import { readDriveAuthorization, type DriveAuthorizationTarget } from './drive/authorizationReturn';
@@ -40,9 +41,15 @@ import { TariffToastNotice } from './tariffs/TariffBanner';
 import { formatTariffDay, planName } from './tariffs/format';
 import type { TariffContactChannel } from '@video-compressor/shared';
 
-const WorkspaceShell = lazy(() =>
-  import('./workspace/WorkspaceShell').then(module => ({ default: module.WorkspaceShell }))
+const workspaceShell = recoverableLazy(() =>
+  import('./workspace/WorkspaceShell').then(module => module.WorkspaceShell)
 );
+const WorkspaceShell = workspaceShell.Component;
+
+/** Starts loading the workspace shell's code; nothing once it is in (058). */
+export function preloadWorkspaceShell(): Promise<unknown> | void {
+  return workspaceShell.preload();
+}
 
 export type TeamSpaceClient = {
   listTeams: () => Promise<TeamContextSnapshot[]>;
@@ -418,7 +425,14 @@ export function TeamSpace({
         <ToastProvider>
           <MembershipLostNotice />
           <TariffToastNotice />
-          <Suspense fallback={<section className="team-space-lobby" aria-busy="true" />}>
+          <Suspense
+            fallback={
+              <RouteSkeleton
+                variant={route.kind === 'space' ? 'workspace' : 'lobby'}
+                label={t('loading')}
+              />
+            }
+          >
             {node}
           </Suspense>
         </ToastProvider>
@@ -450,13 +464,14 @@ export function TeamSpace({
   const contactEmail = access?.showcase?.email || authEmail || '';
 
   if (workspaceAccess === 'checking') {
-    // Labeled: an unexplained dimmed screen is indistinguishable from a hang.
+    // Labeled for a reader: an unexplained dimmed screen is indistinguishable
+    // from a hang. Drawn as the lobby's outline (058): the check usually takes
+    // a moment, and a sentence that flashes for a moment reads as a flicker.
     return wrap(
-      <section className="team-space-lobby" aria-busy="true">
-        <p className="team-workspace-gate-checking" aria-live="polite">
-          {t('teamAccessChecking')}
-        </p>
-      </section>
+      <RouteSkeleton
+        variant={route.kind === 'space' ? 'workspace' : 'lobby'}
+        label={t('teamAccessChecking')}
+      />
     );
   }
 
@@ -551,11 +566,15 @@ export function TeamSpace({
   }
 
   if (entry.kind === 'checking' || entry.kind === 'redirect') {
-    // Labeled, not a bare ellipsis: the reader is told what is being waited on.
+    // Labeled for a reader: they are told what is being waited on. Drawn as
+    // the outline of what is coming (058) — a space, or the list of spaces —
+    // because this lasts a moment, and a caption that flashes for a moment is
+    // a flicker between the transition and the screen.
+    const intoSpace =
+      route.kind === 'space' ||
+      (entry.kind === 'redirect' && parseTeamRoute(entry.to)?.kind === 'space');
     return wrap(
-      <section className="team-space-lobby" aria-busy="true">
-        <p aria-live="polite">{t('teamSpaceResolving')}</p>
-      </section>
+      <RouteSkeleton variant={intoSpace ? 'workspace' : 'lobby'} label={t('teamSpaceResolving')} />
     );
   }
 
@@ -626,11 +645,9 @@ export function TeamSpace({
 
   if (entry.kind === 'space') {
     // The address resolved but TeamContext has not caught up for one render.
-    return wrap(
-      <section className="team-space-lobby" aria-busy="true">
-        <p aria-live="polite">{t('teamSpaceResolving')}</p>
-      </section>
-    );
+    // Drawn as the space's outline (058): a caption here flashed between the
+    // transition and the space.
+    return wrap(<RouteSkeleton variant="workspace" label={t('teamSpaceResolving')} />);
   }
 
   return wrap(

@@ -3,7 +3,10 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Button } from '../../components/ui/index';
 import { buildTeamRoute } from '../routes';
 import { navigateTo } from '../../lib/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { crossfadePart, leaveCopy } from '../../lib/auto-crossfade';
+import { BeforeChange } from '../../lib/before-change';
+import { knownBroken, markBroken } from './brokenPictures';
 import type {
   LandingRenderPointer,
   RenderArtifactRef,
@@ -45,6 +48,13 @@ export interface PreviewPaneClient extends ThumbnailSessionClient {
   ) => Promise<LandingRenderPointer[]>;
   landingRenderImageUrl?: (artifact: RenderArtifactRef, segment: number) => string;
 }
+
+/**
+ * What the card waits for before it is shown in place of the one before it: its picture, and
+ * the note — the two that arrive a moment after the name does.
+ */
+const CARD_NOT_READY =
+  '.team-material-detail-visual [aria-busy="true"], .team-material-note-pending';
 
 export function PreviewPane({
   row,
@@ -96,10 +106,20 @@ export function PreviewPane({
   const canEditNote = teams.find(team => team.id === teamId)?.permissions.manage_metadata === true;
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
-  const [broken, setBroken] = useState(false);
-
-  // A new row (or a new version of the same one) deserves a fresh attempt.
-  useEffect(() => setBroken(false), [row?.id, row?.driveVersion]);
+  // A new row (or a new version of the same one) deserves a fresh attempt — unless the same
+  // picture has just failed on its tile, which it would again.
+  const pictureKey = row ? `${row.id}:${row.driveVersion}` : '';
+  const [brokenKey, setBrokenKey] = useState<string | null>(null);
+  const broken = brokenKey === pictureKey || knownBroken(pictureKey);
+  /** The picture that has decoded: until then the card before this one is still the one shown. */
+  const [loadedImage, setLoadedImage] = useState<string | null>(null);
+  /**
+   * Whether the card has already shown another file. The first picture fades in over its
+   * holder; one that replaces another arrives under the crossfade of the whole card.
+   */
+  const [first] = useState(row?.id);
+  const [replaced, setReplaced] = useState(false);
+  if (row && !replaced && row.id !== first) setReplaced(true);
 
   useEffect(() => {
     setRender(null);
@@ -138,6 +158,27 @@ export function PreviewPane({
     { enabled: Boolean(row), revision: revision + madeRevision }
   );
 
+  // The card sees itself out (058). When it is taken away — the selection dropped, another
+  // folder, a search — a copy of it slides off the way it came. Done here, as the element
+  // leaves, it covers every way of losing the selection.
+  const card = useRef<HTMLElement | null>(null);
+  const leaving = useCallback((node: HTMLElement | null) => {
+    card.current = node;
+    if (!node) return;
+    return () => {
+      card.current = null;
+      leaveCopy(node, 'is-leaving');
+    };
+  }, []);
+  // Another file in a card that is already open (058): the picture went blank and came back,
+  // and the note's row dropped out and returned, so the card flinched on every press. Now the
+  // card as it was stays up until the next one has its picture, and dissolves into it — one
+  // change, of the whole card. A copy already up (arrow keys held down) is left to finish.
+  const swap = useCallback(
+    () => crossfadePart(card.current, { keep: true, waitFor: CARD_NOT_READY }),
+    []
+  );
+
   if (!row) {
     return (
       <aside className="team-explorer-pane is-empty" aria-label={t('teamExplorerPaneLabel')}>
@@ -152,7 +193,8 @@ export function PreviewPane({
   const reason = KIND_REASON[row.kind];
 
   return (
-    <aside className="team-explorer-pane" aria-label={t('teamExplorerPaneLabel')}>
+    <aside ref={leaving} className="team-explorer-pane" aria-label={t('teamExplorerPaneLabel')}>
+      <BeforeChange of={row.id} run={swap} />
       <MaterialDetail
         name={row.name}
         className="team-explorer-pane-detail"
@@ -229,7 +271,18 @@ export function PreviewPane({
         }
         preview={
           image ? (
-            <FadeImage src={image} alt="" decoding="async" onError={() => setBroken(true)} />
+            <FadeImage
+              src={image}
+              alt=""
+              decoding="async"
+              immediate={replaced}
+              aria-busy={loadedImage !== image || undefined}
+              onLoad={() => setLoadedImage(image)}
+              onError={() => {
+                markBroken(pictureKey);
+                setBrokenKey(pictureKey);
+              }}
+            />
           ) : (
             <span className="team-explorer-tile-icon" aria-hidden="true">
               <KindIcon kind={row.kind} />

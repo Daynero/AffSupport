@@ -72,7 +72,7 @@
     background-color var(--motion-fast) var(--ease-out-curve),
     border-color var(--motion-fast) var(--ease-out-curve),
     color var(--motion-fast) var(--ease-out-curve),
-    transform var(--motion-fast) var(--ease-out-curve);
+    transform var(--motion-spring) var(--ease-spring);
 }
 
 .ui-button:disabled,
@@ -85,6 +85,8 @@
    token to 1, so this rule needs no media query of its own. */
 .ui-button:active:not(:disabled) {
   transform: scale(var(--press-scale));
+  /* Down at once, back on the spring (058). */
+  transition-duration: var(--motion-press);
 }
 
 .ui-button--xs {
@@ -1620,7 +1622,10 @@
 }
 .ui-card.is-interactive {
   cursor: pointer;
-  transition: border-color var(--motion-fast) var(--ease-out-curve);
+  transition:
+    border-color var(--motion-fast) var(--ease-out-curve),
+    box-shadow var(--motion-base) var(--ease-out-curve),
+    transform var(--motion-spring) var(--ease-spring);
 }
 .ui-card.is-interactive:hover {
   border-color: var(--color-secondary-border);
@@ -2487,6 +2492,56 @@
   }
 }
 
+/* Route skeleton (058): the outline of a screen whose code is on its way. It
+   waits out --delay-skeleton invisible and then fades in over the slow step,
+   so a skeleton replaced right after it began is barely drawn. */
+/* Reveal (058): content that replaces a placeholder already on screen fades
+   in over the same place instead of cutting to it. Opacity only — the box is
+   in its final place from the first frame. */
+.ui-reveal.is-arriving {
+  animation: ui-fade-in var(--motion-base) var(--ease-fade) both;
+}
+
+.ui-route-skeleton {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  animation: ui-route-skeleton-in var(--motion-slow) var(--ease-out-curve) var(--delay-skeleton)
+    both;
+}
+.ui-route-skeleton-head {
+  width: 40%;
+  min-width: 160px;
+}
+.ui-route-skeleton-head .ui-skeleton--text {
+  height: var(--space-6);
+}
+.ui-route-skeleton-body {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.ui-route-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+.ui-route-skeleton-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+/* The navigation already kept the old screen through the delay (058). */
+:root[data-nav-waited] .ui-route-skeleton,
+:root[data-nav-recent] .ui-route-skeleton {
+  animation: ui-route-skeleton-in var(--motion-fast) var(--ease-out-curve) both;
+}
+@keyframes ui-route-skeleton-in {
+  from {
+    opacity: 0;
+  }
+}
+
 .ui-progress {
   width: 100%;
   overflow: hidden;
@@ -2565,13 +2620,18 @@
 }
 .ui-tooltip {
   z-index: var(--layer-tooltip);
-  max-width: 280px;
-  padding: var(--space-1) var(--space-2);
+  /* The same small dark label as an instant hint (058): one look for every
+     hint in the product. */
+  max-width: var(--tooltip-width);
+  padding: 3px var(--space-2);
+  border: 1px solid var(--tooltip-border);
   border-radius: var(--radius-sm);
-  background: var(--color-neutral-surface-raised);
-  color: var(--color-neutral-text);
-  box-shadow: var(--shadow-menu);
+  background: var(--tooltip-surface);
+  color: var(--tooltip-text);
+  box-shadow: var(--shadow-sm);
   font-size: var(--text-caption);
+  font-weight: 400;
+  line-height: 1.35;
   white-space: normal;
   /* HeroUI's own tooltip class breaks anywhere, which split Ukrainian words in
      half; wrap between words and only break a word that alone is too wide. */
@@ -2590,10 +2650,68 @@
   place-items: center;
   padding: var(--space-4);
   background: var(--color-overlay-backdrop);
-  animation: ui-fade-in var(--motion-base) var(--ease-out-curve);
+  animation: ui-fade-in var(--motion-base) var(--ease-soft-out);
 }
 .ui-overlay.is-nested {
   z-index: var(--layer-modal-nested);
+  /* The page is already dimmed by the dialog underneath; a second veil made
+     every nested confirmation darken the screen again (058, FR-020). */
+  background: transparent;
+}
+
+/* Leaving (058): the static copy Overlay.tsx leaves in a closed surface's
+   place plays the opening in reverse, faster, and then removes itself. */
+/* An even curve, not the entering one: on ease-out four fifths of a fade
+   happen in its first frames, and a dialog that large read as cut off rather
+   than leaving (058, frame-by-frame smoke). */
+.ui-overlay.is-closing,
+.modal-backdrop.is-closing {
+  pointer-events: none;
+  animation: ui-fade-out var(--motion-base) var(--ease-fade) both;
+}
+.ui-overlay.is-closing > .ui-modal,
+.modal-backdrop.is-closing > .modal {
+  animation: ui-surface-out var(--motion-base) var(--ease-fade) both;
+}
+.ui-popover.is-closing {
+  pointer-events: none;
+  animation: ui-surface-out var(--motion-fast) var(--ease-fade) both;
+}
+/* A list of options is the same kind of surface: it is opened all day, and it
+   arrived in a single frame. */
+.ui-select-popover[data-entering] {
+  animation: ui-fade-in var(--motion-press) var(--ease-linear);
+}
+/* A frequent one leaves as it came: opacity only, five frames. The library's
+   own menus say when they are leaving, and are waited for. */
+.ui-popover.is-frequent.is-closing,
+.ui-select-popover[data-exiting],
+.ui-menu-popover[data-exiting] {
+  pointer-events: none;
+  animation: ui-fade-out var(--motion-press) var(--ease-linear) both;
+}
+@keyframes ui-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes ui-surface-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-overlay.is-closing,
+  .modal-backdrop.is-closing,
+  .ui-overlay.is-closing > .ui-modal,
+  .modal-backdrop.is-closing > .modal,
+  .ui-menu-popover[data-exiting],
+  .ui-select-popover[data-entering],
+  .ui-select-popover[data-exiting],
+  .ui-popover.is-closing {
+    animation: none;
+  }
 }
 @keyframes ui-fade-in {
   from {
@@ -2613,7 +2731,7 @@
   background: var(--color-neutral-surface-raised);
   box-shadow: var(--shadow-lg);
   /* From 0.95, never from nothing (docs/DESIGN-PRINCIPLES.md). */
-  animation: ui-surface-in var(--motion-base) var(--ease-out-curve);
+  animation: ui-surface-in var(--motion-base) var(--ease-soft-out);
 }
 .ui-modal--xs {
   --ui-modal-width: 380px;
@@ -2692,7 +2810,7 @@
   background: var(--color-neutral-surface-raised);
   box-shadow: var(--shadow-menu);
   transform-origin: top left;
-  animation: ui-surface-in var(--motion-fast) var(--ease-out-curve);
+  animation: ui-surface-in var(--motion-fast) var(--ease-soft-out);
   overflow: auto;
   overscroll-behavior: contain;
   grid-auto-rows: max-content;
@@ -2708,9 +2826,11 @@
   bottom: 100%;
   transform-origin: bottom left;
 }
-/* Opened dozens of times an hour: no animation at all. */
+/* Opened dozens of times an hour: nothing to wait for — no travel, no scale —
+   but not a hard cut either (058): five frames of opacity, over before the
+   pointer has reached the first item. */
 .ui-popover.is-frequent {
-  animation: none;
+  animation: ui-fade-in var(--motion-press) var(--ease-linear);
 }
 
 /* React Aria owns the menu's coordinates and available height. Scroll the
@@ -2842,12 +2962,14 @@
    Navigation
    ============================================================ */
 .ui-tabs {
+  position: relative;
   display: flex;
   gap: var(--space-2);
   overflow-x: auto;
   scrollbar-width: thin;
 }
 .ui-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -2857,6 +2979,47 @@
   color: var(--color-neutral-text-muted);
   font-weight: var(--weight-emphasis);
   cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--ease-out-curve),
+    transform var(--motion-spring) var(--ease-spring);
+}
+.ui-tab:active:not(:disabled) {
+  transform: scale(var(--press-scale));
+  transition-duration: var(--motion-press);
+}
+/* The mark of the chosen tab is one object that travels to the next tab
+   instead of going out here and coming on there (058). It is a layer as wide
+   as the strip, cut down to the chosen tab with `clip-path` — which animates
+   without moving anything in the layout and keeps a pill's corners round the
+   whole way. Drawn only once the strip has been measured; until then, and
+   wherever nothing can be measured, the tab keeps its own mark. */
+.ui-tabs-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--tabs-width, 100%);
+  height: 100%;
+  pointer-events: none;
+  clip-path: inset(0 var(--tab-right, 100%) 0 var(--tab-left, 0) round var(--tab-round, 0));
+}
+.ui-tabs.is-measured .ui-tabs-indicator {
+  transition: clip-path var(--motion-spring) var(--ease-spring);
+}
+.ui-tabs--underline .ui-tabs-indicator {
+  top: auto;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-secondary-solid);
+}
+.ui-tabs--pill .ui-tabs-indicator {
+  --tab-round: var(--radius-full);
+  background: var(--color-secondary-soft);
+}
+.ui-tabs.has-indicator.ui-tabs--underline .ui-tab.is-selected {
+  border-bottom-color: transparent;
+}
+.ui-tabs.has-indicator.ui-tabs--pill .ui-tab.is-selected {
+  background: none;
 }
 .ui-tabs--sm .ui-tab {
   min-height: var(--control-height-sm);
@@ -3399,6 +3562,12 @@
   color: var(--color-text-muted);
   font-size: var(--text-caption);
   line-height: var(--leading-caption);
+}
+/* The words arrive in a line that was already there. */
+@media (prefers-reduced-motion: no-preference) {
+  .catalog-publication-line:not(.is-pending) {
+    animation: ui-content-enter var(--motion-fast) var(--ease-fade);
+  }
 }
 
 /* Empty states — the shape the Empty component draws (cleared by C1–C14). */
@@ -4076,6 +4245,11 @@
 .ui-fade-image[data-loaded] {
   opacity: 1;
 }
+/* Under a crossfade that already carries the change: there the moment it decodes. */
+.ui-fade-image[data-immediate] {
+  opacity: 1;
+  transition: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .ui-fade-image {
     transition: none;
@@ -4688,6 +4862,9 @@
 }
 .launch-copy-progress {
   display: flex;
+  /* As tall as the "reset marks" button that joins it once the marks are read, so that its
+     arrival moves nothing under it. */
+  min-height: calc(var(--control-height-sm) + 2 * var(--border-width));
   min-width: 0;
   align-items: center;
   justify-content: space-between;
@@ -4804,4 +4981,177 @@
     top: var(--space-2);
     transform: none;
   }
+}
+
+/* A screen whose code did not load (058, FR-009): two ways forward, side by side. */
+.chunk-failed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+/* ============================================================
+   Feel (058)
+   What a surface does under a pointer and a finger, and how a
+   grid arrives. One place, so a new card inherits it.
+   ============================================================ */
+
+/* A press on a whole surface: it gives a little, at once, and comes back on
+   the spring. Not while the press is on a control inside it — that control
+   answers for itself. */
+.team-task-card:active:not(:has(:is(button, input, label, select, [aria-haspopup]):active)),
+.ui-card.is-interactive:active:not(:has(:is(button, input, label, select):active)) {
+  transform: scale(var(--press-scale-surface));
+  transition-duration: var(--motion-press);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* A tool or a space on the launcher lifts towards the pointer. */
+  .home .home-tile.is-interactive:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  .home .home-tile.is-interactive:active {
+    transform: scale(var(--press-scale-surface));
+  }
+
+  /* The light under the pointer (lib/pointer-glow.ts). It sits between the
+     surface and what is written on it, so words never dim. */
+  :is(.home-tile.is-interactive, .team-task-card, .team-explorer-tile, [data-glow]) {
+    isolation: isolate;
+  }
+  :is(.home-tile.is-interactive, .team-task-card, .team-explorer-tile, [data-glow])::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(
+      var(--glow-size) circle at var(--glow-x, 50%) var(--glow-y, 50%),
+      color-mix(in oklab, var(--color-secondary-solid) 18%, transparent),
+      transparent 72%
+    );
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--motion-slow) var(--ease-out-curve);
+  }
+  :is(.home-tile.is-interactive, .team-task-card, .team-explorer-tile, [data-glow]):hover::before {
+    opacity: 1;
+  }
+}
+.team-task-card {
+  position: relative;
+}
+
+/* A grid lands as a cascade (058): its first items rise in one after another,
+   a step apart, instead of the whole slab appearing at once. Only when the
+   screen has just arrived (`data-nav-stagger`, lib/navigation.ts) or its
+   content has just replaced a placeholder — never on a live update, which
+   changes rows in place — and never on a move between sections, where a full
+   board landing card by card was half a second of waiting. From the eighth
+   item on they land together. */
+:root[data-nav-stagger] :is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > *,
+.ui-reveal.is-arriving > :is(.team-task-grid, .team-explorer-grid) > *,
+.ui-reveal.is-arriving > .team-explorer-rows tbody > tr {
+  /* `backwards` only: once landed, the item is its own again — hover and press
+     move it, and a finished animation that still held `transform` would not let them. */
+  animation: ui-cascade-in var(--motion-base) var(--ease-out-curve) backwards;
+  animation-delay: calc(var(--stagger-step) * var(--stagger-i, 8));
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(1) {
+  --stagger-i: 0;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(2) {
+  --stagger-i: 1;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(3) {
+  --stagger-i: 2;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(4) {
+  --stagger-i: 3;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(5) {
+  --stagger-i: 4;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(6) {
+  --stagger-i: 5;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(7) {
+  --stagger-i: 6;
+}
+:is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > :nth-child(8) {
+  --stagger-i: 7;
+}
+@keyframes ui-cascade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-nav-stagger] :is(.team-task-grid, .team-explorer-grid, .home-stack, .home-grid) > *,
+  .ui-reveal.is-arriving > :is(.team-task-grid, .team-explorer-grid) > *,
+  .ui-reveal.is-arriving > .team-explorer-rows tbody > tr {
+    animation: none;
+  }
+}
+
+/* The launch editor's stand-in, the editor's own height (DeferredLaunchEditor). */
+.launch-editor-loading .ui-skeleton {
+  height: 62dvh;
+}
+
+/* The copy a press leaves over the part of the screen it is about to change
+   (lib/auto-crossfade.ts). It stands exactly where the original does, takes no
+   input and plays nothing of its own — the script fades it out once the new
+   state is ready underneath. */
+.auto-ghost {
+  position: absolute;
+  /* Over everything the section draws on itself — a sticky toolbar, an inline
+     menu — or those would show the new state while the rest still showed the
+     old. Its parent is a stacking context, so this is not over dialogs. */
+  z-index: var(--layer-overlay);
+  margin: 0;
+  /* `clip`, not `hidden`: a scroll container here would unstick the copy's own
+     sticky bars from the window. */
+  overflow: clip;
+  pointer-events: none;
+}
+.auto-ghost,
+.auto-ghost * {
+  animation: none !important;
+  transition: none !important;
+}
+/* A copy of one part of a section (the explorer's list of files). The bars
+   above it are not in the copy and stay over it; what stands beside it and
+   comes later in the page — the file's card — stays over it too. */
+.auto-ghost.is-part {
+  z-index: calc(var(--layer-header) + 1);
+}
+/* A copy left behind by a part that was unmounted, playing its way out
+   (`leaveCopy`): the motion is its own class's, nothing inside it moves. */
+.auto-leaving {
+  margin: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+.auto-leaving * {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* A board of cards is long and mostly off screen (058): cards outside the
+   window are not laid out or painted until they are scrolled to, so showing a
+   full section costs what the visible dozen cost. Only cards that clip their
+   own content anyway — containment would cut a menu that hangs out of one. */
+.team-task-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
+}
+/* In the copy a press leaves (auto-crossfade) the cards are already cut down to
+   the ones on screen, and those must be their true size from its first frame —
+   a card standing at its placeholder height for one frame would be a jump. */
+.auto-ghost .team-task-card {
+  content-visibility: visible;
 }

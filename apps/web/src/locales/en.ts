@@ -1413,6 +1413,9 @@ export const en = {
   webUpdateTitle: 'This page is older than your Soty application',
   webUpdateBody: 'Reload the page to get the compatible interface. Your local queue is safe.',
   reloadPage: 'Reload page',
+  chunkFailedTitle: "This part of Soty didn't load",
+  chunkFailedBody:
+    'The connection dropped or Soty was just updated. Try again, or reload the page.',
   // No "local network access", no "loopback": the person reading this wants to
   // get back to work, and the one action that always works is opening the app.
   blockedTitle: 'Open Soty to continue',

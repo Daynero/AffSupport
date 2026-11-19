@@ -21,6 +21,7 @@ export function LaunchBatch({
   onPendingChange,
   onSubmissionPendingChange,
   onBatches,
+  onInitialRead,
   showSettled = true
 }: {
   teamId: string;
@@ -34,6 +35,8 @@ export function LaunchBatch({
   onPendingChange: (value: boolean) => void;
   onSubmissionPendingChange: (value: boolean) => void;
   onBatches: (value: DurableLaunchBatch[]) => void;
+  /** The first read of the space's batches finished (058: the board waits for it). */
+  onInitialRead?: () => void;
   /**
    * Finished batches are history, not a list result: while the list is filtered
    * they would sit above an empty filtered list and contradict it. Work still in
@@ -52,8 +55,13 @@ export function LaunchBatch({
     onChanged: onChange
   });
   const [open, setOpen] = useState<Set<string>>(new Set());
-  const callbacks = useRef({ onPendingChange, onSubmissionPendingChange, onBatches });
-  callbacks.current = { onPendingChange, onSubmissionPendingChange, onBatches };
+  const callbacks = useRef({
+    onPendingChange,
+    onSubmissionPendingChange,
+    onBatches,
+    onInitialRead
+  });
+  callbacks.current = { onPendingChange, onSubmissionPendingChange, onBatches, onInitialRead };
   useEffect(() => {
     callbacks.current.onSubmissionPendingChange(Boolean(state.pendingCommand));
   }, [state.pendingCommand]);
@@ -67,6 +75,9 @@ export function LaunchBatch({
   useEffect(() => {
     callbacks.current.onBatches(state.batches);
   }, [state.batches]);
+  useEffect(() => {
+    if (!state.initialRead) callbacks.current.onInitialRead?.();
+  }, [state.initialRead]);
   const visible = showSettled ? state.batches : state.batches.filter(durableBatchPending);
   if (!visible.length && !state.pendingCommand && !state.reconnecting && !state.error) return null;
   return (

@@ -11,11 +11,17 @@ import { Skeleton } from './ui/index';
  */
 export function LabeledSkeleton({
   label,
-  rows = 3
+  rows = 3,
+  shape = 'row',
+  className
 }: {
   label: TranslationKey;
   /** How many placeholder bars to draw. Purely visual. */
   rows?: number;
+  /** The shape of what is coming — rows for a list, tiles for a grid (058). */
+  shape?: 'row' | 'tile';
+  /** Classes for the placeholders' own box, to lay tiles out like the grid they stand for. */
+  className?: string;
 }) {
   const { t } = useI18n();
   return (
@@ -26,7 +32,7 @@ export function LabeledSkeleton({
       <p className="ui-skeleton-label" aria-live="polite">
         {t(label)}
       </p>
-      <Skeleton shape="row" count={rows} />
+      <Skeleton shape={shape} count={rows} className={className} />
     </div>
   );
 }

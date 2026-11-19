@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { useState } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -553,18 +553,25 @@ describe('the batch entry points', () => {
       }
     );
     localStorage.setItem('wishly.active-team.v1', TEAM.id);
+    // The folder lives in the address: opening one writes it there and the shell follows (058).
+    function Routed() {
+      const [folderId, setFolderId] = useState<string | null>(FOLDER.driveFileId);
+      return (
+        <ExplorerShell
+          teamId={TEAM.id}
+          client={client}
+          query={{ ...emptyTeamRouteQuery(), view: 'list', folderId }}
+          onQueryChange={vi.fn()}
+          onFolderChange={setFolderId}
+          onSearched={vi.fn()}
+          onPreview={vi.fn()}
+        />
+      );
+    }
     render(
       <ToastProvider>
         <TeamProvider realtime={false} initialTeams={[TEAM]}>
-          <ExplorerShell
-            teamId={TEAM.id}
-            client={client}
-            query={{ ...emptyTeamRouteQuery(), view: 'list', folderId: FOLDER.driveFileId }}
-            onQueryChange={vi.fn()}
-            onFolderChange={vi.fn()}
-            onSearched={vi.fn()}
-            onPreview={vi.fn()}
-          />
+          <Routed />
         </TeamProvider>
       </ToastProvider>
     );

@@ -127,7 +127,11 @@ export function TeamAuditPanel({
       )}
       {/* Loading and empty are different answers: the panel used to give the
           second one while it was still waiting for the first (finding S9). */}
-      {loading && !error && <LabeledSkeleton label="teamAuditLoading" rows={3} />}
+      {/* A re-read after a live change leaves the entries where they are; the placeholder
+          above them pushed the whole list down and back up on every change (058). */}
+      {loading && !error && events.length === 0 && (
+        <LabeledSkeleton label="teamAuditLoading" rows={3} />
+      )}
       {!loading && !error && events.length === 0 && (
         <EmptyState size="sm" title={t('teamAuditEmpty')} />
       )}
