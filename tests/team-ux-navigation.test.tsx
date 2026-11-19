@@ -98,6 +98,26 @@ describe('team sections are addresses', () => {
     window.history.back();
     await waitFor(() => expect(window.location.pathname).toBe(`/team/${team.id}`));
   });
+
+  it('stops asking after a section once the workspace is closed', async () => {
+    // A tab press waits for its section on a 16 ms poll. Left running behind a closed
+    // workspace it kept asking for over a second — and in a test run it outlived the DOM it
+    // was reading, which is how one release build failed on a suite with no failing test.
+    const team = makeTeam();
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([team]) });
+    const user = userEvent.setup();
+    const view = renderSpace(client);
+    const tasks = await screen.findByRole('link', { name: 'Tasks' });
+    const timers = vi.spyOn(window, 'setTimeout');
+    const polls = () => timers.mock.calls.filter(([, delay]) => delay === 16).length;
+
+    await user.click(tasks);
+    view.unmount();
+    const armed = polls();
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    expect(polls()).toBe(armed);
+  });
 });
 
 describe('entering a space', () => {
