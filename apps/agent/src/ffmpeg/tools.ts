@@ -418,38 +418,6 @@ export function probeText(args: string[], command = ffprobePath): Promise<string
     try {
       child = spawn(command, args, { shell: false });
     } catch (error) {
-      const causeCode =
-        error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
-          ? error.code
-          : null;
-      reject(new MediaToolUnavailableError('ffprobe', causeCode));
-      return;
-    }
-    const chunks: string[] = [];
-    let settled = false;
-    child.stdout.on('data', data => {
-      chunks.push(String(data));
-    });
-    child.on('error', error => {
-      if (settled) return;
-      settled = true;
-      const causeCode = 'code' in error && typeof error.code === 'string' ? error.code : null;
-      reject(new MediaToolUnavailableError('ffprobe', causeCode));
-    });
-    child.on('close', code => {
-      if (settled) return;
-      settled = true;
-      resolve(code === 0 ? chunks.join('') : null);
-    });
-  });
-}
-
-function runProbeJson(command: string, args: string[]): Promise<Record<string, any> | null> {
-  return new Promise((resolve, reject) => {
-    let child;
-    try {
-      child = spawn(command, args, { shell: false });
-    } catch (error) {
       // Same throw-instead-of-emit path as everywhere else spawn is called; the
       // caller expects the typed error, not a raw ErrnoException.
       const causeCode =
@@ -461,11 +429,6 @@ function runProbeJson(command: string, args: string[]): Promise<Record<string, a
     }
     let output = '';
     let settled = false;
-    const finish = (value: Record<string, any> | null) => {
-      if (settled) return;
-      settled = true;
-      resolve(value);
-    };
     child.stdout.on('data', data => {
       output += data;
     });
@@ -476,13 +439,21 @@ function runProbeJson(command: string, args: string[]): Promise<Record<string, a
       reject(new MediaToolUnavailableError('ffprobe', causeCode));
     });
     child.on('close', code => {
-      if (code !== 0) return finish(null);
-      try {
-        finish(JSON.parse(output));
-      } catch {
-        finish(null);
-      }
+      if (settled) return;
+      settled = true;
+      resolve(code === 0 ? output : null);
     });
+  });
+}
+
+function runProbeJson(command: string, args: string[]): Promise<Record<string, any> | null> {
+  return probeText(args, command).then(output => {
+    if (output === null) return null;
+    try {
+      return JSON.parse(output) as Record<string, any>;
+    } catch {
+      return null;
+    }
   });
 }
 

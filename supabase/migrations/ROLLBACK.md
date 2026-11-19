@@ -3258,3 +3258,12 @@ four bounded integers). Restoring the 20261208122000 body is safe at any time â€
 the web client then loses only its navigation-smoothness events, which the guard
 rejects whole; no stored row changes. Prefer a forward migration if a client that
 emits the event is already live.
+
+## 20261218210000 â€” creative ranks join the cleanup fence (059)
+
+Additive only: the attachment cleanup guard on `team_creative_launch_events` and
+`team_creative_ranks`. Do not drop the two triggers while the tables exist:
+`task_cleanup_coverage_verified` then answers false for the whole database and no
+orphaned task upload can be claimed. Removing creative ranks removes the tables and the
+triggers with them.
+

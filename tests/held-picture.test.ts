@@ -1,7 +1,8 @@
-import { mkdtemp, stat } from 'node:fs/promises';
+import { access, mkdtemp, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { ImageAsset } from '../packages/shared/src/types.js';
 import {
   HELD_PICTURE_DIRECT_FRAMES,
   HELD_PICTURE_GOP_FRAMES,
@@ -14,9 +15,11 @@ import {
   heldSeedShape,
   type HeldStep
 } from '../apps/agent/src/ffmpeg/held-picture.js';
+import { encodeVideo } from '../apps/agent/src/ffmpeg/encoder.js';
 import { buildHeldScreenPictureArgs } from '../apps/agent/src/ffmpeg/presets.js';
-import { ffmpegPath, ffprobePath } from '../apps/agent/src/ffmpeg/tools.js';
+import { ffmpegPath, ffprobePath, probeMedia } from '../apps/agent/src/ffmpeg/tools.js';
 import { runTool, toolSucceeded } from '../apps/agent/src/stitcher/run.js';
+import { makeEmbedding, optimalEncoding } from './helpers.js';
 import { describeRequiring } from './support/requires.js';
 import { removeTemporaryDirectory } from './support/temp-dir.js';
 import { ffmpegBinaries } from './support/toolchain.js';
@@ -349,4 +352,151 @@ describeRequiring(ffmpegBinaries, 'a held picture assembled by the real encoder'
     },
     120_000
   );
+});
+
+describeRequiring(ffmpegBinaries, 'the compressor holding a final image', () => {
+  const quiet = ['-hide_banner', '-loglevel', 'error', '-y'];
+  const endImage: ImageAsset = {
+    id: '55555555-5555-4555-8555-555555555555',
+    fileName: 'final.png',
+    width: 160,
+    height: 90,
+    size: 100,
+    mimeType: 'image/png',
+    extension: '.png'
+  };
+  const embeddingFor = (finalDurationSeconds: number) =>
+    makeEmbedding({
+      startImage: null,
+      endImage,
+      finalDurationMode: 'custom',
+      finalDurationSeconds,
+      fitMode: 'cover',
+      replaceExisting: false,
+      sourceTrimStartSeconds: 0,
+      sourceTrimEndSeconds: 0
+    });
+  async function source(): Promise<string> {
+    directory = await mkdtemp(path.join(os.tmpdir(), 'held-final-image-'));
+    const input = path.join(directory, 'source.mp4');
+    await tool(ffmpegPath, [
+      ...quiet,
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=size=160x90:rate=30',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:sample_rate=48000',
+      '-t',
+      '1',
+      '-c:v',
+      'libx264',
+      '-pix_fmt',
+      'yuv420p',
+      '-c:a',
+      'aac',
+      '-shortest',
+      input
+    ]);
+    return input;
+  }
+
+  it('gives the finished file one frame rate from its first frame to its last', async () => {
+    const input = await source();
+    const image = path.join(directory, 'final.png');
+    await tool(ffmpegPath, [
+      ...quiet,
+      '-f',
+      'lavfi',
+      '-i',
+      'color=c=navy:size=96x96',
+      '-frames:v',
+      '1',
+      image
+    ]);
+    const output = path.join(directory, 'result.mp4');
+    // Thirty seconds is nine hundred pictures: past the length that is simply encoded, so
+    // this is the assembled road, end to end, through the encoder's own passes.
+    const heldSeconds = 30;
+    const children: number[] = [];
+    const operation = encodeVideo(
+      input,
+      output,
+      1 + heldSeconds,
+      optimalEncoding,
+      false,
+      () => {},
+      {
+        sourceDurationSeconds: 1,
+        sourceStartSeconds: 0,
+        sourceHasAudio: true,
+        width: 160,
+        height: 90,
+        frameRate: 30,
+        imageEmbedding: embeddingFor(heldSeconds),
+        startImagePath: null,
+        endImagePath: image
+      },
+      null,
+      child => children.push(child.pid ?? 0)
+    );
+    const result = await operation.done;
+    expect(result.code, result.stderr).toBe(0);
+    // Every pass was handed to the caller, so a stop can always reach the one running.
+    expect(children.length).toBeGreaterThan(4);
+
+    const table = await tool(ffprobePath, [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=avg_frame_rate,r_frame_rate,nb_frames',
+      '-of',
+      'csv=p=0',
+      output
+    ]);
+    const [nominal, average, frames] = table.trim().split(',');
+    // What a re-encoder downstream reads: the average is the rate, not a fraction of it.
+    expect(nominal).toBe('30/1');
+    const [top, bottom] = (average ?? '').split('/').map(Number);
+    expect(top! / bottom!).toBeGreaterThan(29.9);
+    expect(Number(frames)).toBe(30 + heldSeconds * 30);
+    const media = await probeMedia(output);
+    expect(media.duration).toBeCloseTo(1 + heldSeconds, 0);
+    expect(Math.abs((media.audioDuration ?? 0) - (media.videoDuration ?? 0))).toBeLessThan(0.12);
+    await expect(access(`${output}.body.mp4`)).rejects.toThrow();
+  }, 120_000);
+
+  it('fails as a whole, and leaves nothing behind, when the image cannot be read', async () => {
+    const input = await source();
+    const output = path.join(directory, 'result.mp4');
+    const operation = encodeVideo(
+      input,
+      output,
+      31,
+      optimalEncoding,
+      false,
+      () => {},
+      {
+        sourceDurationSeconds: 1,
+        sourceStartSeconds: 0,
+        sourceHasAudio: true,
+        width: 160,
+        height: 90,
+        frameRate: 30,
+        imageEmbedding: embeddingFor(30),
+        startImagePath: null,
+        endImagePath: path.join(directory, 'missing.png')
+      },
+      null
+    );
+    const result = await operation.done;
+    // The seed could not be encoded, and neither could the long road it falls back to.
+    expect(result.code).not.toBe(0);
+    await expect(access(output)).rejects.toThrow();
+    await expect(access(`${output}.body.mp4`)).rejects.toThrow();
+  }, 120_000);
 });
