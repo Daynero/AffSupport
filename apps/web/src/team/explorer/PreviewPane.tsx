@@ -29,6 +29,8 @@ import { displayedSize } from '../../format';
 import { MaterialCatalogFacts } from '../materials/MaterialCatalogFacts';
 import { MaterialTasks } from '../materials/MaterialTasks';
 import { useTeam } from '../TeamContext';
+import { MaterialRank } from '../ranks/MaterialRank';
+import { carriesRank } from '../ranks/creativeRanks';
 
 /**
  * What the selected row looks like, before it is opened (011, FR-016): the
@@ -89,7 +91,8 @@ export function PreviewPane({
   const { t } = useI18n();
   const { push } = useToasts();
   const { teamId } = useExplorer();
-  const { teams } = useTeam();
+  const { teams, ranksRevision = 0 } = useTeam();
+  const isOwner = teams.find(team => team.id === teamId)?.role === 'owner';
   const canEditNote = teams.find(team => team.id === teamId)?.permissions.manage_metadata === true;
   const session = useThumbnailSession({ teamId, client, enabled: row !== null });
   const [render, setRender] = useState<RenderArtifactRef | null>(null);
@@ -162,6 +165,17 @@ export function PreviewPane({
           modifiedAt: row.modifiedAt
         }}
         companions={companions}
+        rank={
+          carriesRank(row) ? (
+            <MaterialRank
+              key={row.id}
+              teamId={teamId}
+              materialId={row.id}
+              isOwner={isOwner}
+              ranksRevision={ranksRevision}
+            />
+          ) : null
+        }
         catalogFacts={
           row.kind === 'folder' ? null : (
             <MaterialCatalogFacts teamId={teamId} material={{ id: row.id, name: row.name }} />

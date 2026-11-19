@@ -452,6 +452,19 @@
   --icon-plate-tile: 34px;
   --icon-plate-row-width: 44px;
   --icon-plate-row-height: 38px;
+
+  /* 059: a creative's honey-league emblem. Every picture is the same square with the comb at its
+     centre, the comb a little over half its edge and the same size in all five leagues; wings,
+     crown and laurels fill the rest. So the box is one size, the comb never moves, and a higher
+     league reads larger by what it wears. Tile ≈ 34px comb, list ≈ 17px, detail ≈ 65px. */
+  --rank-emblem-tile: 66px;
+  --rank-emblem-list: 32px;
+  --rank-emblem-detail: 124px;
+  --rank-emblem-tile-inset: 2px;
+  /* The card's ladder of leagues: small combs (≈ 21px of comb in the 40px box), the leagues not
+     reached yet faded and colourless so the eye lands on where the creative stands. */
+  --rank-ladder-emblem: 40px;
+  --rank-ladder-ahead-opacity: 0.4;
 }
 
 /* ============================================================

@@ -11,6 +11,16 @@ import { ICON_STROKE } from '../../components/icons';
 import { ExternalLink, FolderOpen, Paperclip } from 'lucide-react';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { RankEmblem } from '../ranks/RankEmblem';
+import { RankFacts } from '../ranks/RankFacts';
+import {
+  carriesRank,
+  emptyRank,
+  freshnessOf,
+  leagueOf,
+  type CreativeRank
+} from '../ranks/creativeRanks';
+import type { CreativeRanksState } from '../ranks/useCreativeRanks';
 import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
@@ -60,7 +70,8 @@ export function ContentGrid({
   emptyAction,
   emptyState,
   onDropMaterials,
-  companionRows
+  companionRows,
+  ranks
 }: {
   client: ContentGridClient;
   /** The folder's rows, held by the shell so one listing serves everything. */
@@ -95,6 +106,8 @@ export function ContentGrid({
   companionRows?: ReadonlyMap<string, readonly TeamMaterialRow[]>;
   /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
+  /** 059 — the videos' honey leagues; nothing is drawn until the first answer. */
+  ranks?: CreativeRanksState;
 }) {
   const { t } = useI18n();
   const { teamId, openFolder, selectedId, select, selectedIds, toggleSelected } = useExplorer();
@@ -195,6 +208,12 @@ export function ContentGrid({
             actions={actions}
             tagging={tagging}
             companions={companionRows?.get(row.id) ?? NO_COMPANIONS}
+            rank={
+              ranks?.known && carriesRank(row)
+                ? (ranks.ranks.get(row.id) ?? emptyRank(row.id))
+                : null
+            }
+            rankNow={ranks?.now ?? 0}
             companionSelected={Boolean(
               companionRows?.get(row.id)?.some(companion => companion.id === selectedId)
             )}
@@ -227,7 +246,9 @@ function Tile({
   drag,
   dropTarget,
   companions = NO_COMPANIONS,
-  companionSelected = false
+  companionSelected = false,
+  rank = null,
+  rankNow = 0
 }: {
   row: TeamMaterialRow;
   drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
@@ -247,11 +268,15 @@ function Tile({
   tagging?: TaggingProps;
   /** Its own files, listed from a badge on the picture (024, US25). */
   companions?: readonly TeamMaterialRow[];
+  /** 059 — a video's league, or null where none is drawn. */
+  rank?: CreativeRank | null;
+  rankNow?: number;
   /** The file open in the pane is one of them: the tile says whose it is. */
   companionSelected?: boolean;
 }) {
   const { t, language } = useI18n();
   const [broken, setBroken] = useState(false);
+  const rankLeague = rank ? leagueOf(rank.rankCredit) : null;
   useEffect(() => setBroken(false), [row.id, row.driveVersion]);
 
   const thumbnail =
@@ -331,6 +356,17 @@ function Tile({
       {companions.length > 0 && (
         <TileCompanions owner={row} rows={companions} onSelect={onSelect} onPreview={onPreview} />
       )}
+      {rankLeague && rank && (
+        // Top left of the picture, where the checkbox appears on hover (it steps aside then);
+        // bottom right on touch. A picture, not a control — presses go to the tile beneath.
+        <span className="team-explorer-tile-badge-layer creative-rank-tile-layer">
+          <RankEmblem
+            league={rankLeague}
+            freshness={freshnessOf(rank.lastLaunchedAt, rankNow)}
+            size="tile"
+          />
+        </span>
+      )}
       {/* Selection and the menu sit over the picture, the way every file
           manager puts them: out of the caption, where they competed with the
           name, and out of the flow, where the bare checkbox floated loose. */}
@@ -385,6 +421,7 @@ function Tile({
             {t(RENDER_LABEL[row.landingRender.state])}
           </span>
         )}
+        {rank && <RankFacts rank={rank} now={rankNow} quietWhenNever />}
         {reason && <KindNote text={t(reason)} />}
       </div>
     </li>

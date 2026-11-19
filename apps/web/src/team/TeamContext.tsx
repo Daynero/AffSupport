@@ -42,6 +42,8 @@ export interface TeamContextValue {
   accountsRevision?: number;
   updaterRevision?: number;
   storageRevision?: number;
+  /** 059 — creative ranks changed; only the rank reads follow it. */
+  ranksRevision?: number;
   realtimeState: TeamRealtimeState;
   /** Channel/read health, independent of an ordinary catalog cache invalidation. */
   realtimeConnectionState: TeamRealtimeState;
@@ -128,6 +130,7 @@ export function TeamProvider({
   const [accountsRevision, setAccountsRevision] = useState(0);
   const [updaterRevision, setUpdaterRevision] = useState(0);
   const [storageRevision, setStorageRevision] = useState(0);
+  const [ranksRevision, setRanksRevision] = useState(0);
   const privateAccessScope = JSON.stringify([
     client ? privateClientId(client) : null,
     accessRevision,
@@ -282,6 +285,7 @@ export function TeamProvider({
         setUpdaterRevision(value => value + 1);
       if (broad || domains.includes('storage') || domains.includes('launches'))
         setStorageRevision(value => value + 1);
+      if (broad || domains.includes('ranks')) setRanksRevision(value => value + 1);
       const selected = activeTeamIdRef.current;
       if (catalog) {
         if (selected) catalogFreshness.invalidate(selected);
@@ -407,6 +411,7 @@ export function TeamProvider({
       accountsRevision,
       updaterRevision,
       storageRevision,
+      ranksRevision,
       realtimeState,
       realtimeConnectionState: channelState,
       membershipLostTeamId,
@@ -445,6 +450,7 @@ export function TeamProvider({
       accountsRevision,
       updaterRevision,
       storageRevision,
+      ranksRevision,
       setActiveTeamId,
       teams
     ]

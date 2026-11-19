@@ -2184,6 +2184,64 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'Before the workspace announcement, the public entry emits screen_viewed with screen_identifier=space_coming_soon instead of space_showcase_viewed; no contact or grant is expected from that screen. Missing screen delivery remains unknown. The grant is emitted by the administrator’s browser, not the owner’s; the authoritative record is space_tariffs / space_tariff_events. Local acceptance mail capture reports its own claim, capture and database-commit result. A skipped notice and a matching redacted local artifact prove neither provider delivery nor user receipt; an unconfirmed commit and absent artifact remain explicit. This tooling evidence is separate from production mail diagnostics.'
   },
   {
+    id: 'team.creative_rank_demote',
+    tool: 'team',
+    title: 'Team · creative rank demotion (reason → server answer)',
+    stages: ['started', 'finished'],
+    stageEvents: {
+      started: ['creative_rank_demote_started'],
+      finished: ['creative_rank_demote_finished']
+    },
+    start: [{ event: 'creative_rank_demote_started', correlate: 'flow_id' }],
+    terminal: [{ event: 'creative_rank_demote_finished', correlate: 'flow_id' }],
+    platforms: BOTH,
+    unobservable: [
+      'Opening the menu without choosing a reason is not recorded.',
+      'A demotion whose finished event was lost is still provable from team_creative_ranks (demote_reason, demoted_at) via `analytics creative-rank <material-id>`.'
+    ],
+    producerStatus: 'emitted',
+    source: 'events',
+    sinceWebBuild: '1.5.7',
+    note: 'Owner only. feature_identifier=creative-rank; action_identifier=reason (disappointed | never-launched); source_kind / input_method = league before / after; outcome success | failure | blocked with error_code applied | rank-conflict | rank-not-lower | permission-denied | failed. The flow id is also the server request key, so a retried press is one demotion. A failed page read of ranks is creative_rank_read_failed (item_count, error_code).'
+  },
+  {
+    id: 'team.creative_rank_promote',
+    tool: 'team',
+    title: 'Team · creative rank raised back (press → server answer)',
+    stages: ['started', 'finished'],
+    stageEvents: {
+      started: ['creative_rank_promote_started'],
+      finished: ['creative_rank_promote_finished']
+    },
+    start: [{ event: 'creative_rank_promote_started', correlate: 'flow_id' }],
+    terminal: [{ event: 'creative_rank_promote_finished', correlate: 'flow_id' }],
+    platforms: BOTH,
+    unobservable: [
+      'A raise whose finished event was lost is still provable from team_creative_ranks (promoted_at, promoted_by).'
+    ],
+    producerStatus: 'emitted',
+    source: 'events',
+    sinceWebBuild: '1.5.7',
+    note: 'Owner only: undoing a mistaken demotion, one league per press, never past the league the launch count earned (the server refuses with RANK_NOT_HIGHER). feature_identifier=creative-rank; action_identifier=undo; source_kind / input_method = league before / after (unranked below Wax); outcome success | failure | blocked with error_code applied | rank-conflict | rank-not-higher | permission-denied | failed. The flow id is also the server request key.'
+  },
+  {
+    id: 'team.creative_rank_credit',
+    tool: 'team',
+    title: 'Team · creative launch credited (Launch success / direct catalog)',
+    stages: ['credited'],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    source: 'authoritative_table',
+    producerStatus: 'emitted',
+    unobservable: [
+      'Soty does not see Facebook: a credit proves a first successful Launch generation or a created catalog, not a live ad.',
+      'Browser delivery of the realtime rank invalidation (team_catalog_events kind creative_rank) is not recorded; a stale tile is fixed by the next page read.'
+    ],
+    note: 'Written by deferred database triggers inside the committing transaction (team_launch_generations → succeeded, team_product_catalogs insert); ledger team_creative_launch_events keyed by source, projection team_creative_ranks. `analytics creative-rank <material|launch|catalog|team id>` explains each count: credited vs paired (a Launch and the catalog it made count once), backfilled history, demotions.'
+  },
+  {
     id: 'analytics.delivery',
     tool: 'analytics',
     title: 'Analytics · delivery report (rejected / evicted / expired)',

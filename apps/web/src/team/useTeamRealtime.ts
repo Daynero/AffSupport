@@ -6,7 +6,15 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../lib/supabase';
 
 export type TeamRealtimeDomain =
-  'catalog' | 'storage' | 'updater' | 'teams' | 'accounts' | 'launches' | 'membership' | 'all';
+  | 'catalog'
+  | 'storage'
+  | 'updater'
+  | 'teams'
+  | 'accounts'
+  | 'launches'
+  | 'membership'
+  | 'ranks'
+  | 'all';
 
 export type TeamRealtimeState = 'disabled' | 'connecting' | 'connected' | 'reconnecting';
 

@@ -12747,7 +12747,7 @@ button.team-landing-tile:hover {
   grid-template-columns: subgrid;
 }
 .team-explorer-rows {
-  --ui-table-columns: auto minmax(0, 1fr) auto auto auto auto;
+  --ui-table-columns: auto minmax(0, max-content) minmax(min-content, 1fr) auto auto auto auto;
   grid-template-columns: var(--ui-table-columns);
   column-gap: 0;
 }
@@ -12761,16 +12761,16 @@ button.team-landing-tile:hover {
   grid-column: 2;
 }
 .team-explorer-rows .team-explorer-row-kind {
-  grid-column: 3;
-}
-.team-explorer-rows .team-explorer-row-date {
   grid-column: 4;
 }
-.team-explorer-rows .team-explorer-row-meta {
+.team-explorer-rows .team-explorer-row-date {
   grid-column: 5;
 }
-.team-explorer-rows .team-explorer-row-actions {
+.team-explorer-rows .team-explorer-row-meta {
   grid-column: 6;
+}
+.team-explorer-rows .team-explorer-row-actions {
+  grid-column: 7;
 }
 .team-explorer-rows .ui-table-header {
   padding-inline: var(--space-2);
@@ -18640,6 +18640,190 @@ a.history-subject {
   aspect-ratio: 4 / 3;
   padding: var(--space-2);
   pointer-events: none;
+}
+/* 059: the honey-league emblem holds the picture's top-left corner, its comb centred where the
+   checkbox is. It is a picture, not a control: presses fall through to the tile, and it steps
+   aside whenever the checkbox shows — on hover, on focus, in a selection. */
+.creative-rank-tile-layer {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: var(--rank-emblem-tile-inset);
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+.team-explorer-tile:hover .creative-rank-tile-layer,
+.team-explorer-tile:focus-within .creative-rank-tile-layer,
+.team-explorer-tile.is-selected .creative-rank-tile-layer,
+.team-explorer-tile.is-checked .creative-rank-tile-layer {
+  opacity: 0;
+}
+/* Without hover the checkbox never leaves the corner, so the emblem takes the free one. */
+@media (hover: none) {
+  .creative-rank-tile-layer {
+    align-items: flex-end;
+    justify-content: flex-end;
+  }
+  .team-explorer-tile:hover .creative-rank-tile-layer,
+  .team-explorer-tile:focus-within .creative-rank-tile-layer,
+  .team-explorer-tile.is-selected .creative-rank-tile-layer,
+  .team-explorer-tile.is-checked .creative-rank-tile-layer {
+    opacity: 1;
+  }
+}
+.creative-rank-emblem {
+  display: block;
+  flex: none;
+  object-fit: contain;
+  user-select: none;
+}
+.creative-rank-emblem-tile {
+  width: var(--rank-emblem-tile);
+  height: var(--rank-emblem-tile);
+  filter: drop-shadow(0 1px 2px color-mix(in srgb, var(--color-black) 45%, transparent));
+}
+.creative-rank-emblem-list {
+  width: var(--rank-emblem-list);
+  height: var(--rank-emblem-list);
+}
+.creative-rank-list-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+}
+.creative-rank-list-count {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+/* The list gives the emblem its own column right after the names: the name column is as wide as
+   the longest name, so the combs line up in one vertical run beside them, and the free width
+   falls to this column instead. */
+.team-explorer-rows .team-explorer-row-rank {
+  grid-column: 3;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  padding-inline: var(--space-1);
+}
+.creative-rank-emblem-detail {
+  width: var(--rank-emblem-detail);
+  height: var(--rank-emblem-detail);
+}
+/* A creative's card shows its league large, beside the words that say it, and the ladder of
+   leagues beneath. */
+.creative-rank-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+}
+.creative-rank-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.creative-rank-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.creative-rank-card-body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.creative-rank-card-league {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+.creative-rank-card-state {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-body);
+}
+/* How the leagues are earned: five combs in a row, each with its threshold; the current one in a
+   honey frame, the ones ahead faded. */
+.creative-rank-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+}
+.creative-rank-ladder-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.creative-rank-ladder-step {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-1) 0;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.creative-rank-ladder-step[data-state='current'] {
+  border-color: var(--color-primary-border);
+  background: var(--color-primary-softer);
+}
+.creative-rank-ladder-emblem {
+  display: block;
+  width: var(--rank-ladder-emblem);
+  height: var(--rank-ladder-emblem);
+  object-fit: contain;
+  user-select: none;
+}
+.creative-rank-ladder-step[data-state='ahead'] .creative-rank-ladder-emblem {
+  filter: grayscale(1);
+  opacity: var(--rank-ladder-ahead-opacity);
+}
+.creative-rank-ladder-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.creative-rank-ladder-step[data-state='current'] .creative-rank-ladder-name {
+  font-weight: var(--weight-label);
+}
+.creative-rank-ladder-step[data-state='ahead'] .creative-rank-ladder-name,
+.creative-rank-ladder-min {
+  color: var(--color-text-muted);
+}
+.creative-rank-ladder-min {
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+.creative-rank-ladder-next {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  text-align: center;
+}
+.creative-rank-card-message {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+/* The exact facts never fade with the emblem's dust: full-strength meta text. */
+.creative-rank-facts {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .team-explorer-tile-badge {
   pointer-events: auto;

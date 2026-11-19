@@ -8840,6 +8840,17 @@ export type GeneratedDatabase = {
         }[];
       };
       delete_two_factor_entry: { Args: { p_entry: string }; Returns: undefined };
+      demote_creative_rank: {
+        Args: {
+          p_expected_version: number;
+          p_material: string;
+          p_reason: string;
+          p_request_key: string;
+          p_target_credit: number;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       detach_task_material_safely: {
         Args: { p_material: string; p_task: string; p_team: string };
         Returns: Json;
@@ -9284,6 +9295,10 @@ export type GeneratedDatabase = {
       };
       link_transcript_companion: {
         Args: { p_companion: string; p_team: string; p_video: string };
+        Returns: Json;
+      };
+      list_creative_ranks: {
+        Args: { p_materials: string[]; p_team: string };
         Returns: Json;
       };
       list_landing_renders: {
@@ -9782,6 +9797,16 @@ export type GeneratedDatabase = {
       };
       prepare_team_bulk_trash_item: {
         Args: { p_group: string; p_material: string; p_team: string };
+        Returns: Json;
+      };
+      promote_creative_rank: {
+        Args: {
+          p_expected_version: number;
+          p_material: string;
+          p_request_key: string;
+          p_target_credit: number;
+          p_team: string;
+        };
         Returns: Json;
       };
       read_google_drive_credential: {

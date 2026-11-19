@@ -41,6 +41,7 @@ export function MaterialDetail({
   note,
   inTasks,
   catalogFacts,
+  rank,
   companions,
   tag,
   actions,
@@ -56,6 +57,8 @@ export function MaterialDetail({
   note?: ReactNode;
   /** What a catalog sheet is: its video, its products, its last update (024, US23). */
   catalogFacts?: ReactNode;
+  /** 059 — a video's honey league, its launches and, for the owner, the way down. */
+  rank?: ReactNode;
   /** The tasks the file is on, and the way onto one more (024). */
   inTasks?: ReactNode;
   companions?: MaterialCompanions;
@@ -113,6 +116,7 @@ export function MaterialDetail({
           </div>
         ))}
       </dl>
+      {rank}
       {note}
       {notes}
       {/*

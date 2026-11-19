@@ -1,6 +1,6 @@
 import type { TeamRealtimeDomain } from './useTeamRealtime';
 
-// CHECK in 20261205121000_bulk_trash_receipts.sql. Updater/profile writers
+// CHECK in 20261218200000_creative_ranks.sql. Updater/profile writers
 // also emit upserted and sync_state: those cannot be narrowed without a new
 // producer contract. Missing/new kinds deliberately retain every catalog read.
 const catalogReads = ['catalog', 'storage', 'updater'] as const;
@@ -12,7 +12,9 @@ const domains = {
   folder_indexed: ['catalog', 'storage'],
   thumbnail_ready: ['catalog', 'storage'],
   storage_state: ['catalog', 'storage', 'teams'],
-  bulk_trash_changed: catalogReads
+  bulk_trash_changed: catalogReads,
+  // 059: a rank changed; nothing else about the material did.
+  creative_rank: ['ranks']
 } satisfies Record<string, readonly TeamRealtimeDomain[]>;
 
 export type CatalogEventKind = keyof typeof domains;

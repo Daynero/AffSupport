@@ -90,6 +90,13 @@ export function taskDeleteTitleKey(language: Language, count: number): Translati
   return category === 'few' ? 'teamTaskBulkDeleteTitleFew' : 'teamTaskBulkDeleteTitleMany';
 }
 
+/** 059 — "14 launches" beside a creative's emblem: "14 запусків", "2 запуски", "1 запуск". */
+export function launchCountKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'creativeRankLaunchesOne';
+  return category === 'few' ? 'creativeRankLaunchesFew' : 'creativeRankLaunchesMany';
+}
+
 export function selectedCountKey(language: Language, count: number): TranslationKey {
   const category = pluralCategory(language, count);
   if (category === 'one') return 'selectedOne';

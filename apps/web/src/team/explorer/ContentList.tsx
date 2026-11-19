@@ -27,6 +27,16 @@ import { suppressShiftTextSelection, useRowPress } from './useSelectionGestures'
 import type { Modifiers } from './selectionGestures';
 import { RowActions, type RowActionsProps } from './RowActions';
 import { TagDot } from './TagDot';
+import { RankEmblem } from '../ranks/RankEmblem';
+import { launchCountText, rankFactsText } from '../ranks/RankFacts';
+import {
+  carriesRank,
+  emptyRank,
+  freshnessOf,
+  leagueOf,
+  type CreativeRank
+} from '../ranks/creativeRanks';
+import type { CreativeRanksState } from '../ranks/useCreativeRanks';
 
 /** Setting a tag is the space owner's; everyone else is handed nothing. */
 export interface TaggingProps {
@@ -50,7 +60,8 @@ export function ContentList({
   companionCounts,
   openedCompanions,
   onToggleCompanions,
-  onDropMaterials
+  onDropMaterials,
+  ranks
 }: {
   /** The folder's rows, held by the shell so one listing serves everything. */
   page: FolderPageState;
@@ -87,6 +98,8 @@ export function ContentList({
   onToggleCompanions?: (rowId: string) => void;
   /** Files dropped on a folder here move into it; absent for a reader who may not move them. */
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
+  /** 059 — the videos' honey leagues; a row shows one only once the video was launched. */
+  ranks?: CreativeRanksState;
 }) {
   const { t } = useI18n();
   const { openFolder, selectedId, selectedIds, toggleSelected } = useExplorer();
@@ -147,6 +160,7 @@ export function ContentList({
             <TableHeaderCell className="team-explorer-row-name">
               {t('teamExplorerSortName')}
             </TableHeaderCell>
+            <TableHeaderCell className="team-explorer-row-rank" />
             <TableHeaderCell className="team-explorer-row-kind">
               {t('teamExplorerPaneKind')}
             </TableHeaderCell>
@@ -182,6 +196,12 @@ export function ContentList({
               companionsOpen={openedCompanions?.has(row.id) ?? false}
               onToggleCompanions={onToggleCompanions}
               nested={Boolean(companionOf(row))}
+              rank={
+                ranks?.known && carriesRank(row)
+                  ? (ranks.ranks.get(row.id) ?? emptyRank(row.id))
+                  : null
+              }
+              rankNow={ranks?.now ?? 0}
             />
           ))}
         </Table>
@@ -210,7 +230,9 @@ function Row({
   companions = 0,
   companionsOpen = false,
   onToggleCompanions,
-  nested = false
+  nested = false,
+  rank = null,
+  rankNow = 0
 }: {
   row: TeamMaterialRow;
   drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
@@ -229,8 +251,11 @@ function Row({
   companionsOpen?: boolean;
   onToggleCompanions?: (rowId: string) => void;
   nested?: boolean;
+  rank?: CreativeRank | null;
+  rankNow?: number;
 }) {
   const { t, language } = useI18n();
+  const rankLeague = rank ? leagueOf(rank.rankCredit) : null;
   const reason = KIND_REASON[row.kind];
   const previewable = PREVIEWABLE_KINDS.has(row.kind);
   const open = () => {
@@ -337,6 +362,22 @@ function Row({
         {/* A fact about the kind, not about this file: an icon that says it on
             hover and focus, rather than a second line under every such row. */}
         {reason && <KindNote text={t(reason)} />}
+      </TableCell>
+      {/* Its own column right after the names, so the combs line up down the list; the launch
+          count sits beside the comb, the date on hover. A video with no rank (never launched) is left
+          blank: that is every video's starting state. */}
+      <TableCell className="team-explorer-row-rank">
+        {rankLeague && rank && (
+          <span className="creative-rank-list-mark">
+            <RankEmblem
+              league={rankLeague}
+              freshness={freshnessOf(rank.lastLaunchedAt, rankNow)}
+              size="list"
+              facts={rankFactsText(rank, t, language, rankNow)}
+            />
+            <span className="creative-rank-list-count">{launchCountText(rank)}</span>
+          </span>
+        )}
       </TableCell>
       <TableCell className="team-explorer-row-kind">{t(KIND_LABEL[row.kind])}</TableCell>
       <TableCell className="team-explorer-row-date">

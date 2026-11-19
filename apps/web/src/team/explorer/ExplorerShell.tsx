@@ -59,6 +59,8 @@ import {
 import type { TeamRouteQuery, ExplorerView } from '../routes';
 import { Breadcrumb } from './Breadcrumb';
 import { ContentGrid, type ContentGridClient } from './ContentGrid';
+import { useCreativeRanks, type CreativeRanksClient } from '../ranks/useCreativeRanks';
+import { carriesRank } from '../ranks/creativeRanks';
 import { ContentList } from './ContentList';
 import { ExplorerProvider, useExplorer, type ExplorerClient } from './ExplorerProvider';
 import { FolderTree } from './FolderTree';
@@ -127,6 +129,7 @@ const PROGRESS_REFRESH_MIN_MS = 5_000;
 
 export type ExplorerShellClient = ExplorerClient &
   FolderResyncClient &
+  CreativeRanksClient &
   ContentGridClient &
   TeamCatalogClient &
   FolderPickerClient &
@@ -360,7 +363,12 @@ function ExplorerBody({
     if (settingsWasOpen.current && !settingsOpen && restitch.pending) void restitch.resume();
     settingsWasOpen.current = settingsOpen;
   }, [settingsOpen, restitch]);
-  const { permissions: loadedPermissions, activeTeam, notifyStateChanged } = useTeam();
+  const {
+    permissions: loadedPermissions,
+    activeTeam,
+    notifyStateChanged,
+    ranksRevision = 0
+  } = useTeam();
   const lastProgressRefresh = useRef(0);
   // Every write goes dark while storage needs a person (FR-033); nothing is lost.
   const permissions = readOnly ? null : loadedPermissions;
@@ -554,7 +562,14 @@ function ExplorerBody({
     preserveOnEmpty: contentsPending,
     beforeRowsReplace: () => captureAnchorRef.current()
   });
-  const allRows = useMemo(() => sortRows(page.rows, sort), [page.rows, sort]);
+  // 059 — the honey leagues of the videos and images on this page: one read, again when a rank
+  // changes; the sort by rank reads them too.
+  const rankedIds = useMemo(() => page.rows.filter(carriesRank).map(row => row.id), [page.rows]);
+  const ranks = useCreativeRanks(teamId, rankedIds, ranksRevision, client);
+  const allRows = useMemo(
+    () => sortRows(page.rows, sort, ranks.ranks),
+    [page.rows, sort, ranks.ranks]
+  );
   /*
    * A transcript and a catalog belong to their video (024, US25): the folder shows the video with
    * a count, and they come out under it on a press. Opened ones are remembered per folder only.
@@ -2144,6 +2159,7 @@ function ExplorerBody({
                 actions={actions}
                 rows={sortedRows}
                 companionRows={folded.children}
+                ranks={ranks}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
                 emptyState={emptyState}
@@ -2158,6 +2174,7 @@ function ExplorerBody({
                 companionCounts={folded.counts}
                 openedCompanions={openedCompanions}
                 onToggleCompanions={toggleCompanions}
+                ranks={ranks}
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
                 emptyState={emptyState}
