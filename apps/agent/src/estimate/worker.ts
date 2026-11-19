@@ -4,12 +4,20 @@ import { mkdtemp, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  estimatedFinalImageDurationSeconds,
+  isHeldScreen,
   jobConfigurationKey,
   type AgentEventType,
   type CompressionJob,
   type EstimateErrorCode
 } from '@video-compressor/shared';
-import { buildEstimateArgs, buildStaticEstimateArgs } from '../ffmpeg/presets.js';
+import { heldPictureBytes } from '../ffmpeg/held-picture.js';
+import {
+  buildEstimateArgs,
+  buildHeldScreenPictureArgs,
+  buildStaticEstimateArgs,
+  heldScreenFrames
+} from '../ffmpeg/presets.js';
 import { ffmpegPath, ffprobePath } from '../ffmpeg/tools.js';
 import {
   outputDimensions,
@@ -365,28 +373,73 @@ export class EstimationWorker {
             'Output dimensions are unavailable for the image estimate.'
           );
         const imagePath = await this.imageStore.validate(staticAsset);
-        const staticDuration = 6;
-        const output = path.join(temporaryDirectory, 'static-sample.h264');
-        const result = await this.runFfmpeg(
-          buildStaticEstimateArgs(
-            imagePath,
-            output,
-            staticDuration,
-            dimensions.width,
-            dimensions.height,
-            outputFrameRate(job),
-            job.imageEmbedding.fitMode,
-            job.encoding
-          )
-        );
-        if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
-        if (result !== 0) {
-          throw new EstimateFailure(
-            this.spawnFailed ? 'MEDIA_TOOL_UNAVAILABLE' : 'ESTIMATE_IMAGE_SAMPLE_FAILED',
-            'The static image sample could not be encoded.'
-          );
+        const sampled = async (args: string[], output: string) => {
+          const result = await this.runFfmpeg(args);
+          if (this.cancelled(job.id, generation, prioritized)) throw new Cancelled();
+          if (result !== 0) {
+            throw new EstimateFailure(
+              this.spawnFailed ? 'MEDIA_TOOL_UNAVAILABLE' : 'ESTIMATE_IMAGE_SAMPLE_FAILED',
+              'The static image sample could not be encoded.'
+            );
+          }
+          return (await stat(output)).size;
+        };
+        const heldSeconds = job.imageEmbedding.endImage
+          ? estimatedFinalImageDurationSeconds(job.imageEmbedding)
+          : 0;
+        if (isHeldScreen(heldSeconds)) {
+          /*
+           * A held final image is one full picture per group and an empty repeat for every
+           * other frame, so its weight is two measured numbers and a count rather than a
+           * rate sampled from six seconds of encoding. That sample priced every second of a
+           * forty-minute image like the first six, and promised ten times the file that was
+           * made. Two short runs — the picture with one repeat, and with sixty-one — give
+           * both numbers as the finished file will carry them.
+           */
+          const frameRate = outputFrameRate(job);
+          const sizeOf = (frames: number) => {
+            const output = path.join(temporaryDirectory, `held-sample-${frames}.mp4`);
+            return sampled(
+              buildHeldScreenPictureArgs({
+                imagePath,
+                output,
+                width: dimensions.width,
+                height: dimensions.height,
+                frameRate,
+                frames,
+                fitMode: job.imageEmbedding!.fitMode
+              }),
+              output
+            );
+          };
+          const short = await sizeOf(2);
+          const long = await sizeOf(62);
+          const repeatBytes = Math.max(1, (long - short) / 60);
+          const pictureBytes = Math.max(1, short - repeatBytes);
+          staticVideoBytesPerSecond =
+            heldPictureBytes(
+              pictureBytes,
+              repeatBytes,
+              heldScreenFrames(heldSeconds, frameRate).frames
+            ) / heldSeconds;
+        } else {
+          const staticDuration = 6;
+          const output = path.join(temporaryDirectory, 'static-sample.h264');
+          staticVideoBytesPerSecond =
+            (await sampled(
+              buildStaticEstimateArgs(
+                imagePath,
+                output,
+                staticDuration,
+                dimensions.width,
+                dimensions.height,
+                outputFrameRate(job),
+                job.imageEmbedding.fitMode,
+                job.encoding
+              ),
+              output
+            )) / staticDuration;
         }
-        staticVideoBytesPerSecond = (await stat(output)).size / staticDuration;
         this.update(
           job.id,
           { estimateProgress: { completed: totalSteps, total: totalSteps } },

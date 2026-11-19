@@ -406,6 +406,44 @@ async function probeJson(
   return null;
 }
 
+/**
+ * ffprobe's standard output as text, or null when it exited with an error.
+ *
+ * For the probes whose answer is a table rather than a document — packet hashes, packet
+ * sizes — where JSON would be several times the bytes for nothing.
+ */
+export function probeText(args: string[], command = ffprobePath): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = spawn(command, args, { shell: false });
+    } catch (error) {
+      const causeCode =
+        error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+          ? error.code
+          : null;
+      reject(new MediaToolUnavailableError('ffprobe', causeCode));
+      return;
+    }
+    const chunks: string[] = [];
+    let settled = false;
+    child.stdout.on('data', data => {
+      chunks.push(String(data));
+    });
+    child.on('error', error => {
+      if (settled) return;
+      settled = true;
+      const causeCode = 'code' in error && typeof error.code === 'string' ? error.code : null;
+      reject(new MediaToolUnavailableError('ffprobe', causeCode));
+    });
+    child.on('close', code => {
+      if (settled) return;
+      settled = true;
+      resolve(code === 0 ? chunks.join('') : null);
+    });
+  });
+}
+
 function runProbeJson(command: string, args: string[]): Promise<Record<string, any> | null> {
   return new Promise((resolve, reject) => {
     let child;

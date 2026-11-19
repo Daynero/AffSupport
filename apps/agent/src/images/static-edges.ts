@@ -1,5 +1,5 @@
 import { spawnTracked } from '../power/spawn.js';
-import { ffmpegPath, MediaToolUnavailableError } from '../ffmpeg/tools.js';
+import { ffmpegPath, MediaToolUnavailableError, probeText } from '../ffmpeg/tools.js';
 import { StaticEdgeTrimCache } from './static-edge-cache.js';
 
 const SAMPLE_WIDTH = 32;
@@ -133,16 +133,171 @@ function frameSampler(
   signal?: AbortSignal
 ) {
   const cache = new Map<number, Promise<Buffer | null>>();
+  const pictures = new Map<number, Promise<Buffer | null>>();
+  // Only a long file can hide a long run of repeats, and only there is the table worth a probe.
+  const repeats =
+    nominalFrames >= REPEAT_INDEX_MIN_FRAMES ? loadRepeatIndex(input) : Promise.resolve(null);
   return (index: number) => {
     const safeIndex = Math.min(nominalFrames - 1, Math.max(0, index));
     let value = cache.get(safeIndex);
     if (!value) {
       const time = Math.min(Math.max(0, durationSeconds - 1 / frameRate), safeIndex / frameRate);
-      value = sampleFrame(input, time, signal);
+      value = repeats.then(table => {
+        const picture = table ? repeatedPictureTime(table, time, 0.5 / frameRate) : null;
+        if (picture === null) return sampleFrame(input, time, signal);
+        // Every frame of a run of repeats is the picture the run began with: decode that one,
+        // once, however many of them are asked about.
+        let shared = pictures.get(picture);
+        if (!shared) {
+          shared = sampleFrame(input, picture, signal);
+          pictures.set(picture, shared);
+        }
+        return shared;
+      });
       cache.set(safeIndex, value);
     }
     return value;
   };
+}
+
+/** Below this many frames no seek is long enough for the packet table to repay its probe. */
+const REPEAT_INDEX_MIN_FRAMES = 3000;
+
+/**
+ * Where each picture of the file really comes from, read from packet sizes alone.
+ *
+ * A held screen at the body's frame rate is one full picture and then thousands of empty
+ * repeats — forty-odd bytes each, every one a copy of the frame before it. Seeking to a frame
+ * deep inside such a run makes the decoder walk every repeat from the last full picture, and
+ * the searches above ask for dozens of frames: on a forty-minute screen that was most of a
+ * minute spent proving, over and over, that a still picture is still.
+ *
+ * The sizes already say it. A packet that is not a keyframe, follows its predecessor in
+ * presentation order as well as decode order, and is too small to hold anything but skipped
+ * macroblocks, is a repeat; and a run of them all the same size is a run of one picture. So
+ * each such packet is mapped back to the packet its run began with, and that one is decoded.
+ * The answer is the picture the decoder would have produced, minus the walk.
+ */
+interface RepeatIndex {
+  /** Presentation times, ascending. */
+  times: Float64Array;
+  /** For each of them: the time of the picture it repeats, or NaN when it is its own. */
+  pictures: Float64Array;
+}
+
+export function buildRepeatProbeArgs(input: string): string[] {
+  return [
+    '-v',
+    'error',
+    '-select_streams',
+    'v:0',
+    '-show_entries',
+    'stream=width,height:packet=pts_time,size,flags',
+    '-of',
+    'csv=p=1',
+    input
+  ];
+}
+
+/**
+ * The largest packet that can only be skipped macroblocks.
+ *
+ * Measured, a frame of nothing but skips costs about one byte per hundred macroblocks with
+ * CABAC and a quarter of that without; this allows a little over half as much again and a
+ * fixed sixteen bytes of slice header. One changed macroblock costs more than the margin.
+ */
+export function repeatPacketLimit(width: number, height: number): number {
+  const macroblocks = Math.ceil(width / 16) * Math.ceil(height / 16);
+  return Math.ceil(macroblocks / 64) + 16;
+}
+
+/** Pure, so the mapping is tested without a file: ffprobe's table in, the index out. */
+export function repeatIndexFromProbe(stdout: string): RepeatIndex | null {
+  let width = 0;
+  let height = 0;
+  const packets: { time: number; size: number; key: boolean }[] = [];
+  for (const line of stdout.split('\n')) {
+    const fields = line.trim().split(',');
+    if (fields[0] === 'stream') {
+      width = Number(fields[1]);
+      height = Number(fields[2]);
+    } else if (fields[0] === 'packet') {
+      const time = Number(fields[1]);
+      const size = Number(fields[2]);
+      if (Number.isFinite(time) && Number.isFinite(size))
+        packets.push({ time, size, key: (fields[3] ?? '').includes('K') });
+    }
+  }
+  if (!(width > 0) || !(height > 0) || packets.length < 2) return null;
+  const limit = repeatPacketLimit(width, height);
+
+  const entries: { time: number; picture: number }[] = [];
+  let runPicture = Number.NaN;
+  let runSize = 0;
+  let previous: { time: number; size: number; key: boolean } | null = null;
+  let found = false;
+  for (const packet of packets) {
+    const small = previous !== null && !packet.key && packet.size <= limit;
+    const inOrder = previous !== null && packet.time > previous.time;
+    let picture = Number.NaN;
+    if (small && inOrder && previous) {
+      if (Number.isNaN(runPicture)) {
+        // The run begins here, and the packet before it is the picture it repeats.
+        runPicture = previous.time;
+        runSize = packet.size;
+        picture = runPicture;
+      } else if (Math.abs(packet.size - runSize) <= 2) {
+        picture = runPicture;
+      }
+    }
+    if (Number.isNaN(picture)) runPicture = Number.NaN;
+    else found = true;
+    entries.push({ time: packet.time, picture });
+    previous = packet;
+  }
+  if (!found) return null;
+  entries.sort((left, right) => left.time - right.time);
+  return {
+    times: Float64Array.from(entries, entry => entry.time),
+    pictures: Float64Array.from(entries, entry => entry.picture)
+  };
+}
+
+/**
+ * The time of the picture the frame at `time` repeats, or null when it must be decoded itself.
+ *
+ * Only a frame that sits on a packet (within half a frame period) is answered; anything else
+ * — past the last picture, or between two — is left to the decoder, exactly as before.
+ */
+export function repeatedPictureTime(
+  index: RepeatIndex,
+  time: number,
+  halfFrameSeconds: number
+): number | null {
+  const { times, pictures } = index;
+  let low = 0;
+  let high = times.length - 1;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (times[middle]! < time) low = middle + 1;
+    else high = middle;
+  }
+  let nearest = low;
+  if (low > 0 && Math.abs(times[low - 1]! - time) <= Math.abs(times[low]! - time))
+    nearest = low - 1;
+  if (Math.abs(times[nearest]! - time) > halfFrameSeconds) return null;
+  const picture = pictures[nearest]!;
+  return Number.isNaN(picture) ? null : picture;
+}
+
+async function loadRepeatIndex(input: string): Promise<RepeatIndex | null> {
+  try {
+    const stdout = await probeText(buildRepeatProbeArgs(input));
+    return stdout === null ? null : repeatIndexFromProbe(stdout);
+  } catch {
+    // The table only ever saves time. Without it every frame is decoded the long way.
+    return null;
+  }
 }
 
 /**

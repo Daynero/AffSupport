@@ -16,8 +16,10 @@ import {
 } from '../apps/agent/src/images/embedding.js';
 import {
   buildEmbeddedFfmpegArgs,
-  buildHeldScreenArgs,
+  buildHeldScreenMuxArgs,
+  buildHeldScreenPictureArgs,
   heldFinalImageSeconds,
+  heldScreenFrames,
   imageAdaptationFilter
 } from '../apps/agent/src/ffmpeg/presets.js';
 import { calculateEncodeProgress } from '../apps/agent/src/ffmpeg/encoder.js';
@@ -304,7 +306,7 @@ describe('embedded output model and FFmpeg graph', () => {
       finalDurationMode: 'custom',
       finalDurationSeconds: 45 * 60
     });
-    // Long enough that a picture a second is fewer than a picture a frame: build it apart.
+    // Long enough that building it apart is the whole saving of the run.
     expect(heldFinalImageSeconds(held, 30)).toBe(45 * 60);
     // A second and a half is a handful of frames either way, and a join costs two processes.
     expect(
@@ -320,27 +322,57 @@ describe('embedded output model and FFmpeg graph', () => {
     expect(heldFinalImageSeconds(makeEmbedding({ endImage: null }), 30)).toBeNull();
   });
 
-  it('spreads a held final image over a few hundred pictures', () => {
-    const args = buildHeldScreenArgs({
+  it('holds a final image at the frame rate of the video, one picture per frame period', () => {
+    /* A final image of a few hundred pictures made the finished file variable-rate, and
+       Facebook re-encoded it at the file's average — five frames a second for a three-minute
+       creative under a forty-minute image. The image now runs at the rate of the video. */
+    expect(heldScreenFrames(45 * 60, 30)).toEqual({ frames: 81_000, seconds: 2700 });
+    // Whole pictures decide the length, so the image is exactly as long as its frames.
+    const ntsc = heldScreenFrames(40 * 60, 30000 / 1001);
+    expect(ntsc.frames).toBe(71_928);
+    expect(ntsc.seconds).toBeCloseTo(71_928 / (30000 / 1001), 9);
+  });
+
+  it('encodes the picture once and every frame after it as an empty repeat', () => {
+    const args = buildHeldScreenPictureArgs({
       imagePath: '/tmp/end.png',
-      output: '/tmp/screen.mp4',
+      output: '/tmp/seed.mp4',
       width: 720,
       height: 720,
       frameRate: 30,
-      durationSeconds: 45 * 60,
-      fitMode: 'cover',
-      settings: optimalEncoding
+      frames: 209,
+      fitMode: 'cover'
     });
     const line = args.join(' ');
-    /* Forty-five minutes at thirty frames a second is eighty-one thousand copies of one
-       photograph — seven hundred seconds of encoding, measured. Three hundred pictures over
-       the same time cost nothing and the run stops growing with the image. */
-    expect(line).toContain('-framerate 0.111111111 -t 2700');
-    expect(line).toContain('anullsrc=r=48000:cl=stereo:d=2700');
-    /* No B-frames: a picture held nine seconds reorders decode against presentation by nine
-       seconds, and the join then lands on a timestamp that has gone backwards. */
+    // Fitted once and cloned: the photograph is never decoded or scaled a second time.
+    expect(args[args.indexOf('-vf') + 1]).toContain('tpad=stop_mode=clone:stop=-1');
+    expect(line).not.toContain('-loop 1');
+    expect(args[args.indexOf('-frames:v') + 1]).toBe('209');
+    /* Frames 1…208 at the coarsest quantiser: an unchanged macroblock is skipped, and nothing
+       is left to refine. Without it a still costs half a kilobyte a frame for as long as it
+       is held. */
+    expect(args[args.indexOf('-x264-params') + 1]).toBe('zones=1,208,q=51');
+    // The screen is assembled from this run's repeats by stream copy: no reordering, one GOP.
     expect(args[args.indexOf('-bf') + 1]).toBe('0');
-    // Both halves of the join count time the same way.
+    expect(args[args.indexOf('-g') + 1]).toBe('209');
+    // The picture's quality is asked for outright, never left to the job's rate control.
+    expect(args[args.indexOf('-crf') + 1]).toBe('15');
+    expect(line).not.toContain('-b:v');
+    expect(args).toContain('-an');
+    // Every piece of the join counts time the same way.
+    expect(args[args.indexOf('-video_track_timescale') + 1]).toBe('15360');
+  });
+
+  it('joins the held picture to exactly as much silence, without touching the picture', () => {
+    const args = buildHeldScreenMuxArgs({
+      videoPath: '/tmp/picture.mp4',
+      output: '/tmp/screen.mp4',
+      durationSeconds: 2700
+    });
+    const line = args.join(' ');
+    expect(line).toContain('anullsrc=r=48000:cl=stereo:d=2700');
+    expect(args[args.indexOf('-c:v') + 1]).toBe('copy');
+    expect(args[args.indexOf('-t') + 1]).toBe('2700');
     expect(args[args.indexOf('-video_track_timescale') + 1]).toBe('15360');
   });
 

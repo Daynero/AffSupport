@@ -544,7 +544,7 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
     expect(produced.verification.withinTolerance).toBe(true);
   }, 120_000);
 
-  it('places a sparse end screen after every B-frame of the cut body', async () => {
+  it('places the end screen after every B-frame of the cut body', async () => {
     const profile = unwrap(await probeSource(bframeCut));
     const screens = { ...SCREENS, startImageId: null, endDurationSeconds: 1200 };
     const plan = unwrap(
@@ -573,13 +573,23 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
       'csv=p=0',
       produced.stagedPath
     ]);
-    const times = packets.stdout.split('\n').map(Number).filter(Number.isFinite);
-    const firstScreenIndex = times.findIndex(
-      (time, index) => index > 0 && index < times.length - 1 && times[index + 1]! - time > 2
-    );
+    const times = packets.stdout
+      .split('\n')
+      .filter(line => line.trim() !== '')
+      .map(Number)
+      .filter(Number.isFinite);
+    // The screen is the last pictures of the file, one per frame period of the body.
+    const screenFrames = plan.endScreen?.frames ?? 0;
+    expect(screenFrames).toBe(Math.round(1200 * profile.frameRate));
+    const firstScreenIndex = times.length - screenFrames;
     expect(firstScreenIndex).toBeGreaterThan(0);
     const previousBodyPresentation = Math.max(...times.slice(0, firstScreenIndex));
     expect(times[firstScreenIndex]!).toBeGreaterThan(previousBodyPresentation);
+    // And from there the file keeps the body's own rate to its last frame: no gap for a
+    // re-encoder to average into a slideshow.
+    const period = 1 / profile.frameRate;
+    for (let index = firstScreenIndex + 1; index < times.length; index += 1)
+      expect(Math.abs(times[index]! - times[index - 1]! - period)).toBeLessThan(period * 0.02);
   }, 120_000);
 
   it('re-stitches it into a file that matches what it promised', async () => {
@@ -601,7 +611,7 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
     if (!produced.ok) throw new Error(produced.error);
     const middleOfEndScreen =
       produced.verification.durationSeconds - (plan.endScreen?.durationSeconds ?? 0) / 2;
-    // A single-frame end screen returns nothing here; a 1 fps one returns the photo.
+    // A single-frame end screen returns nothing here; one with a picture per frame returns the photo.
     expect(await pixelAt(produced.stagedPath, middleOfEndScreen)).not.toBe('');
   }, 120_000);
 

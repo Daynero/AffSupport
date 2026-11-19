@@ -4,7 +4,7 @@ import {
   COMPRESSION_LIFECYCLE,
   isSettled,
   estimatedFinalImageDurationSeconds,
-  endScreenFrameRate,
+  isHeldScreen,
   expectedDimensions,
   expectedFrameRate,
   jobConfigurationKey,
@@ -479,20 +479,16 @@ function ResultPanel({
 }
 
 /**
- * A held final image is intentionally sparse (at most one stored picture per
- * second), so its average FPS is not the rate of the moving video. This also
- * corrects cards saved by older agents that persisted that misleading average.
+ * A held final image used to be sparse (at most one stored picture per second),
+ * so a file's average FPS was not the rate of the moving video, and agents of
+ * that time persisted the misleading average. The card shows the rate of the
+ * video for every held image, which is also what a current agent measures.
  */
 function displayedResultFrameRate(job: CompressionJob): number | null {
   const embedding = job.imageEmbedding;
   const bodyFrameRate = expectedFrameRate(job.sourceFrameRate, job.encoding.frameRate);
   const finalSeconds = embedding?.finalDurationSeconds;
-  if (
-    embedding?.endImage &&
-    finalSeconds &&
-    bodyFrameRate &&
-    endScreenFrameRate(finalSeconds, bodyFrameRate) < bodyFrameRate
-  ) {
+  if (embedding?.endImage && finalSeconds && bodyFrameRate && isHeldScreen(finalSeconds)) {
     return bodyFrameRate;
   }
   return job.finalFrameRate;

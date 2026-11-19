@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   AAC_FRAME_SAMPLES,
-  STITCH_MAX_SCREEN_FRAMES,
-  STITCH_MAX_SCREEN_FPS,
   STITCH_MIN_BODY_SECONDS,
   STITCH_MIN_SCREEN_FRAMES,
   believableDetection,
   clampStitchEndDuration,
-  endScreenFrameRate,
+  isHeldScreen,
   isOnKeyframe,
   nextKeyframeAfter,
   planStitch,
@@ -189,33 +187,43 @@ describe('screen segments', () => {
     expect(value.startScreen?.frames).toBe(STITCH_MIN_SCREEN_FRAMES);
   });
 
-  it('caps a long end screen at a fixed number of pictures (D17)', () => {
-    // The compressor's ranges are in minutes. At one picture a second a 45-minute screen is
-    // 2700 frames and 18 seconds of encoding; capped, it is 300 frames and under two.
+  it('holds a long end screen at the frame rate of the body it follows', () => {
+    // A screen with fewer pictures than the body made the whole file variable-rate, and
+    // Facebook re-encoded it at the file's average: five frames a second for a three-minute
+    // creative under a forty-minute screen. One picture per frame period leaves one rate.
     const value = unwrap(
       planStitch(profile(), detected(0, 0), screens({ endDurationSeconds: 45 * 60 }))
     );
-    expect(value.endScreen?.frames).toBe(STITCH_MAX_SCREEN_FRAMES);
-    expect(value.endScreen?.durationSeconds).toBeCloseTo(45 * 60, 0);
-    expect(endScreenFrameRate(45 * 60, 30)).toBeCloseTo(STITCH_MAX_SCREEN_FRAMES / (45 * 60), 6);
-  });
-
-  it('encodes a short end screen at one picture per second (D2)', () => {
-    const value = unwrap(
-      planStitch(profile(), detected(0, 0), screens({ endDurationSeconds: 45 }))
-    );
     expect(value.endScreen).toMatchObject({
-      frameRate: STITCH_MAX_SCREEN_FPS,
-      frames: 45,
-      durationSeconds: 45
+      frameRate: 30,
+      frames: 45 * 60 * 30,
+      durationSeconds: 45 * 60
     });
   });
 
-  it('falls back to the body frame rate for an end screen too short for 1 fps', () => {
-    const value = unwrap(planStitch(profile(), detected(0, 0), screens({ endDurationSeconds: 1 })));
-    // A one-second screen at 1 fps could only be one sample; thirty static frames cost
-    // nothing and keep the promised length honest.
-    expect(value.endScreen).toMatchObject({ frameRate: 30, frames: 30, durationSeconds: 1 });
+  it('holds a short end screen at the same rate as a long one', () => {
+    const value = unwrap(
+      planStitch(profile(), detected(0, 0), screens({ endDurationSeconds: 45 }))
+    );
+    expect(value.endScreen).toMatchObject({ frameRate: 30, frames: 45 * 30, durationSeconds: 45 });
+    const brief = unwrap(planStitch(profile(), detected(0, 0), screens({ endDurationSeconds: 1 })));
+    expect(brief.endScreen).toMatchObject({ frameRate: 30, frames: 30, durationSeconds: 1 });
+  });
+
+  it('counts the end screen in the promised frame count at the body rate', () => {
+    const value = unwrap(
+      planStitch(profile(), detected(0, 0), screens({ endDurationSeconds: 40 * 60 }))
+    );
+    const body = Math.round(profile().durationSeconds * 30);
+    expect(value.promisedFrameCount).toBe(body + (value.startScreen?.frames ?? 0) + 40 * 60 * 30);
+  });
+
+  it('builds a screen on its own from two seconds up', () => {
+    expect(isHeldScreen(1.99)).toBe(false);
+    expect(isHeldScreen(2)).toBe(true);
+    expect(isHeldScreen(45 * 60)).toBe(true);
+    expect(isHeldScreen(null)).toBe(false);
+    expect(isHeldScreen(Number.NaN)).toBe(false);
   });
 
   it('gives every screen a whole number of AAC frames within one frame of its picture', () => {

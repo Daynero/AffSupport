@@ -98,7 +98,7 @@ export interface StitchScreens {
 }
 
 export interface StitchScreenSegmentPlan {
-  /** How many encoded pictures the segment holds. The end screen is 1 fps (D2). */
+  /** How many pictures the segment holds: one per frame period of the body. */
   frames: number;
   frameRate: number;
   durationSeconds: number;
@@ -211,19 +211,12 @@ export const DEFAULT_STITCH_END_DURATION_SECONDS = 45 * 60;
 export const AAC_FRAME_SAMPLES = 1024;
 
 /**
- * A screen is capped at this many pictures, however long it is held.
+ * A screen held this long or longer is built on its own rather than inside another encode.
  *
- * The cost of a screen is its **frame count**, not its duration, and the compressor's final
- * image runs to an hour. Measured at 1080×1080: a 45-minute screen at one picture per second
- * is 2700 frames and **18.3 seconds** of encoding — the five-second promise gone. The same
- * screen at 300 pictures (one every nine seconds) takes 1.4 s, and a 45-second screen still
- * gets its full one-per-second. A single frame would be faster still (0.17 s) but nothing can
- * seek inside it, which breaks thumbnails and scrubbing. See research D2 and D17.
+ * Below it the saving is a handful of frames and the separate build costs more processes
+ * than it spares.
  */
-export const STITCH_MAX_SCREEN_FRAMES = 300;
-
-/** Never more than one picture a second, and never more than the cap. */
-export const STITCH_MAX_SCREEN_FPS = 1;
+export const HELD_SCREEN_MIN_SECONDS = 2;
 
 /**
  * A screen segment never holds a single sample.
@@ -234,19 +227,13 @@ export const STITCH_MAX_SCREEN_FPS = 1;
  */
 export const STITCH_MIN_SCREEN_FRAMES = 2;
 
-/**
- * How often a held screen gets a picture.
- *
- * One a second for anything short enough that the cap is not reached; fewer, evenly spread,
- * for the long screens the compressor's ranges produce. Below two seconds the body's own frame
- * rate is used, because a screen still needs two samples to carry its duration through the
- * join (D3) and thirty near-empty frames cost nothing.
- */
-export function endScreenFrameRate(durationSeconds: number, bodyFrameRate: number): number {
-  if (!(durationSeconds > 0)) return bodyFrameRate;
-  if (durationSeconds < STITCH_MIN_SCREEN_FRAMES / STITCH_MAX_SCREEN_FPS) return bodyFrameRate;
-  const capped = STITCH_MAX_SCREEN_FRAMES / durationSeconds;
-  return Math.min(STITCH_MAX_SCREEN_FPS, capped);
+/** Whether a screen of this length is held long enough to be built on its own. */
+export function isHeldScreen(durationSeconds: number | null | undefined): boolean {
+  return (
+    typeof durationSeconds === 'number' &&
+    Number.isFinite(durationSeconds) &&
+    durationSeconds >= HELD_SCREEN_MIN_SECONDS
+  );
 }
 
 export function clampStitchEndDuration(value: unknown): number {
@@ -413,9 +400,23 @@ export function planStitch(
         )
       : null;
   const endSeconds = clampStitchEndDuration(screens.endDurationSeconds);
-  const endFrameRate = endScreenFrameRate(endSeconds, profile.frameRate);
+  /*
+   * The end screen gets a picture as often as the body it follows.
+   *
+   * It used to get far fewer — one a second, capped at three hundred however long the screen
+   * — because a screen's cost was its frame count. That made every finished file
+   * variable-rate with an average of one to five frames a second, and Facebook re-encodes an
+   * upload to a constant rate taken from that average: a three-minute creative under a
+   * forty-minute screen came back as five frames a second
+   * (docs/incidents/2026-11-19-facebook-low-fps.md). A file whose screen runs at the body's
+   * rate has one rate, and that is the rate it is given back at. The frames are assembled
+   * rather than encoded one by one (the agent's `held-picture.ts`), so the count costs
+   * neither the time nor the size it used to.
+   */
   const endScreen =
-    !removing && screens.endImageId ? screenSegmentPlan(endSeconds, endFrameRate, profile) : null;
+    !removing && screens.endImageId
+      ? screenSegmentPlan(endSeconds, profile.frameRate, profile)
+      : null;
   if (!removing && !startScreen && !endScreen) return { ok: false, error: 'no-screens' };
 
   // Only an existing screen is cut away. A `stitch` never trims the source, and a

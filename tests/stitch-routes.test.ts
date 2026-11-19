@@ -265,8 +265,9 @@ describe('POST /api/stitcher/inspect', () => {
       url: '/api/stitcher/inspect',
       payload: body({ endDurationSeconds: 41.5 })
     });
-    // A screen is a whole number of pictures, and 41.5 s at one a second is 42 of them.
-    expect(first.json().plan.endScreen.durationSeconds).toBe(42);
+    // A screen is a whole number of pictures at the body's own rate, so a length that is a
+    // whole number of frame periods is kept exactly rather than rounded to a second.
+    expect(first.json().plan.endScreen.durationSeconds).toBe(41.5);
     const second = await app.inject({
       method: 'POST',
       url: '/api/stitcher/inspect',

@@ -11,10 +11,12 @@
 import { orientationFilter, type ExifOrientation } from '../stitcher/exif.js';
 import {
   STITCH_MIN_SCREEN_FRAMES,
+  isHeldScreen,
   type ImageFitMode,
   type SourceProfile,
   type StitchScreenSegmentPlan
 } from '@video-compressor/shared';
+import { HELD_PICTURE_CRF, heldPictureEncoderArgs } from './held-picture.js';
 import { imageAdaptationFilter, threadArgs } from './presets.js';
 
 export class StitchArgumentError extends Error {
@@ -138,28 +140,32 @@ export function buildScreenVideoArgs(options: ScreenVideoOptions): string[] {
     'libx264',
     '-preset',
     'veryfast',
+    /*
+     * One picture carries the whole screen, so its quality is asked for outright.
+     *
+     * Every frame after the first is an empty repeat (see `heldPictureEncoderArgs`), which
+     * means nothing later improves on the first one. A held screen is looked at for as long
+     * as it is held; a start screen is a frame or two beside moving video and keeps the
+     * rate factor the head rebuild uses.
+     */
     '-crf',
-    '20',
+    String(isHeldScreen(screen.durationSeconds) ? HELD_PICTURE_CRF : 20),
     '-pix_fmt',
     profile.pixelFormat || 'yuv420p',
     ...h264MatchArgs(profile),
     '-color_range',
     'tv',
     /*
-     * No B-frames, and this one is not an optimisation.
-     *
-     * A B-frame makes decode order lag presentation order by a frame or two. At the body's
-     * thirty frames a second that is a few milliseconds; at the end screen's **one** frame a
-     * second it is two whole seconds, and the screen's timestamps then run backwards into the
-     * body it is appended to. The measured result was an output whose video track ended two
-     * seconds before its audio. A static picture gains nothing from B-frames anyway.
+     * No B-frames. A static picture gains nothing from them, and the held screen is
+     * assembled from its own repeats by stream copy, which needs decode order and
+     * presentation order to be the same order.
      */
     '-bf',
     '0',
-    // Nothing to reference across a GOP boundary either: one keyframe at the front and none
-    // after keeps a forty-second screen at a few kilobytes.
+    // One keyframe at the front and none after, for as many frames as this run is given.
     '-g',
     String(Math.max(1, screen.frames)),
+    ...heldPictureEncoderArgs(screen.frames),
     '-an',
     '-video_track_timescale',
     String(profile.videoTimescale),

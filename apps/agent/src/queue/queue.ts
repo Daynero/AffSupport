@@ -2090,11 +2090,11 @@ export class JobQueue {
     job.finalSize = producedSize;
     job.finalWidth = media.width;
     job.finalHeight = media.height;
-    // A long final image is deliberately encoded as a sparse held segment.
-    // FFprobe's average rate then describes that still frame distribution, not
-    // the encoded video rate people chose and see while the creative moves.
-    // probeMedia measures the moving cadence; a sparse stream's nominal rate
-    // can also be misleading. Keep the result card consistent with validation.
+    // A held final image now runs at the video's own frame rate, so the file has
+    // one rate. The opening image is still a single frame with a duration of its
+    // own, which can nudge FFprobe's average or nominal figure a hair off the
+    // rate people chose; probeMedia measures the moving cadence when they
+    // disagree. Keep the result card consistent with validation.
     job.finalFrameRate = heldFinalImage(job)
       ? (media.measuredBodyFrameRate ?? media.nominalFrameRate ?? media.frameRate)
       : media.frameRate;
@@ -2527,12 +2527,12 @@ function validateEmbeddedOutput(job: CompressionJob, media: MediaInfo) {
   /*
    * The frame rate is judged on the moving part, not on the average.
    *
-   * A final image held for half an hour is a few hundred pictures spread across it — that is
-   * the whole reason such a file encodes in a minute instead of twelve. Averaged over the
-   * finished file that reads as two frames a second, and this check called a correct output
-   * broken. probeMedia reads moving packet cadence, including a short opening
-   * when later windows contain only the held image. Prefer that measurement:
-   * the container's nominal rate can describe the sparse tail as well.
+   * A held final image used to be a few hundred pictures spread over half an hour, which
+   * averaged two frames a second over the finished file and made this check call a correct
+   * output broken. The image now runs at the video's rate — it has to, because Facebook
+   * re-encodes an upload at exactly that average — but a one-frame opening image still has
+   * a duration of its own, so the measured cadence of the moving part stays the figure this
+   * check trusts first.
    */
   const measured = heldFinalImage(job)
     ? (media.measuredBodyFrameRate ?? media.nominalFrameRate ?? media.frameRate)

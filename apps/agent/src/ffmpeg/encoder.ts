@@ -4,14 +4,18 @@ import os from 'node:os';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { EncodingSettings, JobImageEmbedding } from '@video-compressor/shared';
 import { activeGovernorOrNull, spawnManaged, type ManagedSpawnGovernor } from '../power/spawn.js';
+import { buildHeldPicture, type HeldStep } from './held-picture.js';
 import {
+  HELD_SCREEN_TIMESCALE,
   buildEmbeddedFfmpegArgs,
   buildFfmpegArgs,
-  buildHeldScreenArgs,
-  heldFinalImageSeconds
+  buildHeldScreenMuxArgs,
+  buildHeldScreenPictureArgs,
+  heldFinalImageSeconds,
+  heldScreenFrames
 } from './presets.js';
 import { buildConcatArgs, concatListContents } from './stitch-presets.js';
-import { concatSegmentDuration, ffmpegPath } from './tools.js';
+import { concatSegmentDuration, ffmpegPath, probeText } from './tools.js';
 
 export interface EncodeResult {
   code: number | null;
@@ -33,7 +37,7 @@ export interface EncodeEmbeddingOptions {
 }
 
 /** The video track timescale both halves of a join are written with. */
-const JOIN_TIMESCALE = 15360;
+const JOIN_TIMESCALE = HELD_SCREEN_TIMESCALE;
 
 export function calculateEncodeProgress(outTimeUs: number, durationSeconds: number | null) {
   if (!durationSeconds || durationSeconds <= 0 || !Number.isFinite(outTimeUs)) return null;
@@ -118,10 +122,12 @@ export function encodeVideo(
  * The same output, in three passes instead of one.
  *
  * The body (and the one-frame opening image, which costs nothing) is encoded exactly as it
- * always was. The held final image is built as its own segment — a few hundred pictures
- * rather than one per frame period — and the two are joined by the concat demuxer with a
- * stream copy. Measured on a two-minute creative with a forty-five-minute image: seven
- * hundred seconds before, sixty-six after, and the time no longer grows with the image.
+ * always was. The held final image is built as its own segment — one picture per frame
+ * period, like the body, but assembled from a short seed rather than encoded frame by frame
+ * (`held-picture.ts`) — and the two are joined by the concat demuxer with a stream copy.
+ * Measured on a two-minute creative with a forty-five-minute image: seven hundred seconds
+ * when every frame was encoded, about a minute since, and the time does not grow with the
+ * image.
  *
  * Three passes rather than one branch of the filter graph because a graph that joins them
  * writes a video track two picture-intervals shorter than its own audio, and the compressor
@@ -169,26 +175,66 @@ function encodeWithHeldScreen(options: {
       const first = await body.done;
       if (first.code !== 0 || first.cancelled || first.spawnErrorCode) return first;
 
+      /*
+       * The final image, at the body's frame rate for as long as it is held.
+       *
+       * Not encoded frame by frame: a short seed is, and the rest is assembled from it by
+       * stream copy (`buildHeldPicture`). Each child is reported through `onChild`, so a stop
+       * reaches whichever one is running; a child that was stopped ends the run there rather
+       * than sending it down the slow road it exists to avoid.
+       */
+      const held = heldScreenFrames(options.heldSeconds, embedding.frameRate);
+      const last: { failure: EncodeResult | null } = { failure: null };
+      const pass = async (args: string[]): Promise<HeldStep> => {
+        const running = spawnPass(governor, args, null, () => {});
+        options.onChild?.(running.child);
+        const result = await running.done;
+        if (result.code === 0 && !result.spawnErrorCode) return 'ok';
+        last.failure = result;
+        // No exit code means a signal ended it: that is a stop, not a failure to route around.
+        return result.code === null && !result.spawnErrorCode ? 'cancelled' : 'failed';
+      };
+      const picturePath = path.join(workDir, 'picture.mp4');
+      const picture = await buildHeldPicture({
+        frames: held.frames,
+        frameRate: embedding.frameRate,
+        timescale: JOIN_TIMESCALE,
+        workDir,
+        name: 'held',
+        output: picturePath,
+        encode: (frames, output) =>
+          pass(
+            buildHeldScreenPictureArgs({
+              imagePath: embedding.endImagePath as string,
+              output,
+              width: embedding.width,
+              height: embedding.height,
+              frameRate: embedding.frameRate,
+              frames,
+              fitMode: embedding.imageEmbedding.fitMode,
+              threads
+            })
+          ),
+        runner: { ffmpeg: pass, ffprobe: args => probeText(args).catch(() => null) }
+      });
+      const heldFailure = (): EncodeResult =>
+        last.failure ?? {
+          code: 1,
+          stderr: 'HELD_SCREEN_FAILED',
+          cancelled: false,
+          spawnErrorCode: null
+        };
+      if (picture.step !== 'ok') return heldFailure();
+
       const screenPath = path.join(workDir, 'screen.mp4');
-      const screen = spawnPass(
-        governor,
-        buildHeldScreenArgs({
-          imagePath: embedding.endImagePath as string,
+      const muxed = await pass(
+        buildHeldScreenMuxArgs({
+          videoPath: picturePath,
           output: screenPath,
-          width: embedding.width,
-          height: embedding.height,
-          frameRate: embedding.frameRate,
-          durationSeconds: options.heldSeconds,
-          fitMode: embedding.imageEmbedding.fitMode,
-          settings,
-          threads
-        }),
-        null,
-        () => {}
+          durationSeconds: held.seconds
+        })
       );
-      options.onChild?.(screen.child);
-      const second = await screen.done;
-      if (second.code !== 0 || second.cancelled || second.spawnErrorCode) return second;
+      if (muxed !== 'ok') return heldFailure();
 
       const listPath = path.join(workDir, 'segments.txt');
       const bodyConcatSeconds = await concatSegmentDuration(bodyPath);

@@ -1,11 +1,15 @@
 import {
   STITCH_MIN_SCREEN_FRAMES,
-  endScreenFrameRate,
+  isHeldScreen,
   startImageDurationSeconds,
   type EncodingSettings,
   type ImageFitMode,
   type JobImageEmbedding
 } from '@video-compressor/shared';
+import { HELD_PICTURE_CRF, heldPictureEncoderArgs } from './held-picture.js';
+
+/** The video track timescale every piece of a joined output is written with. */
+export const HELD_SCREEN_TIMESCALE = 15360;
 
 const evenLimit = (value: number) => Math.max(2, Math.floor(value / 2) * 2);
 const fitLongestSide = (limit: number) => {
@@ -219,90 +223,131 @@ export function buildEmbeddedFfmpegArgs(options: EmbeddedFfmpegOptions): string[
  * Is this final image held long enough to be worth building on its own?
  *
  * Below a couple of seconds it is cheaper to leave it inside the main encode: the saving is
- * a handful of frames and the join costs two more processes. Above it, the saving is the
- * whole run — a forty-five-minute image at thirty frames a second is eighty-one thousand
- * copies of one photograph.
+ * a handful of frames and the join costs more processes. Above it, the saving is the whole
+ * run — a forty-five-minute image at thirty frames a second is eighty-one thousand copies
+ * of one photograph, and they are assembled rather than encoded.
  */
 export function heldFinalImageSeconds(
   embedding: JobImageEmbedding,
-  frameRate: number
+  _frameRate: number
 ): number | null {
   const seconds = embedding.finalDurationSeconds;
   if (!embedding.endImage || !seconds || !(seconds > 0)) return null;
-  return endScreenFrameRate(seconds, frameRate) < frameRate ? seconds : null;
+  return isHeldScreen(seconds) ? seconds : null;
 }
 
-export interface HeldScreenOptions {
+/** How many pictures a held final image is, and exactly how long that many last. */
+export function heldScreenFrames(durationSeconds: number, frameRate: number) {
+  const frames = Math.max(STITCH_MIN_SCREEN_FRAMES, Math.round(durationSeconds * frameRate));
+  return { frames, seconds: frames / frameRate };
+}
+
+export interface HeldScreenPictureOptions {
   imagePath: string;
   output: string;
   width: number;
   height: number;
   frameRate: number;
-  durationSeconds: number;
+  /** How many identical pictures this run writes — the seed, or a short screen whole. */
+  frames: number;
   fitMode: ImageFitMode;
-  settings: EncodingSettings;
   threads?: number | null;
 }
 
 /**
- * The held final image as its own segment: a few hundred pictures instead of one per frame.
+ * The final image as a run of identical pictures at the body's frame rate, video only.
  *
- * Measured on a two-minute creative with a forty-five-minute image: seven hundred seconds
- * when every frame period gets its own picture, sixty-six when the image is three hundred
- * pictures spread over the same time. The picture count comes from `endScreenFrameRate`, the
- * rule the stitcher already uses, so both tools hold an image the same way — one a second
- * when it is short, evenly spread and capped when it is long. It is never a single frame:
- * nothing can seek inside one.
+ * The picture is decoded and fitted once and then cloned (`tpad`), so a run costs what its
+ * encoding costs and nothing for the photograph. Every picture after the first is an empty
+ * repeat (`heldPictureEncoderArgs`): the first one is the screen, at a quality asked for
+ * outright rather than the job's — the job's rate control was chosen for moving video, and
+ * in bitrate mode it would starve a single picture or flood it.
+ *
+ * A long screen is not made by this run alone. `buildHeldPicture` asks it for a short seed
+ * and assembles the whole length from that by stream copy (see `held-picture.ts`).
+ */
+export function buildHeldScreenPictureArgs(options: HeldScreenPictureOptions): string[] {
+  const frames = Math.max(STITCH_MIN_SCREEN_FRAMES, Math.round(options.frames));
+  return [
+    '-hide_banner',
+    '-nostdin',
+    '-y',
+    ...threadArgs(options.threads ?? null),
+    '-framerate',
+    decimal(options.frameRate, 9),
+    '-i',
+    options.imagePath,
+    '-vf',
+    `${imageAdaptationFilter(options.width, options.height, options.fitMode)},tpad=stop_mode=clone:stop=-1,setpts=N/(${decimal(options.frameRate, 9)}*TB)`,
+    '-frames:v',
+    String(frames),
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-pix_fmt',
+    'yuv420p',
+    '-crf',
+    String(HELD_PICTURE_CRF),
+    /*
+     * No B-frames, and one keyframe for the run. The screen is assembled from this run's own
+     * repeats by stream copy, which needs decode order and presentation order to be the same
+     * order — and every picture is the same picture, so there is nothing for them to gain.
+     */
+    '-bf',
+    '0',
+    '-g',
+    String(frames),
+    ...heldPictureEncoderArgs(frames),
+    '-an',
+    '-fps_mode',
+    'passthrough',
+    '-video_track_timescale',
+    String(HELD_SCREEN_TIMESCALE),
+    options.output
+  ];
+}
+
+export interface HeldScreenMuxOptions {
+  videoPath: string;
+  output: string;
+  durationSeconds: number;
+}
+
+/**
+ * The held picture and its silence, as the segment the join names.
  *
  * Built as a file rather than a branch of the main filter graph, and that is the whole
- * reason this function exists. Joined inside the graph, FFmpeg writes a video track two
- * picture-intervals shorter than its own audio and the output fails its own validation. A
- * segment carries its exact duration in its container, and the concat demuxer honours it.
+ * reason the held screen is its own pass. Joined inside the graph, FFmpeg writes a video
+ * track two picture-intervals shorter than its own audio and the output fails its own
+ * validation. A segment carries its exact duration in its container, and the concat demuxer
+ * honours it.
  */
-export function buildHeldScreenArgs(options: HeldScreenOptions): string[] {
-  const rate = endScreenFrameRate(options.durationSeconds, options.frameRate);
-  const pictures = Math.max(STITCH_MIN_SCREEN_FRAMES, Math.round(options.durationSeconds * rate));
-  const held = pictures / rate;
+export function buildHeldScreenMuxArgs(options: HeldScreenMuxOptions): string[] {
+  const held = decimal(options.durationSeconds);
   return [
     '-hide_banner',
     '-nostdin',
     '-n',
-    ...threadArgs(options.threads ?? null),
-    '-loop',
-    '1',
-    '-framerate',
-    decimal(rate, 9),
-    '-t',
-    decimal(held),
     '-i',
-    options.imagePath,
+    options.videoPath,
     '-f',
     'lavfi',
     '-i',
-    `anullsrc=r=48000:cl=stereo:d=${decimal(held)}`,
+    `anullsrc=r=48000:cl=stereo:d=${held}`,
     '-filter_complex',
-    [
-      `[0:v]${imageAdaptationFilter(options.width, options.height, options.fitMode)},setpts=PTS-STARTPTS[v]`,
-      '[1:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a]'
-    ].join(';'),
+    '[1:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a]',
     '-map',
-    '[v]',
+    '0:v:0',
     '-map',
     '[a]',
-    ...videoCodecArgs(options.settings),
-    /*
-     * No B-frames. A held picture nine seconds long reorders decode against presentation by
-     * nine seconds, and the join then places the next segment on top of a timestamp that has
-     * gone backwards. The stitcher found this the hard way; the cost here is nothing, because
-     * every picture is the same picture.
-     */
-    '-bf',
-    '0',
+    '-c:v',
+    'copy',
     ...JOINED_AUDIO,
-    '-fps_mode',
-    'passthrough',
+    '-t',
+    held,
     '-video_track_timescale',
-    '15360',
+    String(HELD_SCREEN_TIMESCALE),
     options.output
   ];
 }
