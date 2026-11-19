@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.5.7",
-  "buildNumber": "99",
-  "buildId": "1.5.7+99",
+  "version": "1.5.8",
+  "buildNumber": "100",
+  "buildId": "1.5.8+100",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-18T00:00:00.000Z",
+  "publishedAt": "2026-11-19T00:00:00.000Z",
   "summary": {
-    "uk": "Запуски з каталогом відновлюються після зупинки й стартують з одного натискання, піксель у запусках, виправлення файлів, транскриптів і інсталятора Windows.",
-    "en": "Catalog launches resume after a stop and start in one click, the launch pixel caption, and file, transcript and Windows installer fixes."
+    "uk": "Зашиті відео більше не йдуть на Facebook як слайд-шоу, ліги креативів у провіднику, плавні переходи між екранами.",
+    "en": "Stitched videos no longer play as a slideshow on Facebook, creative leagues in the explorer, and smooth transitions between screens."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.7/Soty-v1.5.7-macOS-arm64.dmg",
-      "sha256": "699310c762f11e6c7ea36ff0fd7e8fa2973d5cb7082d213232b0626d8678d4d6"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.8/Soty-v1.5.8-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.7/Soty-v1.5.7-macOS-x64.dmg",
-      "sha256": "3017e7a46459f63daf4da9af1761bf59cdbdba899ce7ead3a1758710ad7f39fb"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.8/Soty-v1.5.8-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.7/Soty-v1.5.7-Windows-x64.exe",
-      "sha256": "66308fc7e51f06b619ee1fc615e13c350dd3e0f1f9ac56fd9b1da51d55dbd6c9"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.8/Soty-v1.5.8-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -48,5 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "fRDiXDbMNECsqaeuFA42NXtjAoeyqWuBELkCB9-fo43_ZwrFISQVWn_nb29pDW5quxL9V9vD6gDBg6yZKHRoMA"
+  "signature": "vZrRUeGF_1IzrY0pgAQhz6CjdXGYXf34DeNpGYbSbppbDTX6d8kqJc_i8jf4rLZkYDP8OGSlF-fWtgZRzVxXSg"
 }
