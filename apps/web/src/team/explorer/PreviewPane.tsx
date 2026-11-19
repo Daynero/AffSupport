@@ -3,7 +3,8 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Button } from '../../components/ui/index';
 import { buildTeamRoute } from '../routes';
 import { navigateTo } from '../../lib/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { crossfadePart, leaveCopy } from '../../lib/auto-crossfade';
 import type {
   LandingRenderPointer,
   RenderArtifactRef,
@@ -135,6 +136,19 @@ export function PreviewPane({
     { enabled: Boolean(row), revision: revision + madeRevision }
   );
 
+  // The card sees itself out (058). When it is taken away — the selection dropped, another
+  // folder, a search — the list beside it widens by a third in the same frame: a copy of the
+  // list dissolves that reflow, and a copy of the card slides off the way it came. Done here,
+  // as the element leaves, it covers every way of losing the selection.
+  const leaving = useCallback((node: HTMLElement | null) => {
+    if (!node) return;
+    return () => {
+      const list = node.parentElement?.querySelector<HTMLElement>(':scope > .team-explorer-main');
+      crossfadePart(list, { keep: true, brief: true });
+      leaveCopy(node, 'is-leaving');
+    };
+  }, []);
+
   if (!row) {
     return (
       <aside className="team-explorer-pane is-empty" aria-label={t('teamExplorerPaneLabel')}>
@@ -149,7 +163,7 @@ export function PreviewPane({
   const reason = KIND_REASON[row.kind];
 
   return (
-    <aside className="team-explorer-pane" aria-label={t('teamExplorerPaneLabel')}>
+    <aside ref={leaving} className="team-explorer-pane" aria-label={t('teamExplorerPaneLabel')}>
       <MaterialDetail
         name={row.name}
         className="team-explorer-pane-detail"

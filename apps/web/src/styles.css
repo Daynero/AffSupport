@@ -6733,6 +6733,21 @@ body:has(.public-home) {
 ::view-transition-new(wishly-section) {
   animation: wishly-section-in var(--motion-fast) var(--ease-fade) both;
 }
+/* The two pictures of a section add up, they do not cover each other. The
+   browser's own crossfade blends the pair with plus-lighter — but it does so
+   from inside its default animation, and naming an animation here replaced
+   that one, blend and all. Without it two half-faded pictures of the same
+   panel let a quarter of what is behind them through: on every move inside a
+   space the whole ground dimmed and the honeycomb showed in it (owner, beta:
+   "everything blinks", "the ground goes out"). Said outright, what is the same
+   in both pictures stays exactly as it is and only what differs dissolves. */
+::view-transition-old(wishly-section),
+::view-transition-new(wishly-section) {
+  mix-blend-mode: plus-lighter;
+}
+::view-transition-image-pair(wishly-section) {
+  isolation: isolate;
+}
 @keyframes wishly-section-in {
   from {
     opacity: 0;
@@ -13637,6 +13652,13 @@ button.team-landing-tile:hover {
   place-items: center;
   color: var(--color-text-muted);
 }
+/* The icon standing in for a picture that did not load arrives where an empty
+   tile was: it fades in, like the picture would have. */
+@media (prefers-reduced-motion: no-preference) {
+  .team-explorer-tile-icon.is-fallback {
+    animation: ui-content-enter var(--motion-fast) var(--ease-fade);
+  }
+}
 /* Inline, like the glyph it replaced (024). The reset makes every svg a block,
    which is right for a picture and wrong for an icon set in a line of text: the
    folder tree and the list's name cell put the icon on a line of its own above
@@ -13953,6 +13975,40 @@ button.team-landing-tile:hover {
   max-height: calc(100dvh - var(--explorer-pane-top) - var(--space-3));
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Over the copy of the list that fades beside it while the list takes its new width. */
+  z-index: calc(var(--layer-header) + 1);
+  /* Which way the card comes from: the side it stands on. Stacked under the list, or as a
+     sheet at the bottom of a phone, that is from below. */
+  --pane-from-x: var(--space-6);
+  --pane-from-y: 0px;
+}
+@media (max-width: 1023px) {
+  .team-explorer-pane {
+    --pane-from-x: 0px;
+    --pane-from-y: var(--space-5);
+  }
+}
+/* The card comes in from the side and leaves the same way (058): it used to be swapped in
+   with the whole panel crossfading around it. The leaving one is a copy (`leaveCopy`). */
+@media (prefers-reduced-motion: no-preference) {
+  .team-explorer-pane {
+    animation: team-pane-in var(--motion-base) var(--ease-soft-out);
+  }
+  .team-explorer-pane.is-leaving {
+    animation: team-pane-out var(--motion-fast) var(--ease-fade) both;
+  }
+}
+@keyframes team-pane-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--pane-from-x), var(--pane-from-y));
+  }
+}
+@keyframes team-pane-out {
+  to {
+    opacity: 0;
+    transform: translate(var(--pane-from-x), var(--pane-from-y));
+  }
 }
 /* In a height-capped column the pieces would otherwise shrink to fit — a squashed preview
    instead of a scroll. Each keeps its own size. */

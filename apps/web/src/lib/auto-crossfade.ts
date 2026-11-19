@@ -178,7 +178,10 @@ export function dropAutoGhost() {
   for (const cancel of [...ghosts]) cancel();
 }
 
-function copyOf(scope: HTMLElement): HTMLElement | null {
+function copyOf(
+  scope: HTMLElement,
+  classes: readonly string[] = ['auto-ghost']
+): HTMLElement | null {
   if (scope.getElementsByTagName('*').length > MAX_NODES) return null;
   // A playing picture cannot be copied; a still of it would be the flicker. A canvas can:
   // its pixels are drawn across by `copyState`.
@@ -186,10 +189,11 @@ function copyOf(scope: HTMLElement): HTMLElement | null {
   const copy = scope.cloneNode(true) as HTMLElement;
   if (typeof copy.animate !== 'function') return null;
   copy.removeAttribute('id');
+  copy.removeAttribute('data-testid');
   copy.setAttribute('aria-hidden', 'true');
   copy.setAttribute('inert', '');
   copy.setAttribute('data-auto-ghost', '');
-  copy.classList.add('auto-ghost');
+  copy.classList.add(...classes);
   // To the fraction of a pixel: `offsetTop` is rounded, and a copy a third of a pixel off its
   // original made every line of text under it step by one when it arrived and again when it
   // left — a jiggle on each press.
@@ -202,6 +206,11 @@ function copyOf(scope: HTMLElement): HTMLElement | null {
   const top = base
     ? rect.top - base.top - anchor!.clientTop + anchor!.scrollTop
     : rect.top + window.scrollY;
+  // Placed by hand, whatever the original's own rules say: a sticky card, a cell of a grid
+  // (an out-of-flow child of a grid is laid out against the cell its class names).
+  copy.style.position = 'absolute';
+  copy.style.gridArea = 'auto';
+  copy.style.maxHeight = 'none';
   copy.style.left = `${left}px`;
   copy.style.top = `${top}px`;
   copy.style.width = `${rect.width}px`;
@@ -224,6 +233,81 @@ function begin(scope: HTMLElement) {
   hold(scope, performance.now(), HOLD_MAX_MS, null);
 }
 
+/** A route or layout transition is drawing the screen: it carries the change itself. */
+function inTransition(): boolean {
+  const classes = document.documentElement.classList;
+  return (
+    classes.contains('wishly-page-transition') || classes.contains('wishly-section-transition')
+  );
+}
+
+function still(): boolean {
+  return (
+    typeof document === 'undefined' ||
+    document.visibilityState === 'hidden' ||
+    reduced() ||
+    document.documentElement.classList.contains('is-theming') ||
+    inTransition()
+  );
+}
+
+/**
+ * Crossfades one part of a screen, asked for by the code that changes it.
+ *
+ * A press on a control copies the whole section, because nothing says what the
+ * control will change. Where the code does know — another folder changes the
+ * list of files and nothing else — it names that part, and only that part
+ * dissolves: the tree beside it answers the press at once and the frame around
+ * it never moves (owner, beta: "everything blinks; only the content should
+ * change"). Call it before the change. Returns whether a copy was laid, so the
+ * caller can fall back to a transition where it could not be.
+ *
+ * `keep` leaves a copy that is already up alone — it is of an older state than
+ * this one, which is the state to dissolve from. `brief` does not wait for the
+ * new state's data: for a change of layout, whose other half is already moving.
+ */
+export function crossfadePart(
+  scope: HTMLElement | null | undefined,
+  options: { keep?: boolean; brief?: boolean } = {}
+): boolean {
+  if (!scope?.isConnected || still()) return false;
+  if (options.keep && ghosts.size > 0) return true;
+  dropAutoGhost();
+  return hold(scope, performance.now(), options.brief ? QUIET_MS : HOLD_MAX_MS, null, {
+    part: true,
+    chain: !options.brief
+  });
+}
+
+const LEAVE_REMOVE_MS = 600;
+
+/**
+ * Leaves a copy of `node` where it stands, to play the leaving motion that
+ * `className` gives it, and removes the copy when that ends. For a part of the
+ * page that is unmounted — the copy is what is seen going. Call it while the
+ * node is still in the page (a ref's cleanup is early enough).
+ */
+export function leaveCopy(node: HTMLElement | null | undefined, className: string) {
+  if (!node?.isConnected || !node.parentElement || still()) return;
+  // A sheet fixed to the window is placed from the window, which a copy in the page is not.
+  if (getComputedStyle(node).position === 'fixed') return;
+  const copy = copyOf(node, ['auto-leaving', className]);
+  if (!copy) return;
+  const scrolls = copyState(node, copy);
+  node.after(copy);
+  for (const scroll of scrolls) scroll();
+  let removed = false;
+  const remove = () => {
+    if (removed) return;
+    removed = true;
+    copy.remove();
+  };
+  copy.addEventListener('animationend', event => {
+    if (event.target === copy) remove();
+  });
+  setTimeout(remove, LEAVE_REMOVE_MS);
+}
+
 /**
  * Lays a copy of `scope` over it and fades it once the screen under it is
  * quiet, or after `holdMs`.
@@ -235,13 +319,26 @@ function begin(scope: HTMLElement) {
  * stays until the answer lands and dissolves into it in turn. A slow answer
  * is then two soft changes instead of a soft one and a cut.
  */
-function hold(scope: HTMLElement, sincePage: number, holdMs: number, above: HTMLElement | null) {
+function hold(
+  scope: HTMLElement,
+  sincePage: number,
+  holdMs: number,
+  above: HTMLElement | null,
+  options: { part?: boolean; chain?: boolean } = {}
+): boolean {
+  const { part = false, chain = true } = options;
+  // A press on a control may have asked for anything, so any request begun since then is
+  // waited for. A part is named by code that knows what it shows: it says it is loading by
+  // being marked so, and a request that only brings a shown list up to date is not a wait.
+  const requests = !part;
   const parent = scope.parentElement;
-  const copy = parent ? copyOf(scope) : null;
-  if (!parent || !copy) return;
+  const copy = parent ? copyOf(scope, part ? ['auto-ghost', 'is-part'] : ['auto-ghost']) : null;
+  if (!parent || !copy) return false;
   const scrolls = copyState(scope, copy);
   prune(copy, offscreen(scope));
   if (above?.isConnected && above.parentElement === parent) parent.insertBefore(copy, above);
+  // A part has neighbours — a card beside it, a bar above — and stays under the ones after it.
+  else if (part) scope.after(copy);
   else parent.append(copy);
   for (const scroll of scrolls) scroll();
 
@@ -288,7 +385,7 @@ function hold(scope: HTMLElement, sincePage: number, holdMs: number, above: HTML
   const check = () => {
     const at = now();
     const live = scope.isConnected ? scope : parent;
-    const waiting = Boolean(live.querySelector(BUSY)) || fetchPendingSince(sincePage);
+    const waiting = Boolean(live.querySelector(BUSY)) || (requests && fetchPendingSince(sincePage));
     if (!waiting && at - lastChange >= QUIET_MS) {
       timer = null;
       fade();
@@ -296,8 +393,8 @@ function hold(scope: HTMLElement, sincePage: number, holdMs: number, above: HTML
     }
     if (at - since >= holdMs) {
       timer = null;
-      if (waiting && above === null && scope.isConnected)
-        hold(scope, sincePage, LATE_HOLD_MAX_MS, copy);
+      if (chain && waiting && above === null && scope.isConnected)
+        hold(scope, sincePage, LATE_HOLD_MAX_MS, copy, { part });
       fade();
       return;
     }
@@ -305,6 +402,7 @@ function hold(scope: HTMLElement, sincePage: number, holdMs: number, above: HTML
   };
   timer = setTimeout(check, POLL_MS);
   ghosts.add(remove);
+  return true;
 }
 
 function reduced(): boolean {

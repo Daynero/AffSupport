@@ -10,6 +10,7 @@ import {
 import { flushSync } from 'react-dom';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo, registerRoutePreparer } from '../../lib/navigation';
+import { crossfadePart } from '../../lib/auto-crossfade';
 import { screenOf, type MotionKind, type ScreenKind } from '../../lib/motion-registry';
 import { recoverableLazy } from '../../lib/recoverable-lazy';
 import { PaletteHost } from '../palette/PaletteHost';
@@ -64,6 +65,7 @@ import { ProcessLibraryDialog, type LibraryBatchScope } from '../library/Process
 import { SpaceStatePanel } from './SpaceStatePanel';
 import type { ExplorerShellClient } from '../explorer/ExplorerShell';
 import { BackgroundRenderProvider } from '../explorer/BackgroundRenderProvider';
+import { explorerListAtRest } from '../explorer/listPart';
 import { WorkspaceOperationsProvider } from '../explorer/WorkspaceOperationsProvider';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { privateCacheActorEpoch, usePrivateCacheEpoch } from '../private-cache-scope.js';
@@ -698,12 +700,10 @@ export function WorkspaceShell({
         }),
         {
           replace: !toFiles,
-          // Tiles or rows, another kind of file, the trash: the list becomes a different list,
-          // and it crossfades like a folder change instead of being swapped in one frame (058).
-          motion:
-            motion === 'none' && ('view' in patch || 'kinds' in patch || 'trash' in patch)
-              ? 'section'
-              : motion
+          // The trash is another place: it crossfades like a section. Tiles or rows, another
+          // kind of file — those are pressed on a control, and the press already crossfades
+          // what it changes (lib/auto-crossfade.ts) without holding the screen still (058).
+          motion: motion === 'none' && 'trash' in patch ? 'section' : motion
         }
       );
     },
@@ -715,10 +715,17 @@ export function WorkspaceShell({
       // The way back to the task that sent you here stays through folder moves (024): picking
       // creatives means opening a folder or two, and the pill vanished on the first press, which
       // is what sent people to a second browser tab. Leaving Files, or the pill itself, ends it.
-      // Another folder is another page of the explorer: it crossfades like a section, and the
-      // old folder stays on screen while the new one is read, instead of cutting to a skeleton
-      // and then to the files (058, beta feedback).
-      updateQuery('explorer', { folderId, itemId: null }, 'section'),
+      // Another folder changes the list of files and nothing else, so only the list dissolves:
+      // a copy of the old one stays over it until the new one is read, while the tree and the
+      // path answer the press at once. As a transition of the whole section this dimmed the
+      // tree, the toolbar and the panel under them on every folder (owner, beta: "everything
+      // blinks; only the content should change"). Scrolled down the list, the new folder
+      // opens from its top — that one is still the section's move.
+      updateQuery(
+        'explorer',
+        { folderId, itemId: null },
+        crossfadePart(explorerListAtRest()) ? 'none' : 'section'
+      ),
     [updateQuery]
   );
 

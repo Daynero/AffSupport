@@ -5109,6 +5109,23 @@
   animation: none !important;
   transition: none !important;
 }
+/* A copy of one part of a section (the explorer's list of files). The bars
+   above it are not in the copy and stay over it; what stands beside it and
+   comes later in the page — the file's card — stays over it too. */
+.auto-ghost.is-part {
+  z-index: calc(var(--layer-header) + 1);
+}
+/* A copy left behind by a part that was unmounted, playing its way out
+   (`leaveCopy`): the motion is its own class's, nothing inside it moves. */
+.auto-leaving {
+  margin: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+.auto-leaving * {
+  animation: none !important;
+  transition: none !important;
+}
 
 /* A board of cards is long and mostly off screen (058): cards outside the
    window are not laid out or painted until they are scrolled to, so showing a

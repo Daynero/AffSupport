@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { usePaneArrival } from './usePaneArrival';
+import { crossfadePart } from '../../lib/auto-crossfade';
 import { DropdownMenu, Popover, SegmentedControl } from '../../components/ui/index';
 import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -99,7 +100,7 @@ import {
 } from './UploadConflictDialog';
 import { BulkTrashPanel } from './BulkTrashPanel';
 import { ProcessPanel } from './ProcessPanel';
-import { crossfadeLayout, internalLink, navigateTo } from '../../lib/navigation';
+import { internalLink, navigateTo } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { foldCompanions } from './companions';
 import { useFolderPage } from './useFolderPage';
@@ -1316,7 +1317,12 @@ function ExplorerBody({
     [selectedRows]
   );
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
-  const paneShown = usePaneArrival(!query.trash && !searching && focused !== null);
+  const mainRef = useRef<HTMLDivElement | null>(null);
+  // The pane narrows the list by a third: that reflow dissolves under a copy of the list as
+  // it was, while the pane slides in beside it — not the whole panel crossfading (058).
+  const paneShown = usePaneArrival(!query.trash && !searching && focused !== null, undefined, () =>
+    crossfadePart(mainRef.current, { keep: true, brief: true })
+  );
 
   /**
    * The original, saved to this computer.
@@ -1717,7 +1723,11 @@ function ExplorerBody({
                 {/* Re-sorting is one move, not a reshuffle in a single frame (058). */}
                 <SortMenu
                   sort={sort}
-                  onChange={next => crossfadeLayout(() => setSort(next), true)}
+                  onChange={next => {
+                    // Another order is the same folder: only the list dissolves (058).
+                    crossfadePart(mainRef.current);
+                    setSort(next);
+                  }}
                 />
               </div>
             )}
@@ -2058,6 +2068,7 @@ function ExplorerBody({
         )}
       </div>
       <div
+        ref={mainRef}
         className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}${
           uploading > 0 ? ' is-uploading' : ''
         }`}

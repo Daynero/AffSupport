@@ -2,7 +2,12 @@
 import React, { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dropAutoGhost, installAutoCrossfade } from '../apps/web/src/lib/auto-crossfade';
+import {
+  crossfadePart,
+  dropAutoGhost,
+  installAutoCrossfade,
+  leaveCopy
+} from '../apps/web/src/lib/auto-crossfade';
 
 type FakeAnimation = { finished: Promise<void>; cancel: () => void; finish: () => void };
 const animations: FakeAnimation[] = [];
@@ -31,6 +36,7 @@ beforeEach(() => {
 
 afterEach(() => {
   dropAutoGhost();
+  document.documentElement.className = '';
   cleanup();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -164,5 +170,95 @@ describe('auto crossfade (058)', () => {
     );
     fireEvent.click(screen.getByText('Toggle'));
     expect(ghost()).toBeNull();
+  });
+
+  describe('one part of a screen', () => {
+    function Explorer() {
+      const [folder, setFolder] = useState('st');
+      return (
+        <div className="page-viewport">
+          <main>
+            <nav data-testid="tree">{folder}</nav>
+            <div data-testid="list">
+              <p>{folder} files</p>
+            </div>
+            <aside data-testid="pane">card</aside>
+            <button data-testid="go" onClick={() => setFolder('vid')} />
+          </main>
+        </div>
+      );
+    }
+
+    it('copies only the part named, and puts the copy right after it', () => {
+      render(<Explorer />);
+      const list = screen.getByTestId('list');
+      expect(crossfadePart(list)).toBe(true);
+      fireEvent.click(screen.getByTestId('go'));
+
+      const copy = ghost()!;
+      // The list as it was; the tree beside it has already answered.
+      expect(copy.textContent).toBe('st files');
+      expect(copy.classList.contains('is-part')).toBe(true);
+      expect(screen.getByTestId('tree').textContent).toBe('vid');
+      expect(list.textContent).toBe('vid files');
+      // Under whatever comes after the part — the card stays over the copy.
+      expect(list.nextElementSibling).toBe(copy);
+      expect(copy.nextElementSibling).toBe(screen.getByTestId('pane'));
+    });
+
+    it('leaves an older copy in charge when asked to keep it', () => {
+      render(<Explorer />);
+      const list = screen.getByTestId('list');
+      crossfadePart(list);
+      fireEvent.click(screen.getByTestId('go'));
+      // The pane leaving with the folder asks too: the copy of the old folder is the one to keep.
+      expect(crossfadePart(list, { keep: true })).toBe(true);
+      const copies = document.querySelectorAll('[data-auto-ghost]');
+      expect(copies).toHaveLength(1);
+      expect(copies[0]!.textContent).toBe('st files');
+    });
+
+    it('does not wait for data when the change is one of layout', async () => {
+      render(
+        <div className="page-viewport">
+          <main>
+            <div data-testid="list">
+              <span className="ui-skeleton" />
+            </div>
+          </main>
+        </div>
+      );
+      crossfadePart(screen.getByTestId('list'), { brief: true });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(80);
+      });
+      // Fading already, with the placeholder still up — and no second copy behind it.
+      expect(animations).toHaveLength(1);
+      expect(document.querySelectorAll('[data-auto-ghost]')).toHaveLength(1);
+    });
+
+    it('says when it laid nothing, so the caller can fall back to a transition', () => {
+      render(<Explorer />);
+      expect(crossfadePart(null)).toBe(false);
+      document.documentElement.classList.add('wishly-section-transition');
+      expect(crossfadePart(screen.getByTestId('list'))).toBe(false);
+      expect(ghost()).toBeNull();
+    });
+
+    it('leaves a copy of a part that is unmounted, wearing its leaving class', async () => {
+      render(<Explorer />);
+      const pane = screen.getByTestId('pane');
+      leaveCopy(pane, 'is-leaving');
+      const copy = pane.nextElementSibling as HTMLElement;
+      expect(copy.classList.contains('auto-leaving')).toBe(true);
+      expect(copy.classList.contains('is-leaving')).toBe(true);
+      expect(copy.hasAttribute('inert')).toBe(true);
+      expect(copy.dataset.testid).toBeUndefined();
+      // Gone when its motion ends — or, failing that, after a moment.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      expect(copy.isConnected).toBe(false);
+    });
   });
 });
