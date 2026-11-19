@@ -2205,6 +2205,26 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'Owner only. feature_identifier=creative-rank; action_identifier=reason (disappointed | never-launched); source_kind / input_method = league before / after; outcome success | failure | blocked with error_code applied | rank-conflict | rank-not-lower | permission-denied | failed. The flow id is also the server request key, so a retried press is one demotion. A failed page read of ranks is creative_rank_read_failed (item_count, error_code).'
   },
   {
+    id: 'team.creative_rank_promote',
+    tool: 'team',
+    title: 'Team · creative rank raised back (press → server answer)',
+    stages: ['started', 'finished'],
+    stageEvents: {
+      started: ['creative_rank_promote_started'],
+      finished: ['creative_rank_promote_finished']
+    },
+    start: [{ event: 'creative_rank_promote_started', correlate: 'flow_id' }],
+    terminal: [{ event: 'creative_rank_promote_finished', correlate: 'flow_id' }],
+    platforms: BOTH,
+    unobservable: [
+      'A raise whose finished event was lost is still provable from team_creative_ranks (promoted_at, promoted_by).'
+    ],
+    producerStatus: 'emitted',
+    source: 'events',
+    sinceWebBuild: '1.5.7',
+    note: 'Owner only: undoing a mistaken demotion, one league per press, never past the league the launch count earned (the server refuses with RANK_NOT_HIGHER). feature_identifier=creative-rank; action_identifier=undo; source_kind / input_method = league before / after (unranked below Wax); outcome success | failure | blocked with error_code applied | rank-conflict | rank-not-higher | permission-denied | failed. The flow id is also the server request key.'
+  },
+  {
     id: 'team.creative_rank_credit',
     tool: 'team',
     title: 'Team · creative launch credited (Launch success / direct catalog)',

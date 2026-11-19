@@ -8,7 +8,12 @@ type AnalyticsTracker = Pick<typeof analytics, 'track'>;
 
 /** What the server said about a demotion, in the closed words the CLI reads back. */
 export type CreativeRankDemoteResult =
-  'applied' | 'rank_conflict' | 'rank_not_lower' | 'permission_denied' | 'failed';
+  | 'applied'
+  | 'rank_conflict'
+  | 'rank_not_lower'
+  | 'rank_not_higher'
+  | 'permission_denied'
+  | 'failed';
 
 /** Analytics tokens allow `[a-z0-9._:-]`, never `_`: `never_launched` travels as `never-launched`. */
 const token = (value: string) => value.replaceAll('_', '-');
@@ -79,6 +84,49 @@ export function creativeRankReadFailed(
       feature_identifier: 'creative-rank',
       item_count: input.count,
       error_code: token(input.code)
+    })
+  );
+}
+
+/** The owner raises a league back: one press, so `started` and `finished` share the flow id. */
+export function creativeRankPromoteStarted(
+  input: { flowId: string; from: CreativeRankStanding; to: CreativeRankStanding },
+  tracker: AnalyticsTracker = analytics
+) {
+  emit(() =>
+    tracker.track('creative_rank_promote_started', {
+      flow_id: input.flowId,
+      feature_identifier: 'creative-rank',
+      action_identifier: 'undo',
+      source_kind: input.from,
+      input_method: input.to
+    })
+  );
+}
+
+export function creativeRankPromoteFinished(
+  input: {
+    flowId: string;
+    from: CreativeRankStanding;
+    to: CreativeRankStanding;
+    result: CreativeRankDemoteResult;
+  },
+  tracker: AnalyticsTracker = analytics
+) {
+  emit(() =>
+    tracker.track('creative_rank_promote_finished', {
+      flow_id: input.flowId,
+      feature_identifier: 'creative-rank',
+      action_identifier: 'undo',
+      source_kind: input.from,
+      input_method: input.to,
+      outcome:
+        input.result === 'applied'
+          ? 'success'
+          : input.result === 'permission_denied'
+            ? 'blocked'
+            : 'failure',
+      error_code: token(input.result)
     })
   );
 }

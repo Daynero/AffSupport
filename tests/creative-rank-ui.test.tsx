@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TeamMaterialRow } from '@video-compressor/shared';
@@ -16,6 +16,9 @@ import type { CreativeRanksState } from '../apps/web/src/team/ranks/useCreativeR
 /**
  * Feature 059: a video's honey league on its tile and in its card, and the owner's way down.
  */
+
+/** The card's own league line — the ladder below names every league too. */
+const LEAGUE = { selector: '.creative-rank-card-league' };
 
 const NOW = Date.parse('2026-11-18T12:00:00.000Z');
 const daysAgo = (days: number) => new Date(NOW - days * 86_400_000).toISOString();
@@ -160,20 +163,25 @@ describe('the card', () => {
         }}
       />
     );
-    expect(await screen.findByText('Gold')).toBeTruthy();
+    expect(await screen.findByText('Gold', LEAGUE)).toBeTruthy();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Lower the rank' }));
     await user.click(await screen.findByRole('menuitem', { name: /Disappointed/ }));
-    await waitFor(() => expect(screen.getByText('Silver')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Silver', LEAGUE)).toBeTruthy());
     expect(demoteCreativeRank).toHaveBeenCalledWith(
       expect.objectContaining({ reason: 'disappointed', targetCredit: 6, expectedVersion: 4 })
     );
     expect(screen.getByText(/^16 launches · /)).toBeTruthy();
+    // The ladder: five leagues with their thresholds, the current one marked, the next one's
+    // distance in launches of league credit.
+    const ladder = screen.getByRole('list', { name: 'Leagues by launches' });
     expect(
-      screen.getByText(
-        'Leagues by launches: Wax 1+ · Bronze 3+ · Silver 6+ · Gold 12+ · Diamond 25+'
-      )
-    ).toBeTruthy();
+      within(ladder)
+        .getAllByRole('listitem')
+        .map(step => step.textContent)
+    ).toEqual(['Wax1+', 'Bronze3+', 'Silver6+', 'Gold12+', 'Diamond25+']);
+    expect(ladder.querySelector('[aria-current="step"]')?.textContent).toBe('Silver6+');
+    expect(screen.getByText('Gold in 6 launches')).toBeTruthy();
   });
 
   it('retries an unanswered demotion with the same key', async () => {
@@ -203,7 +211,7 @@ describe('the card', () => {
       call => (call[0] as { requestKey: string }).requestKey
     );
     expect(keys[0]).toBe(keys[1]);
-    await waitFor(() => expect(screen.getByText('Silver')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Silver', LEAGUE)).toBeTruthy());
   });
 
   it('says "No rank" without an emblem for a creative never launched', async () => {
@@ -216,7 +224,7 @@ describe('the card', () => {
         client={{ listCreativeRanks: vi.fn(async () => new Map()), demoteCreativeRank: vi.fn() }}
       />
     );
-    expect(await screen.findByText('No rank')).toBeTruthy();
+    expect(await screen.findByText('No rank', LEAGUE)).toBeTruthy();
     expect(screen.queryByRole('img', { name: /Rank:/ })).toBeNull();
     expect(screen.getByText('Not launched yet')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Lower the rank' })).toBeNull();
@@ -240,7 +248,63 @@ describe('the card', () => {
     await user.click(await screen.findByRole('button', { name: 'Lower the rank' }));
     await user.click(await screen.findByRole('menuitem', { name: /Disappointed/ }));
     expect(demoteCreativeRank).toHaveBeenCalledWith(expect.objectContaining({ targetCredit: 0 }));
-    await waitFor(() => expect(screen.getByText('No rank')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('No rank', LEAGUE)).toBeTruthy());
+  });
+
+  it('lets the owner raise a demoted rank back, one league per press, launches untouched', async () => {
+    // 20 launches earned Gold; the owner had lowered it to Bronze (credit 3).
+    const demoted = rank({ launchCount: 20, rankCredit: 3, version: 6 });
+    const promoteCreativeRank = vi
+      .fn()
+      .mockResolvedValueOnce(rank({ launchCount: 20, rankCredit: 6, version: 7 }))
+      .mockResolvedValueOnce(rank({ launchCount: 20, rankCredit: 20, version: 8 }));
+    render(
+      <MaterialRank
+        teamId="team-1"
+        materialId="v1"
+        isOwner
+        ranksRevision={0}
+        client={{
+          listCreativeRanks: vi.fn(async () => new Map([['v1', demoted]])),
+          demoteCreativeRank: vi.fn(),
+          promoteCreativeRank
+        }}
+      />
+    );
+    expect(await screen.findByText('Bronze', LEAGUE)).toBeTruthy();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Raise the rank' }));
+    await waitFor(() => expect(screen.getByText('Silver', LEAGUE)).toBeTruthy());
+    expect(promoteCreativeRank).toHaveBeenLastCalledWith(
+      expect.objectContaining({ targetCredit: 6, expectedVersion: 6 })
+    );
+    // Reaching the league the launches earned restores the credit whole, and the way up ends.
+    await user.click(screen.getByRole('button', { name: 'Raise the rank' }));
+    await waitFor(() => expect(screen.getByText('Gold', LEAGUE)).toBeTruthy());
+    expect(promoteCreativeRank).toHaveBeenLastCalledWith(
+      expect.objectContaining({ targetCredit: 20, expectedVersion: 7 })
+    );
+    expect(screen.queryByRole('button', { name: 'Raise the rank' })).toBeNull();
+    expect(screen.getByText(/^20 launches · /)).toBeTruthy();
+  });
+
+  it('offers no way up to a rank that stands where its launches put it', async () => {
+    render(
+      <MaterialRank
+        teamId="team-1"
+        materialId="v1"
+        isOwner
+        ranksRevision={0}
+        client={{
+          listCreativeRanks: vi.fn(async () => new Map([['v1', rank()]])),
+          demoteCreativeRank: vi.fn(),
+          promoteCreativeRank: vi.fn()
+        }}
+      />
+    );
+    expect(await screen.findByText('Gold', LEAGUE)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Raise the rank' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Lower the rank' })).toBeTruthy();
   });
 
   it('offers no way down to a member who is not the owner', async () => {
@@ -256,7 +320,7 @@ describe('the card', () => {
         }}
       />
     );
-    expect(await screen.findByText('Gold')).toBeTruthy();
+    expect(await screen.findByText('Gold', LEAGUE)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Lower the rank' })).toBeNull();
   });
 
@@ -280,6 +344,6 @@ describe('the card', () => {
     await user.click(await screen.findByRole('button', { name: 'Lower the rank' }));
     await user.click(await screen.findByRole('menuitem', { name: /Never actually launched/ }));
     expect(await screen.findByText('The rank just changed. Showing the current one.')).toBeTruthy();
-    expect(screen.getByText('Bronze')).toBeTruthy();
+    expect(screen.getByText('Bronze', LEAGUE)).toBeTruthy();
   });
 });

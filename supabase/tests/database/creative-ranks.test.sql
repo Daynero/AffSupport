@@ -1,5 +1,5 @@
 begin;
-select plan(40);
+select plan(44);
 
 -- Deferred crediting fires at commit; a test transaction never commits, so make it immediate.
 set constraints public.team_launch_generations_credit_rank, public.team_product_catalogs_credit_rank,
@@ -75,7 +75,7 @@ select ok(not has_table_privilege('authenticated','public.team_creative_launch_e
 select ok(not has_function_privilege('authenticated','private.apply_creative_rank_event(uuid,uuid,text,uuid,timestamptz,uuid,boolean)','execute'),'browser cannot credit a launch');
 select is_empty($$
  select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace
- where n.nspname='public' and p.proname in('list_creative_ranks','demote_creative_rank')
+ where n.nspname='public' and p.proname in('list_creative_ranks','demote_creative_rank','promote_creative_rank')
  and (not p.prosecdef or not ('search_path=""'=any(p.proconfig)))
 $$,'rank RPCs are definer functions with a closed search path');
 
@@ -275,6 +275,23 @@ select pg_temp.generation('c5900000-0000-4000-8000-000000000328','c5900000-0000-
 select pg_temp.finish('c5900000-0000-4000-8000-000000000328','succeeded');
 select is((select array[launch_count,rank_credit] from public.team_creative_ranks where material_id='c5900000-0000-4000-8000-000000000044'),
  array[61,13],'the next launch after the demotion: 61 launches, credit 13 — still Gold');
+
+-- A mistaken demotion is undone by raising the league back: up to what the launches earned, never
+-- past it, and the launch count stays a fact.
+create temporary table rank_v3_now as select version from public.team_creative_ranks where material_id='c5900000-0000-4000-8000-000000000044';
+grant select on rank_v3_now to authenticated;
+set local role authenticated;
+set local request.jwt.claim.sub = 'c5900000-0000-4000-8000-000000000002';
+select throws_ok($$select public.promote_creative_rank('c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000044',61,
+ (select version from rank_v3_now),'editor-promote-1')$$,'42501',null,'an editor cannot raise a rank');
+set local request.jwt.claim.sub = 'c5900000-0000-4000-8000-000000000001';
+select throws_ok($$select public.promote_creative_rank('c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000044',62,
+ (select version from rank_v3_now),'owner-promote-too-far')$$,'PT409','RANK_NOT_HIGHER','a rank cannot rise past its launches');
+select is((public.promote_creative_rank('c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000044',61,
+ (select version from rank_v3_now),'owner-promote-back') ->> 'rankCredit')::integer,61,'the owner raises Gold back to Diamond');
+select is((public.promote_creative_rank('c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000044',61,
+ (select version from rank_v3_now),'owner-promote-back') -> 'launchCount')::integer,61,'a retried raise is the same raise, launches untouched');
+reset role;
 
 select * from finish();
 rollback;

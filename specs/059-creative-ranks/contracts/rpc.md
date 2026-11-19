@@ -28,6 +28,18 @@
 - Успіх: `rank_credit = p_target_credit`, `demoted_*`, `version + 1`, подія `creative_rank` у
   `team_catalog_events`; повертає той самий об'єкт, що й `list_creative_ranks` для одного id.
 
+## `public.promote_creative_rank(p_team uuid, p_material uuid, p_target_credit integer, p_expected_version bigint, p_request_key text) returns jsonb`
+
+Виправлення помилкового пониження (FR-010a).
+
+- Право: лише `owner`, інакше `PERMISSION_DENIED` (42501); `p_request_key` 8…200, інакше `INVALID_INPUT` (22023).
+- Немає рядка проєкції → `RANK_NOT_HIGHER` (PT409).
+- `p_request_key` = збережений `promote_request_key` → поточний стан (ідемпотентний повтор).
+- `version <> p_expected_version` → `RANK_CONFLICT` (PT409) з актуальним станом у `detail`.
+- `p_target_credit <= rank_credit` або `> launch_count` → `RANK_NOT_HIGHER` (PT409): вище запусків — ніколи.
+- Успіх: `rank_credit = p_target_credit`, `promoted_at/by/request_key`, `version + 1`, подія `creative_rank`.
+  Ціль рахує клієнт (`promotionTarget`): поріг наступної ліги, а для ліги, заробленої запусками, — `launch_count`.
+
 ## Тригери (внутрішній контракт)
 
 - `team_launch_generations` AFTER UPDATE OF state, deferred → `private.credit_launch_rank()`.

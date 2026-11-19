@@ -6549,6 +6549,39 @@ export const teamApi = {
   },
 
   /**
+   * 059 — the owner raises a league back after a mistaken demotion, never past what the launches
+   * earned. Same request-key and conflict rules as the demotion.
+   */
+  async promoteCreativeRank(input: {
+    teamId: string;
+    materialId: string;
+    targetCredit: number;
+    expectedVersion: number;
+    requestKey: string;
+  }): Promise<CreativeRank> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('promote_creative_rank', {
+        p_team: input.teamId,
+        p_material: input.materialId,
+        p_target_credit: input.targetCredit,
+        p_expected_version: input.expectedVersion,
+        p_request_key: input.requestKey
+      })
+    );
+    if (error) {
+      const detail = (error as { details?: unknown }).details;
+      if (/\bRANK_CONFLICT\b/u.test(error.message))
+        throw new CreativeRankDemoteError('conflict', rankFromErrorDetail(detail));
+      if (/\bRANK_NOT_HIGHER\b/u.test(error.message))
+        throw new CreativeRankDemoteError('not_higher', rankFromErrorDetail(detail));
+    }
+    throwRpc(error);
+    const parsed = parseCreativeRank(data);
+    if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+    return parsed.value;
+  },
+
+  /**
    * What is already known about these materials.
    *
    * Batched because the explorer asks once per page of rows, not once per row. A material

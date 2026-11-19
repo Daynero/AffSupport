@@ -461,6 +461,10 @@
   --rank-emblem-list: 32px;
   --rank-emblem-detail: 124px;
   --rank-emblem-tile-inset: 2px;
+  /* The card's ladder of leagues: small combs (≈ 21px of comb in the 40px box), the leagues not
+     reached yet faded and colourless so the eye lands on where the creative stands. */
+  --rank-ladder-emblem: 40px;
+  --rank-ladder-ahead-opacity: 0.4;
 }
 
 /* ============================================================

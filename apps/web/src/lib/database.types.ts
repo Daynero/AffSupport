@@ -9799,6 +9799,16 @@ export type GeneratedDatabase = {
         Args: { p_group: string; p_material: string; p_team: string };
         Returns: Json;
       };
+      promote_creative_rank: {
+        Args: {
+          p_expected_version: number;
+          p_material: string;
+          p_request_key: string;
+          p_target_credit: number;
+          p_team: string;
+        };
+        Returns: Json;
+      };
       read_google_drive_credential: {
         Args: { p_credential: string };
         Returns: {

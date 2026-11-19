@@ -141,9 +141,13 @@ export const analyticsEventNames = [
   // reason is chosen, `finished` with the server's answer (`outcome` + `error_code`), both
   // sharing `flow_id`. `feature_identifier` = creative-rank (tokens never carry `_`), `action_identifier` = reason,
   // `source_kind` / `input_method` = league before / after. A failed page read of ranks is
-  // `creative_rank_read_failed` with `item_count` = videos asked about.
+  // `creative_rank_read_failed` with `item_count` = videos asked about. Raising a league back (the
+  // owner undoing a mistaken demotion) is one press: `creative_rank_promote_started` / `_finished`,
+  // same fields, `action_identifier` = undo.
   'creative_rank_demote_started',
   'creative_rank_demote_finished',
+  'creative_rank_promote_started',
+  'creative_rank_promote_finished',
   'creative_rank_read_failed',
   ...TEAM_ANALYTICS_EVENT_NAMES
 ] as const;

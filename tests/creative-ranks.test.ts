@@ -7,6 +7,7 @@ import {
   freshnessOf,
   leagueOf,
   parseCreativeRank,
+  promotionTarget,
   parseCreativeRankList,
   rankFromErrorDetail
 } from '../apps/web/src/team/ranks/creativeRanks';
@@ -99,6 +100,34 @@ describe('demotion', () => {
   it('has nowhere to go without a rank', () => {
     expect(demotionTarget(0, 'disappointed')).toBeNull();
     expect(demotionTarget(0, 'never_launched')).toBeNull();
+  });
+});
+
+describe('raising a rank back', () => {
+  it('goes one league up at a time', () => {
+    // 60 launches earned Diamond; demoted to Bronze.
+    expect(promotionTarget({ launchCount: 60, rankCredit: 3 })).toEqual({
+      league: 'silver',
+      credit: 6
+    });
+    expect(promotionTarget({ launchCount: 60, rankCredit: 0 })).toEqual({
+      league: 'wax',
+      credit: 1
+    });
+  });
+
+  it('restores the whole credit on reaching the league the launches earned', () => {
+    expect(promotionTarget({ launchCount: 60, rankCredit: 13 })).toEqual({
+      league: 'diamond',
+      credit: 60
+    });
+  });
+
+  it('never rises past the launches', () => {
+    expect(promotionTarget({ launchCount: 60, rankCredit: 60 })).toBeNull();
+    // Still Gold by its launches: a demoted credit inside the same league has nowhere to rise.
+    expect(promotionTarget({ launchCount: 20, rankCredit: 12 })).toBeNull();
+    expect(promotionTarget({ launchCount: 0, rankCredit: 0 })).toBeNull();
   });
 });
 

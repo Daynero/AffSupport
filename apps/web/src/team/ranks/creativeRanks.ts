@@ -98,6 +98,26 @@ export function demotionTarget(
 }
 
 /**
+ * Where raising a rank back lands — the owner undoing a mistaken demotion. One league up, never
+ * past the league the launches themselves earned; reaching that league restores the credit to the
+ * launch count, so the undo is whole. Null when the rank already stands where its launches put it.
+ */
+export function promotionTarget(
+  rank: Pick<CreativeRank, 'rankCredit' | 'launchCount'>
+): { league: CreativeRankLeague; credit: number } | null {
+  const earned = leagueOf(rank.launchCount);
+  if (earned === null || rank.rankCredit >= rank.launchCount) return null;
+  const current = leagueOf(rank.rankCredit);
+  const earnedIndex = CREATIVE_RANK_LEAGUE_IDS.indexOf(earned);
+  const currentIndex = current === null ? -1 : CREATIVE_RANK_LEAGUE_IDS.indexOf(current);
+  if (currentIndex >= earnedIndex) return null;
+  const next = CREATIVE_RANK_LEAGUES[currentIndex + 1];
+  return next.id === earned
+    ? { league: earned, credit: rank.launchCount }
+    : { league: next.id, credit: next.min };
+}
+
+/**
  * The emblem file for a league and state; files sit in `apps/web/public/creative-ranks/`.
  *
  * Every file is the same square canvas with the honeycomb at its centre and the same size in all
@@ -178,16 +198,23 @@ export function parseCreativeRankList(value: unknown): ParseResult<CreativeRank[
 }
 
 /**
- * Why a demotion did not apply, when the answer is about the rank itself: someone else changed it
- * first (`conflict`, with the current rank when the server sent it) or it is not lower (`not_lower`).
- * Permission and transport failures stay `TeamApiError`s.
+ * Why a demotion or a raise did not apply, when the answer is about the rank itself: someone else
+ * changed it first (`conflict`, with the current rank when the server sent it), or the target is
+ * not lower (`not_lower`) / not higher within the launches (`not_higher`). Permission and
+ * transport failures stay `TeamApiError`s.
  */
 export class CreativeRankDemoteError extends Error {
-  readonly reason: 'conflict' | 'not_lower';
+  readonly reason: 'conflict' | 'not_lower' | 'not_higher';
   readonly current: CreativeRank | null;
 
-  constructor(reason: 'conflict' | 'not_lower', current: CreativeRank | null) {
-    super(reason === 'conflict' ? 'RANK_CONFLICT' : 'RANK_NOT_LOWER');
+  constructor(reason: 'conflict' | 'not_lower' | 'not_higher', current: CreativeRank | null) {
+    super(
+      reason === 'conflict'
+        ? 'RANK_CONFLICT'
+        : reason === 'not_lower'
+          ? 'RANK_NOT_LOWER'
+          : 'RANK_NOT_HIGHER'
+    );
     this.name = 'CreativeRankDemoteError';
     this.reason = reason;
     this.current = current;

@@ -46,6 +46,10 @@ create table public.team_creative_ranks (
   demoted_by uuid references auth.users(id) on delete set null,
   demote_reason text check (demote_reason in ('disappointed', 'never_launched')),
   demote_request_key text check (demote_request_key is null or char_length(demote_request_key) between 8 and 200),
+  -- The owner's way back up after a mistaken demotion: never past what the launches earned.
+  promoted_at timestamptz,
+  promoted_by uuid references auth.users(id) on delete set null,
+  promote_request_key text check (promote_request_key is null or char_length(promote_request_key) between 8 and 200),
   version bigint not null default 1,
   updated_at timestamptz not null default now(),
   primary key (team_id, material_id)
@@ -358,6 +362,56 @@ begin
 end;
 $$;
 
+-- The owner raises a creative's league back — a mistaken demotion undone. The launch count is a
+-- fact and never changes; the credit may rise only up to it, so a creative never sits above the
+-- league its own launches earned.
+create function public.promote_creative_rank(
+  p_team uuid, p_material uuid, p_target_credit integer,
+  p_expected_version bigint, p_request_key text
+) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  r public.team_creative_ranks%rowtype;
+begin
+  if private.team_role(p_team, auth.uid()) is distinct from 'owner' then
+    raise exception 'PERMISSION_DENIED' using errcode = '42501';
+  end if;
+  if p_material is null or p_target_credit is null or p_expected_version is null
+     or p_request_key is null or char_length(p_request_key) not between 8 and 200 then
+    raise exception 'INVALID_INPUT' using errcode = '22023';
+  end if;
+
+  select * into r from public.team_creative_ranks
+   where team_id = p_team and material_id = p_material
+   for update;
+  if r.material_id is null then
+    raise exception 'RANK_NOT_HIGHER' using errcode = 'PT409';
+  end if;
+  if r.promote_request_key = p_request_key then
+    return private.creative_rank_json(r);
+  end if;
+  if r.version <> p_expected_version then
+    raise exception 'RANK_CONFLICT' using errcode = 'PT409', detail = private.creative_rank_json(r)::text;
+  end if;
+  if p_target_credit <= r.rank_credit or p_target_credit > r.launch_count then
+    raise exception 'RANK_NOT_HIGHER' using errcode = 'PT409', detail = private.creative_rank_json(r)::text;
+  end if;
+
+  update public.team_creative_ranks
+     set rank_credit = p_target_credit,
+         promoted_at = pg_catalog.clock_timestamp(),
+         promoted_by = auth.uid(),
+         promote_request_key = p_request_key,
+         version = version + 1,
+         updated_at = pg_catalog.clock_timestamp()
+   where team_id = p_team and material_id = p_material
+   returning * into r;
+  insert into public.team_catalog_events (team_id, material_id, event_kind)
+  values (p_team, p_material, 'creative_rank');
+  return private.creative_rank_json(r);
+end;
+$$;
+
 revoke all on function private.bump_creative_rank(uuid, uuid, integer, timestamptz) from public, anon, authenticated;
 revoke all on function private.apply_creative_rank_event(uuid, uuid, text, uuid, timestamptz, uuid, boolean) from public, anon, authenticated;
 revoke all on function private.credit_launch_rank() from public, anon, authenticated;
@@ -367,8 +421,10 @@ revoke all on function private.absorb_launch_catalog(uuid, uuid, uuid, boolean) 
 revoke all on function private.creative_rank_json(public.team_creative_ranks) from public, anon, authenticated;
 revoke all on function public.list_creative_ranks(uuid, uuid[]) from public, anon;
 revoke all on function public.demote_creative_rank(uuid, uuid, text, integer, bigint, text) from public, anon;
+revoke all on function public.promote_creative_rank(uuid, uuid, integer, bigint, text) from public, anon;
 grant execute on function public.list_creative_ranks(uuid, uuid[]) to authenticated;
 grant execute on function public.demote_creative_rank(uuid, uuid, text, integer, bigint, text) to authenticated;
+grant execute on function public.promote_creative_rank(uuid, uuid, integer, bigint, text) to authenticated;
 
 -- Backfill from history, kept as a function so a repair can run it again. Idempotent: every event
 -- is keyed by its source, and the projection is recomputed from the ledger, keeping how far the

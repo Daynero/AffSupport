@@ -18709,12 +18709,23 @@ a.history-subject {
   width: var(--rank-emblem-detail);
   height: var(--rank-emblem-detail);
 }
-/* A video's card shows its league large, beside the words that say it. */
+/* A creative's card shows its league large, beside the words that say it, and the ladder of
+   leagues beneath. */
 .creative-rank-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: var(--space-2) 0;
+}
+.creative-rank-card-head {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin: var(--space-2) 0;
+}
+.creative-rank-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
 }
 .creative-rank-card-body {
   display: flex;
@@ -18733,12 +18744,74 @@ a.history-subject {
   color: var(--color-text-muted);
   font-weight: var(--weight-body);
 }
-/* How the leagues are earned, in launches: small print under the facts. */
-.creative-rank-card-legend {
+/* How the leagues are earned: five combs in a row, each with its threshold; the current one in a
+   honey frame, the ones ahead faded. */
+.creative-rank-ladder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-subtle);
+}
+.creative-rank-ladder-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.creative-rank-ladder-step {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-1) 0;
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+.creative-rank-ladder-step[data-state='current'] {
+  border-color: var(--color-primary-border);
+  background: var(--color-primary-softer);
+}
+.creative-rank-ladder-emblem {
+  display: block;
+  width: var(--rank-ladder-emblem);
+  height: var(--rank-ladder-emblem);
+  object-fit: contain;
+  user-select: none;
+}
+.creative-rank-ladder-step[data-state='ahead'] .creative-rank-ladder-emblem {
+  filter: grayscale(1);
+  opacity: var(--rank-ladder-ahead-opacity);
+}
+.creative-rank-ladder-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.creative-rank-ladder-step[data-state='current'] .creative-rank-ladder-name {
+  font-weight: var(--weight-label);
+}
+.creative-rank-ladder-step[data-state='ahead'] .creative-rank-ladder-name,
+.creative-rank-ladder-min {
+  color: var(--color-text-muted);
+}
+.creative-rank-ladder-min {
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+.creative-rank-ladder-next {
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--text-caption);
-  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
 .creative-rank-card-message {
   margin: 0;
