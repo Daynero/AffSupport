@@ -55,6 +55,26 @@ describe('a file’s note', () => {
     expect(await screen.findByText('Ran on v31-434')).toBeTruthy();
   });
 
+  it('says it is being read, without taking any room, so a card can wait for it', async () => {
+    let answer!: (note: string | null) => void;
+    const notes = {
+      getMaterialNote: vi.fn(() => new Promise<string | null>(resolve => (answer = resolve))),
+      setMaterialNote: vi.fn()
+    };
+    const { container } = render(
+      <ToastProvider>
+        <MaterialNoteBlock teamId={TEAM} materialId={FILE} canEdit client={notes} />
+      </ToastProvider>
+    );
+    const mark = container.querySelector<HTMLElement>('.team-material-note-pending')!;
+    expect(mark.hidden).toBe(true);
+    expect(mark.getAttribute('aria-busy')).toBe('true');
+    await waitFor(() => expect(notes.getMaterialNote).toHaveBeenCalled());
+    answer(null);
+    await screen.findByRole('button', { name: 'Add a note' });
+    expect(container.querySelector('.team-material-note-pending')).toBeNull();
+  });
+
   it('offers to add a note only to someone who may write one', async () => {
     const notes = client(null);
     const { rerender } = render(

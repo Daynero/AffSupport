@@ -432,47 +432,56 @@ export function Tooltip({
  * in half-painted. A cached one fades too: it still replaces a holder that was
  * on screen a moment ago, and a snap there is the flicker this exists to stop.
  */
-export const FadeImage = forwardRef<HTMLImageElement, ImgHTMLAttributes<HTMLImageElement>>(
-  function FadeImage({ className, onLoad, src, ...props }, forwarded) {
-    /** The address that has decoded; a new address fades in again. */
-    const [loadedFor, setLoadedFor] = useState<string | undefined>(undefined);
+export const FadeImage = forwardRef<
+  HTMLImageElement,
+  ImgHTMLAttributes<HTMLImageElement> & {
     /**
-     * The address the holder has been painted for. A cached picture decodes before the first
-     * frame, and a style that is already final when first computed has nothing to fade from —
-     * so it waits for one painted frame at the holder.
+     * Shown the moment it has decoded, with no fade of its own: for a picture that replaces
+     * another under a crossfade that is already carrying the change (058). Two fades at once
+     * let the holder show through between them.
      */
-    const [paintedFor, setPaintedFor] = useState<string | undefined>(undefined);
-    useEffect(() => {
-      let second = 0;
-      const first = requestAnimationFrame(() => {
-        second = requestAnimationFrame(() => setPaintedFor(src));
-      });
-      return () => {
-        cancelAnimationFrame(first);
-        cancelAnimationFrame(second);
-      };
-    }, [src]);
-    const ref = useCallback(
-      (element: HTMLImageElement | null) => {
-        if (element?.complete && element.naturalWidth > 0) setLoadedFor(src);
-        if (typeof forwarded === 'function') forwarded(element);
-        else if (forwarded) forwarded.current = element;
-      },
-      [forwarded, src]
-    );
-    const loaded = src !== undefined && loadedFor === src && paintedFor === src;
-    return (
-      <img
-        {...props}
-        ref={ref}
-        src={src}
-        className={['ui-fade-image', className].filter(Boolean).join(' ')}
-        data-loaded={loaded || undefined}
-        onLoad={(event: SyntheticEvent<HTMLImageElement>) => {
-          setLoadedFor(src);
-          onLoad?.(event);
-        }}
-      />
-    );
+    immediate?: boolean;
   }
-);
+>(function FadeImage({ className, onLoad, src, immediate, ...props }, forwarded) {
+  /** The address that has decoded; a new address fades in again. */
+  const [loadedFor, setLoadedFor] = useState<string | undefined>(undefined);
+  /**
+   * The address the holder has been painted for. A cached picture decodes before the first
+   * frame, and a style that is already final when first computed has nothing to fade from —
+   * so it waits for one painted frame at the holder.
+   */
+  const [paintedFor, setPaintedFor] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setPaintedFor(src));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+  }, [src]);
+  const ref = useCallback(
+    (element: HTMLImageElement | null) => {
+      if (element?.complete && element.naturalWidth > 0) setLoadedFor(src);
+      if (typeof forwarded === 'function') forwarded(element);
+      else if (forwarded) forwarded.current = element;
+    },
+    [forwarded, src]
+  );
+  const loaded = src !== undefined && loadedFor === src && paintedFor === src;
+  return (
+    <img
+      {...props}
+      ref={ref}
+      src={src}
+      className={['ui-fade-image', className].filter(Boolean).join(' ')}
+      data-loaded={loaded || undefined}
+      data-immediate={immediate || undefined}
+      onLoad={(event: SyntheticEvent<HTMLImageElement>) => {
+        setLoadedFor(src);
+        onLoad?.(event);
+      }}
+    />
+  );
+});

@@ -161,6 +161,10 @@ export function MaterialNoteBlock({
 
   useEffect(() => setEditing(false), [materialId]);
 
+  // Being read: nothing to show yet, but a card that is replacing another waits for this (058),
+  // so that the note's row does not drop out and come back.
+  if (entry.state === 'loading')
+    return <span className="team-material-note-pending" aria-busy="true" hidden />;
   if (entry.state !== 'ready') return null;
   const note = entry.note;
 

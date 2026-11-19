@@ -39,6 +39,8 @@ import {
 import { Button } from '../../components/ui';
 import { usePaneArrival } from './usePaneArrival';
 import { crossfadePart } from '../../lib/auto-crossfade';
+import { BeforeChange } from '../../lib/before-change';
+import { moveFromPlaces, rememberPlaces } from '../../lib/layout-move';
 import { DropdownMenu, Popover, SegmentedControl } from '../../components/ui/index';
 import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -1318,11 +1320,14 @@ function ExplorerBody({
   );
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
   const mainRef = useRef<HTMLDivElement | null>(null);
-  // The pane narrows the list by a third: that reflow dissolves under a copy of the list as
-  // it was, while the pane slides in beside it — not the whole panel crossfading (058).
-  const paneShown = usePaneArrival(!query.trash && !searching && focused !== null, undefined, () =>
-    crossfadePart(mainRef.current, { keep: true, brief: true })
-  );
+  const paneShown = usePaneArrival(!query.trash && !searching && focused !== null);
+  // The pane narrows the list by a third, and the read-only note above it wraps to a second
+  // line: every tile and row is somewhere else in the next frame. They travel there (058) —
+  // the list used to dissolve and come back lower, and the eye lost the file it was on.
+  const rememberListPlaces = useCallback(() => rememberPlaces(mainRef.current, LIST_MOVERS), []);
+  useLayoutEffect(() => {
+    moveFromPlaces(mainRef.current);
+  }, [paneShown]);
 
   /**
    * The original, saved to this computer.
@@ -1670,6 +1675,7 @@ function ExplorerBody({
         onDropMaterials={dropMaterials}
         onReset={onReset}
       />
+      <BeforeChange of={paneShown} run={rememberListPlaces} />
       <div ref={explorerHeaderRef} className="team-explorer-header">
         <div className="team-explorer-toolbar">
           <Button
@@ -2455,6 +2461,13 @@ async function filesFromDrop(dataTransfer: DataTransfer): Promise<UploadFile[]> 
 type UploadFile = { file: File; relativePath: string };
 
 const VIEW_KEY = 'soty.team.explorer.view';
+/**
+ * What in the list a change of its width or of the note above it moves (058): the block of
+ * files as a whole, each tile within it, and each cell of a row — a row keeps its place and
+ * its columns close up.
+ */
+const LIST_MOVERS =
+  '.team-explorer-content, .team-explorer-tile, .team-explorer-rows :is(.ui-table-cell, .ui-table-header-cell)';
 
 /** Someone typing owns their keys; the explorer's shortcuts never apply there. */
 function isEditableTarget(target: HTMLElement | null): boolean {

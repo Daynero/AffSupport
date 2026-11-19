@@ -4239,6 +4239,11 @@
 .ui-fade-image[data-loaded] {
   opacity: 1;
 }
+/* Under a crossfade that already carries the change: there the moment it decodes. */
+.ui-fade-image[data-immediate] {
+  opacity: 1;
+  transition: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .ui-fade-image {
     transition: none;

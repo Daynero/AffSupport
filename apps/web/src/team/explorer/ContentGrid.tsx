@@ -13,6 +13,7 @@ import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
+import { knownBroken, markBroken } from './brokenPictures';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
 import { useMaterialDrag } from './materialDrag';
@@ -220,25 +221,6 @@ export function ContentGrid({
   );
 }
 
-/**
- * Pictures that did not load, and when (058). A tile is mounted anew each time
- * its folder is opened, and each time it asked for the picture again: an empty
- * tile, then — a quarter of a second later — the icon that stands in for it,
- * on every step back into the folder. For a while the answer is remembered and
- * the icon is there from the first frame; after that the picture gets another
- * chance, since what failed may have been the network.
- */
-const BROKEN_PICTURE_MS = 3 * 60_000;
-const brokenPictures = new Map<string, number>();
-
-function knownBroken(key: string): boolean {
-  const at = brokenPictures.get(key);
-  if (at === undefined) return false;
-  if (Date.now() - at < BROKEN_PICTURE_MS) return true;
-  brokenPictures.delete(key);
-  return false;
-}
-
 function Tile({
   row,
   session,
@@ -349,7 +331,7 @@ function Tile({
             loading="lazy"
             decoding="async"
             onError={() => {
-              brokenPictures.set(pictureKey, Date.now());
+              markBroken(pictureKey);
               setBroken(true);
               setFellBack(true);
             }}

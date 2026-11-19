@@ -41,24 +41,3 @@ it('shows at once for a selection that was there from the start', () => {
   const { result } = renderHook(() => usePaneArrival(true, 400));
   expect(result.current).toBe(true);
 });
-
-it('says so just before the pane comes, and only then', () => {
-  // The list is copied at that moment, so its reflow dissolves while the pane slides in (058).
-  const order: string[] = [];
-  const { result, rerender } = renderHook(
-    ({ present }) => {
-      const shown = usePaneArrival(present, 400, () => order.push('arrive'));
-      order.push(shown ? 'shown' : 'hidden');
-      return shown;
-    },
-    { initialProps: { present: false } }
-  );
-  rerender({ present: true });
-  act(() => vi.advanceTimersByTime(400));
-  expect(result.current).toBe(true);
-  expect(order.filter(entry => entry !== 'hidden')).toEqual(['arrive', 'shown']);
-  // Staying, and leaving, are not arrivals.
-  rerender({ present: true });
-  rerender({ present: false });
-  expect(order.filter(entry => entry === 'arrive')).toHaveLength(1);
-});

@@ -13989,7 +13989,9 @@ button.team-landing-tile:hover {
   }
 }
 /* The card comes in from the side and leaves the same way (058): it used to be swapped in
-   with the whole panel crossfading around it. The leaving one is a copy (`leaveCopy`). */
+   with the whole panel crossfading around it. The leaving one is a copy (`leaveCopy`). The
+   list beside it does not fade: its tiles and rows travel to where the new width puts them
+   (`lib/layout-move.ts`), in the same time and on the same curve as the card. */
 @media (prefers-reduced-motion: no-preference) {
   .team-explorer-pane {
     animation: team-pane-in var(--motion-base) var(--ease-soft-out);
@@ -13998,10 +14000,15 @@ button.team-landing-tile:hover {
     animation: team-pane-out var(--motion-fast) var(--ease-fade) both;
   }
 }
+/* Solid by the middle of its way: the list's columns close up beneath it as it comes, and a
+   card still half transparent showed them through its own text. */
 @keyframes team-pane-in {
   from {
     opacity: 0;
     transform: translate(var(--pane-from-x), var(--pane-from-y));
+  }
+  50% {
+    opacity: 1;
   }
 }
 @keyframes team-pane-out {

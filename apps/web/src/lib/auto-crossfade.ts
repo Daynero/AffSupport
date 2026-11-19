@@ -265,17 +265,21 @@ function still(): boolean {
  * `keep` leaves a copy that is already up alone — it is of an older state than
  * this one, which is the state to dissolve from. `brief` does not wait for the
  * new state's data: for a change of layout, whose other half is already moving.
+ * `waitFor` names what in the part says "not ready yet", where the usual marks
+ * would be the wrong ones — a card waits for its picture, not for a button in
+ * it that happens to be busy with something else.
  */
 export function crossfadePart(
   scope: HTMLElement | null | undefined,
-  options: { keep?: boolean; brief?: boolean } = {}
+  options: { keep?: boolean; brief?: boolean; waitFor?: string } = {}
 ): boolean {
   if (!scope?.isConnected || still()) return false;
   if (options.keep && ghosts.size > 0) return true;
   dropAutoGhost();
   return hold(scope, performance.now(), options.brief ? QUIET_MS : HOLD_MAX_MS, null, {
     part: true,
-    chain: !options.brief
+    chain: !options.brief,
+    waitFor: options.waitFor
   });
 }
 
@@ -324,9 +328,9 @@ function hold(
   sincePage: number,
   holdMs: number,
   above: HTMLElement | null,
-  options: { part?: boolean; chain?: boolean } = {}
+  options: { part?: boolean; chain?: boolean; waitFor?: string } = {}
 ): boolean {
-  const { part = false, chain = true } = options;
+  const { part = false, chain = true, waitFor = BUSY } = options;
   // A press on a control may have asked for anything, so any request begun since then is
   // waited for. A part is named by code that knows what it shows: it says it is loading by
   // being marked so, and a request that only brings a shown list up to date is not a wait.
@@ -385,7 +389,8 @@ function hold(
   const check = () => {
     const at = now();
     const live = scope.isConnected ? scope : parent;
-    const waiting = Boolean(live.querySelector(BUSY)) || (requests && fetchPendingSince(sincePage));
+    const waiting =
+      Boolean(live.querySelector(waitFor)) || (requests && fetchPendingSince(sincePage));
     if (!waiting && at - lastChange >= QUIET_MS) {
       timer = null;
       fade();
@@ -394,7 +399,7 @@ function hold(
     if (at - since >= holdMs) {
       timer = null;
       if (chain && waiting && above === null && scope.isConnected)
-        hold(scope, sincePage, LATE_HOLD_MAX_MS, copy, { part });
+        hold(scope, sincePage, LATE_HOLD_MAX_MS, copy, { part, waitFor });
       fade();
       return;
     }

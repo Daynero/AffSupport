@@ -237,6 +237,37 @@ describe('auto crossfade (058)', () => {
       expect(document.querySelectorAll('[data-auto-ghost]')).toHaveLength(1);
     });
 
+    it('waits for what the caller names as not ready, and for nothing else', async () => {
+      function Card() {
+        const [ready, setReady] = useState(false);
+        return (
+          <div className="page-viewport">
+            <main>
+              <aside data-testid="card">
+                {/* Busy with something of its own: not what the card is waiting for. */}
+                <button aria-busy="true">Saving</button>
+                {!ready && <img className="picture-pending" alt="" />}
+              </aside>
+              <button data-testid="loaded" onClick={() => setReady(true)} />
+            </main>
+          </div>
+        );
+      }
+      render(<Card />);
+      crossfadePart(screen.getByTestId('card'), { waitFor: '.picture-pending' });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      // The picture is not there yet: the card as it was stays up.
+      expect(animations).toHaveLength(0);
+      fireEvent.click(screen.getByTestId('loaded'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(80);
+      });
+      // There now — and the busy button did not hold it.
+      expect(animations).toHaveLength(1);
+    });
+
     it('says when it laid nothing, so the caller can fall back to a transition', () => {
       render(<Explorer />);
       expect(crossfadePart(null)).toBe(false);

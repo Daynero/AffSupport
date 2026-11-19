@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * How long the first press waits before the detail pane takes its width.
@@ -13,29 +13,16 @@ import { useEffect, useRef, useState } from 'react';
  */
 export const PANE_ARRIVAL_MS = 400;
 
-/**
- * Whether the pane is shown: at once while it stays, after a pause when it comes.
- * `onArrive` is called just before it comes — the moment to copy the list it is about to
- * narrow, so that the reflow dissolves while the pane slides in beside it (058).
- */
-export function usePaneArrival(
-  present: boolean,
-  delayMs = PANE_ARRIVAL_MS,
-  onArrive?: () => void
-): boolean {
+/** Whether the pane is shown: at once while it stays, after a pause when it comes. */
+export function usePaneArrival(present: boolean, delayMs = PANE_ARRIVAL_MS): boolean {
   const [shown, setShown] = useState(present);
-  const arrive = useRef(onArrive);
-  arrive.current = onArrive;
   useEffect(() => {
     if (!present) {
       setShown(false);
       return;
     }
     if (shown) return;
-    const timer = window.setTimeout(() => {
-      arrive.current?.();
-      setShown(true);
-    }, delayMs);
+    const timer = window.setTimeout(() => setShown(true), delayMs);
     return () => window.clearTimeout(timer);
   }, [present, shown, delayMs]);
   return present && shown;
