@@ -1,5 +1,5 @@
 begin;
-select plan(44);
+select plan(48);
 
 -- Deferred crediting fires at commit; a test transaction never commits, so make it immediate.
 set constraints public.team_launch_generations_credit_rank, public.team_product_catalogs_credit_rank,
@@ -292,6 +292,27 @@ select is((public.promote_creative_rank('c5900000-0000-4000-8000-000000000011','
 select is((public.promote_creative_rank('c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000044',61,
  (select version from rank_v3_now),'owner-promote-back') -> 'launchCount')::integer,61,'a retried raise is the same raise, launches untouched');
 reset role;
+
+-- 062: a Launch with several creatives credits each; the catalog absorbs only into its own creative.
+reset role;
+insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version) values
+ ('c5900000-0000-4000-8000-000000000045','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-m1','M1','file','video','video/mp4','1'),
+ ('c5900000-0000-4000-8000-000000000046','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-m2','M2','file','video','video/mp4','1'),
+ ('c5900000-0000-4000-8000-000000000047','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-m3','M3','file','video','video/mp4','1'),
+ ('c5900000-0000-4000-8000-000000000058','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-000000000031','ranks-c8','C8','file','other','application/vnd.google-apps.spreadsheet','1');
+select pg_temp.catalog('c5900000-0000-4000-8000-000000000058','c5900000-0000-4000-8000-000000000045');
+select pg_temp.launch('c5900000-0000-4000-8000-00000000010f','c5900000-0000-4000-8000-000000000045');
+insert into public.team_launch_revisions(id,team_id,launch_id,revision_no,result_kind,config,sources,original_url,generated_url,sub_values,created_by)
+ values('c5900000-0000-4000-8000-00000000022f','c5900000-0000-4000-8000-000000000011','c5900000-0000-4000-8000-00000000010f',1,'generated',
+  '{"materialId":"c5900000-0000-4000-8000-000000000045","method":"catalog","creativeKind":"video","creatives":[{"materialId":"c5900000-0000-4000-8000-000000000045"},{"materialId":"c5900000-0000-4000-8000-000000000046"},{"materialId":"c5900000-0000-4000-8000-000000000047"}]}',
+  '{}','https://offer.example.invalid/','https://offer.example.invalid/?s=1','{}','c5900000-0000-4000-8000-000000000001');
+select pg_temp.attach('c5900000-0000-4000-8000-00000000022f','c5900000-0000-4000-8000-000000000058');
+select pg_temp.generation('c5900000-0000-4000-8000-00000000032f','c5900000-0000-4000-8000-00000000010f','c5900000-0000-4000-8000-00000000022f');
+select pg_temp.finish('c5900000-0000-4000-8000-00000000032f','succeeded');
+select is((select count(*)::int from public.team_creative_launch_events where source_kind='launch' and source_id='c5900000-0000-4000-8000-00000000010f'),3,'a Launch of three creatives has three ledger events');
+select is(pg_temp.count_of('c5900000-0000-4000-8000-000000000045'),1,'the catalog''s own creative is credited once (catalog absorbed)');
+select is(array[pg_temp.count_of('c5900000-0000-4000-8000-000000000046'),pg_temp.count_of('c5900000-0000-4000-8000-000000000047')],array[1,1],'every other creative is credited');
+select is((select absorbed_by_launch_id from public.team_creative_launch_events where source_kind='catalog' and source_id='c5900000-0000-4000-8000-000000000058'),'c5900000-0000-4000-8000-00000000010f'::uuid,'the Launch absorbs its catalog');
 
 select * from finish();
 rollback;
