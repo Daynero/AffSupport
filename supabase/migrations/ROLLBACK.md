@@ -3267,3 +3267,66 @@ Additive only: the attachment cleanup guard on `team_creative_launch_events` and
 orphaned task upload can be claimed. Removing creative ranks removes the tables and the
 triggers with them.
 
+
+## 20261220100000 — empty recovery claims leave no secret
+
+Additive in schema (no column, no table): `service_team_recovery_core` is patched in place,
+`prune_empty_recovery_claims` is new and `sweep_workspace_recovery` calls it.
+
+To go back, do both of these in **one transaction**:
+
+1. restore the core's previous body (20261207197000 applied over 20261206100000);
+2. `delete from private.team_recovery_claim_receipts where state = 'confirmed' and response_secret_id is null`.
+
+The delete is not optional and waiting does not replace it. While the new body is live every
+empty poll writes a confirmed receipt without a secret, and under the old body such a receipt
+replays `null`: the Edge handler passes it on, the agent reads a non-record answer as
+`DRIVE_UNAVAILABLE` and retries the same request id against the same receipt until its retry
+budget parks background work for that computer. Deleting the receipt turns the next retry
+into an ordinary new poll.
+
+The prune may keep running under the old body — it only removes receipts that handed out no
+job, with their secrets — or be stopped by recreating `sweep_workspace_recovery` without its
+third call. Receipts and secrets it has already removed are not restored and are not needed.
+
+## 20261220110000 — cheap copy retirement
+
+Same rows, same order, same limit; only the plan changed. Restoring the previous body of
+`retire_unused_restitch_copies` (20261207184000) is safe at any time and brings back the
+211 ms a minute. `catalog_video_variants_output_material_idx` is a plain partial index and can
+stay or go independently.
+
+## 20261220120000 — lean analytics events
+
+Additive: `analytics_tool_contract_sets`, `analytics_events.tool_contract_set_id`,
+`private.analytics_tool_contract_list_is_plain` and a new body for `ingest_analytics_events`.
+Restoring the 20261117110000 body is safe at any time: events again carry their own
+`tool_contracts` and leave `tool_contract_set_id` empty; rows written in between keep their
+reference, so do not drop the dictionary or the column. Do not drop the dictionary's
+`task_cleanup_reference_fence` trigger while the table exists:
+`task_cleanup_coverage_verified` then answers false for the whole database and no orphaned
+task upload can be claimed. The shape function is used by the dictionary's check constraint
+and must outlive it.
+
+Four indexes were dropped. If a query ever needs one, recreate it from 20260718211000 or
+20260720130000 with `create index concurrently`, outside a transaction, on a table this size:
+`analytics_events_local_build_idx`, `analytics_events_event_name_idx`,
+`analytics_events_tool_idx`, `analytics_events_user_id_idx`.
+
+The file sets `lock_timeout = '5s'`. If it fails with a lock timeout nothing was changed;
+apply it again.
+
+## 20261220130000 — re-stitch candidate retention
+
+Stop it with `select cron.unschedule('soty-restitch-candidate-retention')`; the function can
+stay, and scheduling it again later loses nothing — a run reaches every root whose operation
+ended more than seven days ago, however old. Rows it removed are not restored and nothing reads them: every reader of
+`restitch_selection_candidates` refuses an operation that is not pending or running. Roots,
+slots, grants and the candidates a grant points at are never touched, so the screen
+accounting of 047 is as it was. `restitch_selection_roots_created_idx` can stay.
+
+## 20261220140000 — agent journal duplicate index
+
+`agent_journal_records_instance_seq_idx` duplicated the unique constraint's index
+`agent_journal_records_instance_seq_key`. Nothing to roll back; recreating it only brings
+back 20 MB and a second index write per journal record.
