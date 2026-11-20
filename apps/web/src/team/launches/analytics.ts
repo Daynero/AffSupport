@@ -4,7 +4,8 @@ import {
   type LaunchGeneration,
   type LaunchAnalyticsAction,
   type LaunchAnalyticsField,
-  type LaunchAnalyticsStage
+  type LaunchAnalyticsStage,
+  type LaunchCreativeAnalytics
 } from '@video-compressor/shared';
 import { analytics } from '../../analytics/service';
 type AnalyticsTracker = Pick<typeof analytics, 'track'>;
@@ -35,14 +36,17 @@ function ids(c: Correlation) {
 export function launchIntent(
   c: Correlation,
   method: 'catalog' | 'other',
-  tracker: AnalyticsTracker = analytics
+  tracker: AnalyticsTracker = analytics,
+  /** 062: kinds and counts of a catalog Launch's creatives; never names. */
+  creatives?: LaunchCreativeAnalytics | null
 ) {
   emit(() =>
     tracker.track('team_launch_intent', {
       ...ids(c),
       launch_action: 'generate',
       launch_method: method,
-      launch_stage: 'validation'
+      launch_stage: 'validation',
+      ...(creatives ?? {})
     })
   );
 }

@@ -8,7 +8,11 @@ import { privateCacheActor, privateCacheActorEpoch } from '../private-cache-scop
 import { launchReply, whileLaunchActive, withLaunchTransientRetry } from './reply';
 import { launchIntent, launchAction, launchLocalStage } from './analytics';
 import { useEffect, useRef, useState } from 'react';
-import { parseLaunchConfig } from '@video-compressor/shared';
+import {
+  launchCreativeAnalytics,
+  parseLaunchConfig,
+  type LaunchCreativeAnalytics
+} from '@video-compressor/shared';
 import { runLaunchRestitch } from './restitch-runner';
 import { cancelTeamAgentProcess } from '../../api/client';
 import type {
@@ -228,10 +232,14 @@ export function useLaunchGeneration(
     key: string;
     kind: 'restitch' | 'generation';
   } | null>(null);
-  const intent = (method: 'catalog' | 'other', launchId?: string) => {
+  const intent = (
+    method: 'catalog' | 'other',
+    launchId?: string,
+    creatives?: LaunchCreativeAnalytics | null
+  ) => {
     if (!flow.current) {
       flow.current = externalFlowId ?? crypto.randomUUID();
-      launchIntent({ flowId: flow.current, launchId }, method);
+      launchIntent({ flowId: flow.current, launchId }, method, undefined, creatives);
     }
     return flow.current;
   };
@@ -287,7 +295,18 @@ export function useLaunchGeneration(
         epoch: privateCacheActorEpoch()
       };
     }
-    const flowId = intent(config.method ?? 'other', detail?.id);
+    const flowId = intent(
+      config.method ?? 'other',
+      detail?.id,
+      config.method === 'catalog' && config.catalog
+        ? launchCreativeAnalytics({
+            method: 'catalog',
+            creativeKind: config.creativeKind,
+            creatives: config.creatives,
+            catalog: config.catalog
+          })
+        : null
+    );
     submitting.current = true;
     setBusy(true);
     setPendingStage(cancelRequested.current ? 'cancel' : 'validation');
