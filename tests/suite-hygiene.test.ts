@@ -47,6 +47,8 @@ const SLEEP_IS_THE_POINT: Record<string, string> = {
   'journal-forwarder.test.ts': 'a zero-delay macrotask yield for the lazily imported agent client',
   'session-handoff-screens.test.tsx': 'a zero-delay yield before asserting no navigation happened',
   'team-ux-feedback.test.tsx': 'a delay before asserting a toast did not re-fire',
+  'team-ux-navigation.test.tsx':
+    'a delay before asserting a closed workspace armed no further section poll',
   'team-restitch-prepare.test.ts':
     'a stub probe whose overlap, and its cut-off mid-way, are the assertions',
   'team-bridge.test.ts': 'a wait past the watchdog budget while paused, to show the clock stopped',
