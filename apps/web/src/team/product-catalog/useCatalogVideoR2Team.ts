@@ -19,7 +19,8 @@ export interface CatalogVideoR2Team {
   available: boolean;
   canManage: boolean;
   row(catalogId: string): CatalogVideoR2Row;
-  toggle(catalogId: string, enabled: boolean): Promise<void>;
+  /** `image`: 062 image catalogs, whose links switch between R2 and Drive. */
+  toggle(catalogId: string, enabled: boolean, kind?: 'video' | 'image'): Promise<void>;
 }
 
 const OFF: CatalogVideoR2Row = {
@@ -68,7 +69,7 @@ export function useCatalogVideoR2Team(
   }, [client, teamId, revision, updaterRevision]);
 
   const toggle = useCallback(
-    async (catalogId: string, enabled: boolean) => {
+    async (catalogId: string, enabled: boolean, kind: 'video' | 'image' = 'video') => {
       setPending(current => new Map(current).set(catalogId, enabled));
       setErrors(current => {
         const next = new Map(current);
@@ -76,7 +77,10 @@ export function useCatalogVideoR2Team(
         return next;
       });
       try {
-        const receipt = await client.setPreference(catalogId, { enabled });
+        const receipt =
+          kind === 'image' && client.setImagePreference
+            ? await client.setImagePreference(catalogId, { enabled })
+            : await client.setPreference(catalogId, { enabled });
         setSignals(current => {
           const next = new Map(current);
           const before = next.get(catalogId);

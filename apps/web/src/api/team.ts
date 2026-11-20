@@ -6721,6 +6721,11 @@ async function tariffRpc(name: string, args: Record<string, unknown> = {}): Prom
   return data;
 }
 
+/** The same untyped seam for other RPCs a migration adds ahead of the generated types (062). */
+export function untypedTeamRpc(name: string, args: Record<string, unknown> = {}): Promise<unknown> {
+  return tariffRpc(name, args);
+}
+
 function parsedOrThrow<T>(value: T | null): T {
   if (value === null) throw new TeamApiError('INVALID_RESPONSE', false);
   return value;

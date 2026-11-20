@@ -10,7 +10,7 @@ import {
   type CatalogVideoR2State,
   type CatalogVideoR2Usage
 } from '@video-compressor/shared';
-import { invokeTeamFunction } from './team';
+import { invokeTeamFunction, TeamApiError, untypedTeamRpc } from './team';
 
 /**
  * Optional publication of a catalog's video to R2 (050). The existing team
@@ -27,6 +27,14 @@ export interface CatalogVideoR2Client {
     options?: { signal?: AbortSignal }
   ): Promise<CatalogVideoR2State>;
   setPreference(
+    catalogMaterialId: string,
+    input: { enabled: boolean }
+  ): Promise<CatalogVideoR2PreferenceReceipt>;
+  /**
+   * 062: an image catalog's links come from R2 or Drive. The server rewrites the
+   * image cells right away through the catalog's publication (absent in fakes).
+   */
+  setImagePreference?(
     catalogMaterialId: string,
     input: { enabled: boolean }
   ): Promise<CatalogVideoR2PreferenceReceipt>;
@@ -61,6 +69,14 @@ export const catalogVideoR2Client: CatalogVideoR2Client = {
       { enabled: input.enabled },
       isCatalogVideoR2PreferenceReceipt
     ),
+  setImagePreference: async (catalogMaterialId, input) => {
+    const data = await untypedTeamRpc('set_catalog_creative_image_r2', {
+      p_catalog: catalogMaterialId,
+      p_enabled: input.enabled
+    });
+    if (!isCatalogVideoR2PreferenceReceipt(data)) throw new TeamApiError('INVALID_RESPONSE', true);
+    return data;
+  },
   listSignals: (teamId, options) =>
     invokeTeamFunction(query('signals', { teamId }), {}, isCatalogVideoR2Signals, {
       method: 'GET',

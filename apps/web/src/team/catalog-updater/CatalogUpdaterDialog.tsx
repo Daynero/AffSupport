@@ -236,12 +236,12 @@ function CatalogUpdaterDialogScope({
   const mayRun = can('process');
   // 050: the R2 option is one more icon beside the auto-update choices.
   const videoR2 = useCatalogVideoR2Team(teamId);
-  const videoR2For = (catalogId: string, locked?: string) =>
-    videoR2.available
+  const videoR2For = (catalogId: string, locked?: string, kind?: 'video' | 'image') =>
+    videoR2.available || kind === 'image'
       ? {
           row: videoR2.row(catalogId),
           disabledReason: !videoR2.canManage ? t('catalogVideoR2NoPermission') : locked,
-          onToggle: (next: boolean) => void videoR2.toggle(catalogId, next)
+          onToggle: (next: boolean) => void videoR2.toggle(catalogId, next, kind)
         }
       : undefined;
 
@@ -1686,7 +1686,7 @@ function CatalogUpdaterDialogScope({
                           disabledReason={disabledReason}
                           onChange={(field, value) => changeField(row, field, value)}
                           onReadiness={() => setExpandedCatalogId(row.catalogId)}
-                          videoR2={videoR2For(row.catalogId)}
+                          videoR2={videoR2For(row.catalogId, undefined, row.profile?.creativeKind)}
                         />
                       ) : (
                         <small>{t('catalogUpdaterProfileUnknown')}</small>
@@ -2022,7 +2022,7 @@ function CatalogUpdaterDialogScope({
                       }
                       onChange={(field, value) => changeField(row, field, value)}
                       onReadiness={registry.reload}
-                      videoR2={videoR2For(row.catalogId)}
+                      videoR2={videoR2For(row.catalogId, undefined, row.profile?.creativeKind)}
                     />
                     {videoR2.available && videoR2.row(row.catalogId).enabled && (
                       <p className="team-inline-note" data-testid="catalog-video-r2-status">
