@@ -1,5 +1,5 @@
 begin;
-select plan(35);
+select plan(53);
 
 -- Fixture: one space, an editor, four videos, one image, a "sheet" material.
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
@@ -106,6 +106,63 @@ insert into public.team_launch_generations(id,team_id,launch_id,revision_id,acto
 select is(public.get_launch('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000101')->>'pendingCatalogName','Alpha+3_v1_catalog','pending catalog name counts the other creatives');
 select is((select (e->>'creativeCount')::int from jsonb_array_elements(public.list_launches('c0620000-0000-4000-8000-000000000011','{}'::jsonb,50)->'items') e where e->>'id'='c0620000-0000-4000-8000-000000000101'),4,'the list reports the creative count');
 select is((select e->>'creativeKind' from jsonb_array_elements(public.list_launches('c0620000-0000-4000-8000-000000000011','{}'::jsonb,50)->'items') e where e->>'id'='c0620000-0000-4000-8000-000000000101'),'video','the list reports the creative kind');
+
+-- 062 video segments: one restitch set per video of one catalog intent.
+update public.team_materials set size_bytes=1000 where team_id='c0620000-0000-4000-8000-000000000011';
+insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version,checksum,size_bytes) values
+ ('c0620000-0000-4000-8000-000000000046','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000031','multi-v5','Other.mp4','file','video','video/mp4','1','5123456789abcdef0123456789abcdef',1000);
+create function pg_temp.settings() returns jsonb language sql as $$
+ select '{"operation":"restitch","sourceMode":"drive","startImageIds":[],"endImageIds":[],"fitMode":"cover","configured":true,"startEnabled":false,"endEnabled":true,"automaticEndFrame":true,"startDurationMode":"one-frame","customStartDurationMs":100,"finalDurationMode":"custom","customFinalDurationSeconds":2700}'::jsonb;
+$$;
+-- Set id, rows and request of segment o (0..3): video 41+o, rows 2o and 2o+1.
+create function pg_temp.set_id(o int) returns uuid language sql as $$ select ('c0620000-0000-4000-8000-0000000005'||lpad(o::text,2,'0'))::uuid $$;
+create function pg_temp.row_id(r int) returns uuid language sql as $$ select ('c0620000-0000-4000-8000-0000000006'||lpad(r::text,2,'0'))::uuid $$;
+create function pg_temp.req_id(o int) returns uuid language sql as $$ select ('c0620000-0000-4000-8000-0000000007'||lpad(o::text,2,'0'))::uuid $$;
+create function pg_temp.seed(o int) returns text language sql as $$ select encode(sha256(convert_to(repeat('a',64)||':'||o::text,'UTF8')),'hex') $$;
+insert into private.catalog_generation_intents(id,team_id,video_material_id,actor_id,request_key,request_digest,request_payload,variant,state,checkpoint)
+ values('c0620000-0000-4000-8000-000000000401','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000041','c0620000-0000-4000-8000-000000000001',
+  'launch:c0620000-0000-4000-8000-000000000301:catalog','digest','{"catalogVideoProtocolVersion":1,"restitchEnabled":true}',1,'planned',
+  jsonb_build_object('initialVideoPlan',jsonb_build_object('setId',pg_temp.set_id(0),'assignmentSeed',repeat('a',64),
+   'segments',(select jsonb_agg(jsonb_build_object('ordinal',o,'materialId','c0620000-0000-4000-8000-0000000000'||(41+o)::text,'kind','video','rowStart',2*o,'rowCount',2,'variantCount',1,
+     'setId',pg_temp.set_id(o),'childRequestIds',jsonb_build_array(pg_temp.req_id(o)),'assignmentSeed',pg_temp.seed(o)) order by o) from generate_series(0,3) o))));
+create function pg_temp.accept(o int, p_source text default null, p_set uuid default null) returns jsonb language sql as $$
+ select public.service_accept_catalog_video_set_before_foreground('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000901',
+  jsonb_build_object('setId',coalesce(p_set,pg_temp.set_id(o)),'catalogIntentId','c0620000-0000-4000-8000-000000000401',
+   'sourceMaterialId',coalesce(p_source,'c0620000-0000-4000-8000-0000000000'||(41+o)::text),'sourceVersion','1','settings',pg_temp.settings(),
+   'settingsDigest',repeat('b',64),'requestedCount',1,'productCount',2,'recipeRevision',1,'seed',pg_temp.seed(o)),
+  jsonb_build_array(jsonb_build_object('index',0,'requestId',pg_temp.req_id(o))),
+  jsonb_build_array(jsonb_build_object('recipeRowId',pg_temp.row_id(2*o),'videoVariantIndex',0),jsonb_build_object('recipeRowId',pg_temp.row_id(2*o+1),'videoVariantIndex',0)));
+$$;
+select lives_ok($$select pg_temp.accept(o) from generate_series(0,3) o$$,'every video segment accepts its own set');
+select is((select count(*)::int from private.catalog_video_sets where catalog_intent_id='c0620000-0000-4000-8000-000000000401'),4,'one intent holds four sets');
+select lives_ok($$select pg_temp.accept(2)$$,'replaying a segment set returns it');
+select is((select count(*)::int from private.catalog_video_recipe_references where catalog_intent_id='c0620000-0000-4000-8000-000000000401'),4,'each set keeps its recipe reference');
+select throws_ok($$select pg_temp.accept(1,'c0620000-0000-4000-8000-000000000046')$$,'42501','PERMISSION_DENIED','a video outside the plan is refused');
+select throws_ok($$select pg_temp.accept(1,null,'c0620000-0000-4000-8000-000000000599')$$,'42501','PERMISSION_DENIED','a segment accepts only its planned set');
+select is((select assignment_seed from private.catalog_video_sets where id=pg_temp.set_id(3)),pg_temp.seed(3),'each set keeps its segment seed');
+
+-- Generation, context and frozen segments.
+update public.team_launch_generations set state='running',lease_owner='c0620000-0000-4000-8000-000000000902',lease_expires_at=clock_timestamp()+interval '5 minutes' where id='c0620000-0000-4000-8000-000000000301';
+insert into private.launch_catalog_video_contexts(generation_id,team_id,actor_id,executor_id,settings_snapshot,request_payload,initial_video_plan,catalog_intent_id,video_set_id)
+ values('c0620000-0000-4000-8000-000000000301','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000901',pg_temp.settings(),'{}','{}','c0620000-0000-4000-8000-000000000401',pg_temp.set_id(0));
+insert into private.launch_catalog_video_segments(generation_id,ordinal,team_id,material_id,kind,row_start,row_count,variant_count,video_set_id,assignment_seed)
+ select 'c0620000-0000-4000-8000-000000000301',o,'c0620000-0000-4000-8000-000000000011',('c0620000-0000-4000-8000-0000000000'||(41+o)::text)::uuid,'video',2*o,2,1,pg_temp.set_id(o),pg_temp.seed(o) from generate_series(0,3) o;
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='private.launch_catalog_video_segments'::regclass)
+  and not has_table_privilege('service_role','private.launch_catalog_video_segments','select,insert,update,delete')
+  and not has_table_privilege('authenticated','private.launch_catalog_video_segments','select,insert,update,delete'),'segments are reachable only through definer functions');
+select throws_ok($$update private.launch_catalog_video_segments set row_count=row_count where ordinal=0$$,'55000','WRONG_STATE','segments are immutable');
+select ok(private.task_cleanup_coverage_verified(),'segments keep the cleanup fence');
+select is((public.service_wait_launch_catalog_video('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000301','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000902',(select fence::text from public.team_launch_generations where id='c0620000-0000-4000-8000-000000000301')))->>'setCount','4','waiting sees every set');
+update private.catalog_video_sets set state='unknown' where id=pg_temp.set_id(2);
+update public.team_launch_generations set state='running',lease_owner='c0620000-0000-4000-8000-000000000902',lease_expires_at=clock_timestamp()+interval '5 minutes' where id='c0620000-0000-4000-8000-000000000301';
+select is((public.service_wait_launch_catalog_video('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000301','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000902',(select fence::text from public.team_launch_generations where id='c0620000-0000-4000-8000-000000000301')))->>'failedOrdinal','2','waiting names the uncertain segment');
+select is((select state from public.team_launch_generations where id='c0620000-0000-4000-8000-000000000301'),'interrupted','one uncertain set interrupts the generation');
+select is(private.launch_video_generation_json('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000301')->>'requestedCount','4','progress adds up every set');
+select is(jsonb_array_length(private.launch_video_generation_json('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000301')->'segments'),4,'progress lists every segment');
+select is((public.retry_launch_catalog_video_segment('c0620000-0000-4000-8000-000000000301',2))->>'setId',pg_temp.set_id(2)::text,'a segment retry reopens its own set');
+select throws_ok($$select public.retry_launch_catalog_video_segment('c0620000-0000-4000-8000-000000000301',9)$$,'P0002','NOT_FOUND','an unknown segment cannot be retried');
+update public.team_launch_generations set state='cancel_requested' where id='c0620000-0000-4000-8000-000000000301';
+select is((select count(*)::int from private.catalog_video_sets where catalog_intent_id='c0620000-0000-4000-8000-000000000401' and state='canceled'),4,'canceling the Launch stops every segment set');
 
 select * from finish();
 rollback;
