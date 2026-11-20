@@ -23,8 +23,10 @@ it('clears an undispatched validation window on every wait for the video set', a
     source.split(
       "set validation_epoch_started_at=null where id=j.id and dispatched_at is null;return jsonb_build_object('state','waiting');"
     ).length - 1;
-  expect(waits).toBe(3);
-  expect(resets).toBe(3);
+  // Three waits for a single set; 062 adds three for a 'creatives' target. Every one of them
+  // clears the undispatched window, whatever their number.
+  expect(waits).toBeGreaterThanOrEqual(3);
+  expect(resets).toBe(waits);
   // The expiry itself stays for a ready set whose sources cannot be proven for an hour.
   expect(source).toContain("validation_epoch_started_at<clock_timestamp()-interval '1 hour'");
 });

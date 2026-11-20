@@ -101,14 +101,14 @@ supabase/functions/
 └── catalog-updater/{claim-preparation,worker,nonvideo-writer}.ts
 
 supabase/migrations/
-├── 20261220100000_launch_multi_creative_config.sql     # save_launch_draft, sources, list, назви
-├── 20261220110000_launch_catalog_video_segments.sql    # сегменти, обмеження наборів, accept/wait, retry сегмента
-├── 20261220115000_catalog_image_creatives_invariants.sql # video_link nullable для зображень, гілки image в intent/context/accept
-├── 20261220116000_catalog_publication_creatives_target.sql # ціль kind='creatives', сегменти цілі, відмови MULTI_CREATIVE_UNSUPPORTED
-├── 20261220120000_launch_creative_images.sql           # зображення, uses, sweep, cron
-├── 20261220130000_launch_multi_creative_ranks.sql      # ранги
-├── 20261220140000_catalog_updater_multi_creative.sql   # перезашивка оновлювачем по сегментах, лінія публікації Z/H, відмови прихованих дій
-└── 20261220150000_launch_multi_creative_analytics.sql  # whitelist analytics_properties_are_safe_v2
+├── 20261221100000_launch_multi_creative_config.sql     # save_launch_draft, sources, list, назви
+├── 20261221110000_launch_catalog_video_segments.sql    # сегменти, обмеження наборів, accept/wait, retry сегмента
+├── 20261221115000_catalog_image_creatives_invariants.sql # video_link nullable для зображень, гілки image в intent/context/accept
+├── 20261221116000_catalog_publication_creatives_target.sql # ціль kind='creatives', сегменти цілі, відмови MULTI_CREATIVE_UNSUPPORTED
+├── 20261221120000_launch_creative_images.sql           # зображення, uses, sweep, cron
+├── 20261221130000_launch_multi_creative_ranks.sql      # ранги
+├── 20261221140000_catalog_updater_multi_creative.sql   # перезашивка оновлювачем по сегментах, лінія публікації Z/H, відмови прихованих дій
+└── 20261221150000_launch_multi_creative_analytics.sql  # whitelist analytics_properties_are_safe_v2
 
 tests/
 ├── launch-creative-distribution.test.ts                # властивості SC-006

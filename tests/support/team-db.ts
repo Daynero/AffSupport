@@ -191,10 +191,17 @@ export async function createTeamTestDb(
  */
 export async function applyMigrationsAfter(
   harness: TeamTestDb,
-  afterMigration: string
+  afterMigration: string,
+  /** Exclusive upper bound, to replay one feature's range without the ones after it. */
+  beforeMigration?: string
 ): Promise<{ file: string; ms: number }[]> {
   const files = readdirSync(MIGRATIONS_DIR)
-    .filter(name => name.endsWith('.sql') && name > afterMigration)
+    .filter(
+      name =>
+        name.endsWith('.sql') &&
+        name > afterMigration &&
+        (beforeMigration === undefined || name < beforeMigration)
+    )
     .sort();
   const applied: { file: string; ms: number }[] = [];
   for (const file of files) {

@@ -8,6 +8,8 @@ import { applyMigrationsAfter, createTeamTestDb, type TeamTestDb } from './suppo
  * including the one that rewrites a function by text replacement.
  */
 const LAST_BEFORE = '20261218210000_creative_ranks_cleanup_fence.sql';
+/** The audit's own range; later features (062 onwards) are not replayed here. */
+const FIRST_AFTER = '20261221000000';
 let db: TeamTestDb;
 
 beforeAll(async () => {
@@ -43,7 +45,7 @@ const snapshot = async () => ({
 
 it('leaves the same database when the audit migrations are applied a second time', async () => {
   const first = await snapshot();
-  const applied = await applyMigrationsAfter(db, LAST_BEFORE);
+  const applied = await applyMigrationsAfter(db, LAST_BEFORE, FIRST_AFTER);
   expect(applied.map(item => item.file.slice(0, 14))).toEqual(
     expect.arrayContaining([
       '20261220100000',
