@@ -11,6 +11,7 @@ import {
   launchSubPreview,
   isLaunchUrl,
   missingLaunchSubSlots,
+  rescaleCopies,
   type LaunchDraft,
   type LaunchSourceSnapshot,
   type TeamAccountSummary
@@ -32,6 +33,8 @@ import { LaunchDictionaryManager } from './LaunchDictionaryManager';
 import { LaunchAccountSelector } from './LaunchAccountSelector';
 import { LaunchSelector } from './LaunchSelectors';
 import { LaunchCreativePicker } from './LaunchCreativePicker';
+import { creativesPatch, draftCreatives } from './launchCreatives';
+import { LaunchCreativeDistribution } from './LaunchCreativeDistribution';
 import { LaunchRestitchDurationField } from './LaunchRestitchDurationField.js';
 import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
@@ -87,6 +90,8 @@ export function LaunchEditor({
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const [subSettingsOpen, setSubSettingsOpen] = useState(false);
   const [catalogAdvancedOpen, setCatalogAdvancedOpen] = useState(false);
+  const [productsBelowCreatives, setProductsBelowCreatives] = useState(false);
+  const [keptFirstCreative, setKeptFirstCreative] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [manualBudgetDraft, setManualBudgetDraft] = useState<number[]>(config.budgets ?? []);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -105,6 +110,9 @@ export function LaunchEditor({
     setTouched(previous => new Set([...previous, ...Object.keys(patch)]));
     onChange(patch);
   };
+  const creativeCount = draftCreatives(config).length;
+  const creativeKind =
+    config.creativeKind ?? (creativeCount > 0 ? (sources?.materialType ?? 'video') : null);
   const parsed = parseLaunchConfig(config);
   const preview = parsed.ok && sources ? launchPreview(parsed.value, sources) : null;
   const errors: Record<string, string> = {
@@ -416,6 +424,9 @@ export function LaunchEditor({
                   submitted={submitted}
                   disabled={disabled}
                 />
+                {keptFirstCreative && config.method === 'other' && (
+                  <p className="field-hint">{t('launchOtherMethodOneCreative')}</p>
+                )}
               </div>
               <div className="launch-editor-link-field">
                 {pixel && (
@@ -707,13 +718,20 @@ export function LaunchEditor({
                 { value: 'other', label: t('launchesOther') }
               ]}
               onChange={method => {
-                if (method === 'catalog' || method === 'other')
+                if (method === 'catalog' || method === 'other') {
+                  const chosen = draftCreatives(config);
+                  // "Other" takes one creative: the first stays, the list is dropped.
+                  setKeptFirstCreative(method === 'other' && chosen.length > 1);
                   changed({
                     method,
+                    ...(method === 'other'
+                      ? { creatives: undefined, creativeKind: undefined }
+                      : {}),
                     ...(method === 'catalog' && !config.catalog
                       ? { catalog: newLaunchCatalogConfig() }
                       : {})
                   });
+                }
               }}
             />
             {config.method === 'catalog' && config.catalog && (
@@ -727,18 +745,46 @@ export function LaunchEditor({
                     type="number"
                     width="narrow"
                     value={config.catalog.productCount}
-                    min={1}
+                    min={Math.max(1, creativeCount)}
                     max={400}
                     disabled={disabled}
-                    onChange={e =>
-                      changed({
-                        catalog: { ...config.catalog!, productCount: Number(e.target.value) }
-                      })
-                    }
+                    onChange={e => {
+                      const typed = Number(e.target.value);
+                      // Fewer products than creatives is refused: the field stays at the
+                      // number of creatives and says why.
+                      const below = creativeCount > 1 && Number.isFinite(typed) && typed < creativeCount;
+                      setProductsBelowCreatives(below);
+                      const productCount = below ? creativeCount : typed;
+                      if (creativeCount > 1 && Number.isSafeInteger(productCount) && productCount <= 400)
+                        changed(
+                          creativesPatch(
+                            config,
+                            rescaleCopies(draftCreatives(config), productCount),
+                            creativeKind,
+                            productCount
+                          )
+                        );
+                      else changed({ catalog: { ...config.catalog!, productCount } });
+                    }}
                   />,
                   true,
                   'launchesCatalogProductCountHelp'
                 )}
+                {productsBelowCreatives && (
+                  <p className="ui-field-error basis-full" role="alert">
+                    {t('launchProductsBelowCreatives')}
+                  </p>
+                )}
+                <LaunchCreativeDistribution
+                  creatives={draftCreatives(config)}
+                  productCount={config.catalog.productCount}
+                  disabled={disabled}
+                  invalid={submitted && errors.creatives === 'DISTRIBUTION_INVALID'}
+                  onChange={creatives =>
+                    changed(creativesPatch(config, creatives, creativeKind))
+                  }
+                />
+                {creativeKind !== 'image' && (
                 <div className="launch-editor-restitch">
                   <Switch
                     label={t('launchesRestitch')}
@@ -750,32 +796,42 @@ export function LaunchEditor({
                           ...config.catalog!,
                           restitchEnabled,
                           ...(config.catalog!.catalogVideoProtocolVersion === 1 && !restitchEnabled
-                            ? { videoVariationCount: 1 }
+                            ? {
+                                videoVariationCount:
+                                  restitchEnabled && creativeCount > 1 ? creativeCount : 1
+                              }
                             : {})
                         }
                       })
                     }
                   />
                 </div>
+                )}
+                {creativeKind !== 'image' && (
                 <Suspense fallback={null}>
                   <LaunchCatalogVideoFields
                     part="variations"
                     value={config.catalog}
                     disabled={disabled}
+                    creativeCopies={
+                      creativeCount > 1 ? draftCreatives(config).map(c => c.copies) : undefined
+                    }
                     onChange={catalog => changed({ catalog })}
                   />
                 </Suspense>
+                )}
                 <CatalogVideoR2Toggle
                   mode="create"
                   teamId={teamId}
                   control="switch"
+                  media={creativeKind === 'image' ? 'image' : 'video'}
                   checked={config.catalog!.copyVideoToR2 === true}
                   disabled={disabled}
                   onChange={copyVideoToR2 =>
                     changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
                   }
                 />
-                {config.catalog.restitchEnabled && (
+                {config.catalog.restitchEnabled && creativeKind !== 'image' && (
                   <LaunchRestitchDurationField
                     value={config.catalog}
                     disabled={disabled}

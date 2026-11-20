@@ -33,64 +33,12 @@ import {
   retryableError
 } from '../../analytics/file-attempt-errors.js';
 import { LaunchCreativeRow } from './LaunchCreativeList.js';
+import { creativesPatch, draftCreatives } from './launchCreatives.js';
 
 type PickerError =
   | { kind: 'selection' | 'mixed' | 'duplicate' | 'limit' }
   | { kind: 'upload'; cause?: unknown };
 type Picked = { id: string; name: string; kind: LaunchCreativeKind };
-
-/** The creatives a draft names; an older single-creative draft reads as one. */
-export function draftCreatives(config: LaunchDraft): LaunchCreative[] {
-  if (Array.isArray(config.creatives) && config.creatives.length > 0) return config.creatives;
-  if (!config.materialId) return [];
-  return [
-    {
-      materialId: config.materialId,
-      alias: config.creativeAlias ?? '',
-      copies: config.catalog?.productCount ?? 1,
-      pinned: null
-    }
-  ];
-}
-
-/** The patch that stores `creatives` and keeps the first one mirrored. */
-export function creativesPatch(
-  config: LaunchDraft,
-  creatives: LaunchCreative[],
-  kind: LaunchCreativeKind | null,
-  productCount = config.catalog?.productCount
-): LaunchDraft {
-  const first = creatives[0];
-  const catalog =
-    config.catalog && productCount !== undefined && productCount !== config.catalog.productCount
-      ? { catalog: { ...config.catalog, productCount } }
-      : {};
-  if (!first)
-    return {
-      materialId: undefined,
-      creativeAlias: undefined,
-      creatives: undefined,
-      creativeKind: undefined,
-      ...catalog
-    };
-  return {
-    materialId: first.materialId,
-    creativeAlias: first.alias,
-    creatives,
-    creativeKind: kind ?? undefined,
-    ...catalog,
-    ...(kind === 'image' && config.catalog?.restitchEnabled
-      ? {
-          catalog: {
-            ...config.catalog,
-            ...(productCount !== undefined ? { productCount } : {}),
-            restitchEnabled: false,
-            ...(config.catalog.catalogVideoProtocolVersion === 1 ? { videoVariationCount: 1 } : {})
-          }
-        }
-      : {})
-  };
-}
 
 function kindOf(category: string | null | undefined): LaunchCreativeKind | null {
   return category === 'video' || category === 'image' ? category : null;
@@ -135,7 +83,7 @@ export function LaunchCreativePicker({
     config.creativeKind ??
     (creatives.length > 0 ? (sources?.materialType ?? (catalogMode ? 'video' : null)) : null);
   const epoch = usePrivateCacheEpoch();
-  const scope = `${epoch}:${teamId}:${config.method}:${disabled}`;
+  const scope = `${epoch}:${teamId}:${config.materialId ?? ''}:${config.method}:${disabled}`;
   const authority = useRef({ scope, revision: 0 });
   if (authority.current.scope !== scope) {
     authority.current = { scope, revision: authority.current.revision + 1 };
@@ -234,10 +182,31 @@ export function LaunchCreativePicker({
       return;
     }
     const revision = currentRevision;
+    // One observed attempt per file, started before the destination is found.
+    const attempts = classified.map(({ file }) => ({
+      attempt: startTeamFileAttempt({
+        action: 'upload',
+        storageKind: 'unknown',
+        sizeBucket: teamAnalyticsSizeBucket(file.size),
+        stage: 'finding'
+      }),
+      stage: 'finding' as 'finding' | 'uploading' | 'finalizing',
+      done: false
+    }));
     let finished = false;
     const finish = () => {
       if (finished) return;
       finished = true;
+      // Leaving the form ends this observation, not the independently owned upload.
+      for (const entry of attempts)
+        if (!entry.done) {
+          entry.done = true;
+          completeTeamFileAttempt(entry.attempt, {
+            outcome: 'skipped',
+            retryable: false,
+            stage: entry.stage
+          });
+        }
       if (active.current?.revision === revision) active.current = null;
       if (mounted.current) setBusy(false);
       onBusyChange?.(false);
@@ -248,48 +217,47 @@ export function LaunchCreativePicker({
     setError(null);
     onBusyChange?.(true);
     const picked: Picked[] = [];
+    let current: (typeof attempts)[number] | undefined;
     try {
       const folder = await teamApi.ensureTaskDropFolder(teamId);
       // A navigation, disabled edit or actor change revokes the old form's authority.
       if (!allowed(revision)) return;
-      for (const { file, kind: fileKind } of classified) {
-        const attempt = startTeamFileAttempt({
-          action: 'upload',
-          storageKind: 'unknown',
-          sizeBucket: teamAnalyticsSizeBucket(file.size),
-          stage: 'uploading'
+      for (const [index, { file, kind: fileKind }] of classified.entries()) {
+        current = attempts[index]!;
+        current.stage = 'uploading';
+        const result = await uploadTeamFile({
+          teamId,
+          destinationFolderId: folder.materialId,
+          file,
+          conflictMode: 'keep_both',
+          replaceMaterialId: null,
+          versionOfMaterialId: null
         });
-        let stage: 'uploading' | 'finalizing' = 'uploading';
-        try {
-          const result = await uploadTeamFile({
-            teamId,
-            destinationFolderId: folder.materialId,
-            file,
-            conflictMode: 'keep_both',
-            replaceMaterialId: null,
-            versionOfMaterialId: null
-          });
-          if (!allowed(revision)) {
-            completeTeamFileAttempt(attempt, { outcome: 'skipped', retryable: false, stage });
-            return;
-          }
-          if (!result.materialId || result.state !== 'succeeded')
-            throw new Error('INVALID_RESPONSE');
-          stage = 'finalizing';
-          picked.push({ id: result.materialId, name: file.name, kind: fileKind! });
-          completeTeamFileAttempt(attempt, { outcome: 'success', retryable: false, stage });
-        } catch (cause) {
-          reportFileAttemptError(attempt, cause);
-          completeTeamFileAttempt(attempt, {
-            outcome: analyticsOutcome(cause),
-            retryable: retryableError(cause),
-            stage
-          });
-          throw cause;
-        }
+        if (!allowed(revision)) return;
+        if (!result.materialId || result.state !== 'succeeded') throw new Error('INVALID_RESPONSE');
+        current.stage = 'finalizing';
+        picked.push({ id: result.materialId, name: file.name, kind: fileKind! });
+        current.done = true;
+        completeTeamFileAttempt(current.attempt, {
+          outcome: 'success',
+          retryable: false,
+          stage: current.stage
+        });
       }
     } catch (cause) {
-      if (allowed(revision)) setError({ kind: 'upload', cause });
+      if (allowed(revision)) {
+        // The failing file (or, before any upload, every file) carries the cause.
+        for (const entry of current ? [current] : attempts) {
+          entry.done = true;
+          reportFileAttemptError(entry.attempt, cause);
+          completeTeamFileAttempt(entry.attempt, {
+            outcome: analyticsOutcome(cause),
+            retryable: retryableError(cause),
+            stage: entry.stage
+          });
+        }
+        setError({ kind: 'upload', cause });
+      }
     } finally {
       // Files already uploaded stay chosen even when a later one fails.
       if (picked.length && allowed(revision)) {
@@ -349,14 +317,31 @@ export function LaunchCreativePicker({
               ? t('launchCreativesLimit')
               : t('launchesOneFile');
   const previewed = creatives.find(creative => creative.materialId === previewId);
+  const rowFor = (creative: LaunchCreative, index: number, as: 'li' | 'div' = 'li') => {
+    const invalid =
+      (submitted || touchedAliases.has(creative.materialId)) && !normalizeLaunchSub(creative.alias);
+    return (
+      <LaunchCreativeRow
+        key={creative.materialId}
+        as={as}
+        inputId={`${id}-alias-${index}`}
+        alias={creative.alias}
+        kind={kind}
+        thumbnailUrl={thumbnailFor(creative.materialId)}
+        disabled={unavailable}
+        invalid={invalid}
+        repeated={!invalid && repeatedAliases.has(creative.alias)}
+        removable={catalogMode}
+        onPreview={() => setPreviewId(creative.materialId)}
+        onRename={value => rename(index, value)}
+        onRemove={() => remove(index)}
+      />
+    );
+  };
   return (
     <FormField label={t('launchesCreative')} error={selectionError}>
       <div
-        className="launch-creative-field"
-        data-dragging={dragging || undefined}
-        data-busy={busy || undefined}
-        data-multiple={(catalogMode && creatives.length > 0) || undefined}
-        aria-busy={busy}
+        className="flex min-w-0 flex-col gap-2"
         onDragOver={event => {
           if (event.dataTransfer.types?.includes('Files')) {
             event.preventDefault();
@@ -378,31 +363,21 @@ export function LaunchCreativePicker({
             void upload(Array.from(event.dataTransfer.files));
         }}
       >
-        {creatives.length > 0 && (
-          <ul className="launch-creative-list" aria-label={t('launchesCreative')}>
-            {creatives.map((creative, index) => {
-              const invalid =
-                (submitted || touchedAliases.has(creative.materialId)) &&
-                !normalizeLaunchSub(creative.alias);
-              return (
-                <LaunchCreativeRow
-                  key={creative.materialId}
-                  inputId={`${id}-alias-${index}`}
-                  alias={creative.alias}
-                  kind={kind}
-                  thumbnailUrl={thumbnailFor(creative.materialId)}
-                  disabled={unavailable}
-                  invalid={invalid}
-                  repeated={!invalid && repeatedAliases.has(creative.alias)}
-                  removable={catalogMode}
-                  onPreview={() => setPreviewId(creative.materialId)}
-                  onRename={value => rename(index, value)}
-                  onRemove={() => remove(index)}
-                />
-              );
-            })}
+        {catalogMode && creatives.length > 0 && (
+          <ul
+            className="m-0 flex max-h-96 max-w-lg list-none flex-col gap-2 overflow-y-auto p-0"
+            aria-label={t('launchesCreative')}
+          >
+            {creatives.map((creative, index) => rowFor(creative, index))}
           </ul>
         )}
+      <div
+        className="launch-creative-field"
+        data-dragging={dragging || undefined}
+        data-busy={busy || undefined}
+        aria-busy={busy}
+      >
+        {!catalogMode && creatives[0] && rowFor(creatives[0], 0, 'div')}
         <TaskAttachmentPicker
           key={`${epoch}:${teamId}:${catalogMode}`}
           teamId={teamId}
@@ -442,11 +417,9 @@ export function LaunchCreativePicker({
                 ref={menuAnchor}
                 variant="ghost"
                 className={
-                  creatives.length === 0
+                  creatives.length === 0 || catalogMode
                     ? 'launch-creative-empty'
-                    : catalogMode
-                      ? 'launch-creative-add'
-                      : 'launch-creative-replace'
+                    : 'launch-creative-replace'
                 }
                 disabled={unavailable || (catalogMode && creatives.length >= CATALOG_PRODUCT_COUNT_MAX)}
                 loading={busy}
@@ -512,6 +485,7 @@ export function LaunchCreativePicker({
             if (files.length) void upload(files);
           }}
         />
+      </div>
       </div>
       {errorText && (
         <p role="alert" className="ui-field-error">

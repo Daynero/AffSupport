@@ -33,6 +33,11 @@ export type CatalogVideoR2ToggleProps =
       /** The same kind of control as the re-stitch choice beside it. */
       control?: 'checkbox' | 'switch';
       client?: CatalogVideoR2Client;
+      /**
+       * 062: what the catalog links to. Image creatives always have R2 (the shared
+       * image bucket), whether or not video copies are enabled.
+       */
+      media?: 'video' | 'image';
     }
   | {
       mode: 'catalog';
@@ -90,28 +95,31 @@ export function CatalogVideoR2Toggle(props: CatalogVideoR2ToggleProps) {
         </Button>
       </div>
     );
+  const images = props.mode === 'create' && props.media === 'image';
   // Only the server's own "not available" hides the option; while it is read, nothing.
-  if (!availability?.available) return null;
+  if (!availability?.available && !(images && availability)) return null;
+  if (!availability) return null;
   // The server's answer is the permission predicate itself (FR-013), not a client-side guess.
   const canManage = state ? state.canManage : availability.canManage;
   const disabled = props.disabled === true || !canManage || saving;
 
   if (props.mode === 'create') {
-    const explain = t('catalogVideoR2Explain');
+    const explain = t(images ? 'catalogImageR2Explain' : 'catalogVideoR2Explain');
+    const label = t(images ? 'catalogImageR2Toggle' : 'catalogVideoR2Toggle');
     const control =
       props.control === 'switch' ? (
         <Switch
           checked={props.checked}
           disabled={disabled}
           onChange={checked => props.onChange(checked)}
-          label={t('catalogVideoR2Toggle')}
+          label={label}
         />
       ) : (
         <FormCheckbox
           checked={props.checked}
           disabled={disabled}
           onChange={event => props.onChange(event.target.checked)}
-          label={t('catalogVideoR2Toggle')}
+          label={label}
         />
       );
     return (

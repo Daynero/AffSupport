@@ -10,6 +10,7 @@ import { useI18n } from '../../i18n.js';
  * the product-ID prefix, and in a catalog Launch it can be removed.
  */
 export function LaunchCreativeRow({
+  as: Tag = 'li',
   inputId,
   alias,
   kind,
@@ -22,6 +23,8 @@ export function LaunchCreativeRow({
   onRename,
   onRemove
 }: {
+  /** `div` when the row sits inside the drop field (single-creative methods). */
+  as?: 'li' | 'div';
   inputId: string;
   alias: string;
   kind: LaunchCreativeKind | null;
@@ -38,7 +41,7 @@ export function LaunchCreativeRow({
   const [broken, setBroken] = useState<string | null>(null);
   const messageId = `${inputId}-message`;
   return (
-    <li className="launch-creative-row">
+    <Tag className="flex min-w-0 items-center gap-3">
       <Button
         className="launch-creative-thumbnail"
         variant="ghost"
@@ -81,7 +84,6 @@ export function LaunchCreativeRow({
       </div>
       {removable && (
         <IconButton
-          className="launch-creative-remove"
           label={t('launchCreativeRemoveOf', { name: alias || t('launchesCreative') })}
           disabled={disabled}
           onClick={onRemove}
@@ -89,6 +91,6 @@ export function LaunchCreativeRow({
           <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </IconButton>
       )}
-    </li>
+    </Tag>
   );
 }

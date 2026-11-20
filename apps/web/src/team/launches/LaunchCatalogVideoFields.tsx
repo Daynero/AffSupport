@@ -12,8 +12,11 @@ export function LaunchCatalogVideoFields({
   value,
   onChange,
   disabled,
-  part = 'all'
+  part = 'all',
+  creativeCopies
 }: {
+  /** 062: copies per video when the Launch has several. */
+  creativeCopies?: readonly number[];
   value: LaunchCatalogConfig;
   onChange(value: LaunchCatalogConfig): void;
   disabled: boolean;
@@ -104,6 +107,7 @@ export function LaunchCatalogVideoFields({
         restitch={value.restitchEnabled}
         productCount={value.productCount}
         disabled={disabled}
+        creativeCopies={creativeCopies}
       />
       {error && (
         <div className="ui-field launch-publication-error">
