@@ -17,6 +17,8 @@ export interface CatalogVideoRowProgress {
    * an endless "waiting for video preparation".
    */
   backgroundStalled?: true;
+  /** 062: with several videos, the first creative whose restitch did not settle. */
+  failedOrdinal?: number;
 }
 
 export const CATALOG_VIDEO_ROW_WAIT_REASONS = [
@@ -77,6 +79,12 @@ export function parseCatalogVideoRowProgress(value: unknown): CatalogVideoRowPro
       ? { waitReason: row.waitReason as CatalogVideoRowWaitReason }
       : {}),
     // Anything but `true` is ignored rather than refused: it is advisory only.
-    ...(row.backgroundStalled === true ? { backgroundStalled: true as const } : {})
+    ...(row.backgroundStalled === true ? { backgroundStalled: true as const } : {}),
+    // Advisory as well: an out-of-range ordinal is dropped, not refused.
+    ...(Number.isSafeInteger(row.failedOrdinal) &&
+    Number(row.failedOrdinal) >= 0 &&
+    Number(row.failedOrdinal) < 400
+      ? { failedOrdinal: Number(row.failedOrdinal) }
+      : {})
   };
 }

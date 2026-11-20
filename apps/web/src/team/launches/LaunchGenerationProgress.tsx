@@ -55,8 +55,11 @@ export function LaunchGenerationProgress({
   launchId,
   requestErrorCode,
   requestErrorDefinitive = false,
-  retryActions
+  retryActions,
+  creativeAliases
 }: {
+  /** 062: creatives in order, to name the video whose restitch failed. */
+  creativeAliases?: readonly string[];
   onOpenRestitchSettings?: () => void;
   onUseOriginalVideo?: () => void;
   launchId?: string;
@@ -486,6 +489,15 @@ export function LaunchGenerationProgress({
               {t(current?.state === 'succeeded' ? 'catalogVideoCancel' : 'launchesCancel')}
             </Button>
           )}
+        {needsAttention && videoGeneration?.failedOrdinal !== undefined && (
+          <p className="m-0 basis-full text-ink-muted" role="status">
+            {t('launchVideoSegmentFailed', {
+              name:
+                creativeAliases?.[videoGeneration.failedOrdinal] ??
+                String(videoGeneration.failedOrdinal + 1)
+            })}
+          </p>
+        )}
         {!canonicalCancellationPending &&
           (!recovering || recoveryStalled) &&
           (needsAttention || uncertain || terminal) &&

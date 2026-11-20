@@ -1760,6 +1760,7 @@ export function LaunchSession({
               : undefined
           }
           onFailedRestitch={observeFailedRestitch}
+          creativeAliases={draft.config.creatives?.map(creative => creative.alias)}
           teamId={teamId}
           method={draft.config.method ?? 'other'}
           restitchEnabled={draft.config.catalog?.restitchEnabled === true}

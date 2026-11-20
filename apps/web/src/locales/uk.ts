@@ -944,6 +944,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchCreativeImageUnverified: 'Посилання на зображення ще не відкривається публічно — спробуємо ще раз',
   catalogUpdaterBulkSkippedMulti:
     'Пропущено каталогів: {count} — з кількома креативами або із зображень ця зміна недоступна',
+  launchVideoSegmentFailed:
+    'Не вдалося перезашити відео «{name}». «Повторити» перезапустить лише його — інші відео не перезашиватимуться заново.',
   catalogMultiCreativeUnsupported: 'Для каталогу з кількома креативами або із зображень ця дія недоступна',
   launchesRange: 'Номери оголошень',
   launchesBudget: 'Бюджети кампаній',

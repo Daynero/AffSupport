@@ -944,6 +944,8 @@ export const en = {
   launchCreativeImageUnverified: 'The image link does not open publicly yet — we will try again',
   catalogUpdaterBulkSkippedMulti:
     'Catalogs skipped: {count} — this change is not available with several creatives or images',
+  launchVideoSegmentFailed:
+    'Video “{name}” could not be restitched. Retry restarts only it — the other videos are not restitched again.',
   catalogMultiCreativeUnsupported: 'This action is not available for a catalog with several creatives or images',
   launchesRange: 'Ad numbers',
   launchesBudget: 'Campaign budgets',
