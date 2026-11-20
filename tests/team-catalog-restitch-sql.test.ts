@@ -1288,6 +1288,75 @@ describe('copies nothing uses leave Drive', () => {
     expect(retained[0]!.retained).toBe(true);
   }, 60_000);
 
+  it('keeps a copy a catalog names by id or by its stored link, and one attached to a task', async () => {
+    // Backend audit 2026-11-20 (20261220110000): the link scan now runs last, only for files
+    // nothing else claims. Each way a catalog or a task can still hold a file must keep it.
+    const byId = await material('F restitched.mp4', 'video', 'video/mp4', 'restitched-r');
+    const byStoredLink = await material('G restitched.mp4', 'video', 'video/mp4', 'restitched-r');
+    const attached = await material('H restitched.mp4', 'video', 'video/mp4', 'restitched-r');
+    const orphan = await material('I restitched.mp4', 'video', 'video/mp4', 'restitched-r');
+    for (const id of [byId, byStoredLink, attached, orphan]) await age(id);
+    const first = await catalog('names-by-id');
+    await harness.root(
+      'update public.team_product_catalogs set video_material_id = $2 where material_id = $1',
+      [first.sheet, byId]
+    );
+    const second = await catalog('names-by-stored-link');
+    const drive = (
+      await harness.root<{ drive_file_id: string }>(
+        'select drive_file_id from public.team_materials where id = $1',
+        [byStoredLink]
+      )
+    )[0]!.drive_file_id;
+    await harness.root(
+      'update public.team_product_catalogs set video_link = $2 where material_id = $1',
+      [second.sheet, `https://drive.google.com/file/d/${drive}/view`]
+    );
+    const task = (
+      await harness.root<{ id: string }>(
+        "insert into public.team_tasks(id,team_id,created_by,title) values(gen_random_uuid(),$1,$2,'Synthetic task') returning id",
+        [teamId, OWNER]
+      )
+    )[0]!.id;
+    await harness.root(
+      `insert into public.team_task_attachments (team_id, task_id, material_id, position, attached_by)
+       values ($1, $2, $3, 0, $4)`,
+      [teamId, task, attached, OWNER]
+    );
+
+    await sweep();
+
+    expect(await row(byId)).toBeNull();
+    expect(await row(byStoredLink)).toBeNull();
+    expect(await row(attached)).toBeNull();
+    expect(await row(orphan)).toEqual({ role: 'retired', catalog_material_id: null });
+  }, 60_000);
+
+  it('retires oldest first and no more than the limit in one sweep', async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++)
+      ids.push(await material(`J restitched ${i}.mp4`, 'video', 'video/mp4', 'restitched-r'));
+    for (const [i, id] of ids.entries())
+      await harness.root(
+        `update public.team_materials set created_at = now() - make_interval(hours => $2) where id = $1`,
+        [id, 10 - i]
+      );
+    await harness.root(`select private.retire_unused_restitch_copies(interval '1 hour', 2)`);
+    expect(await row(ids[0]!)).not.toBeNull();
+    expect(await row(ids[1]!)).not.toBeNull();
+    expect(await row(ids[2]!)).toBeNull();
+  }, 60_000);
+
+  it('can find a variant by its output without walking every set', async () => {
+    const indexes = await harness.root<{ indexdef: string }>(
+      `select indexdef from pg_indexes
+       where schemaname = 'private' and tablename = 'catalog_video_variants'
+         and indexname = 'catalog_video_variants_output_material_idx'`
+    );
+    expect(indexes).toHaveLength(1);
+    expect(indexes[0]!.indexdef).toContain('(output_material_id)');
+  }, 60_000);
+
   it('runs where the worker is woken, so a space without an updater is swept too', async () => {
     const source = (
       await harness.root<{ source: string }>(
