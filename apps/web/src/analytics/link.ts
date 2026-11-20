@@ -82,6 +82,99 @@ export function trackLinkCheckCompleted(
   });
 }
 
+export interface LinkCheckReport {
+  /**
+   * Something other than the retry loop now waits for this check's answer — a person pressed
+   * Reconnect, the tab came back, a request failed. From here on it is reported like any
+   * check that was asked for, whatever it answers.
+   */
+  asked(): void;
+  complete(input: {
+    outcome: 'success' | 'failure' | 'blocked';
+    reason?: LinkReasonProp;
+    stage?: LinkStage;
+    durationMs: number;
+  }): void;
+}
+
+export interface LinkCheckReporter {
+  begin(input: { flowId: string; trigger: LinkTrigger }): LinkCheckReport;
+}
+
+/** A failure that goes on is said again this often, so it is never said only once. */
+export const LINK_REPEAT_REPORT_MS = 60 * 60 * 1000;
+
+/**
+ * Reports link checks without reporting the polling.
+ *
+ * A page left open while Soty is not running retries every fifteen seconds for as long as
+ * it stays open, and each retry used to send `link_check_started` and an identical
+ * `link_check_completed`. Measured over one week in November 2026: 53 218 failed checks
+ * against 623 successes, 45 000 of them background retries from a handful of forgotten
+ * tabs — a quarter of every event the product stored, saying one thing.
+ *
+ * So a background retry (`trigger: 'retry'`) that ends exactly like the failure already
+ * reported — same outcome, reason and stage — is not reported. Its `started` waits for the
+ * answer, so a pair is always sent whole or not at all (the coverage registry correlates the
+ * two by `flow_id`). What still is sent:
+ *
+ *  - the first failure of a streak, a retry that succeeds, a retry that fails differently;
+ *  - every check a person or the page itself asked for, including a background retry that
+ *    such a request joined while it was running ({@link LinkCheckReport.asked});
+ *  - the same failure again once an hour. A report can be lost on the way, an account can
+ *    change under an open tab, and a reader looking at one day must still see a tab that
+ *    has been failing since the day before;
+ *  - every `pairing_rejected`, however often: a token refused again and again is the loop
+ *    `analytics investigate` counts rejections to find.
+ *
+ * How long a break lasted is on `link_recovered`, which is unaffected.
+ */
+export function createLinkCheckReporter(
+  tracker: LinkTracker = analytics,
+  now: () => number = Date.now
+): LinkCheckReporter {
+  // The failure the current streak last reported, and when; null after a success.
+  let reported: { signature: string; at: number } | null = null;
+  return {
+    begin({ flowId, trigger }) {
+      let deferred = trigger === 'retry' && reported !== null;
+      let finished = false;
+      if (!deferred) trackLinkCheckStarted({ flowId, trigger }, tracker);
+      return {
+        asked() {
+          if (!deferred || finished) return;
+          deferred = false;
+          trackLinkCheckStarted({ flowId, trigger }, tracker);
+        },
+        complete(input) {
+          if (finished) return;
+          finished = true;
+          const signature =
+            input.outcome === 'success'
+              ? null
+              : `${input.outcome}|${input.reason ?? ''}|${input.stage ?? ''}`;
+          const at = now();
+          if (deferred) {
+            // Wall-clock time: only a moment that is both later and within the hour counts
+            // as "already said", so a clock set backwards cannot silence the tab.
+            const alreadySaid =
+              signature !== null &&
+              reported !== null &&
+              signature === reported.signature &&
+              input.reason !== 'pairing_rejected' &&
+              at >= reported.at &&
+              at - reported.at < LINK_REPEAT_REPORT_MS;
+            if (alreadySaid) return;
+            trackLinkCheckStarted({ flowId, trigger }, tracker);
+          }
+          reported = signature === null ? null : { signature, at };
+          trackLinkCheckCompleted({ flowId, ...input }, tracker);
+        }
+      };
+    }
+  };
+}
+
 export function trackLinkLost(
   input: { flowId: string; transport: LinkTransport; reason?: LinkReasonProp },
   tracker: LinkTracker = analytics

@@ -51,9 +51,9 @@ import { useAgentEventStream } from './api/useAgentEventStream';
 import { failureState, type ConnectionState, type LinkReason, versionState } from './connection';
 import { analytics } from './analytics/service';
 import {
+  createLinkCheckReporter,
+  type LinkCheckReport,
   trackBlockedByBrowser,
-  trackLinkCheckCompleted,
-  trackLinkCheckStarted,
   trackLinkInconsistency,
   trackLinkLost,
   trackLinkRecovered,
@@ -271,6 +271,10 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const accountRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const accountRetryDelay = useRef(ACCOUNT_RETRY_MIN_MS);
   const consecutiveFailures = useRef(0);
+  // One per page: it remembers which failure the current streak has already reported.
+  const [linkChecks] = useState(() => createLinkCheckReporter());
+  // The report of the attempt in flight, so a request that arrives meanwhile can claim it.
+  const runningLinkCheck = useRef<LinkCheckReport | null>(null);
   const mounted = useRef(true);
   /** When the link was lost, for the recovery duration; null while connected. */
   const lostAt = useRef<number | null>(null);
@@ -341,6 +345,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       // the attempt that is running will answer it (032 FR-009).
       const running = attemptRef.current;
       if (running) {
+        // Whoever asks now gets the answer of the attempt already running — so that attempt
+        // is one somebody asked for, even if it began as a silent background retry.
+        if (trigger !== 'retry') runningLinkCheck.current?.asked();
         if (trigger === 'manual' && !running.joined) {
           running.joined = true;
           setAttempt({ ...running });
@@ -363,7 +370,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       };
       attemptRef.current = current;
       setAttempt(current);
-      trackLinkCheckStarted({ flowId: current.id, trigger });
+      const linkCheck = linkChecks.begin({ flowId: current.id, trigger });
+      runningLinkCheck.current = linkCheck;
       const setStage = (stage: LinkStage) => {
         current.stage = stage;
         if (mounted.current) setAttempt({ ...current });
@@ -406,8 +414,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         outcome: 'success' | 'failure' | 'blocked',
         nextReason: LinkReason | null
       ) => {
-        trackLinkCheckCompleted({
-          flowId: current.id,
+        linkCheck.complete({
           outcome,
           reason: outcome === 'success' ? undefined : toReasonProp(nextReason),
           stage: current.stage,
@@ -627,6 +634,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       } finally {
         window.clearTimeout(deadline);
         attemptRef.current = null;
+        if (runningLinkCheck.current === linkCheck) runningLinkCheck.current = null;
         if (mounted.current) setAttempt(null);
         if (rerunAfterAttempt.current) {
           rerunAfterAttempt.current = false;
@@ -634,7 +642,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [applyState, scheduleRetry, setConnectionAndReason]
+    [applyState, linkChecks, scheduleRetry, setConnectionAndReason]
   );
   establishRef.current = establish;
 

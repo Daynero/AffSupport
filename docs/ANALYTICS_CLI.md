@@ -376,6 +376,25 @@ installation or instance id is returned.
   "Reconnect") and `local_copy` (the page was reopened from the Agent's own origin).
 - `failed_checks_by_reason` groups `link_check_completed` with outcome `failure` or
   `blocked` by `link_reason` (FR-012 vocabulary); `unknown` is a real bucket.
+  **Web builds from the 2026-11-20 backend audit on send fewer of these.** A background
+  retry (`link_trigger: retry`) that ends exactly like the failure already reported — same
+  outcome, reason and stage — is not sent; the same failure is said again once an hour, and
+  every `pairing_rejected` is always sent. Earlier builds (1.4.4 … 1.5.8, and the copy an
+  older Agent serves on loopback) send every fifteen-second retry, so the change arrives per
+  web build, not on a date. What this does to each reader:
+  - `failed_checks_by_reason.events` counts failures that carried news — the first of a
+    streak, a change of reason, a check someone asked for, the hourly repeat — not polling
+    ticks. Never compare `events` across the two kinds of build. `users` is comparable for any
+    period of an hour or longer, because a failing tab still reports at least hourly.
+  - `origins` and `coverage.web_builds_without` see a failing tab at least once an hour, so a
+    build is not mistaken for one that emits no link events.
+  - `retention` and the admin daily activity count a person as active on any event. A tab
+    left open on a failing link still produces one pair an hour, so it keeps counting as
+    before; a tab left open on a _working_ link never produced link events at all.
+  - `analytics_daily_events` keeps per-day totals for ever: the `link_check_*` rows drop by
+    two orders of magnitude from the day a person's browser loads a new build.
+  - `investigate` counts `pairing_rejected` rows to find a token that is refused again and
+    again; those are exempt from the suppression for that reason.
 - `blocked_by_browser` counts distinct users per `browser_family` on
   `blocked_by_browser_detected`; `origins` is the `hosted` / `local_copy` cohort over
   every link event that carries `link_origin`.
