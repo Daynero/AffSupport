@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(38);
+select plan(39);
 
 -- 033 / US2, FR-001, FR-002, FR-004: the agent journal table, its ingestion
 -- RPC with the server-side privacy fence, and its 30-day retention.
@@ -18,8 +18,10 @@ select has_index('public', 'agent_journal_records', 'agent_journal_records_user_
   'user/time index exists');
 select has_index('public', 'agent_journal_records',
   'agent_journal_records_installation_recorded_idx', 'installation/time index exists');
-select has_index('public', 'agent_journal_records', 'agent_journal_records_instance_seq_idx',
+select has_index('public', 'agent_journal_records', 'agent_journal_records_instance_seq_key',
   'instance/seq index exists');
+select hasnt_index('public', 'agent_journal_records', 'agent_journal_records_instance_seq_idx',
+  'the plain copy of the unique instance/seq index is gone (20261220140000)');
 select ok((select relrowsecurity from pg_class where oid = 'public.agent_journal_records'::regclass),
   'agent_journal_records has RLS enabled');
 
