@@ -8,7 +8,10 @@ export interface FrozenPublicationCells {
   readonly sheetName: string;
   readonly sheetId: number;
   readonly idColumn: number;
+  /** The column the lane writes: Z (video) — or, since 062, H for an image catalog. */
   readonly videoColumn: number;
+  /** 062: what the written column holds; absent on payloads frozen before (video). */
+  readonly cellKind?: 'video' | 'image';
   /** Header/description rows are verified, never rewritten. */
   readonly idHeaders: readonly [string, string];
   readonly videoHeaders: readonly [string, string];
@@ -50,6 +53,7 @@ export function parseFrozenPublicationCells(value: unknown): FrozenPublicationCe
     v.products.length > 400
   )
     return null;
+  if (v.cellKind !== undefined && v.cellKind !== 'video' && v.cellKind !== 'image') return null;
   if (
     v.previousMarker !== undefined &&
     (typeof v.previousMarker !== 'string' || v.previousMarker.length > 1024 || !v.previousMarker)

@@ -222,3 +222,121 @@ describe('a catalog from before 062', () => {
     expect(run.became[0]._catalogCreatives).toBeUndefined();
   });
 });
+
+describe('an updater restitch round over several videos', () => {
+  const id = (n: number) => 'c6200000-0000-4000-8000-' + String(n).padStart(12, '0');
+  const seed = (n: number) => String(n).repeat(64).slice(0, 64);
+  const settings = {
+    configured: true,
+    operation: 'restitch',
+    sourceMode: 'legacy',
+    startImageIds: [id(90)],
+    endImageIds: [],
+    fitMode: 'cover',
+    finalDurationMode: 'custom',
+    customFinalDurationSeconds: 60,
+    updatedAt: '',
+    updatedBy: null
+  };
+  const segment = (ordinal: number, rows: number[], requests: number[]) => ({
+    ordinal,
+    set_id: id(10 + ordinal),
+    source_material_id: id(20 + ordinal),
+    recipe_row_ids: rows.map(id),
+    child_request_ids: requests.map(id),
+    assignment_seed: seed(ordinal + 1),
+    requested_count: requests.length,
+    provider_context: { fileId: 'f', connectionId: id(5), credentialId: id(6), rootFolderId: 'r' }
+  });
+  const accepted = (segments: unknown[]) => ({
+    request_id: id(4),
+    team_id: id(1),
+    actor_id: id(2),
+    catalog_material_id: id(3),
+    set_id: id(10),
+    attempt_id: id(7),
+    executor_id: id(8),
+    source_material_id: id(20),
+    requested_count: 3,
+    recipe_row_ids: [id(100), id(101), id(102), id(103)],
+    child_request_ids: [id(200), id(201), id(202)],
+    provider_context: { fileId: 'f', connectionId: id(5), credentialId: id(6), rootFolderId: 'r' },
+    settings_snapshot: settings,
+    assignment_seed: seed(9),
+    canceled_at: null,
+    segments
+  });
+
+  it('hands the variations out round-robin and checks each set’s share', async () => {
+    const { parseCatalogUpdaterVariantSegments } =
+      await import('../supabase/functions/drive-ops/updater-variants.js');
+    const ok = [segment(0, [100, 101], [200, 201]), segment(1, [102, 103], [202])];
+    expect(parseCatalogUpdaterVariantSegments(accepted(ok), 3).map(s => s.requestedCount)).toEqual([
+      2, 1
+    ]);
+    // 2 · 1 is the only split of 3 over two blocks of two; 1 · 2 is refused.
+    const swapped = [segment(0, [100, 101], [200]), segment(1, [102, 103], [201, 202])];
+    expect(() => parseCatalogUpdaterVariantSegments(accepted(swapped), 3)).toThrow(
+      'INVALID_RESPONSE'
+    );
+    expect(
+      parseCatalogUpdaterVariantSegments({ ...accepted(ok), segments: undefined }, 3)
+    ).toBeNull();
+  });
+
+  it('admits one set per video with its own rows, seed and source', async () => {
+    const { materializeCatalogUpdaterVariantRequest } =
+      await import('../supabase/functions/drive-ops/updater-variants.js');
+    const { catalogVideoSettingsDigest } =
+      await import('../supabase/functions/drive-ops/catalog-video-set-admission.js');
+    const { createCatalogVideoAssignment } =
+      await import('../packages/shared/src/team/catalog-video-set.js');
+    // The round's frozen settings are digested as stored.
+    const digest = await catalogVideoSettingsDigest(settings);
+    const segments = [segment(0, [100, 101], [200, 201]), segment(1, [102, 103], [202])];
+    const asked: string[] = [];
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === 'service_read_catalog_video_acceptance') {
+        asked.push(args.p_set as string);
+        const s = segments.find(x => x.set_id === args.p_set)!;
+        return {
+          error: null,
+          data: {
+            settingsDigest: digest,
+            catalogIntentId: null,
+            updateAttemptId: id(7),
+            source: { materialId: s.source_material_id, teamId: id(1), actorId: id(2) },
+            snapshot: {
+              setId: s.set_id,
+              children: s.child_request_ids.map((requestId, index) => ({ index, requestId }))
+            },
+            parentState: 'preparing',
+            assignment: createCatalogVideoAssignment({
+              recipeRevision: 1,
+              recipeRowIds: s.recipe_row_ids,
+              variantCount: s.requested_count,
+              seed: s.assignment_seed
+            })
+          }
+        };
+      }
+      return { error: null, data: null };
+    });
+    await materializeCatalogUpdaterVariantRequest(
+      { rpc },
+      {
+        teamId: id(1),
+        actorId: id(2),
+        catalogMaterialId: id(3),
+        requestId: id(4),
+        requestedCount: 3
+      },
+      accepted(segments),
+      vi.fn()
+    );
+    expect(asked).toEqual([id(10), id(11)]);
+    expect(rpc.mock.calls.map(([name]) => name)).toContain(
+      'service_note_catalog_updater_variant_admission'
+    );
+  });
+});

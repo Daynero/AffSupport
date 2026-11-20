@@ -5,9 +5,12 @@ import { catalogPublicationSourceIdentity } from '../../../packages/shared/dist/
 import {
   PRODUCT_CATALOG_TEMPLATE,
   PRODUCT_CATALOG_SHEET_NAME,
+  driveImageLink,
   videoShareLink
 } from '../_shared/product-catalog.ts';
 import { ensureAnyoneReader } from '../_shared/link-sharing.ts';
+import { verifyAnonymousImage } from '../_shared/catalog-image-sharing.ts';
+import { CATALOG_IMAGE_COLUMN } from '../_shared/catalog-updater.ts';
 import { createCatalogVideoLinkResolver } from '../_shared/catalog-video-link.ts';
 // @deno-types="../../../packages/shared/dist/team/catalog-video-r2.d.ts"
 import { isCatalogVideoR2PublicUrl } from '../../../packages/shared/dist/team/catalog-video-r2.js';
@@ -29,13 +32,74 @@ const field = (r: Record<string, unknown>, key: string) => {
   return value;
 };
 type Scope = Readonly<{ teamId: string; actorId: string; jobId: string }>;
+
+/** 062: publishes an image creative to R2 when the catalog's option is on and no copy exists. */
+export type PublicationImagePublisher = (input: {
+  teamId: string;
+  actorId: string;
+  materialId: string;
+  live: import('../_shared/drive.ts').DriveFileMetadata;
+}) => Promise<{ url: string; imageId?: string }>;
+
+export interface TargetedPublicationOptions {
+  publishImage?: PublicationImagePublisher;
+  verifyAnonymous?: typeof verifyAnonymousImage;
+}
+
+/** 062: whether a cells context is an image catalog's (its lane writes H, never Z). */
+export function publicationCellKind(c: Record<string, unknown>): 'video' | 'image' {
+  return c.creativeKind === 'image' ? 'image' : 'video';
+}
+
+/**
+ * The link of every product, in row order: one receipt per row (restitched outputs), per
+ * creative block (062: `segments` of a `creatives` target), or one source for every row.
+ */
+export function publicationRowLinks(
+  c: Record<string, unknown>,
+  urlOf: (materialId: string) => string
+): string[] {
+  if (!Array.isArray(c.sources) || typeof c.productCount !== 'number') throw uncertain();
+  if (c.sources.length === c.productCount)
+    return c.sources.map(source => {
+      if (!isRecord(source)) throw uncertain();
+      return urlOf(field(source, 'materialId'));
+    });
+  if (Array.isArray(c.segments)) {
+    const links: string[] = [];
+    for (const segment of c.segments) {
+      if (
+        !isRecord(segment) ||
+        segment.rowStart !== links.length ||
+        typeof segment.rowCount !== 'number' ||
+        !Number.isSafeInteger(segment.rowCount) ||
+        segment.rowCount < 1
+      )
+        throw uncertain();
+      const url = urlOf(field(segment, 'materialId'));
+      for (let row = 0; row < segment.rowCount; row += 1) links.push(url);
+    }
+    if (links.length !== c.productCount) throw uncertain();
+    return links;
+  }
+  const links = c.sources.map(source => {
+    if (!isRecord(source)) throw uncertain();
+    return urlOf(field(source, 'materialId'));
+  });
+  if (c.sourceOnly === true && links.length === 1)
+    while (links.length < c.productCount) links.push(links[0]!);
+  if (links.length !== c.productCount) throw uncertain();
+  return links;
+}
 /** Backend-only preparation uses the original job and bounded unique-output
  * receipts. Due validation does no media work and retains original URLs. */
 export function createTargetedCatalogPublicationIo(
   service: ServiceRpcClient,
   workerId: string,
-  driveFor: (credentialId: string) => Promise<GoogleDriveClient>
+  driveFor: (credentialId: string) => Promise<GoogleDriveClient>,
+  options: TargetedPublicationOptions = {}
 ): CatalogPublicationIo {
+  const verifyAnonymous = options.verifyAnonymous ?? verifyAnonymousImage;
   const deadlineAt = Date.now() + 7_000;
   async function scopedDrive(credential: string) {
     const drive = await driveFor(credential);
@@ -175,28 +239,34 @@ export function createTargetedCatalogPublicationIo(
         )) !== source.sourceVersion
       )
         throw new TeamFunctionError('SOURCE_CHANGED');
-      const link = await videoLinks.resolve({
-        scope: { publicationJobId: scope.jobId },
-        source: {
-          materialId,
-          sourceVersion: source.sourceVersion,
-          sizeBytes: live.size,
-          mimeType: live.mimeType,
-          checksum: live.checksum
-        },
-        drive: async () => {
-          const permissions = await drive.listAnyonePermissions(fileId);
-          if (permissions.length === 0) {
-            if (!allowSharing) throw new TeamFunctionError('PERMISSION_DENIED');
-            if (live.capabilities.canShare !== true)
-              throw new TeamFunctionError('SHARE_NOT_ALLOWED');
-            await ensureAnyoneReader(drive, fileId, permissions);
-          }
-          return videoShareLink(live.id, live.resourceKey);
-        }
-      });
+      // 062: an image creative's link — R2 `c1/` or Drive's own picture link — is read
+      // anonymously again before every write of H (R33), and never resolves to a video.
+      const link =
+        source.kind === 'image'
+          ? await resolveImageLink(materialId, source, live, drive, allowSharing)
+          : await videoLinks.resolve({
+              scope: { publicationJobId: scope.jobId },
+              source: {
+                materialId,
+                sourceVersion: source.sourceVersion,
+                sizeBytes: live.size,
+                mimeType: live.mimeType,
+                checksum: live.checksum
+              },
+              drive: async () => {
+                const permissions = await drive.listAnyonePermissions(fileId);
+                if (permissions.length === 0) {
+                  if (!allowSharing) throw new TeamFunctionError('PERMISSION_DENIED');
+                  if (live.capabilities.canShare !== true)
+                    throw new TeamFunctionError('SHARE_NOT_ALLOWED');
+                  await ensureAnyoneReader(drive, fileId, permissions);
+                }
+                return videoShareLink(live.id, live.resourceKey);
+              }
+            });
       const url = link.url;
-      if (old && old.url !== url) throw new TeamFunctionError('SOURCE_CHANGED');
+      if (old && old.url !== url && source.kind !== 'image')
+        throw new TeamFunctionError('SOURCE_CHANGED');
       if (
         (await rpc('service_record_catalog_publication_link', {
           p_job: scope.jobId,
@@ -208,6 +278,40 @@ export function createTargetedCatalogPublicationIo(
         })) !== true
       )
         throw uncertain();
+    }
+    async function resolveImageLink(
+      materialId: string,
+      source: Record<string, unknown>,
+      live: import('../_shared/drive.ts').DriveFileMetadata,
+      drive: GoogleDriveClient,
+      sharing: boolean
+    ): Promise<{ url: string; kind: 'r2' | 'drive' }> {
+      if (source.r2 === true) {
+        let url = typeof source.imageUrl === 'string' ? source.imageUrl : null;
+        if (!url) {
+          if (!options.publishImage) throw new TeamFunctionError('WRONG_STATE');
+          url = (
+            await options.publishImage({
+              teamId: scope.teamId,
+              actorId: scope.actorId,
+              materialId,
+              live
+            })
+          ).url;
+        }
+        await verifyAnonymous(url);
+        return { url, kind: 'r2' };
+      }
+      const fileId = live.id;
+      const permissions = await drive.listAnyonePermissions(fileId);
+      if (permissions.length === 0) {
+        if (!sharing) throw new TeamFunctionError('PERMISSION_DENIED');
+        if (live.capabilities.canShare !== true) throw new TeamFunctionError('SHARE_NOT_ALLOWED');
+        await ensureAnyoneReader(drive, fileId, permissions);
+      }
+      const url = driveImageLink(live.id, live.resourceKey);
+      await verifyAnonymous(url);
+      return { url, kind: 'drive' };
     }
     for (let offset = 0; offset < needed.length && Date.now() < deadlineAt - 1_500; offset += 4) {
       const results = await Promise.allSettled(needed.slice(offset, offset + 4).map(prove));
@@ -225,15 +329,12 @@ export function createTargetedCatalogPublicationIo(
     if (Date.now() > deadlineAt - 2_500) return 'waiting';
     const cached = receipts(c);
     if (!Array.isArray(c.sources) || typeof c.productCount !== 'number') throw uncertain();
-    const links = c.sources.map(source => {
-      if (!isRecord(source)) throw uncertain();
-      const receipt = cached.get(field(source, 'materialId'));
+    const links = publicationRowLinks(c, materialId => {
+      const receipt = cached.get(materialId);
       if (!receipt) throw uncertain();
       return field(receipt, 'url');
     });
-    if (c.sourceOnly === true && links.length === 1)
-      while (links.length < c.productCount) links.push(links[0]!);
-    if (links.length !== c.productCount) throw uncertain();
+    const cellKind = publicationCellKind(c);
     const drive = await scopedDrive(field(c, 'credentialId')),
       fileId = field(c, 'fileId');
     await proveLiveAncestry({
@@ -247,7 +348,10 @@ export function createTargetedCatalogPublicationIo(
     );
     if (!sheet) throw new TeamFunctionError('SOURCE_CHANGED');
     const idColumn = PRODUCT_CATALOG_TEMPLATE.findIndex(v => v.source.kind === 'contentId');
-    const videoColumn = PRODUCT_CATALOG_TEMPLATE.findIndex(v => v.source.kind === 'videoLink');
+    const videoColumn =
+      cellKind === 'image'
+        ? CATALOG_IMAGE_COLUMN
+        : PRODUCT_CATALOG_TEMPLATE.findIndex(v => v.source.kind === 'videoLink');
     const [ids, videos] = await drive.readNativeCatalogColumns({
       fileId,
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
@@ -275,6 +379,7 @@ export function createTargetedCatalogPublicationIo(
       sheetId: sheet.sheetId,
       idColumn,
       videoColumn,
+      ...(cellKind === 'image' ? { cellKind } : {}),
       idHeaders: [id.description, id.key],
       videoHeaders: [video.description, video.key],
       products: (Array.isArray(c.publicIds) ? c.publicIds : ids.slice(2)).map((id, index) => {
@@ -283,7 +388,7 @@ export function createTargetedCatalogPublicationIo(
         return { id, url: links[index]! };
       }),
       ...(Array.isArray(c.recipeRowIds) ? { recipeRowIds: c.recipeRowIds as string[] } : {}),
-      markerKey: 'soty_video_publication',
+      markerKey: cellKind === 'image' ? 'soty_image_publication' : 'soty_video_publication',
       markerValue: scope.jobId,
       ...(typeof c.previousMarker === 'string' ? { previousMarker: c.previousMarker } : {})
     };
@@ -299,10 +404,20 @@ export function createTargetedCatalogPublicationIo(
   async function confirmVideoUses(jobId: string) {
     const c = await context(jobId);
     if (!Array.isArray(c.sources)) throw uncertain();
+    // 062: the creatives' own links (H or Z per block) land in the catalog's snapshot only
+    // after the write is verified; an image catalog holds no video copies at all.
+    if (Array.isArray(c.segments)) {
+      const recorded = await service.rpc('service_confirm_catalog_creative_links', {
+        p_job: jobId
+      });
+      if (recorded.error) throw uncertain();
+    }
+    if (publicationCellKind(c) === 'image') return;
     const links = receipts(c);
     const uses: { sourceMaterialId: string; sourceVersion: string }[] = [];
     for (const source of c.sources) {
       if (!isRecord(source)) throw uncertain();
+      if (source.kind === 'image') continue;
       const receipt = links.get(field(source, 'materialId'));
       if (receipt && isCatalogVideoR2PublicUrl(field(receipt, 'url')))
         uses.push({

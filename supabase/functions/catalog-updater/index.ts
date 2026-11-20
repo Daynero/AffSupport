@@ -1,5 +1,13 @@
 import { createCatalogNonVideoUpdater, CATALOG_NONVIDEO_MARKER } from './nonvideo-writer.ts';
-import { createTargetedCatalogPublicationIo } from './publication-io.ts';
+import {
+  createTargetedCatalogPublicationIo,
+  type PublicationImagePublisher
+} from './publication-io.ts';
+import { createCreativeImagePublisher } from '../drive-ops/creative-images.ts';
+import { createCatalogImageDriveSources } from '../_shared/catalog-drive-image-read.ts';
+import { catalogImageObject } from '../_shared/catalog-images.ts';
+import { CatalogImageR2, readCatalogR2Config } from '../_shared/r2-catalog-images.ts';
+import { AwsClient } from 'npm:aws4fetch@1.0.20';
 import { isRecord, parseJsonBody } from '../_shared/validation.ts';
 import { targetedCatalogWriterEnabled } from '../_shared/restitch-native.ts';
 import {
@@ -68,6 +76,67 @@ async function rpcValue(client: RpcClient, name: string, parameters: Record<stri
   const { data, error } = await client.rpc(name, parameters);
   if (error) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
   return data;
+}
+
+/** 062: the same c1/ publisher drive-ops uses at creation, for the R2 switch of an image catalog. */
+function creativeImagePublisher(
+  service: import('../_shared/credentials.ts').ServiceRpcClient,
+  tokenFor: (credentialId: string) => Promise<string>,
+  driveFor: (credentialId: string) => Promise<GoogleDriveClient>
+): PublicationImagePublisher | undefined {
+  const env = (key: string) => Deno.env.get(key);
+  const configured = readCatalogR2Config(env);
+  const accessKeyId = env('R2_CATALOG_ACCESS_KEY_ID');
+  const secretAccessKey = env('R2_CATALOG_SECRET_ACCESS_KEY');
+  if (!configured || !accessKeyId || !secretAccessKey) return undefined;
+  const r2 = new CatalogImageR2(
+    configured,
+    new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' })
+  );
+  const publish = createCreativeImagePublisher({
+    service,
+    r2,
+    readMaterial: createCatalogImageDriveSources({
+      context: async (team, actor, material) => {
+        const { data, error } = await service.rpc('service_get_material_operation_context', {
+          p_team: team,
+          p_actor: actor,
+          p_material: material,
+          p_permission: 'download',
+          p_allow_trashed: false
+        });
+        if (error) throw new TeamFunctionError('IMAGE_SOURCE_UNAVAILABLE', { retryable: true });
+        return catalogImageObject(Array.isArray(data) ? data[0] : data);
+      },
+      token: tokenFor,
+      drive: credential => driveFor(credential)
+    }).readMaterial
+  });
+  return async ({ teamId, actorId, materialId, live }) => {
+    const [published] = await publish({
+      teamId,
+      actorId,
+      copyToR2: true,
+      images: [
+        {
+          ordinal: 0,
+          material: {
+            id: materialId,
+            name: live.name,
+            category: 'image',
+            driveFileId: live.id,
+            resourceKey: live.resourceKey,
+            parentFolderId: null,
+            credentialId: ''
+          },
+          live,
+          drive: {} as never
+        }
+      ]
+    });
+    if (!published) throw new TeamFunctionError('INVALID_RESPONSE');
+    return { url: published.link, ...(published.imageId ? { imageId: published.imageId } : {}) };
+  };
 }
 
 Deno.serve(async request => {
@@ -143,11 +212,11 @@ Deno.serve(async request => {
     }
 
     // One access token per credential for the whole tick.
-    const drives = new Map<string, Promise<GoogleDriveClient>>();
-    const driveFor = (credentialId: string): Promise<GoogleDriveClient> => {
-      let drive = drives.get(credentialId);
-      if (!drive) {
-        drive = readDriveCredential(service, credentialId)
+    const tokens = new Map<string, Promise<string>>();
+    const tokenFor = (credentialId: string): Promise<string> => {
+      let token = tokens.get(credentialId);
+      if (!token) {
+        token = readDriveCredential(service, credentialId)
           .then(credential =>
             refreshGoogleAccessToken({
               credential,
@@ -157,18 +226,23 @@ Deno.serve(async request => {
               productionSignals: signals
             })
           )
-          .then(token => new GoogleDriveClient(token.accessToken));
+          .then(refreshed => refreshed.accessToken);
         // A failed token is not cached: the next sheet on this credential tries again.
-        drive.catch(() => drives.delete(credentialId));
-        drives.set(credentialId, drive);
+        token.catch(() => tokens.delete(credentialId));
+        tokens.set(credentialId, token);
       }
-      return drive;
+      return token;
     };
+    const driveFor = async (credentialId: string): Promise<GoogleDriveClient> =>
+      new GoogleDriveClient(await tokenFor(credentialId));
     if (targetedNativeSheets)
       publications = await runCatalogPublicationScheduler({
         service,
         workerId: publicationWorkerId,
-        io: createTargetedCatalogPublicationIo(service, publicationWorkerId, driveFor)
+        io: createTargetedCatalogPublicationIo(service, publicationWorkerId, driveFor, {
+          // 062: an image catalog switched to R2 publishes its creatives' c1/ copies here.
+          publishImage: creativeImagePublisher(service, tokenFor, driveFor)
+        })
       });
     await settleCatalogUpdaterVariantTargets(service, driveFor);
     // Start the bounded one-file cleanup independently of catalog work. Always

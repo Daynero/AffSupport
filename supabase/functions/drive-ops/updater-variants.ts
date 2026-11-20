@@ -10,6 +10,78 @@ import { proveLiveAncestry } from '../_shared/drive.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { acceptCatalogVideoSet, captureCatalogVideoSource } from './catalog-video-set-admission.ts';
+import { distributeVariations } from '../../../packages/shared/dist/team/launches.js';
+
+/** 062 (R28): one video's set of an updater round over a catalog of several videos. */
+export interface CatalogUpdaterVariantSegment {
+  ordinal: number;
+  setId: string;
+  sourceMaterialId: string;
+  recipeRowIds: string[];
+  childRequestIds: string[];
+  assignmentSeed: string;
+  requestedCount: number;
+  providerContext: Record<string, unknown>;
+}
+
+/**
+ * The segments an accepted round names, checked against the round: each video's own rows,
+ * its share of the variations exactly as distributeVariations hands them out, and the
+ * requests of all sets together. A round from before 062 has none (one set).
+ */
+export function parseCatalogUpdaterVariantSegments(
+  accepted: Record<string, unknown>,
+  requestedCount: number
+): CatalogUpdaterVariantSegment[] | null {
+  if (accepted.segments === undefined || accepted.segments === null) return null;
+  const raw = accepted.segments;
+  if (!Array.isArray(raw) || raw.length < 2 || raw.length > 400)
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  const segments = raw.map((value, ordinal): CatalogUpdaterVariantSegment => {
+    if (
+      !isRecord(value) ||
+      value.ordinal !== ordinal ||
+      typeof value.set_id !== 'string' ||
+      !UUID.test(value.set_id) ||
+      typeof value.source_material_id !== 'string' ||
+      !UUID.test(value.source_material_id) ||
+      !Array.isArray(value.recipe_row_ids) ||
+      value.recipe_row_ids.length < 1 ||
+      value.recipe_row_ids.some(id => typeof id !== 'string') ||
+      !Array.isArray(value.child_request_ids) ||
+      value.child_request_ids.some(id => typeof id !== 'string') ||
+      typeof value.assignment_seed !== 'string' ||
+      !/^[a-f0-9]{64}$/u.test(value.assignment_seed) ||
+      typeof value.requested_count !== 'number' ||
+      value.child_request_ids.length !== value.requested_count ||
+      !isRecord(value.provider_context)
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    return {
+      ordinal,
+      setId: value.set_id,
+      sourceMaterialId: value.source_material_id,
+      recipeRowIds: value.recipe_row_ids as string[],
+      childRequestIds: value.child_request_ids as string[],
+      assignmentSeed: value.assignment_seed,
+      requestedCount: value.requested_count,
+      providerContext: value.provider_context
+    };
+  });
+  const expected = distributeVariations(
+    segments.map(segment => segment.recipeRowIds.length),
+    requestedCount
+  );
+  if (
+    segments.some((segment, index) => segment.requestedCount !== expected[index]) ||
+    expected.reduce((total, count) => total + count, 0) !== requestedCount ||
+    new Set(segments.map(segment => segment.setId)).size !== segments.length ||
+    new Set(segments.flatMap(segment => segment.recipeRowIds)).size !==
+      segments.reduce((total, segment) => total + segment.recipeRowIds.length, 0)
+  )
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  return segments;
+}
 function rpcError(message: string): never {
   switch (message) {
     case 'PERMISSION_DENIED':
@@ -121,6 +193,7 @@ export async function materializeCatalogUpdaterVariantRequest(
   const identity = { ...input };
   validate(identity);
   const r = structuredClone(accepted);
+  const segments = parseCatalogUpdaterVariantSegments(r, identity.requestedCount);
   if (
     r.team_id !== identity.teamId ||
     r.actor_id !== identity.actorId ||
@@ -157,72 +230,87 @@ export async function materializeCatalogUpdaterVariantRequest(
   try {
     const defaults = parseTeamRestitchDefaults(r.settings_snapshot);
     if (!defaults.ok || !defaults.value.configured) throw new TeamFunctionError('RESTITCH_INVALID');
-    const context = r.provider_context;
-    const text = (key: string) => {
-      if (typeof context[key] !== 'string') throw new TeamFunctionError('INVALID_RESPONSE');
-      return context[key];
-    };
-    const fileId = text('fileId'),
-      connectionId = text('connectionId'),
-      credentialId = text('credentialId'),
-      rootFolderId = text('rootFolderId');
-    await acceptCatalogVideoSet(
-      service,
+    // 062: several videos — one set per video, each over its own rows with its own seed.
+    const sets: CatalogUpdaterVariantSegment[] = segments ?? [
       {
+        ordinal: 0,
         setId: r.set_id,
-        teamId: identity.teamId,
-        actorId: identity.actorId,
-        executorId: r.executor_id,
-        catalogMaterialId: identity.catalogMaterialId,
-        catalogIntentId: null,
-        updateAttemptId: r.attempt_id,
         sourceMaterialId: r.source_material_id,
-        settings: r.settings_snapshot as unknown as TeamRestitchDefaults,
+        recipeRowIds: r.recipe_row_ids as string[],
+        childRequestIds: r.child_request_ids as string[],
+        assignmentSeed: r.assignment_seed,
         requestedCount: identity.requestedCount,
-        recipe: {
-          recipeRevision: 1,
-          recipeRowIds: r.recipe_row_ids as string[],
-          variantCount: identity.requestedCount,
-          seed: r.assignment_seed
-        },
-        childRequestIds: r.child_request_ids as string[]
-      },
-      async () => {
-        const drive = await driveFor(credentialId);
-        await proveLiveAncestry({ client: drive, fileId, rootFolderId, maximumDepth: 16 });
-        const live = await drive.getFile(fileId);
-        const source = await captureCatalogVideoSource(
-          service,
-          {
-            materialId: r.source_material_id as string,
-            teamId: identity.teamId,
-            actorId: identity.actorId,
-            indexedConnectionId: connectionId,
-            indexedFileId: fileId,
-            indexedVersion: typeof context.version === 'string' ? context.version : null
-          },
-          async () => {
-            if (
-              !live.version ||
-              !live.checksum ||
-              live.size === null ||
-              live.capabilities.canDownload !== true
-            )
-              throw new TeamFunctionError('SOURCE_CHANGED');
-            return {
-              accessProven: true,
-              fileId: live.id,
-              version: live.version,
-              checksum: live.checksum,
-              sizeBytes: live.size,
-              mimeType: live.mimeType
-            };
-          }
-        );
-        await note('source_proven');
-        return source;
+        providerContext: r.provider_context
       }
-    );
+    ];
+    for (const set of sets) {
+      const context = set.providerContext;
+      const text = (key: string) => {
+        if (typeof context[key] !== 'string') throw new TeamFunctionError('INVALID_RESPONSE');
+        return context[key];
+      };
+      const fileId = text('fileId'),
+        connectionId = text('connectionId'),
+        credentialId = text('credentialId'),
+        rootFolderId = text('rootFolderId');
+      await acceptCatalogVideoSet(
+        service,
+        {
+          setId: set.setId,
+          teamId: identity.teamId,
+          actorId: identity.actorId,
+          executorId: r.executor_id as string,
+          catalogMaterialId: identity.catalogMaterialId,
+          catalogIntentId: null,
+          updateAttemptId: r.attempt_id as string,
+          sourceMaterialId: set.sourceMaterialId,
+          settings: r.settings_snapshot as unknown as TeamRestitchDefaults,
+          requestedCount: set.requestedCount,
+          recipe: {
+            recipeRevision: 1,
+            recipeRowIds: set.recipeRowIds,
+            variantCount: set.requestedCount,
+            seed: set.assignmentSeed
+          },
+          childRequestIds: set.childRequestIds
+        },
+        async () => {
+          const drive = await driveFor(credentialId);
+          await proveLiveAncestry({ client: drive, fileId, rootFolderId, maximumDepth: 16 });
+          const live = await drive.getFile(fileId);
+          const source = await captureCatalogVideoSource(
+            service,
+            {
+              materialId: set.sourceMaterialId,
+              teamId: identity.teamId,
+              actorId: identity.actorId,
+              indexedConnectionId: connectionId,
+              indexedFileId: fileId,
+              indexedVersion: typeof context.version === 'string' ? context.version : null
+            },
+            async () => {
+              if (
+                !live.version ||
+                !live.checksum ||
+                live.size === null ||
+                live.capabilities.canDownload !== true
+              )
+                throw new TeamFunctionError('SOURCE_CHANGED');
+              return {
+                accessProven: true,
+                fileId: live.id,
+                version: live.version,
+                checksum: live.checksum,
+                sizeBytes: live.size,
+                mimeType: live.mimeType
+              };
+            }
+          );
+          await note('source_proven');
+          return source;
+        }
+      );
+    }
     await note('set_admitted');
   } catch (cause) {
     const known = new Set<string>([
