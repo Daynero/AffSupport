@@ -175,6 +175,25 @@ export function catalogNonVideoCellUpdates(
   );
 }
 
+/** The two header cells of the columns the nonvideo writer leaves alone. Their product
+ * cells belong to the publication lane; their headers are the template's and are written
+ * with every update, so a heading someone retyped does not stop the next publication. */
+export function catalogPreservedHeaderUpdates(
+  sheetId: number,
+  kind: CatalogCreativeKind = 'video'
+) {
+  if (!Number.isSafeInteger(sheetId) || sheetId < 0) throw new TeamFunctionError('INVALID_INPUT');
+  return catalogPreservedColumnIndices(kind).map(columnIndex => ({
+    sheetId,
+    rowIndex: 0,
+    columnIndex,
+    values: [
+      PRODUCT_CATALOG_TEMPLATE[columnIndex]!.description,
+      PRODUCT_CATALOG_TEMPLATE[columnIndex]!.key
+    ]
+  }));
+}
+
 export const CATALOG_UPDATER_COLUMNS = { id: ID_COLUMN, video: VIDEO_COLUMN } as const;
 
 /** Back-off after a failed update: 1, 5, 15 minutes, then every 15 minutes. */

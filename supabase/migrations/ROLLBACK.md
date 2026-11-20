@@ -3404,3 +3404,11 @@ back 20 MB and a second index write per journal record.
   column and two pure functions. Re-creating the view from `20261208121000` drops
   `creative_diagnostics` (the analytics CLI then reports no creative evidence) and the
   nine 062 safe error codes (they read as `UNKNOWN` again); the functions can stay.
+
+## 20261222100000 — a repeated update error closes the attempt
+
+`private.track_catalog_update_result()` gained one branch: the same error recorded again
+(a new `last_update_error_at`, the code unchanged) fails the running attempt of the catalog's
+current round. Rolling back is re-applying the body from `20261207177000` — then an update
+that fails the way the previous one did stays «в роботі» again until someone cancels it, as
+TR 84_v1 did on 2026-11-20. Attempts this branch closed stay closed; nothing to restore.
