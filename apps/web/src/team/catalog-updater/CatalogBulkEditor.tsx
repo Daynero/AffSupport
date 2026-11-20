@@ -5,7 +5,11 @@ import { saveCatalogProfile } from './saveCatalogProfile';
 import { profilePatchMatches } from './profilePatchMatches';
 import type { CatalogSnapshot } from './useCatalogInlineChanges';
 import { useEffect, useRef, useState } from 'react';
-import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
+import {
+  catalogUpdateFieldAllowed,
+  type CatalogUpdateProfile,
+  type CatalogUpdateProfilePatch
+} from '@video-compressor/shared';
 import { Button, SelectMenu, FormField, Input } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
@@ -21,6 +25,22 @@ const FIELDS = [
   ['growProducts', 'catalogUpdaterGrow'],
   ['restitch', 'catalogUpdaterRestitch']
 ] as const;
+
+/**
+ * 062: a bulk change leaves out the fields a catalog of several creatives or of
+ * images does not offer, rather than failing the whole batch on it.
+ */
+function allowedPatchFor(
+  profile: CatalogUpdateProfile,
+  patch: CatalogUpdateProfilePatch
+): CatalogUpdateProfilePatch {
+  const next: CatalogUpdateProfilePatch = { ...patch };
+  for (const [field] of FIELDS)
+    if (field in next && !catalogUpdateFieldAllowed(profile, field)) delete next[field];
+  if ('videoVariantCount' in next && profile.creativeKind === 'image')
+    delete next.videoVariantCount;
+  return next;
+}
 
 type Item = {
   catalogId: string;
@@ -69,6 +89,7 @@ export function CatalogBulkEditor({
   }, []);
   const { t } = useI18n();
   const [draft, setDraft] = useState<CatalogUpdateProfilePatch>({});
+  const skippedIds = useRef(new Set<string>());
   useEffect(() => {
     if (!legacyImages)
       setDraft(current => {
@@ -80,6 +101,7 @@ export function CatalogBulkEditor({
   const [pending, setPending] = useState(false);
   const [failures, setFailures] = useState<string[]>([]);
   const [successCount, setSuccessCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
   const [undoReceipts, setUndoReceipts] = useState<CatalogBulkUndoReceipt[]>([]);
   const [undoActivity, setUndoActivity] = useState({ pending: false, uncertain: false });
   const currentItems = useRef(new Map(items.map(item => [item.catalogId, item])));
@@ -161,13 +183,19 @@ export function CatalogBulkEditor({
   const saveItem = async (item: Item): Promise<CatalogSnapshot> => {
     const active = () => scopeActive() && currentItems.current.has(item.catalogId);
     if (!active()) throw privateCacheSuperseded();
+    const patch = allowedPatchFor(item.profile, draft);
+    if (Object.keys(patch).length === 0) {
+      // Nothing this catalog offers was changed: it is left as it is.
+      skippedIds.current.add(item.catalogId);
+      return { profile: item.profile, interval: item.interval };
+    }
     const controller = new AbortController();
     readControllers.current.add(controller);
     try {
       const outcome = await saveCatalogProfile({
         base: { profile: item.profile, interval: item.interval },
-        patch: draft,
-        write: () => save(item.catalogId, item.profile.version, draft),
+        patch,
+        write: () => save(item.catalogId, item.profile.version, patch),
         read: read ? signal => read(item.catalogId, { signal }) : undefined,
         readOnly: unknownIds.current.has(item.catalogId),
         signal: controller.signal,
@@ -319,7 +347,9 @@ export function CatalogBulkEditor({
         return [...byId.values()];
       });
       results.forEach((result, index) => {
-        if (result.status === 'fulfilled') confirmedIds.current.add(changedItems[index]!.catalogId);
+        const catalogId = changedItems[index]!.catalogId;
+        if (result.status === 'fulfilled' && !skippedIds.current.has(catalogId))
+          confirmedIds.current.add(catalogId);
       });
       setUndoReceipts(previous => {
         const byId = new Map(previous.map(receipt => [receipt.catalogId, receipt]));
@@ -337,6 +367,8 @@ export function CatalogBulkEditor({
         return [...byId.values()];
       });
       setSuccessCount(confirmedIds.current.size);
+      setSkippedCount(skippedIds.current.size);
+      skippedIds.current.clear();
       if (results.some(result => result.status === 'fulfilled'))
         attemptFlow.stage('save_confirmed');
       setDelivery({
@@ -541,6 +573,9 @@ export function CatalogBulkEditor({
       >
         {t(unknownIds.current.size > 0 ? 'catalogIconsCheck' : 'catalogUpdaterSaveProfile')}
       </Button>
+      {skippedCount > 0 && (
+        <p className="field-hint">{t('catalogUpdaterBulkSkippedMulti', { count: skippedCount })}</p>
+      )}
       {successCount > 0 && (
         <p role="status">{t('catalogUpdaterBulkSaved', { count: successCount })}</p>
       )}

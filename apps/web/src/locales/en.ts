@@ -942,6 +942,8 @@ export const en = {
   launchCreativeImageFormat: 'The image must be JPEG, PNG or WebP, at least 500 px on its shorter side',
   launchCreativeImageTooLarge: 'The image is too large — up to 50 MB',
   launchCreativeImageUnverified: 'The image link does not open publicly yet — we will try again',
+  catalogUpdaterBulkSkippedMulti:
+    'Catalogs skipped: {count} — this change is not available with several creatives or images',
   catalogMultiCreativeUnsupported: 'This action is not available for a catalog with several creatives or images',
   launchesRange: 'Ad numbers',
   launchesBudget: 'Campaign budgets',

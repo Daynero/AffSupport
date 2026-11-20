@@ -942,6 +942,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchCreativeImageFormat: 'Зображення має бути JPEG, PNG або WebP, щонайменше 500 px по меншій стороні',
   launchCreativeImageTooLarge: 'Зображення завелике — до 50 МБ',
   launchCreativeImageUnverified: 'Посилання на зображення ще не відкривається публічно — спробуємо ще раз',
+  catalogUpdaterBulkSkippedMulti:
+    'Пропущено каталогів: {count} — з кількома креативами або із зображень ця зміна недоступна',
   catalogMultiCreativeUnsupported: 'Для каталогу з кількома креативами або із зображень ця дія недоступна',
   launchesRange: 'Номери оголошень',
   launchesBudget: 'Бюджети кампаній',
