@@ -12,6 +12,7 @@ import {
   isLaunchUrl,
   missingLaunchSubSlots,
   rescaleCopies,
+  type LaunchCreative,
   type LaunchDraft,
   type LaunchSourceSnapshot,
   type TeamAccountSummary
@@ -91,6 +92,9 @@ export function LaunchEditor({
   const [subSettingsOpen, setSubSettingsOpen] = useState(false);
   const [catalogAdvancedOpen, setCatalogAdvancedOpen] = useState(false);
   const [productsBelowCreatives, setProductsBelowCreatives] = useState(false);
+  const [productText, setProductText] = useState<string | null>(null);
+  // The split before a count was being typed, so each keystroke scales from it.
+  const typingBase = useRef<LaunchCreative[] | null>(null);
   const [keptFirstCreative, setKeptFirstCreative] = useState(false);
   const [editingBudget, setEditingBudget] = useState(false);
   const [manualBudgetDraft, setManualBudgetDraft] = useState<number[]>(config.budgets ?? []);
@@ -744,32 +748,52 @@ export function LaunchEditor({
                     aria-label={t('launchesCatalogProductCount')}
                     type="number"
                     width="narrow"
-                    value={config.catalog.productCount}
+                    value={productText ?? config.catalog.productCount}
                     min={Math.max(1, creativeCount)}
                     max={400}
                     disabled={disabled}
                     onChange={e => {
+                      if (creativeCount <= 1) {
+                        changed({
+                          catalog: { ...config.catalog!, productCount: Number(e.target.value) }
+                        });
+                        return;
+                      }
+                      // Several creatives: what is typed is committed only once it is a
+                      // whole count the creatives fit in, so an intermediate "1" on the way
+                      // to "100" does not wipe a custom split. Fewer than the creatives is
+                      // refused with the reason.
+                      if (productText === null) typingBase.current = draftCreatives(config);
+                      setProductText(e.target.value);
                       const typed = Number(e.target.value);
-                      // Fewer products than creatives is refused: the field stays at the
-                      // number of creatives and says why.
-                      const below =
-                        creativeCount > 1 && Number.isFinite(typed) && typed < creativeCount;
-                      setProductsBelowCreatives(below);
-                      const productCount = below ? creativeCount : typed;
-                      if (
-                        creativeCount > 1 &&
-                        Number.isSafeInteger(productCount) &&
-                        productCount <= 400
-                      )
+                      const whole = e.target.value !== '' && Number.isSafeInteger(typed);
+                      setProductsBelowCreatives(whole && typed < creativeCount);
+                      if (whole && typed >= creativeCount && typed <= 400)
                         changed(
                           creativesPatch(
                             config,
-                            rescaleCopies(draftCreatives(config), productCount),
+                            rescaleCopies(typingBase.current ?? draftCreatives(config), typed),
                             creativeKind,
-                            productCount
+                            typed
                           )
                         );
-                      else changed({ catalog: { ...config.catalog!, productCount } });
+                    }}
+                    onBlur={() => {
+                      if (productText === null) return;
+                      const typed = Number(productText);
+                      // Leaving the field below the creatives settles on the smallest count
+                      // that fits them; anything else unusable returns to the saved count.
+                      if (productText !== '' && Number.isSafeInteger(typed) && typed < creativeCount)
+                        changed(
+                          creativesPatch(
+                            config,
+                            rescaleCopies(draftCreatives(config), creativeCount),
+                            creativeKind,
+                            creativeCount
+                          )
+                        );
+                      setProductText(null);
+                      typingBase.current = null;
                     }}
                   />,
                   true,

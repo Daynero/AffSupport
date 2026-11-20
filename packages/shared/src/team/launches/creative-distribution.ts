@@ -150,13 +150,46 @@ export function setCopies(
   return next;
 }
 
-/** A new product count: equal stays equal, otherwise the shares scale with it. */
+/**
+ * Scales shares to a new total keeping their ratios: 40/30/20/10 of 100 is
+ * 8/6/4/2 of 20 and 80/60/40/20 of 200. Largest remainder, one or more each.
+ */
+function scaleCopies(values: readonly number[], n: number): number[] {
+  const total = sum(values);
+  const exact = values.map(value => (total > 0 ? (value * n) / total : n / values.length));
+  const next = exact.map(value => Math.max(1, Math.floor(value)));
+  let diff = n - sum(next);
+  const byFraction = exact
+    .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
+    .sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+  for (const { index } of byFraction) {
+    if (diff <= 0) break;
+    next[index]! += 1;
+    diff -= 1;
+  }
+  while (diff < 0) {
+    // Raising small shares to one overshot: take back from the largest.
+    let largest = 0;
+    for (let index = 1; index < next.length; index += 1)
+      if (next[index]! > next[largest]!) largest = index;
+    if (next[largest]! <= 1) break;
+    next[largest]! -= 1;
+    diff += 1;
+  }
+  return next;
+}
+
+/**
+ * A new product count: equal stays equal, otherwise the shares scale with it.
+ * Pass the shares from before the operator started typing as `list`, so the
+ * intermediate counts of a number being typed do not compound.
+ */
 export function rescaleCopies(list: readonly LaunchCreative[], n: number): LaunchCreative[] {
   const k = list.length;
   if (k === 0) return [];
   const target = Math.max(n, k);
   const values = list.map(creative => creative.copies);
-  const next = isEven(values) ? evenCopies(target, k) : proportional(values, target);
+  const next = isEven(values) ? evenCopies(target, k) : scaleCopies(values, target);
   return list.map((creative, index) => ({ ...creative, copies: next[index]! }));
 }
 

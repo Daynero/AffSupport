@@ -130,20 +130,20 @@ export function LaunchCard({
                 : 'teamAgentFree'
           )
   ].join('\n');
+  // 062: the first creative names the launch; the others show as a count.
+  const others = (value.creativeCount ?? 1) - 1;
+  const creativeLabel = value.creativeAlias.trim()
+    ? `${value.creativeAlias.trim()}${others > 0 ? ` +${others}` : ''}`
+    : '';
   const methodLabel = [
     t(value.method === 'catalog' ? 'launchesCatalog' : 'launchesOther'),
     value.creativeKind === 'image' ? t('launchCreativeKindImage') : ''
   ]
     .filter(Boolean)
     .join(' · ');
-  // 062: the first creative names the launch; the others show as a count.
-  const others = (value.creativeCount ?? 1) - 1;
-  const creativeLabel = value.creativeAlias.trim()
-    ? `${value.creativeAlias.trim()}${others > 0 ? ` +${others}` : ''}`
-    : '';
   const heading =
     value.offer.trim() ||
-    value.creativeAlias.trim() ||
+    creativeLabel ||
     [accountLabel, methodLabel].filter(Boolean).join(' · ');
   return (
     <Card
@@ -256,7 +256,7 @@ export function LaunchCard({
             className="launch-card-context"
             title={[creativeLabel, methodLabel].filter(Boolean).join(' · ')}
           >
-            {creativeLabel && value.creativeAlias.trim() !== heading && (
+            {creativeLabel && creativeLabel !== heading && (
               <strong>{creativeLabel} · </strong>
             )}
             <span>{methodLabel}</span>
