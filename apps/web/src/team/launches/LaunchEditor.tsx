@@ -752,10 +752,15 @@ export function LaunchEditor({
                       const typed = Number(e.target.value);
                       // Fewer products than creatives is refused: the field stays at the
                       // number of creatives and says why.
-                      const below = creativeCount > 1 && Number.isFinite(typed) && typed < creativeCount;
+                      const below =
+                        creativeCount > 1 && Number.isFinite(typed) && typed < creativeCount;
                       setProductsBelowCreatives(below);
                       const productCount = below ? creativeCount : typed;
-                      if (creativeCount > 1 && Number.isSafeInteger(productCount) && productCount <= 400)
+                      if (
+                        creativeCount > 1 &&
+                        Number.isSafeInteger(productCount) &&
+                        productCount <= 400
+                      )
                         changed(
                           creativesPatch(
                             config,
@@ -780,45 +785,44 @@ export function LaunchEditor({
                   productCount={config.catalog.productCount}
                   disabled={disabled}
                   invalid={submitted && errors.creatives === 'DISTRIBUTION_INVALID'}
-                  onChange={creatives =>
-                    changed(creativesPatch(config, creatives, creativeKind))
-                  }
+                  onChange={creatives => changed(creativesPatch(config, creatives, creativeKind))}
                 />
                 {creativeKind !== 'image' && (
-                <div className="launch-editor-restitch">
-                  <Switch
-                    label={t('launchesRestitch')}
-                    checked={config.catalog.restitchEnabled}
-                    disabled={disabled}
-                    onChange={restitchEnabled =>
-                      changed({
-                        catalog: {
-                          ...config.catalog!,
-                          restitchEnabled,
-                          ...(config.catalog!.catalogVideoProtocolVersion === 1 && !restitchEnabled
-                            ? {
-                                videoVariationCount:
-                                  restitchEnabled && creativeCount > 1 ? creativeCount : 1
-                              }
-                            : {})
-                        }
-                      })
-                    }
-                  />
-                </div>
+                  <div className="launch-editor-restitch">
+                    <Switch
+                      label={t('launchesRestitch')}
+                      checked={config.catalog.restitchEnabled}
+                      disabled={disabled}
+                      onChange={restitchEnabled =>
+                        changed({
+                          catalog: {
+                            ...config.catalog!,
+                            restitchEnabled,
+                            ...(config.catalog!.catalogVideoProtocolVersion === 1 &&
+                            !restitchEnabled
+                              ? {
+                                  videoVariationCount:
+                                    restitchEnabled && creativeCount > 1 ? creativeCount : 1
+                                }
+                              : {})
+                          }
+                        })
+                      }
+                    />
+                  </div>
                 )}
                 {creativeKind !== 'image' && (
-                <Suspense fallback={null}>
-                  <LaunchCatalogVideoFields
-                    part="variations"
-                    value={config.catalog}
-                    disabled={disabled}
-                    creativeCopies={
-                      creativeCount > 1 ? draftCreatives(config).map(c => c.copies) : undefined
-                    }
-                    onChange={catalog => changed({ catalog })}
-                  />
-                </Suspense>
+                  <Suspense fallback={null}>
+                    <LaunchCatalogVideoFields
+                      part="variations"
+                      value={config.catalog}
+                      disabled={disabled}
+                      creativeCopies={
+                        creativeCount > 1 ? draftCreatives(config).map(c => c.copies) : undefined
+                      }
+                      onChange={catalog => changed({ catalog })}
+                    />
+                  </Suspense>
                 )}
                 <CatalogVideoR2Toggle
                   mode="create"

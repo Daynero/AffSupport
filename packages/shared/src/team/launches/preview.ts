@@ -34,7 +34,8 @@ function launchCreativeKindMismatch(
     const material = materials[index]!;
     if (material.materialId.toLowerCase() !== creative.materialId.toLowerCase())
       return { field: 'creatives', code: 'SOURCE_CHANGED' };
-    if (material.type !== config.creativeKind) return { field: 'creatives', code: 'CREATIVES_MIXED' };
+    if (material.type !== config.creativeKind)
+      return { field: 'creatives', code: 'CREATIVES_MIXED' };
   }
   return null;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   applyLaunchDefaultValues,
+  fitCatalogToCreatives,
   launchDefaultValues,
   launchValuesEqual,
   type LaunchDraft
@@ -81,7 +82,9 @@ export function useOfferDefaults({
     baseline.current = safe;
     setSource(nextSource);
     setProposal(null);
-    latest.current.onApply(applyLaunchDefaultValues(latest.current.config, safe));
+    latest.current.onApply(
+      fitCatalogToCreatives(applyLaunchDefaultValues(latest.current.config, safe))
+    );
   };
   const applyRef = useRef(apply);
   applyRef.current = apply;

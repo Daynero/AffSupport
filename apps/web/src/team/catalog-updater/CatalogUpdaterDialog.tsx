@@ -1956,15 +1956,17 @@ function CatalogUpdaterDialogScope({
                         {row.profile!.creatives!.map(creative => creative.alias).join(' · ')}
                       </p>
                     )}
-                    {permissions?.edit && mayRun && (!row.profile || catalogHasOneVideo(row.profile)) && (
-                      <Button
-                        variant="outline"
-                        disabled={editorPending}
-                        onClick={() => setReplaceVideoCatalogId(row.catalogId)}
-                      >
-                        {t('catalogReplaceVideoTitle')}
-                      </Button>
-                    )}
+                    {permissions?.edit &&
+                      mayRun &&
+                      (!row.profile || catalogHasOneVideo(row.profile)) && (
+                        <Button
+                          variant="outline"
+                          disabled={editorPending}
+                          onClick={() => setReplaceVideoCatalogId(row.catalogId)}
+                        >
+                          {t('catalogReplaceVideoTitle')}
+                        </Button>
+                      )}
 
                     {row.updatePending && (
                       <div>
@@ -2028,22 +2030,22 @@ function CatalogUpdaterDialogScope({
                       </p>
                     )}
                     {row.profile.creativeKind !== 'image' && (
-                    <CatalogProfileVideoCount
-                      value={row.profile.videoVariantCount ?? 1}
-                      productCount={row.productCount}
-                      disabled={!mayRun || inline.blocked(row.catalogId) || editorPending}
-                      onSave={async value => {
-                        if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
-                        if (busyRef.current.has(row.catalogId) || inline.blocked(row.catalogId))
-                          throw new TeamApiError('WRONG_STATE', false);
-                        const confirmed = await inline.change(
-                          row.catalogId,
-                          'videoVariantCount',
-                          value
-                        );
-                        if (!confirmed) throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
-                      }}
-                    />
+                      <CatalogProfileVideoCount
+                        value={row.profile.videoVariantCount ?? 1}
+                        productCount={row.productCount}
+                        disabled={!mayRun || inline.blocked(row.catalogId) || editorPending}
+                        onSave={async value => {
+                          if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
+                          if (busyRef.current.has(row.catalogId) || inline.blocked(row.catalogId))
+                            throw new TeamApiError('WRONG_STATE', false);
+                          const confirmed = await inline.change(
+                            row.catalogId,
+                            'videoVariantCount',
+                            value
+                          );
+                          if (!confirmed) throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
+                        }}
+                      />
                     )}
                     <CatalogIconLegend
                       teamId={teamId}

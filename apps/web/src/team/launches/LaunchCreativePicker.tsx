@@ -36,8 +36,7 @@ import { LaunchCreativeRow } from './LaunchCreativeList.js';
 import { creativesPatch, draftCreatives } from './launchCreatives.js';
 
 type PickerError =
-  | { kind: 'selection' | 'mixed' | 'duplicate' | 'limit' }
-  | { kind: 'upload'; cause?: unknown };
+  { kind: 'selection' | 'mixed' | 'duplicate' | 'limit' } | { kind: 'upload'; cause?: unknown };
 type Picked = { id: string; name: string; kind: LaunchCreativeKind };
 
 function kindOf(category: string | null | undefined): LaunchCreativeKind | null {
@@ -371,121 +370,125 @@ export function LaunchCreativePicker({
             {creatives.map((creative, index) => rowFor(creative, index))}
           </ul>
         )}
-      <div
-        className="launch-creative-field"
-        data-dragging={dragging || undefined}
-        data-busy={busy || undefined}
-        aria-busy={busy}
-      >
-        {!catalogMode && creatives[0] && rowFor(creatives[0], 0, 'div')}
-        <TaskAttachmentPicker
-          key={`${epoch}:${teamId}:${catalogMode}`}
-          teamId={teamId}
-          title={t('launchesSelectCreative')}
-          confirmLabel={() => t('launchesSelectCreative')}
-          single={!catalogMode}
-          attachedMaterialIds={new Set(catalogMode ? creatives.map(c => c.materialId) : [])}
-          accept={material => {
-            if (material.kind !== 'file') return false;
-            const category = kindOf(material.category);
-            if (!category) return false;
-            return !(catalogMode && creatives.length > 0 && kind && category !== kind);
-          }}
-          onAdd={items => {
-            if (!allowed(currentRevision) || active.current) return;
-            const picked = items.map(item => ({
-              id: item.id,
-              name: item.name,
-              kind: kindOf(item.category)
-            }));
-            // The browser's filter is fixed when it opens, so the set is checked again here.
-            const verdict = admissible(picked);
-            if (!verdict.ok) {
-              setError(verdict.error);
-              return;
-            }
-            setError(null);
-            setNames(previous => ({
-              ...previous,
-              ...Object.fromEntries(items.map(item => [item.id, item.name]))
-            }));
-            add(picked.map(item => ({ ...item, kind: verdict.kind })));
-          }}
-          trigger={open => (
-            <>
-              <Button
-                ref={menuAnchor}
-                variant="ghost"
-                className={
-                  creatives.length === 0 || catalogMode
-                    ? 'launch-creative-empty'
-                    : 'launch-creative-replace'
-                }
-                disabled={unavailable || (catalogMode && creatives.length >= CATALOG_PRODUCT_COUNT_MAX)}
-                loading={busy}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen && !unavailable}
-                onClick={() => setMenuOpen(value => !value)}
-              >
-                {creatives.length === 0 ? (
-                  <Upload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                ) : (
-                  catalogMode && <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                )}
-                <span>
-                  {busy
-                    ? t('launchCreativeUploading')
-                    : creatives.length === 0
-                      ? t('launchCreativeChooseOrDrop')
-                      : catalogMode
-                        ? t('launchCreativeAdd')
-                        : t('launchCreativeReplace')}
-                </span>
-                <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </Button>
-              <DropdownMenu
-                open={menuOpen && !unavailable}
-                onClose={() => setMenuOpen(false)}
-                anchor={menuAnchor}
-                placement="bottom-start"
-                label={t('launchesSelectCreative')}
-                items={[
-                  {
-                    id: 'computer',
-                    label: t('launchCreativeComputer'),
-                    icon: <Monitor size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
-                    onSelect: () => {
-                      if (allowed(currentRevision) && !active.current) fileInput.current?.click();
-                    }
-                  },
-                  {
-                    id: 'workspace',
-                    label: t('launchCreativeWorkspace'),
-                    icon: <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
-                    onSelect: () => {
-                      if (allowed(currentRevision) && !active.current) open();
-                    }
+        <div
+          className="launch-creative-field"
+          data-dragging={dragging || undefined}
+          data-busy={busy || undefined}
+          aria-busy={busy}
+        >
+          {!catalogMode && creatives[0] && rowFor(creatives[0], 0, 'div')}
+          <TaskAttachmentPicker
+            key={`${epoch}:${teamId}:${catalogMode}`}
+            teamId={teamId}
+            title={t('launchesSelectCreative')}
+            confirmLabel={() => t('launchesSelectCreative')}
+            single={!catalogMode}
+            attachedMaterialIds={new Set(catalogMode ? creatives.map(c => c.materialId) : [])}
+            accept={material => {
+              if (material.kind !== 'file') return false;
+              const category = kindOf(material.category);
+              if (!category) return false;
+              return !(catalogMode && creatives.length > 0 && kind && category !== kind);
+            }}
+            onAdd={items => {
+              if (!allowed(currentRevision) || active.current) return;
+              const picked = items.map(item => ({
+                id: item.id,
+                name: item.name,
+                kind: kindOf(item.category)
+              }));
+              // The browser's filter is fixed when it opens, so the set is checked again here.
+              const verdict = admissible(picked);
+              if (!verdict.ok) {
+                setError(verdict.error);
+                return;
+              }
+              setError(null);
+              setNames(previous => ({
+                ...previous,
+                ...Object.fromEntries(items.map(item => [item.id, item.name]))
+              }));
+              add(picked.map(item => ({ ...item, kind: verdict.kind })));
+            }}
+            trigger={open => (
+              <>
+                <Button
+                  ref={menuAnchor}
+                  variant="ghost"
+                  className={
+                    creatives.length === 0 || catalogMode
+                      ? 'launch-creative-empty'
+                      : 'launch-creative-replace'
                   }
-                ]}
-              />
-            </>
-          )}
-        />
-        <input
-          ref={fileInput}
-          type="file"
-          accept={accept}
-          multiple={catalogMode}
-          hidden
-          disabled={unavailable}
-          aria-label={t('launchCreativeComputer')}
-          onChange={event => {
-            const files = Array.from(event.target.files ?? []);
-            event.target.value = '';
-            if (files.length) void upload(files);
-          }}
-        />
-      </div>
+                  disabled={
+                    unavailable || (catalogMode && creatives.length >= CATALOG_PRODUCT_COUNT_MAX)
+                  }
+                  loading={busy}
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen && !unavailable}
+                  onClick={() => setMenuOpen(value => !value)}
+                >
+                  {creatives.length === 0 ? (
+                    <Upload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  ) : (
+                    catalogMode && (
+                      <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    )
+                  )}
+                  <span>
+                    {busy
+                      ? t('launchCreativeUploading')
+                      : creatives.length === 0
+                        ? t('launchCreativeChooseOrDrop')
+                        : catalogMode
+                          ? t('launchCreativeAdd')
+                          : t('launchCreativeReplace')}
+                  </span>
+                  <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </Button>
+                <DropdownMenu
+                  open={menuOpen && !unavailable}
+                  onClose={() => setMenuOpen(false)}
+                  anchor={menuAnchor}
+                  placement="bottom-start"
+                  label={t('launchesSelectCreative')}
+                  items={[
+                    {
+                      id: 'computer',
+                      label: t('launchCreativeComputer'),
+                      icon: <Monitor size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+                      onSelect: () => {
+                        if (allowed(currentRevision) && !active.current) fileInput.current?.click();
+                      }
+                    },
+                    {
+                      id: 'workspace',
+                      label: t('launchCreativeWorkspace'),
+                      icon: <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+                      onSelect: () => {
+                        if (allowed(currentRevision) && !active.current) open();
+                      }
+                    }
+                  ]}
+                />
+              </>
+            )}
+          />
+          <input
+            ref={fileInput}
+            type="file"
+            accept={accept}
+            multiple={catalogMode}
+            hidden
+            disabled={unavailable}
+            aria-label={t('launchCreativeComputer')}
+            onChange={event => {
+              const files = Array.from(event.target.files ?? []);
+              event.target.value = '';
+              if (files.length) void upload(files);
+            }}
+          />
+        </div>
       </div>
       {errorText && (
         <p role="alert" className="ui-field-error">

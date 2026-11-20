@@ -148,12 +148,16 @@ function parseLaunchCreatives(value: Record<string, unknown>): ParsedCreatives {
     if (!alias) return { ok: false, code: 'LAUNCH_SUB_INVALID' };
     if (!positive(item.copies, CATALOG_PRODUCT_COUNT_MAX))
       return { ok: false, code: 'DISTRIBUTION_INVALID' };
-    if (item.pinned !== null && !positive(item.pinned))
-      return { ok: false, code: 'INVALID_INPUT' };
+    if (item.pinned !== null && !positive(item.pinned)) return { ok: false, code: 'INVALID_INPUT' };
     const materialId = item.materialId.toLowerCase();
     if (seen.has(materialId)) return { ok: false, code: 'CREATIVE_DUPLICATE' };
     seen.add(materialId);
-    creatives.push({ materialId: item.materialId, alias, copies: item.copies, pinned: item.pinned });
+    creatives.push({
+      materialId: item.materialId,
+      alias,
+      copies: item.copies,
+      pinned: item.pinned
+    });
   }
   const first = creatives[0]!;
   if (

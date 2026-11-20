@@ -56,8 +56,7 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
       );
       if (creatives.length !== v.length) return null;
       result.creatives = creatives;
-    }
-    else if (k === 'originalUrl' && typeof v === 'string') result.originalUrl = v;
+    } else if (k === 'originalUrl' && typeof v === 'string') result.originalUrl = v;
     else if (k === 'launchDate' && typeof v === 'string') result.launchDate = v;
     else if (k === 'timezone' && typeof v === 'string') result.timezone = v;
     else if (k === 'campaignCount' && typeof v === 'number' && Number.isFinite(v))

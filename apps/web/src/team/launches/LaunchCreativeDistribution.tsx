@@ -78,10 +78,7 @@ export function LaunchCreativeDistribution({
                 {creatives.map((creative, index) => {
                   const label = t('launchDistributionCopiesFor', { name: creative.alias });
                   return (
-                    <li
-                      key={creative.materialId}
-                      className="flex min-w-0 items-center gap-3"
-                    >
+                    <li key={creative.materialId} className="flex min-w-0 items-center gap-3">
                       <span className="w-40 min-w-0 shrink-0 truncate" title={creative.alias}>
                         {creative.alias}
                       </span>

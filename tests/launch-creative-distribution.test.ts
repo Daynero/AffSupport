@@ -205,3 +205,32 @@ describe('properties (SC-006)', () => {
     }
   });
 });
+
+import { fitCatalogToCreatives } from '../packages/shared/src/team/launches/creative-distribution';
+describe('profile settings fit the chosen creatives (R21)', () => {
+  const catalog = {
+    productCount: 100,
+    restitchEnabled: true,
+    finalDurationMode: 'random-30-40' as const,
+    customFinalDurationSeconds: null,
+    catalogVideoProtocolVersion: 1 as const,
+    videoVariationCount: 2
+  };
+  it('turns restitch off for images', () => {
+    const fitted = fitCatalogToCreatives({
+      catalog,
+      creativeKind: 'image',
+      creatives: creatives([50, 50])
+    });
+    expect(fitted.catalog?.restitchEnabled).toBe(false);
+    expect(fitted.catalog?.videoVariationCount).toBe(1);
+  });
+  it('raises variations to one per video', () => {
+    const fitted = fitCatalogToCreatives({
+      catalog,
+      creativeKind: 'video',
+      creatives: creatives([25, 25, 25, 25])
+    });
+    expect(fitted.catalog?.videoVariationCount).toBe(4);
+  });
+});

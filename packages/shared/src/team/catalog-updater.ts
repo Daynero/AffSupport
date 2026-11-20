@@ -47,8 +47,7 @@ export function catalogUpdateFieldAllowed(
   field: CatalogUpdateField
 ): boolean {
   if (profile.creativeKind === 'image') return field === 'refreshTexts';
-  if ((profile.creatives?.length ?? 1) > 1)
-    return field === 'restitch' || field === 'refreshTexts';
+  if ((profile.creatives?.length ?? 1) > 1) return field === 'restitch' || field === 'refreshTexts';
   return true;
 }
 

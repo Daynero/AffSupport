@@ -286,3 +286,36 @@ export function launchCreativesOf(
     }
   ];
 }
+
+/**
+ * 062 (R21): settings applied from a profile must fit the creatives already
+ * chosen — no restitch for images, and at least one variation per video.
+ */
+export function fitCatalogToCreatives<
+  T extends Partial<Pick<LaunchConfig, 'catalog' | 'creatives' | 'creativeKind'>>
+>(draft: T): T {
+  const catalog = draft.catalog;
+  const k = draft.creatives?.length ?? 0;
+  if (!catalog || k === 0) return draft;
+  if (draft.creativeKind === 'image' && catalog.restitchEnabled)
+    return {
+      ...draft,
+      catalog: {
+        ...catalog,
+        restitchEnabled: false,
+        ...(catalog.catalogVideoProtocolVersion === 1 ? { videoVariationCount: 1 } : {})
+      }
+    };
+  if (
+    draft.creativeKind !== 'image' &&
+    k > 1 &&
+    catalog.restitchEnabled &&
+    catalog.catalogVideoProtocolVersion === 1 &&
+    (catalog.videoVariationCount ?? 1) < k
+  )
+    return {
+      ...draft,
+      catalog: { ...catalog, videoVariationCount: Math.min(k, catalog.productCount) }
+    };
+  return draft;
+}

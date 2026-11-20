@@ -44,14 +44,19 @@ const creative = (n: number, copies: number): LaunchCreative => ({
   pinned: null
 });
 const videos = (count: number) =>
-  Array.from({ length: count }, (_, i) => new File(['x'], `clip ${i + 1}.mp4`, { type: 'video/mp4' }));
+  Array.from(
+    { length: count },
+    (_, i) => new File(['x'], `clip ${i + 1}.mp4`, { type: 'video/mp4' })
+  );
 const dropOn = (files: File[]) =>
   fireEvent.drop(screen.getByRole('button', { name: /Choose a creative|Add/ }), {
     dataTransfer: { files }
   });
 
 function picker(config: LaunchDraft, onChange = vi.fn()) {
-  render(<LaunchCreativePicker teamId="team" config={config} disabled={false} onChange={onChange} />);
+  render(
+    <LaunchCreativePicker teamId="team" config={config} disabled={false} onChange={onChange} />
+  );
   return onChange;
 }
 
@@ -72,9 +77,7 @@ it('uploads several videos from one drop and shares the products evenly', async 
 it('raises the product count to the number of creatives', () => {
   const change = picker({ method: 'catalog', catalog: catalog(2) });
   act(() =>
-    seams.picked(
-      [1, 2, 3].map(i => ({ id: `m${i}`, name: `pic${i}.png`, category: 'image' }))
-    )
+    seams.picked([1, 2, 3].map(i => ({ id: `m${i}`, name: `pic${i}.png`, category: 'image' })))
   );
   const patch = change.mock.calls.at(-1)![0] as LaunchDraft;
   expect(patch.catalog?.productCount).toBe(3);
@@ -83,7 +86,10 @@ it('raises the product count to the number of creatives', () => {
 
 it('refuses a mixed drop without uploading anything', () => {
   const change = picker({ method: 'catalog', catalog: catalog() });
-  dropOn([new File(['a'], 'a.mp4', { type: 'video/mp4' }), new File(['b'], 'b.png', { type: 'image/png' })]);
+  dropOn([
+    new File(['a'], 'a.mp4', { type: 'video/mp4' }),
+    new File(['b'], 'b.png', { type: 'image/png' })
+  ]);
   expect(seams.folder).not.toHaveBeenCalled();
   expect(change).not.toHaveBeenCalled();
   expect(screen.getByRole('alert').textContent).toMatch(/either videos or images/);

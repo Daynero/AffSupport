@@ -84,21 +84,29 @@ describe('parseLaunchConfig with creatives', () => {
   it('refuses restitch for images', () => {
     expect(
       errorOf(
-        multi(four(), { creativeKind: 'image' }, {
-          restitchEnabled: true,
-          finalDurationMode: 'random-30-40'
-        })
+        multi(
+          four(),
+          { creativeKind: 'image' },
+          {
+            restitchEnabled: true,
+            finalDurationMode: 'random-30-40'
+          }
+        )
       )
     ).toBe('INVALID_INPUT');
   });
   it('needs at least one variation per video and no more than the products', () => {
     const restitch = (videoVariationCount: number) =>
-      multi(four(), {}, {
-        restitchEnabled: true,
-        catalogVideoProtocolVersion: 1,
-        videoVariationCount,
-        videoPublication: { mode: 'immediate' }
-      });
+      multi(
+        four(),
+        {},
+        {
+          restitchEnabled: true,
+          catalogVideoProtocolVersion: 1,
+          videoVariationCount,
+          videoPublication: { mode: 'immediate' }
+        }
+      );
     expect(errorOf(restitch(3))).toBe('VARIATIONS_RANGE');
     expect(parseLaunchConfig(restitch(4)).ok).toBe(true);
     expect(parseLaunchConfig(restitch(100)).ok).toBe(true);

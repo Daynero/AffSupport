@@ -35,7 +35,10 @@ describe('catalog manager actions (FR-022)', () => {
     expect(catalogHasOneVideo(profile)).toBe(false);
   });
   it('keeps only texts for images, even a single one', () => {
-    const profile = { creativeKind: 'image' as const, creatives: [{ alias: 'a', kind: 'image' as const }] };
+    const profile = {
+      creativeKind: 'image' as const,
+      creatives: [{ alias: 'a', kind: 'image' as const }]
+    };
     expect(allowed(profile)).toEqual(['refreshTexts']);
     expect(catalogHasOneVideo(profile)).toBe(false);
   });
