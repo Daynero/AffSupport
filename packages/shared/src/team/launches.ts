@@ -41,13 +41,35 @@ export interface LaunchCatalogConfig {
   /** Inclusive random bounds, in seconds; absent for legacy centered windows. */
   finalDurationRangeSeconds?: readonly [number, number];
 }
+/** Characters of a creative alias that prefix a product ID. */
+export const CATALOG_ID_PREFIX_MAX = 40;
+export type LaunchCreativeKind = 'video' | 'image';
+/** 062: one creative of a catalog Launch and its share of the products. */
+export interface LaunchCreative {
+  materialId: string;
+  /** Product-ID prefix and naming stem; same alphabet as `creativeAlias`. */
+  alias: string;
+  /** At least one; all together equal `catalog.productCount` (≤ CATALOG_PRODUCT_COUNT_MAX). */
+  copies: number;
+  /**
+   * null while the share follows the others; otherwise the order in which the
+   * operator typed this share (larger is newer), so typed values hold.
+   */
+  pinned: number | null;
+}
 export interface LaunchConfig {
   schemaVersion: 1;
   agentRowId: string;
   offerId: string;
   buyerId: string;
+  /** Always the first creative, so single-creative readers stay correct. */
   materialId: string;
+  /** Always the first creative's alias. */
   creativeAlias: string;
+  /** 062: absent on older launches, which read as one creative of `materialType`. */
+  creativeKind?: LaunchCreativeKind;
+  /** 062: ordered creatives; absent on older launches. */
+  creatives?: LaunchCreative[];
   campaignCount: number;
   maxBudget: number;
   /** Absent on legacy launches, which retain max/count allocation. */
@@ -79,6 +101,15 @@ export interface LaunchSources {
   catalogSettingsVersion?: string | null;
   restitchSettingsVersion?: string | null;
   materialType: 'video' | 'image';
+  /** 062: every creative in config order; absent on older servers (first only). */
+  materials?: LaunchSourceMaterial[];
+}
+export interface LaunchSourceMaterial {
+  materialId: string;
+  type: 'video' | 'image';
+  version: string | null;
+  checksum?: string | null;
+  driveFileId?: string;
 }
 export interface LaunchSourceSnapshot extends LaunchSources {
   schemaVersion: 1;
@@ -166,6 +197,9 @@ export interface LaunchSummary {
   offer: string;
   social: string;
   creativeAlias: string;
+  /** 062: number of creatives; absent on older servers (one). */
+  creativeCount?: number;
+  creativeKind?: LaunchCreativeKind;
   method: 'catalog' | 'other';
   workStatus: 'todo' | 'in_progress' | 'done';
   assigneeId: string | null;
@@ -229,6 +263,7 @@ export function launchInputsLocked(state: LaunchGenerationState | null): boolean
   return state !== null && !['succeeded', 'canceled', 'failed'].includes(state);
 }
 export * from './launches/validation.js';
+export * from './launches/creative-distribution.js';
 export * from './launches/url.js';
 export * from './launches/budgets.js';
 export * from './launches/naming.js';

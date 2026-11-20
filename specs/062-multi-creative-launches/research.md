@@ -133,7 +133,7 @@
 
 ## R17. Аналітика
 
-Наявні типізовані події допуску/генерації запуску отримують властивості `creativeKind`, `creativeCount`, `productCount`, `variationCount`, `customDistribution`. Нові коди відмов: `CREATIVES_MIXED`, `CREATIVES_LIMIT`, `CREATIVE_DUPLICATE`, `DISTRIBUTION_INVALID`, `VARIATIONS_RANGE`, `CREATIVE_IMAGE_FORMAT`, `CREATIVE_IMAGE_TOO_LARGE`, `PUBLIC_READ_UNVERIFIED`, `SCHEDULE_SINGLE_CREATIVE_ONLY`, `MULTI_CREATIVE_UNSUPPORTED`. Стадії публікації зображення: `creative_image.accepted/published/verified/failed` з `creativeOrdinal`; `failedOrdinal` для набору. Без назв, ID, URL.
+Наявні типізовані події допуску/генерації запуску отримують властивості `creativeKind`, `creativeCount`, `productCount`, `variationCount`, `customDistribution`. Нові коди відмов: `CREATIVES_MIXED`, `CREATIVES_LIMIT`, `CREATIVE_DUPLICATE`, `DISTRIBUTION_INVALID`, `VARIATIONS_RANGE`, `CREATIVE_IMAGE_FORMAT`, `CREATIVE_IMAGE_TOO_LARGE`, `PUBLIC_READ_UNVERIFIED`, `MULTI_CREATIVE_UNSUPPORTED`. Стадії публікації зображення: `creative_image.accepted/published/verified/failed` з `creativeOrdinal`; `failedOrdinal` для набору. Без назв, ID, URL.
 
 Закриті списки, куди ключі й коди мають потрапити, інакше події тихо відкидаються: серверний whitelist `analytics_properties_are_safe_v2` (переозначено в `20261218100000_navigation_analytics_guard.sql`), `LAUNCH_ANALYTICS_CODES` (`packages/shared/src/team/launches/lifecycle.ts:58`), `TEAM_ERROR_CODES` (`packages/shared/src/team/transport.ts:77`), `scripts/analytics/code-map.ts` (+ `tests/analytics-code-map.test.ts`), `coverage-registry.ts` (обов'язкове оновлення за AGENTS.md).
 
@@ -176,3 +176,54 @@
 ## R23. Клавіатура повзунка
 
 PageUp/PageDown ±10 не гарантовано `Slider` за замовчуванням — реалізується через `onKeyDown` у наявній обгортці (`apps/web/src/components/ui/Choice.tsx:392`) як опція, без локального контролу.
+
+---
+
+# Перегляд після рішень власника 2026-11-20 (друге повідомлення)
+
+Розділи нижче **перекривають** попередні там, де суперечать.
+
+## R24. Без ліміту креативів
+
+Окремої межі немає; природна межа — `LAUNCH_CATALOG_PRODUCTS_MAX = 400`, бо кожен креатив має ≥ 1 товар. `LAUNCH_CREATIVES_MAX` не вводиться. `CREATIVES_LIMIT` означає лише: k > 400 або метод «Інше» з k > 1.
+
+Поведінка кількості товарів: `addCreatives(list, added, n)` → якщо `k' > n`, то `n' = k'` (автопідняття); `rescaleCopies` викликається з новим `n'`. Поле кількості товарів має `min = k`; спроба ввести менше — значення лишається `k`, `FormField` показує попередження «Товарів не може бути менше, ніж креативів». Сервер відхиляє `productCount < k` кодом `DISTRIBUTION_INVALID`.
+
+UI при великих k: список креативів і панель розподілу — обмежена висота з прокруткою (токен висоти, без літералів); підсумок у заголовку — перші 6 значень і `…`. `ordinal` у SQL — `int` 0..399.
+
+## R25. Тексти зображень = тексти білих (замінює R8 щодо вмісту)
+
+Каталог із зображень іде **тим самим шляхом, що каталог з білими**: `deps.drawImages` тягне білі картинки пулу, `planCatalogRows` будує рядки з їхніми текстами/цінами/кольорами, `bindGlobalImageCatalog`/`finalizeImageUses` працюють як зараз (використання білих рахуються — у розкладі вони справді стоять у каталозі до підстановки). Відрізняється лише клітинка H `image_link`:
+- без розкладу — одразу посилання креативу свого блоку;
+- з розкладом — біла картинка до часу публікації, потім посилання креативу (R26).
+
+`pictureImage` рядка лишається білою картинкою (для паритету вмісту й обліку використань); перевірки `catalogImagesInRows`/`validateImageUses` (`catalog-image-rows.ts:65-76`) отримують дозволений виняток: `imageLink` може дорівнювати посиланню креативу сегмента рядка (`_catalogCreatives[ordinal].link`). AA `videoTag` і Z — порожні.
+
+## R26. Розклад публікації для кількох креативів (замінює заборону FR-021)
+
+Ціль `kind='creatives'` (R18) підтримує лінію публікації:
+- відео-сегменти: як зараз для `source`/`video_set`, але по сегменту — клітинки Z блоку `rowStart..+rowCount` отримують посилання свого відео (або виходи свого набору); квитанції посилань уже ключовані `materialId` (`publication-io.ts` `receipts`), тож кілька джерел у межах однієї задачі — штатно;
+- image-сегменти: нова колонка публікації — H; задача публікації пише в клітинки H блоку посилання креативу (R2 або Drive за преференцією), перевіряє записане (`verifyPublicationCells`) і лише тоді закривається. До цього в H — білі картинки.
+
+`parseFrozenPublicationCells`/`applyPublicationCells` розширюються на колонку H для image-сегментів; відеоколонки для image-каталогу лишаються порожніми.
+
+## R27. Менеджер каталогів для кількох креативів (замінює FR-024 першої редакції)
+
+Іконки `CatalogIconControls.tsx:49-73` — `restitch`, `randomLinkVariation`, `refreshImages`, `refreshTexts`, `grow`; окремо R2-перемикач (`CatalogVideoR2Toggle`) і «Замінити відео» (`CatalogVideoReplacementDialog`).
+
+| Каталог | Видно | Сховано (і сервер відхиляє `MULTI_CREATIVE_UNSUPPORTED`) |
+|---|---|---|
+| одне відео | усе, як зараз | — |
+| кілька відео | `restitch`, R2, `refreshTexts` | `randomLinkVariation`, `refreshImages`, `grow`, заміна відео, перевірка посилань |
+| зображення (1+) | R2, `refreshTexts` | `restitch`, `randomLinkVariation`, `refreshImages`, `grow`, заміна відео, перевірка посилань |
+
+Ріст (`grow`) прихований → R10 «ріст за сегментами» і міграція `catalog_growth_by_creative` **скасовані**.
+
+## R28. Перезашивка оновлювачем для кількох відео (замінює H1-відмову)
+
+Гілка update `catalog_video_sets`: `unique(update_attempt_id)` → `unique(update_attempt_id, source_material_id)`; перевірка «джерело = `pc.video_material_id`» (`168000:126-127`) → «джерело є відео-сегментом цілі `creatives` каталогу». Оновлювач створює набір на кожен відео-сегмент; кількість варіацій профілю `videoVariantCount` роздається `distributeVariations(rowCounts, V)`, межі `k ≤ V ≤ N` (для профілю — нормалізація `max(V, k)`). Призначення — `createCatalogVideoAssignment` над рядками сегмента зі зерном сегмента. Агент без змін (фонові набори по одному). Nonvideo-writer зберігає відеоклітинки, публікація нових варіацій — тією самою лінією публікації, що й R26.
+
+## R29. R2 для кількох відео і для зображень
+
+- Кілька відео: R2-копія на кожне джерело (`catalog_video_r2_copies` уже унікальні за `(team_id, source_version)`); `resolveVideoLink` викликається на сегмент; `service_catalog_video_r2_confirm_use` — set-replace по каталогу — отримує **множину** копій каталогу (перевірити в реалізації, що функція приймає масив; якщо ні — розширити).
+- Зображення: преференція R2 каталогу (`catalog_video_r2_preferences`, перейменовувати не треба — це «R2 каталогу») керує посиланням креативу: увімкнено → `launch_creative_images` (`c1/<uuid>`, R7), вимкнено → посилання Drive `driveImageLink` (`_shared/product-catalog.ts:125-132`) після `ensureAnyoneReader` (`_shared/catalog-image-sharing.ts:16-40`) з анонімною перевіркою читання. Перемикання в менеджері — з наступного оновлення (оновлювач переписує H блоків зображень посиланнями нового виду). У редакторі запуску перемикач R2 показується і для зображень (підпис без слова «відео»).

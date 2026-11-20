@@ -9,6 +9,9 @@ import {
   LAUNCH_CAMPAIGN_MAX,
   LAUNCH_SUB_VARIABLES,
   type LaunchConfig,
+  type LaunchCreative,
+  type LaunchCreativeKind,
+  type LaunchSourceMaterial,
   type LaunchParseResult,
   type LaunchSubConfig,
   type LaunchSubVariable,
@@ -119,6 +122,66 @@ function catalogConfig(value: unknown, required: boolean): LaunchCatalogConfig |
     ...(Array.isArray(range) ? { finalDurationRangeSeconds: [range[0], range[1]] as const } : {})
   };
 }
+type ParsedCreatives =
+  | { ok: true; creatives?: LaunchCreative[]; creativeKind?: LaunchCreativeKind }
+  | { ok: false; code: string };
+/**
+ * 062: the creative list must name the same first creative as `materialId` /
+ * `creativeAlias`, hold distinct materials of one declared kind, and share the
+ * products exactly (one or more each). The "other" method keeps one creative.
+ */
+function parseLaunchCreatives(value: Record<string, unknown>): ParsedCreatives {
+  const raw = value.creatives;
+  const kind = value.creativeKind;
+  if (raw === undefined)
+    return kind === undefined ? { ok: true } : { ok: false, code: 'INVALID_INPUT' };
+  if (kind !== 'video' && kind !== 'image') return { ok: false, code: 'INVALID_INPUT' };
+  if (!Array.isArray(raw) || raw.length === 0) return { ok: false, code: 'INVALID_INPUT' };
+  if (raw.length > CATALOG_PRODUCT_COUNT_MAX) return { ok: false, code: 'CREATIVES_LIMIT' };
+  if (value.method === 'other' && raw.length !== 1) return { ok: false, code: 'CREATIVES_LIMIT' };
+  const creatives: LaunchCreative[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!isRecord(item) || !isLaunchUuid(item.materialId))
+      return { ok: false, code: 'INVALID_INPUT' };
+    const alias = normalizeLaunchSub(item.alias);
+    if (!alias) return { ok: false, code: 'LAUNCH_SUB_INVALID' };
+    if (!positive(item.copies, CATALOG_PRODUCT_COUNT_MAX))
+      return { ok: false, code: 'DISTRIBUTION_INVALID' };
+    if (item.pinned !== null && !positive(item.pinned))
+      return { ok: false, code: 'INVALID_INPUT' };
+    const materialId = item.materialId.toLowerCase();
+    if (seen.has(materialId)) return { ok: false, code: 'CREATIVE_DUPLICATE' };
+    seen.add(materialId);
+    creatives.push({ materialId: item.materialId, alias, copies: item.copies, pinned: item.pinned });
+  }
+  const first = creatives[0]!;
+  if (
+    typeof value.materialId !== 'string' ||
+    first.materialId.toLowerCase() !== value.materialId.toLowerCase() ||
+    first.alias !== normalizeLaunchSub(value.creativeAlias)
+  )
+    return { ok: false, code: 'INVALID_INPUT' };
+  if (value.method === 'catalog') {
+    const catalog = isRecord(value.catalog) ? value.catalog : null;
+    const n = catalog?.productCount;
+    const total = creatives.reduce((sum, creative) => sum + creative.copies, 0);
+    if (typeof n !== 'number' || total !== n || n < creatives.length)
+      return { ok: false, code: 'DISTRIBUTION_INVALID' };
+    if (kind === 'image' && catalog?.restitchEnabled === true)
+      return { ok: false, code: 'INVALID_INPUT' };
+    if (
+      kind === 'video' &&
+      catalog?.restitchEnabled === true &&
+      catalog.catalogVideoProtocolVersion === 1 &&
+      (typeof catalog.videoVariationCount !== 'number' ||
+        catalog.videoVariationCount < creatives.length ||
+        catalog.videoVariationCount > n)
+    )
+      return { ok: false, code: 'VARIATIONS_RANGE' };
+  }
+  return { ok: true, creatives, creativeKind: kind };
+}
 export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfig> {
   if (!isRecord(value)) return { ok: false, errors: { config: 'INVALID_INPUT' } };
   const errors: Record<string, string> = {};
@@ -169,7 +232,10 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
   )
     errors.budgets = 'LAUNCH_BUDGET_INVALID';
   if (budgetMode !== 'manual' && budgets !== null) errors.budgets = 'LAUNCH_BUDGET_INVALID';
+  const creatives = parseLaunchCreatives(value);
+  if (!creatives.ok) errors.creatives = creatives.code;
   if (Object.keys(errors).length) return { ok: false, errors };
+  if (!creatives.ok) return { ok: false, errors: { creatives: creatives.code } };
   // Narrow every field again instead of trusting a route generic or casting a payload.
   if (
     !isLaunchUuid(value.agentRowId) ||
@@ -221,6 +287,9 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
       buyerId: value.buyerId,
       materialId: value.materialId,
       creativeAlias,
+      ...(creatives.creatives
+        ? { creativeKind: creatives.creativeKind, creatives: creatives.creatives }
+        : {}),
       campaignCount: value.campaignCount,
       maxBudget: value.maxBudget,
       ...(typeof value.minBudget === 'number' ? { minBudget: value.minBudget } : {}),
@@ -272,8 +341,38 @@ export function parseLaunchSources(
       typeof value.restitchSettingsVersion !== 'string')
   )
     return null;
+  let materials: LaunchSourceMaterial[] | undefined;
+  if (value.materials !== undefined) {
+    if (!Array.isArray(value.materials) || value.materials.length === 0) return null;
+    materials = [];
+    for (const item of value.materials) {
+      if (
+        !isRecord(item) ||
+        !isLaunchUuid(item.materialId) ||
+        (item.type !== 'video' && item.type !== 'image') ||
+        (item.version !== null && typeof item.version !== 'string') ||
+        (item.checksum !== undefined &&
+          item.checksum !== null &&
+          (typeof item.checksum !== 'string' || !/^[0-9a-f]{32}$/iu.test(item.checksum))) ||
+        (item.driveFileId !== undefined &&
+          (typeof item.driveFileId !== 'string' ||
+            !item.driveFileId.length ||
+            item.driveFileId.length > 1024))
+      )
+        return null;
+      materials.push({
+        materialId: item.materialId,
+        type: item.type,
+        version: item.version,
+        ...(item.checksum !== undefined ? { checksum: item.checksum } : {}),
+        ...(item.driveFileId !== undefined ? { driveFileId: item.driveFileId } : {})
+      });
+    }
+    if (materials[0]!.materialId.toLowerCase() !== value.materialId.toLowerCase()) return null;
+  }
   return {
     schemaVersion: 1,
+    ...(materials ? { materials } : {}),
     accountId: value.accountId,
     agentRowId: value.agentRowId,
     offerId: value.offerId,

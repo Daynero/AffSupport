@@ -1,3 +1,4 @@
+import { CATALOG_ID_PREFIX_MAX } from '../launches.js';
 import type { LaunchConfig, LaunchCampaign, LaunchSources } from '../launches.js';
 export const LAUNCH_NAME_VERSION = 1;
 export function isLaunchDate(value: unknown): value is string {
@@ -32,14 +33,26 @@ export function launchTomorrow(
   const date = new Date(Date.UTC(part('year'), part('month') - 1, part('day') + 1));
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
+/** 062: the first creative's alias, with `+N` for the other creatives. */
+export function launchCreativeLabel(
+  config: Pick<LaunchConfig, 'creativeAlias'> & Partial<Pick<LaunchConfig, 'creatives'>>
+): string {
+  const others = (config.creatives?.length ?? 1) - 1;
+  return others > 0 ? `${config.creativeAlias}+${others}` : config.creativeAlias;
+}
+/** 062: product-ID prefix from a creative alias (already `[A-Za-z0-9_-]`). */
+export function launchCreativeIdPrefix(alias: string): string {
+  return alias.slice(0, CATALOG_ID_PREFIX_MAX);
+}
 export function launchCampaignName(
   config: Pick<
     LaunchConfig,
     'launchDate' | 'creativeAlias' | 'method' | 'gender' | 'age' | 'advantagePlus'
-  >,
+  > &
+    Partial<Pick<LaunchConfig, 'creatives'>>,
   sources: Pick<LaunchSources, 'social' | 'agentId' | 'offer'>,
   campaign: Omit<LaunchCampaign, 'name'>
 ): string {
   const [, month, day] = config.launchDate.split('-');
-  return `[${sources.social}-${sources.agentId.slice(-3)}-${config.creativeAlias}${config.method === 'catalog' ? '-c' : ''}] ${sources.offer} $${campaign.budget} ${config.gender.toLowerCase()}${config.age}+${config.advantagePlus ? ' adv+' : ''} ${day}/${month} #${campaign.ordinal}(${campaign.adStart}-${campaign.adEnd})`;
+  return `[${sources.social}-${sources.agentId.slice(-3)}-${launchCreativeLabel(config)}${config.method === 'catalog' ? '-c' : ''}] ${sources.offer} $${campaign.budget} ${config.gender.toLowerCase()}${config.age}+${config.advantagePlus ? ' adv+' : ''} ${day}/${month} #${campaign.ordinal}(${campaign.adStart}-${campaign.adEnd})`;
 }

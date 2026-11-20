@@ -13,13 +13,15 @@
 | `service_wait_launch_catalog_video` | готовність = усі набори сегментів; повертає `failedOrdinal` |
 | `service_initial_catalog_video_outputs` | без змін; edge викликає по разу на сегмент |
 | реєстрація цілі публікації (`169000:571-577`) | k>1 або image → ціль `creatives` + сегменти |
-| заміна відео, перевірка посилань, R2-перевипуск, перезашивка оновлювачем | ціль `creatives` → `MULTI_CREATIVE_UNSUPPORTED` |
+| заміна відео, перевірка посилань, `randomLinkVariation`, `refreshImages`, `grow` (+ `restitch` для зображень) | ціль `creatives` → `MULTI_CREATIVE_UNSUPPORTED` |
+| гілка update `catalog_video_sets` | `unique(update_attempt_id, source_material_id)`; джерело — відео-сегмент цілі (R28) |
+| лінія публікації (`service_catalog_publication_cells_context`, задачі) | сегменти цілі `creatives`: Z для відео, H для зображень (R26) |
 | `service_complete_catalog_update` | snapshot від edge уже містить ключі креативів (R20) |
 | ланцюжок `get_launch` (`get_launch_before_started_at`, тіло з `20261207177000`) (прогрес) | агрегат прогресу по наборах (сума готових варіацій / сума запитаних) |
 | `list_launches_pre_assignment` | + `creativeCount`, `creativeKind`; `videoGeneration` — агрегат |
 | `pendingCatalogName` / резерв назви | `<stem першого>+N_v<n>_catalog` |
 | `credit_launch_rank`, `backfill_creative_ranks`, `absorb_launch_catalog` | кредит кожному креативу (R13) |
-| `catalog_nonvideo_update_context` / ріст | креатив з найбільшим відставанням частки (R10) |
+| `catalog_nonvideo_update_context` | рядки й сегменти цілі `creatives` (без росту) |
 | `prepareCatalogClaims` (edge) / claim RPC | для `_catalogCreativeKind='image'` — без `refresh_images` |
 
 ## Нові

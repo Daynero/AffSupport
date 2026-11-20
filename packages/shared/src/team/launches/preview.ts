@@ -12,6 +12,32 @@ import { normalizeLaunchSub, normalizeLaunchOffer, parseLaunchConfig } from './v
 import { launchBudgets, launchAdRange, launchPreviewRows } from './budgets.js';
 import { launchCampaignName, isLaunchDate } from './naming.js';
 import { patchLaunchUrl } from './url.js';
+/**
+ * 062: a catalog Launch without a creative list stays video-only, as before.
+ * With one, every creative must be a material of the declared kind, in order.
+ */
+function launchCreativeKindMismatch(
+  config: LaunchConfig,
+  sources: LaunchSources
+): { field: string; code: string } | null {
+  if (!config.creatives) {
+    return sources.materialType === 'video' ? null : { field: 'materialId', code: 'INVALID_INPUT' };
+  }
+  const materials =
+    sources.materials ??
+    (config.creatives.length === 1
+      ? [{ materialId: config.materialId, type: sources.materialType }]
+      : null);
+  if (!materials || materials.length !== config.creatives.length)
+    return { field: 'creatives', code: 'SOURCE_CHANGED' };
+  for (const [index, creative] of config.creatives.entries()) {
+    const material = materials[index]!;
+    if (material.materialId.toLowerCase() !== creative.materialId.toLowerCase())
+      return { field: 'creatives', code: 'SOURCE_CHANGED' };
+    if (material.type !== config.creativeKind) return { field: 'creatives', code: 'CREATIVES_MIXED' };
+  }
+  return null;
+}
 export function launchPreview(
   config: LaunchConfig,
   sources: LaunchSources,
@@ -27,8 +53,10 @@ export function launchPreview(
   if (!offer) errors.offerId = 'INVALID_INPUT';
   if (!/^[0-9]{3,64}$/u.test(sources.agentId)) errors.agentRowId = 'INVALID_INPUT';
   if (!sources.social || /\p{Cc}/u.test(sources.social)) errors.agentRowId = 'INVALID_INPUT';
-  if (config.method === 'catalog' && sources.materialType !== 'video')
-    errors.materialId = 'INVALID_INPUT';
+  if (config.method === 'catalog') {
+    const kind = launchCreativeKindMismatch(config, sources);
+    if (kind) errors[kind.field] = kind.code;
+  }
   const vars = {
     buyer,
     social: normalizeLaunchSub(sources.social),

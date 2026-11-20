@@ -3,7 +3,6 @@
 ## Shared-типи (`packages/shared/src/team/launches.ts`)
 
 ```ts
-export const LAUNCH_CREATIVES_MAX = 10;
 export const LAUNCH_CATALOG_PRODUCTS_MAX = 400; // наявна межа, винести в константу, якщо ще inline
 export const CATALOG_ID_PREFIX_MAX = 40;
 
@@ -34,14 +33,13 @@ export interface LaunchCatalogConfig {
 
 | Правило | Код |
 |---|---|
-| 1 ≤ k ≤ 10 | `CREATIVES_LIMIT` |
+| 1 ≤ k ≤ 400 (межа товарів) | `CREATIVES_LIMIT` |
 | усі креативи одного `creativeKind`, категорія матеріалу відповідає | `CREATIVES_MIXED` |
 | `materialId` унікальні | `CREATIVE_DUPLICATE` |
 | `sum(copies) = productCount`, `copies ≥ 1`, `productCount ≥ k` | `DISTRIBUTION_INVALID` |
 | з перезашивкою `k ≤ V ≤ N`; без — `V = 1` | `VARIATIONS_RANGE` |
-| `creativeKind='image'` ⇒ `restitchEnabled=false`, без `copyVideoToR2`, без розкладу публікації | `INVALID_INPUT` |
-| дія «одне джерело» (заміна відео, перевірка посилань, R2-перевипуск, перезашивка оновлювачем) над k>1/image | `MULTI_CREATIVE_UNSUPPORTED` |
-| k > 1 або image ⇒ без розкладу публікації | `SCHEDULE_SINGLE_CREATIVE_ONLY` |
+| `creativeKind='image'` ⇒ `restitchEnabled=false` (`copyVideoToR2` = R2 посилань зображень, розклад дозволено) | `INVALID_INPUT` |
+| сховані дії менеджера (research R27) над k>1 відео або image | `MULTI_CREATIVE_UNSUPPORTED` |
 | `method='other'` ⇒ k = 1 | `CREATIVES_LIMIT` |
 | `materialId === creatives[0].materialId`, `creativeAlias === creatives[0].alias` | `INVALID_INPUT` |
 
@@ -85,7 +83,7 @@ interface CatalogInitialVideoPlanV2 extends CatalogInitialVideoPlan {
 | Колонка | Тип | Обмеження |
 |---|---|---|
 | generation_id | uuid | FK `team_launch_generations`, частина PK |
-| ordinal | smallint | 0..9, частина PK |
+| ordinal | int | 0..399, частина PK |
 | team_id | uuid | not null |
 | material_id | uuid | FK `team_materials` |
 | kind | text | `video`/`image` |

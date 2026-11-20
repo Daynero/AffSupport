@@ -34,6 +34,29 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
     else if (k === 'buyerId' && typeof v === 'string') result.buyerId = v;
     else if (k === 'materialId' && typeof v === 'string') result.materialId = v;
     else if (k === 'creativeAlias' && typeof v === 'string') result.creativeAlias = v;
+    else if (k === 'creativeKind' && (v === 'video' || v === 'image')) result.creativeKind = v;
+    else if (k === 'creatives' && Array.isArray(v)) {
+      // A draft may be mid-edit; full rules apply in parseLaunchConfig.
+      const creatives = v.flatMap(item =>
+        isRecord(item) &&
+        typeof item.materialId === 'string' &&
+        typeof item.alias === 'string' &&
+        typeof item.copies === 'number' &&
+        Number.isFinite(item.copies) &&
+        (item.pinned === null || (typeof item.pinned === 'number' && Number.isFinite(item.pinned)))
+          ? [
+              {
+                materialId: item.materialId,
+                alias: item.alias,
+                copies: item.copies,
+                pinned: item.pinned
+              }
+            ]
+          : []
+      );
+      if (creatives.length !== v.length) return null;
+      result.creatives = creatives;
+    }
     else if (k === 'originalUrl' && typeof v === 'string') result.originalUrl = v;
     else if (k === 'launchDate' && typeof v === 'string') result.launchDate = v;
     else if (k === 'timezone' && typeof v === 'string') result.timezone = v;
