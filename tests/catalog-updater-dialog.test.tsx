@@ -362,7 +362,9 @@ it('selects from empty row space without intercepting buttons or toggling twice 
 it('shows per-catalog frequency, next run and confirmed success without hovering', async () => {
   const item = row('1', 'polo.mp4', {
     updateInterval: '6h',
-    nextRunAt: '2026-11-20T10:00:00Z',
+    // Far ahead: a next run in the past is no longer shown as a date (it was a time bomb
+    // that went off at 2026-11-20T10:00Z).
+    nextRunAt: '2099-11-20T10:00:00Z',
     lastUpdatedAt: '2026-10-17T10:00:00Z'
   });
   renderDialog(client([item], running));

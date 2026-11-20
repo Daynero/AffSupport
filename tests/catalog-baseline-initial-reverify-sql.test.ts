@@ -16,11 +16,18 @@ afterAll(async () => {
 });
 
 it('defers to the initial re-verification before any baseline bookkeeping', async () => {
-  const begin = (
-    await db.root<{ d: string }>(
-      "select pg_get_functiondef('public.service_begin_catalog_baseline_check(uuid,uuid,uuid,uuid,bigint)'::regprocedure) d"
-    )
-  )[0]!.d;
+  const definition = async (name: string) =>
+    (
+      await db.root<{ d: string }>(
+        `select pg_get_functiondef('public.${name}(uuid,uuid,uuid,uuid,bigint)'::regprocedure) d`
+      )
+    )[0]!.d;
+  // 062 wraps the public entry point: a catalog of several creatives or of images is
+  // refused first, every other catalog goes on to the unchanged body below.
+  const wrapper = await definition('service_begin_catalog_baseline_check');
+  expect(wrapper).toContain('MULTI_CREATIVE_UNSUPPORTED');
+  expect(wrapper).toContain('service_begin_catalog_baseline_check_before_062(');
+  const begin = await definition('service_begin_catalog_baseline_check_before_062');
   const branch = begin.indexOf(
     "if exists(select 1 from private.catalog_initial_publication_checks ic where ic.catalog_material_id=p_catalog and ic.team_id=p_team and ic.state='reading') then"
   );
