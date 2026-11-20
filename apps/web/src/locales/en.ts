@@ -936,17 +936,21 @@ export const en = {
   launchDistributionCopiesFor: 'Copies for {name}',
   launchDistributionVariationHint: 'Variations go to videos in turn: {split}',
   launchVariationsAtLeastCreatives: 'At least {count} variations — one per video',
-  launchImagesScheduleHint: 'White images stay in the catalog until publication, then yours replace them',
+  launchImagesScheduleHint:
+    'White images stay in the catalog until publication, then yours replace them',
   launchOtherMethodOneCreative: 'The Other method takes one creative — the first one was kept',
-  launchVariationsRange: 'Variations must be at least the number of videos and at most the number of products',
-  launchCreativeImageFormat: 'The image must be JPEG, PNG or WebP, at least 500 px on its shorter side',
+  launchVariationsRange:
+    'Variations must be at least the number of videos and at most the number of products',
+  launchCreativeImageFormat:
+    'The image must be JPEG, PNG or WebP, at least 500 px on its shorter side',
   launchCreativeImageTooLarge: 'The image is too large — up to 50 MB',
   launchCreativeImageUnverified: 'The image link does not open publicly yet — we will try again',
   catalogUpdaterBulkSkippedMulti:
     'Catalogs skipped: {count} — this change is not available with several creatives or images',
   launchVideoSegmentFailed:
     'Video “{name}” could not be restitched. Retry restarts only it — the other videos are not restitched again.',
-  catalogMultiCreativeUnsupported: 'This action is not available for a catalog with several creatives or images',
+  catalogMultiCreativeUnsupported:
+    'This action is not available for a catalog with several creatives or images',
   launchesRange: 'Ad numbers',
   launchesBudget: 'Campaign budgets',
   launchesUpdateConfirm: 'Update results? Previous versions and catalogs will remain.',

@@ -142,9 +142,7 @@ export function LaunchCard({
     .filter(Boolean)
     .join(' · ');
   const heading =
-    value.offer.trim() ||
-    creativeLabel ||
-    [accountLabel, methodLabel].filter(Boolean).join(' · ');
+    value.offer.trim() || creativeLabel || [accountLabel, methodLabel].filter(Boolean).join(' · ');
   return (
     <Card
       role="surface"
@@ -256,9 +254,7 @@ export function LaunchCard({
             className="launch-card-context"
             title={[creativeLabel, methodLabel].filter(Boolean).join(' · ')}
           >
-            {creativeLabel && creativeLabel !== heading && (
-              <strong>{creativeLabel} · </strong>
-            )}
+            {creativeLabel && creativeLabel !== heading && <strong>{creativeLabel} · </strong>}
             <span>{methodLabel}</span>
           </span>
           <span className="launch-card-facts">

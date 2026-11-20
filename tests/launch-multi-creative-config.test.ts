@@ -48,8 +48,7 @@ const errorOf = (raw: unknown) => {
 describe('parseLaunchConfig with creatives', () => {
   it('keeps the list, kind and typed marks', () => {
     const parsed = parseLaunchConfig(multi(four()));
-    expect(parsed.ok).toBe(true);
-    if (!parsed.ok) return;
+    if (!parsed.ok) throw new Error(`refused: ${JSON.stringify(parsed.errors)}`);
     expect(parsed.value.creativeKind).toBe('video');
     expect(parsed.value.creatives).toEqual(four());
   });

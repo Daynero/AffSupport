@@ -789,7 +789,11 @@ export function LaunchEditor({
                       const typed = Number(productText);
                       // Leaving the field below the creatives settles on the smallest count
                       // that fits them; anything else unusable returns to the saved count.
-                      if (productText !== '' && Number.isSafeInteger(typed) && typed < creativeCount)
+                      if (
+                        productText !== '' &&
+                        Number.isSafeInteger(typed) &&
+                        typed < creativeCount
+                      )
                         changed(
                           creativesPatch(
                             config,
