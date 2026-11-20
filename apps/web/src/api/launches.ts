@@ -223,7 +223,14 @@ export const launchApi = {
           buyerId: draft.buyerId,
           materialId: draft.materialId,
           method: draft.method,
-          catalog: { restitchEnabled: draft.catalog?.restitchEnabled ?? false }
+          catalog: { restitchEnabled: draft.catalog?.restitchEnabled ?? false },
+          // 062: every creative is a source, resolved in list order.
+          ...(draft.method === 'catalog' && draft.creatives?.length
+            ? {
+                creativeKind: draft.creativeKind,
+                creatives: draft.creatives.map(creative => ({ materialId: creative.materialId }))
+              }
+            : {})
         })
       })
     );
@@ -243,7 +250,14 @@ export const launchApi = {
           buyerId: draft.buyerId,
           materialId: draft.materialId,
           method: draft.method,
-          catalog: { restitchEnabled: draft.catalog?.restitchEnabled ?? false }
+          catalog: { restitchEnabled: draft.catalog?.restitchEnabled ?? false },
+          // 062: every creative is a source, resolved in list order.
+          ...(draft.method === 'catalog' && draft.creatives?.length
+            ? {
+                creativeKind: draft.creativeKind,
+                creatives: draft.creatives.map(creative => ({ materialId: creative.materialId }))
+              }
+            : {})
         })
       },
       (v: unknown): v is LaunchSourceSnapshot => parseLaunchSources(v) !== null

@@ -554,7 +554,9 @@ export function LaunchSession({
         draft.config.buyerId,
         draft.config.materialId,
         draft.config.method,
-        draft.config.catalog?.restitchEnabled
+        draft.config.catalog?.restitchEnabled,
+        draft.config.creativeKind,
+        (draft.config.creatives ?? []).map(creative => creative.materialId).join(',')
       ].join('|');
       setSourcesPending(true);
       try {
