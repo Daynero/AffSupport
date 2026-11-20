@@ -13,6 +13,13 @@ import { catalogTimings, timeCatalogMethods } from '../_shared/catalog-timings.t
 import { parseCatalogDrawnImage, type CatalogDrawnImage } from '../_shared/catalog-image-rows.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
 import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
+import {
+  launchCreativeAnalytics,
+  parseCatalogCreativeDiagnostics,
+  safeLaunchAnalyticsCode,
+  type CatalogCreativeDiagnostics,
+  type CreativeImageStage
+} from '../../../packages/shared/dist/team/launches.js';
 import { parseCatalogRowRecipe } from '../_shared/product-catalog.ts';
 import { buildXlsx, type XlsxCell } from '../_shared/xlsx.ts';
 import { PRODUCT_CATALOG_SHEET_NAME } from '../_shared/product-catalog.ts';
@@ -415,6 +422,57 @@ export async function createDurableProductCatalog(
   // lost two passes that way (settings, then the source proof) and the catalog
   // appeared a minute or more late. Work in progress is recorded as 'planning'.
   const workingState = () => (intent.state === 'interrupted' ? 'planning' : intent.state);
+  // 062: typed diagnostics of a creatives request — counts, kinds, ordinals and the image
+  // publication attempt, never a name, alias, material ID or link. Written whole each time
+  // (the checkpoint merges top-level keys) and only for a request that names its creatives.
+  let creativeDiagnostics: CatalogCreativeDiagnostics | null = null;
+  if (request.creatives) {
+    const known = parseCatalogCreativeDiagnostics(intent.checkpoint.creativeDiagnostics);
+    const props = launchCreativeAnalytics({
+      method: 'catalog',
+      creativeKind: request.creativeKind ?? 'video',
+      creatives: request.creatives,
+      catalog: {
+        productCount: request.productCount,
+        restitchEnabled: request.restitchEnabled === true,
+        videoVariationCount: request.videoVariationCount
+      }
+    })!;
+    creativeDiagnostics = known ?? {
+      creativeKind: props.creative_kind,
+      creativeCount: props.creative_count,
+      productCount: props.product_count,
+      variationCount: props.variation_count,
+      customDistribution: props.custom_distribution,
+      images: []
+    };
+  }
+  const recordCreativeDiagnostics = async (
+    change: (current: CatalogCreativeDiagnostics) => CatalogCreativeDiagnostics,
+    state = workingState()
+  ) => {
+    if (!creativeDiagnostics) return;
+    creativeDiagnostics = change(creativeDiagnostics);
+    await store.checkpoint(intent, owner, state, { creativeDiagnostics }).catch(() => undefined);
+  };
+  const imageStage = (
+    ordinal: number,
+    stage: CreativeImageStage,
+    attemptId: string | null,
+    code?: string
+  ) =>
+    recordCreativeDiagnostics(current => ({
+      ...current,
+      images: [
+        ...current.images.filter(image => image.creativeOrdinal !== ordinal),
+        {
+          creativeOrdinal: ordinal,
+          stage,
+          attemptId,
+          ...(code !== undefined ? { code: safeLaunchAnalyticsCode(code) } : {})
+        }
+      ].sort((a, b) => a.creativeOrdinal - b.creativeOrdinal)
+    }));
   if (intent.state === 'registered') {
     await deps.finalizeImageUses?.(request.teamId, intent.id, true);
     const result = existingResult(intent.result);
@@ -448,7 +506,10 @@ export async function createDurableProductCatalog(
             serverNow
           )
         : createCatalogInitialVideoPlan(preferences, request.productCount, serverNow);
-      await store.checkpoint(intent, owner, workingState(), { initialVideoPlan });
+      await store.checkpoint(intent, owner, workingState(), {
+        initialVideoPlan,
+        ...(creativeDiagnostics ? { creativeDiagnostics } : {})
+      });
       intent.checkpoint = { ...intent.checkpoint, initialVideoPlan };
     }
     try {
@@ -465,10 +526,14 @@ export async function createDurableProductCatalog(
       };
     } catch (error) {
       if (error instanceof CatalogVideoPreparationPending) {
+        const failedOrdinal = error.result.failedOrdinal;
+        if (failedOrdinal !== undefined && creativeDiagnostics)
+          creativeDiagnostics = { ...creativeDiagnostics, failedOrdinal };
         if (intent.state !== 'canceled')
           await store.checkpoint(intent, owner, 'interrupted', {
             videoPreparationPending: true,
-            safeErrorCode: null
+            safeErrorCode: null,
+            ...(creativeDiagnostics ? { creativeDiagnostics } : {})
           });
         return error.result;
       }
@@ -636,9 +701,23 @@ export async function createDurableProductCatalog(
                 }
                 await check();
                 let published: CatalogCreativeImageLink | undefined;
+                let attemptId: string | null = null;
                 try {
-                  [published] = await publishCreativeImages({ ...input, images: [image] });
+                  [published] = await publishCreativeImages({
+                    ...input,
+                    images: [image],
+                    observe: async event => {
+                      attemptId = event.attemptId;
+                      await imageStage(event.ordinal, event.stage, event.attemptId);
+                    }
+                  });
                 } catch (error) {
+                  await imageStage(
+                    image.ordinal,
+                    'creative_image.failed',
+                    attemptId,
+                    launchFailure(error).code
+                  );
                   // Diagnosis names which image stopped the catalog (a number, never a name).
                   await store
                     .checkpoint(intent, owner, workingState(), { creativeOrdinal: image.ordinal })

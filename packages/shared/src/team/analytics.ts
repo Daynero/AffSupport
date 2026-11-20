@@ -241,6 +241,14 @@ export interface TeamAnalyticsProperties {
   launch_code?: LaunchAnalyticsCode;
   launch_method?: 'catalog' | 'other';
   launch_state?: LaunchGenerationState;
+  /** 062: the creatives of a catalog Launch — kinds, counts and ordinals, never names. */
+  creative_kind?: 'video' | 'image';
+  creative_count?: number;
+  product_count?: number;
+  variation_count?: number;
+  custom_distribution?: boolean;
+  creative_ordinal?: number;
+  failed_ordinal?: number;
   study_run_id?: string;
   attempt_id?: string;
   workflow_id?: string;
@@ -331,6 +339,13 @@ export const TEAM_ANALYTICS_PROPERTY_RULES: Readonly<
   launch_code: { kind: 'enum', values: LAUNCH_ANALYTICS_CODES },
   launch_method: { kind: 'enum', values: ['catalog', 'other'] },
   launch_state: { kind: 'enum', values: LAUNCH_GENERATION_STATES },
+  creative_kind: { kind: 'enum', values: ['video', 'image'] },
+  creative_count: { kind: 'number', range: [1, 400], integer: true },
+  product_count: { kind: 'number', range: [1, 400], integer: true },
+  variation_count: { kind: 'number', range: [0, 400], integer: true },
+  custom_distribution: { kind: 'boolean' },
+  creative_ordinal: { kind: 'number', range: [0, 399], integer: true },
+  failed_ordinal: { kind: 'number', range: [0, 399], integer: true },
   study_run_id: { kind: 'id' },
   attempt_id: { kind: 'id' },
   workflow_id: { kind: 'id' },

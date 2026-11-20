@@ -182,6 +182,12 @@ export interface ProductCatalogDeps {
       live: DriveFileMetadata;
       drive: CatalogDrive;
     }>;
+    /** 062: each publication stage as it is proven (diagnostics only; no name or link). */
+    observe?: (event: {
+      ordinal: number;
+      stage: import('../../../packages/shared/dist/team/launches.js').CreativeImageStage;
+      attemptId: string | null;
+    }) => Promise<void>;
   }): Promise<CatalogCreativeImageLink[]>;
   /** 062: records which R2 creative images a registered catalog uses (R33). */
   confirmCreativeImageUses?(catalogMaterialId: string, imageIds: readonly string[]): Promise<void>;

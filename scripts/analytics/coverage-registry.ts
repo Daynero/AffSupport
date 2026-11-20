@@ -610,6 +610,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'creative_image.accepted',
       'creative_image.published',
       'creative_image.verified',
+      'creative_image.failed',
       'catalog_verified',
       'ui_visible'
     ],
@@ -617,13 +618,14 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     start: [],
     terminal: [],
     platforms: BOTH,
-    producerStatus: 'pending_producer',
-    source: 'events',
+    producerStatus: 'emitted',
+    source: 'authoritative_table',
     unobservable: [
-      'Refusals reach the Launch terminal as closed codes (CREATIVES_MIXED, DISTRIBUTION_INVALID, VARIATIONS_RANGE, CREATIVE_IMAGE_FORMAT, CREATIVE_IMAGE_TOO_LARGE, PUBLIC_READ_UNVERIFIED, MULTI_CREATIVE_UNSUPPORTED); per-image stages with creativeOrdinal and the failed set ordinal (failedOrdinal) are not emitted yet.',
-      'Per-image publication is proven by durable creativeImage_<ordinal> checkpoints and launch_creative_images states, not by an event stream; a missing checkpoint leaves that image unknown, never published.'
+      "The producer is the generation checkpoint creativeDiagnostics (creativeKind, creativeCount, productCount, variationCount, customDistribution, each image creative's last stage with creativeOrdinal and its publication attempt, failedOrdinal of an unprovable set), written through the fenced checkpoint RPC and read by inspect from analytics_catalog_generations.creative_diagnostics. Only the last stage per image is kept, not a transition history.",
+      'Browser-side typed launch properties (creative_kind, creative_count, product_count, variation_count, custom_distribution) depend on the web emitting them; a missing property is unknown, never a single video.',
+      'A stage record lost with its checkpoint leaves that image unknown, never published; a catalog that registered proves every image verified.'
     ],
-    note: 'Bounded props only: creativeKind, creativeCount, productCount, variationCount, customDistribution, creativeOrdinal, failedOrdinal. Never names, aliases, material IDs or links.'
+    note: 'Bounded props only: kinds, counts, ordinals and a random attempt UUID. Never names, aliases, material IDs or links.'
   },
   {
     id: 'team.catalog_publication',

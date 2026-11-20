@@ -7,6 +7,7 @@ import { verifyAnonymousImage } from '../_shared/catalog-image-sharing.ts';
 import { optimizeCatalogImage } from '../_shared/catalog-image-optimization.ts';
 import type { CatalogImageR2 } from '../_shared/r2-catalog-images.ts';
 import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
+import type { CreativeImageStage } from '../../../packages/shared/dist/team/launches.js';
 import type {
   CatalogCreativeImageLink,
   CatalogVideo,
@@ -111,15 +112,21 @@ export function createCreativeImagePublisher(
   const verifyAnonymous = deps.verifyAnonymous ?? verifyAnonymousImage;
   const timeoutMs = deps.timeoutMs ?? 60_000;
 
+  type Observe = (stage: CreativeImageStage, attemptId: string | null) => Promise<void>;
   const publishDrive = async (
     image: { ordinal: number; material: CatalogVideo; live: DriveFileMetadata },
-    signal: AbortSignal
+    signal: AbortSignal,
+    observe: Observe
   ): Promise<CatalogCreativeImageLink> => {
     const link = driveImageLink(
       image.live.id,
       image.live.resourceKey ?? image.material.resourceKey
     );
+    // The caller has shared the file: the link exists, a signed-out read proves it.
+    await observe('creative_image.accepted', null);
+    await observe('creative_image.published', null);
     await verifyAnonymous(link, { signal });
+    await observe('creative_image.verified', null);
     return { ordinal: image.ordinal, link, linkKind: 'drive' };
   };
 
@@ -127,7 +134,8 @@ export function createCreativeImagePublisher(
     teamId: string,
     actorId: string,
     image: { ordinal: number; material: CatalogVideo; live: DriveFileMetadata },
-    signal: AbortSignal
+    signal: AbortSignal,
+    observe: Observe
   ): Promise<CatalogCreativeImageLink> => {
     const r2 = deps.r2;
     if (!r2) throw new TeamFunctionError('IMAGE_PROVIDER_UNAVAILABLE', { retryable: true });
@@ -146,10 +154,13 @@ export function createCreativeImagePublisher(
         p_attempt: attempt
       })
     );
+    await observe('creative_image.accepted', attempt);
     if (reservation.state === 'ready') {
       // A version published for an earlier catalog is reused, but only once a signed-out
       // reader still gets it.
+      await observe('creative_image.published', attempt);
       await verifyAnonymous(reservation.url, { signal });
+      await observe('creative_image.verified', attempt);
       return {
         ordinal: image.ordinal,
         link: reservation.url,
@@ -196,6 +207,7 @@ export function createCreativeImagePublisher(
     }
     // Immutable and create-only: a repeated attempt finds its own object and verifies it.
     await r2.putFinal(reservation.objectKey, optimized.bytes, mime, signal, optimized.image.sha256);
+    await observe('creative_image.published', attempt);
     try {
       await r2.verify(reservation.objectKey, optimized.bytes, mime, signal, true);
     } catch {
@@ -211,19 +223,24 @@ export function createCreativeImagePublisher(
     });
     if (isRecord(committed) && committed.url !== undefined && committed.url !== url)
       throw new TeamFunctionError('INVALID_RESPONSE');
+    await observe('creative_image.verified', attempt);
     return { ordinal: image.ordinal, link: url, linkKind: 'r2', imageId: reservation.id };
   };
 
-  return async ({ teamId, actorId, copyToR2, images }) => {
+  return async ({ teamId, actorId, copyToR2, images, observe }) => {
     const links: CatalogCreativeImageLink[] = [];
     // One at a time: each is a bounded read, optimize and write, and the caller
     // checkpoints after every one, so a restart resumes at the next image.
     for (const image of images) {
       const signal = AbortSignal.timeout(timeoutMs);
+      // Diagnostics never decide the publication: a lost stage record is not a failure.
+      const stage: Observe = async (value, attemptId) => {
+        await observe?.({ ordinal: image.ordinal, stage: value, attemptId }).catch(() => undefined);
+      };
       links.push(
         copyToR2
-          ? await publishR2(teamId, actorId, image, signal)
-          : await publishDrive(image, signal)
+          ? await publishR2(teamId, actorId, image, signal, stage)
+          : await publishDrive(image, signal, stage)
       );
     }
     return links;

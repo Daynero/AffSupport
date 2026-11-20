@@ -1,5 +1,10 @@
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-global-images.js';
+import { LAUNCH_CREATIVE_ERROR_CODES } from '../../packages/shared/src/team/transport.js';
+import {
+  parseCatalogCreativeDiagnostics,
+  type CatalogCreativeDiagnostics
+} from '../../packages/shared/src/team/launches/lifecycle.js';
 import { parseCatalogContentEvidence, type CatalogContentEvidence } from './catalog-content.js';
 import {
   getCatalogVideoSessionEvidence,
@@ -30,6 +35,7 @@ const STATES = new Set([
 ]);
 const CODES = new Set([
   ...CATALOG_IMAGE_ERROR_CODES,
+  ...LAUNCH_CREATIVE_ERROR_CODES,
   ...GLOBAL_CATALOG_IMAGE_ERROR_CODES,
   'NEEDS_REAUTH',
   'PERMISSION_DENIED',
@@ -68,6 +74,12 @@ const CODES = new Set([
   'INVALID_INPUT',
   'CATALOG_WRITE_UNSUPPORTED'
 ]);
+/** 062: kinds, counts, ordinals and image stages — never names, aliases, IDs of materials or links. */
+function creativeEvidence(row: Record<string, unknown>): { creative?: CatalogCreativeDiagnostics } {
+  if (row.creative_diagnostics === undefined || row.creative_diagnostics === null) return {};
+  const creative = parseCatalogCreativeDiagnostics(row.creative_diagnostics);
+  return creative ? { creative } : {};
+}
 const FLAGS = [
   'settings_observed',
   'source_observed',
@@ -93,6 +105,8 @@ export interface CatalogGenerationSnapshot extends CatalogContentEvidence {
   native_sheet_mode: boolean | null;
   native_sheet_bound: boolean | null;
   native_write_acknowledged: boolean | null;
+  /** 062: a catalog Launch's creatives and its image publication stages, when projected. */
+  creative?: CatalogCreativeDiagnostics;
 }
 export interface CatalogGenerationEvidence {
   foreground_authorities?: CatalogVideoSessionEvidence;
@@ -152,7 +166,8 @@ export async function getCatalogGenerationEvidence(
       to_jsonb(g)->'content_policy_version' content_policy_version,
       to_jsonb(g)->'planned_row_count' planned_row_count,
       to_jsonb(g)->'automatic_row_count' automatic_row_count,
-      to_jsonb(g)->'retained_row_count' retained_row_count
+      to_jsonb(g)->'retained_row_count' retained_row_count,
+      to_jsonb(g)->'creative_diagnostics' creative_diagnostics
      from public.analytics_catalog_generations g
      where (actor_id=$1::uuid or team_id=$1::uuid or intent_id=$1::uuid or operation_id=$1::uuid)
        and ($2::timestamptz is null or updated_at >= $2) and created_at <= $3::timestamptz
@@ -217,7 +232,8 @@ export async function getCatalogGenerationEvidence(
         typeof row.native_sheet_bound === 'boolean' ? row.native_sheet_bound : null,
       native_write_acknowledged:
         typeof row.native_write_acknowledged === 'boolean' ? row.native_write_acknowledged : null,
-      result_registered: typeof row.result_registered === 'boolean' ? row.result_registered : null
+      result_registered: typeof row.result_registered === 'boolean' ? row.result_registered : null,
+      ...creativeEvidence(row)
     });
   }
   if (result.records.some(record => record.content_receipt_status === 'unavailable'))

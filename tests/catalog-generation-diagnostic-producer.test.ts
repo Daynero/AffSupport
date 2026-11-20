@@ -14,6 +14,7 @@ import type { ServiceRpcClient } from '../supabase/functions/_shared/credentials
 import { getCatalogGenerationEvidence } from '../scripts/analytics/catalog-generations';
 import { resolvePeriod } from '../scripts/analytics/periods';
 import { investigatePrivacyFailure } from '../scripts/analytics/types';
+import { parseCatalogCreativeDiagnostics } from '../packages/shared/src/team/launches/lifecycle';
 
 const ACTOR = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -348,4 +349,151 @@ it('exposes bounded numeric receipt evidence to the real read-only role but neve
   } finally {
     await db.exec('reset role');
   }
+});
+
+it('records a multi-creative image generation as bounded typed diagnostics (062)', async () => {
+  await db.db.query(
+    "update private.catalog_generation_intents set state='reserved',checkpoint='{}',safe_error_code=null,result=null,operation_id=null"
+  );
+  const OTHER = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  const ATTEMPT = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  const forbidden = vi.fn(async () => {
+    throw new Error('No sheet may start after an image failed');
+  });
+  const live = (id: string) => ({
+    ...launchDriveMetadata(),
+    id,
+    name: 'private-picture.jpg',
+    parents: ['folder'],
+    mimeType: 'image/jpeg',
+    version: '3',
+    checksum: 'a'.repeat(32)
+  });
+  const drive = {
+    getFile: forbidden,
+    listAnyonePermissions: async () => [],
+    createAnyoneReaderPermission: forbidden,
+    createConvertedFile: forbidden,
+    updateFileMetadata: forbidden,
+    findCatalogIntentFiles: forbidden
+  };
+  const deps = {
+    initialVideoAuthority: {
+      serverNow: async () => Date.now(),
+      prepare: forbidden,
+      registerCreated: forbidden
+    },
+    loadVideo: async ({ videoId }: { videoId: string }) => ({
+      id: videoId,
+      name: 'private-picture.jpg',
+      category: 'image',
+      driveFileId: `private-provider-${videoId}`,
+      resourceKey: null,
+      parentFolderId: 'folder',
+      credentialId: 'private-credential'
+    }),
+    readSettings: async () => ({
+      title: 'private-content',
+      description: 'private-content',
+      imageLink: 'https://private.invalid',
+      priceMin: 10,
+      priceMax: 20
+    }),
+    readLiveCatalogs: async () => [],
+    driveFor: async () => drive,
+    proveVideo: async (video: { driveFileId: string }) => live(video.driveFileId),
+    destination: async () => ({ materialId: null, live: live('folder') }),
+    publishCreativeImages: async ({
+      images,
+      observe
+    }: {
+      images: Array<{ ordinal: number }>;
+      observe?: (event: {
+        ordinal: number;
+        stage: string;
+        attemptId: string | null;
+      }) => Promise<void>;
+    }) => {
+      const [image] = images;
+      await observe?.({
+        ordinal: image!.ordinal,
+        stage: 'creative_image.accepted',
+        attemptId: ATTEMPT
+      });
+      if (image!.ordinal === 1) {
+        const { TeamFunctionError } = await import('../supabase/functions/_shared/errors');
+        throw new TeamFunctionError('CREATIVE_IMAGE_FORMAT', { retryable: false });
+      }
+      await observe?.({ ordinal: 0, stage: 'creative_image.published', attemptId: ATTEMPT });
+      await observe?.({ ordinal: 0, stage: 'creative_image.verified', attemptId: ATTEMPT });
+      return [
+        { ordinal: 0, link: 'https://private.invalid/c1/picture.jpg', linkKind: 'r2' as const }
+      ];
+    },
+    resolveRestitchedVideo: forbidden,
+    drawTexts: forbidden,
+    drawImages: forbidden,
+    nextVariant: forbidden,
+    planName: forbidden,
+    startOperation: forbidden,
+    bindIntent: forbidden,
+    markRunning: forbidden,
+    failOperation: forbidden,
+    finalize: forbidden,
+    link: forbidden,
+    log: vi.fn()
+  } as unknown as ProductCatalogDeps;
+  const request = {
+    ...body,
+    productCount: 3,
+    catalogVideoProtocolVersion: 1,
+    restitchEnabled: false,
+    videoVariationCount: 1,
+    videoPublication: { mode: 'immediate' },
+    copyVideoToR2: true,
+    creativeKind: 'image',
+    creatives: [
+      { materialId: ID, alias: 'private-alias-one', copies: 2 },
+      { materialId: OTHER, alias: 'private-alias-two', copies: 1 }
+    ]
+  };
+  const store = catalogIntentStore(service(), ID, ID, ACTOR, body.idempotencyKey);
+  await expect(
+    createDurableProductCatalog(deps, store, async () => drive, request, ACTOR)
+  ).rejects.toMatchObject({ code: 'CREATIVE_IMAGE_FORMAT' });
+  expect(forbidden).not.toHaveBeenCalled();
+  const stored = (
+    await db.db.query<{ diagnostics: unknown; code: string }>(
+      "select checkpoint->'creativeDiagnostics' diagnostics,checkpoint->>'safeErrorCode' code from private.catalog_generation_intents where id=$1",
+      [ID]
+    )
+  ).rows[0]!;
+  expect(stored.code).toBe('CREATIVE_IMAGE_FORMAT');
+  // Exactly the typed shape the CLI reads: counts, kinds, ordinals, stages and the attempt.
+  expect(parseCatalogCreativeDiagnostics(stored.diagnostics)).toEqual({
+    creativeKind: 'image',
+    creativeCount: 2,
+    productCount: 3,
+    variationCount: 0,
+    // 2 · 1 is the even share of three products over two creatives.
+    customDistribution: false,
+    images: [
+      { creativeOrdinal: 0, stage: 'creative_image.verified', attemptId: ATTEMPT },
+      {
+        creativeOrdinal: 1,
+        stage: 'creative_image.failed',
+        attemptId: ATTEMPT,
+        code: 'CREATIVE_IMAGE_FORMAT'
+      }
+    ]
+  });
+  expect(JSON.stringify(stored.diagnostics)).not.toMatch(
+    /private|alias|https?:|cccccccc|bbbbbbbb/u
+  );
+  // The fixture installs the projection as the applied chain had it before 062: the closed
+  // code list and the creative_diagnostics column arrive with the 062 analytics migration, so
+  // here the record is found and stays private; its exact code is read from the checkpoint above.
+  const evidence = await getCatalogGenerationEvidence(ACTOR, resolvePeriod('all', undefined));
+  expect(evidence.records[0]).toMatchObject({ intent_id: ID, state: 'interrupted' });
+  expect(investigatePrivacyFailure(evidence)).toBeNull();
 });

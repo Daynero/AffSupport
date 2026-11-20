@@ -12,6 +12,8 @@ import {
   parseClaimedCatalog,
   runCatalogUpdaterTick
 } from '../supabase/functions/catalog-updater/worker.js';
+import { prepareCatalogClaims } from '../supabase/functions/catalog-updater/claim-preparation.js';
+import { globalImageFixture } from './fixtures/catalog-global.js';
 
 /**
  * 062 (R20, R30, T024/T025/T053): the updater rebuilds a sheet from its snapshot and the
@@ -338,5 +340,69 @@ describe('an updater restitch round over several videos', () => {
     expect(rpc.mock.calls.map(([name]) => name)).toContain(
       'service_note_catalog_updater_variant_admission'
     );
+  });
+});
+
+describe('an image catalog in the global white pool, round after round (R30)', () => {
+  const imageCells = [
+    'https://images.example.test/c1/one.jpg',
+    'https://images.example.test/c1/one.jpg',
+    'https://images.example.test/c1/two.jpg'
+  ];
+  /** The claim goes through the real preparation, which forces refresh_images in global mode. */
+  async function round(snapshot: Record<string, unknown>, updateCount: number, firstImage: number) {
+    const calls: string[] = [];
+    const [prepared] = (
+      await prepareCatalogClaims(
+        [claimed(snapshot, { video_link: null, update_count: updateCount })],
+        'worker',
+        async name => {
+          calls.push(name);
+          return name === 'service_catalog_image_mode_v2'
+            ? 'global'
+            : '62000000-0000-4000-8000-0000000009aa';
+        }
+      )
+    ).rows;
+    expect(prepared).toMatchObject({ refresh_images: true, global_images: true });
+    const run = setup([prepared], { imageCells });
+    const drawn: string[] = [];
+    run.deps.drawTexts = vi.fn(async (_team, count) =>
+      Array.from({ length: count }, (_, index) => ({
+        title: `Round ${updateCount} Black Hoodie ${index}`,
+        description: `A black hoodie, round ${updateCount}`
+      }))
+    );
+    run.deps.drawImages = vi.fn(async (_team, count) =>
+      Array.from({ length: count }, (_, index) => {
+        const image = globalImageFixture(firstImage + index);
+        drawn.push(image.publicUrl);
+        return image;
+      })
+    );
+    await runCatalogUpdaterTick(run.deps, { budgetMs: 1000 });
+    expect(run.written).toHaveLength(1);
+    return { run, drawn };
+  }
+
+  it('redraws the whites for the texts and never touches H', async () => {
+    const first = await round(layout('image', [0, 0, 1]), 0, 1);
+    const firstRows = first.run.became[0].rows;
+    // The whites behind the texts are the freshly drawn ones…
+    expect(firstRows.map(row => row.imageLink)).toEqual(first.drawn);
+    // …while H shows the creatives as the publication lane left them.
+    expect(column(first.run.written[0], CATALOG_IMAGE_COLUMN)).toEqual(imageCells);
+    const second = await round(first.run.became[0], 1, 10);
+    const secondRows = second.run.became[0].rows;
+    expect(secondRows.map(row => row.imageLink)).toEqual(second.drawn);
+    expect(secondRows.map(row => row.imageLink)).not.toEqual(firstRows.map(row => row.imageLink));
+    expect(column(second.run.written[0], CATALOG_IMAGE_COLUMN)).toEqual(imageCells);
+    // Texts moved on, the creative layout stayed.
+    expect(column(second.run.written[0], TITLE)).not.toEqual(column(first.run.written[0], TITLE));
+    expect(second.run.became[0]._catalogCreativeKind).toBe('image');
+    expect(second.run.became[0]._catalogRowCreatives).toEqual([0, 0, 1]);
+    // No image row carries a video tag.
+    const AA = PRODUCT_CATALOG_TEMPLATE.findIndex(c => c.key === 'video[0].tag[0]');
+    expect(column(second.run.written[0], AA)).toEqual(['', '', '']);
   });
 });
