@@ -391,6 +391,23 @@ export function WorkspaceShell({
   const visited = new Set(remembered).add(section);
   if (pendingSection) visited.add(pendingSection);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * The waits for a section to finish its first read, each as the function that ends it.
+   *
+   * A wait polls on a timer, and a timer outlives the screen that set it: left alone it keeps
+   * asking a workspace that is gone whether its section has arrived, for up to
+   * `PENDING_SECTION_MAX_MS`. Ending them on the way out lets the navigation that was waiting
+   * go, and leaves nothing running behind a closed workspace.
+   */
+  const sectionWaits = useRef<Set<() => void> | null>(new Set());
+  useEffect(() => {
+    sectionWaits.current ??= new Set();
+    return () => {
+      const waits = sectionWaits.current;
+      sectionWaits.current = null;
+      waits?.forEach(end => end());
+    };
+  }, []);
   const openSection = useCallback(
     (next: TeamSection, route: string) => {
       if (next === section) return;
@@ -412,17 +429,27 @@ export function WorkspaceShell({
           return Promise.resolve(code).then(
             () =>
               new Promise<void>(resolve => {
+                const waits = sectionWaits.current;
+                // The workspace closed while the section's code was still arriving.
+                if (!waits) return resolve();
                 const startedAt = Date.now();
+                let timer = 0;
+                const end = () => {
+                  window.clearTimeout(timer);
+                  waits.delete(end);
+                  resolve();
+                };
                 const check = () => {
                   const node = panel();
                   if (
                     (node && !node.querySelector(SECTION_BUSY)) ||
                     Date.now() - startedAt > PENDING_SECTION_MAX_MS
                   )
-                    resolve();
-                  else window.setTimeout(check, 16);
+                    end();
+                  else timer = window.setTimeout(check, 16);
                 };
-                window.setTimeout(check, 16);
+                waits.add(end);
+                timer = window.setTimeout(check, 16);
               })
           );
         }
