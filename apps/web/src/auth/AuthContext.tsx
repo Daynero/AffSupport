@@ -375,12 +375,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     let controller: AbortController | null = null;
     let pending: ProfileRefreshSource | null = null;
-    const refresh = async (source: ProfileRefreshSource) => {
+    const refresh = async (source: ProfileRefreshSource, secondTry = false) => {
       if (!active) return;
       if (controller) {
         pending = source;
         return;
       }
+      let failed = false;
       const current = snapshotRef.current;
       if (current.status !== 'authenticated' || !current.user) return;
       const actor = current.user.id,
@@ -410,10 +411,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         observation.completed();
       } catch {
         if (!owns()) observation.superseded();
-        else
+        else {
+          failed = true;
           observation.failed(
             request.signal.aborted ? 'PROFILE_REFRESH_TIMEOUT' : 'PROFILE_REFRESH_FAILED'
           );
+        }
         // Keep the last known profile usable. A later activation retries the read.
       } finally {
         window.clearTimeout(timeout);
@@ -421,6 +424,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const next = pending;
         pending = null;
         if (active && next) void refresh(next);
+        // One more try for a read that failed on its own. While `focus` and
+        // `visibilitychange` each started a read, the second of the pair did this by
+        // accident — the usual case being a laptop that has just woken up. They are one
+        // activation now (profile-invalidation.ts), so the retry is said out loud. Once:
+        // a second failure waits for the next activation, as before.
+        else if (active && failed && !secondTry) void refresh(source, true);
       }
     };
     const subscription = subscribeProfileInvalidation(publicConfig.value.supabaseUrl, source => {
