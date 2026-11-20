@@ -66,7 +66,7 @@ import {
   catalogIntentStore,
   resumeOrReadInitialCatalog
 } from './catalog-durable.ts';
-import { generateLaunch } from './launches.ts';
+import { generateLaunch, launchOtherMaterialSnapshots } from './launches.ts';
 import { acceptLaunchBatch, recoverLaunchBatchOther } from './launch-batch.ts';
 import {
   handleCatalogRename,
@@ -4010,6 +4010,16 @@ Deno.serve(async request => {
               config.materialId,
               source
             );
+            // 062: every other creative is proven against its own frozen identity too.
+            for (const other of launchOtherMaterialSnapshots(source))
+              await proveLaunchSource(
+                request,
+                configured.service,
+                teamId,
+                actor,
+                other.materialId,
+                other
+              );
             if (config.method === 'catalog') {
               const catalog = productCatalogDeps(request, configured.caller, configured.service);
               const video = await catalog.loadVideo({
@@ -4018,7 +4028,8 @@ Deno.serve(async request => {
                 actorId: actor,
                 permission: 'view'
               });
-              if (video.category !== 'video') throw new TeamFunctionError('WRONG_STATE');
+              if (video.category !== (config.creativeKind ?? 'video'))
+                throw new TeamFunctionError('WRONG_STATE');
               // Launch preparation freezes saved defaults or derives its own end
               // frame. Selecting restitch does not require saving workspace settings.
               await catalog.destination({ teamId, actorId: actor, folderId: video.parentFolderId });

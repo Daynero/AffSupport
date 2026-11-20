@@ -91,6 +91,12 @@ export async function executeLaunchCatalog(
   if (!parsed.ok || parsed.value.method !== 'catalog') throw new TeamFunctionError('INVALID_INPUT');
   const config = parsed.value;
   const protocolVideo = config.catalog.catalogVideoProtocolVersion === 1;
+  // 062: several creatives and image creatives exist only on the catalog video protocol.
+  if (
+    !protocolVideo &&
+    ((config.creatives?.length ?? 1) > 1 || (config.creativeKind ?? 'video') !== 'video')
+  )
+    throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
   const frozenVideo = protocolVideo
     ? await call(deps.service, 'service_read_launch_catalog_video_context', {
         p_team: teamId,
@@ -427,25 +433,42 @@ export async function executeLaunchCatalog(
             restitchOperationId,
             idempotencyKey: `launch:${generationId}:catalog`,
             randomLinkVariation: true,
-            ...(config.catalog.copyVideoToR2 === true ? { copyVideoToR2: true } : {})
+            ...(config.catalog.copyVideoToR2 === true ? { copyVideoToR2: true } : {}),
+            // 062: a single video still takes its product-ID prefix from the Launch alias.
+            ...(config.creatives
+              ? {
+                  creativeKind: 'video',
+                  creatives: config.creatives.map(creative => ({
+                    materialId: creative.materialId,
+                    alias: creative.alias,
+                    copies: creative.copies
+                  }))
+                }
+              : {})
           },
       actorId
     );
     if ('outcome' in created && created.outcome === 'preparing_video') {
       if (created.state === 'unknown') {
         // Preparation already requeued what may be retried; what is still
-        // unknown here either cannot be proven or has no retry left.
-        const settled = await settleVideoFailures(created.videoSetId);
-        if ((!settled || settled.parentState === 'unknown') && deps.readCatalogVideoFailure) {
-          const cause = await deps.readCatalogVideoFailure({
-            teamId,
-            actorId,
-            sourceMaterialId: config.materialId,
-            setId: created.videoSetId
-          });
-          if (cause) {
-            await stopForVideoFailure(cause, Boolean(settled && settled.terminal > 0));
-            return { id: generationId, state: 'interrupted' };
+        // unknown here either cannot be proven or has no retry left. With several
+        // videos (062) each set is settled and read on its own.
+        const sets = created.videoSets ?? [
+          { ordinal: 0, setId: created.videoSetId, sourceMaterialId: config.materialId }
+        ];
+        for (const set of sets) {
+          const settled = await settleVideoFailures(set.setId);
+          if ((!settled || settled.parentState === 'unknown') && deps.readCatalogVideoFailure) {
+            const cause = await deps.readCatalogVideoFailure({
+              teamId,
+              actorId,
+              sourceMaterialId: set.sourceMaterialId,
+              setId: set.setId
+            });
+            if (cause) {
+              await stopForVideoFailure(cause, Boolean(settled && settled.terminal > 0));
+              return { id: generationId, state: 'interrupted' };
+            }
           }
         }
       }

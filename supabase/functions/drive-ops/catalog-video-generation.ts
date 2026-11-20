@@ -2,6 +2,7 @@ import type { CatalogVideoForegroundProgressExecutor } from '../../../packages/s
 import type { CatalogCreationVideoPreferences } from './product-catalog.ts';
 import type { CatalogVideoCellDelivery } from '../_shared/product-catalog.ts';
 import { parseCatalogVideoPublication } from '../../../packages/shared/dist/team/catalog-publication.js';
+import { distributeVariations } from '../../../packages/shared/dist/team/launches.js';
 import { TeamFunctionError } from '../_shared/errors.ts';
 
 export interface CatalogInitialVideoReadRequest {
@@ -68,6 +69,8 @@ export interface CatalogVideoPreparingResult {
   state: 'preparing' | 'unknown' | 'cancel_requested' | 'canceled';
   /** The agent running this creation stopped heartbeating two minutes ago. */
   agentSilent?: true;
+  /** 062: every restitch set of a several-video catalog, so each can be settled on its own. */
+  videoSets?: Array<{ ordinal: number; setId: string; sourceMaterialId: string }>;
 }
 export class CatalogVideoPreparationPending extends Error {
   constructor(readonly result: CatalogVideoPreparingResult) {
@@ -77,11 +80,192 @@ export class CatalogVideoPreparationPending extends Error {
 export interface CatalogInitialVideoPlan {
   preferences: CatalogCreationVideoPreferences;
   acceptedAt: number;
+  /** The first video's set; with segments, `segments[0].setId`. */
   setId: string | null;
   recipeRowIds: string[];
+  /** All variation requests in segment order: the old length check (= videoVariationCount) holds. */
   childRequestIds: string[];
   assignmentSeed: string;
   recipeRevision?: 1;
+  /** 062 (plan V2): one block of rows per creative; absent on plans from before (one video). */
+  segments?: CatalogCreativeSegment[];
+}
+
+export type CatalogCreativeKind = 'video' | 'image';
+/** 062: one creative's contiguous block of rows and, for a restitched video, its own set. */
+export interface CatalogCreativeSegment {
+  ordinal: number;
+  materialId: string;
+  alias: string;
+  kind: CatalogCreativeKind;
+  rowStart: number;
+  rowCount: number;
+  /** Video: its share of the variations (1 without restitch); image: 0. */
+  variantCount: number;
+  setId: string | null;
+  childRequestIds: string[];
+  /** hex(sha256(plan seed ‖ ':' ‖ ordinal)); for a single creative, the plan seed itself. */
+  assignmentSeed: string;
+}
+export interface CatalogPlanCreative {
+  materialId: string;
+  alias: string;
+  copies: number;
+}
+
+/** Segment seed shared with SQL: hex(sha256(`${seed}:${ordinal}`)), 64 lowercase hex. */
+export async function catalogSegmentSeed(seed: string, ordinal: number): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`${seed}:${ordinal}`)
+  );
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Plan V2 (062): the single-video plan, cut into one block per creative. A single creative keeps
+ * exactly the plan it always had (same set, seed and requests), so reuse and old readers agree.
+ * With several videos each restitched one gets its own set and its share of the variations,
+ * round-robin; the request ids stay one list whose slices belong to the segments in order.
+ */
+export async function createCatalogInitialVideoPlanV2(
+  preferences: CatalogCreationVideoPreferences,
+  kind: CatalogCreativeKind,
+  creatives: readonly CatalogPlanCreative[],
+  productCount: number,
+  serverNow: number
+): Promise<CatalogInitialVideoPlan> {
+  const k = creatives.length;
+  if (
+    k < 1 ||
+    k > productCount ||
+    creatives.reduce((total, creative) => total + creative.copies, 0) !== productCount ||
+    creatives.some(creative => !Number.isSafeInteger(creative.copies) || creative.copies < 1) ||
+    (kind === 'image' && preferences.restitchEnabled) ||
+    (preferences.restitchEnabled && preferences.videoVariationCount < k)
+  )
+    throw new TeamFunctionError('INVALID_INPUT');
+  const plan = createCatalogInitialVideoPlan(preferences, productCount, serverNow);
+  const restitch = kind === 'video' && preferences.restitchEnabled;
+  const variants =
+    kind === 'image'
+      ? creatives.map(() => 0)
+      : restitch
+        ? k === 1
+          ? [preferences.videoVariationCount]
+          : distributeVariations(
+              creatives.map(creative => creative.copies),
+              preferences.videoVariationCount
+            )
+        : creatives.map(() => 1);
+  const segments: CatalogCreativeSegment[] = [];
+  let rowStart = 0;
+  let requestStart = 0;
+  for (const [ordinal, creative] of creatives.entries()) {
+    const variantCount = variants[ordinal]!;
+    const childRequestIds = restitch
+      ? plan.childRequestIds.slice(requestStart, requestStart + variantCount)
+      : [];
+    segments.push({
+      ordinal,
+      materialId: creative.materialId,
+      alias: creative.alias,
+      kind,
+      rowStart,
+      rowCount: creative.copies,
+      variantCount,
+      setId: restitch ? (ordinal === 0 ? plan.setId : crypto.randomUUID()) : null,
+      childRequestIds,
+      assignmentSeed:
+        k === 1 ? plan.assignmentSeed : await catalogSegmentSeed(plan.assignmentSeed, ordinal)
+    });
+    rowStart += creative.copies;
+    requestStart += childRequestIds.length;
+  }
+  return { ...plan, segments };
+}
+
+/** The segments of a plan, checked against its rows; null for a plan from before 062. */
+export function catalogPlanSegments(
+  plan: Pick<CatalogInitialVideoPlan, 'segments' | 'recipeRowIds' | 'childRequestIds'>
+): CatalogCreativeSegment[] | null {
+  if (plan.segments === undefined) return null;
+  const segments = plan.segments;
+  if (!Array.isArray(segments) || segments.length < 1)
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  let rowStart = 0;
+  const requests: string[] = [];
+  for (const [ordinal, segment] of segments.entries()) {
+    if (
+      !segment ||
+      segment.ordinal !== ordinal ||
+      segment.rowStart !== rowStart ||
+      !Number.isSafeInteger(segment.rowCount) ||
+      segment.rowCount < 1 ||
+      (segment.kind !== 'video' && segment.kind !== 'image') ||
+      segment.kind !== segments[0]!.kind ||
+      !Array.isArray(segment.childRequestIds) ||
+      (segment.setId !== null && segment.childRequestIds.length !== segment.variantCount) ||
+      typeof segment.assignmentSeed !== 'string' ||
+      !/^[a-f0-9]{64}$/u.test(segment.assignmentSeed)
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    rowStart += segment.rowCount;
+    requests.push(...segment.childRequestIds);
+  }
+  if (
+    rowStart !== plan.recipeRowIds.length ||
+    JSON.stringify(requests) !== JSON.stringify(plan.childRequestIds)
+  )
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  return segments;
+}
+
+/** The recipe rows of one segment, in plan order. */
+export function catalogSegmentRowIds(
+  plan: Pick<CatalogInitialVideoPlan, 'recipeRowIds'>,
+  segment: Pick<CatalogCreativeSegment, 'rowStart' | 'rowCount'>
+): string[] {
+  return plan.recipeRowIds.slice(segment.rowStart, segment.rowStart + segment.rowCount);
+}
+
+/** The restitched video segments of a plan (each with its set), or the one set of an older plan. */
+export function catalogPlanVideoSets(
+  plan: CatalogInitialVideoPlan,
+  primaryMaterialId: string
+): Array<{
+  ordinal: number;
+  setId: string;
+  sourceMaterialId: string;
+  rowIds: string[];
+  variantCount: number;
+}> {
+  const segments = catalogPlanSegments(plan);
+  if (!segments)
+    return plan.setId
+      ? [
+          {
+            ordinal: 0,
+            setId: plan.setId,
+            sourceMaterialId: primaryMaterialId,
+            rowIds: [...plan.recipeRowIds],
+            variantCount: plan.preferences.videoVariationCount
+          }
+        ]
+      : [];
+  return segments.flatMap(segment =>
+    segment.setId
+      ? [
+          {
+            ordinal: segment.ordinal,
+            setId: segment.setId,
+            sourceMaterialId: segment.materialId,
+            rowIds: catalogSegmentRowIds(plan, segment),
+            variantCount: segment.variantCount
+          }
+        ]
+      : []
+  );
 }
 /** Called only after the canonical intent exists. Persist this complete plan
  * before admitting children: retries keep identifiers, rows and the original due. */
@@ -185,7 +369,22 @@ export async function prepareCatalogInitialVideo(
       requestedCount: plan.preferences.videoVariationCount,
       registeredCount: result.registeredCount,
       state: result.state,
-      ...(result.executor ? { executor: result.executor } : {})
+      ...(result.executor ? { executor: result.executor } : {}),
+      ...((plan.segments?.length ?? 0) > 1
+        ? {
+            videoSets: (plan.segments ?? []).flatMap(segment =>
+              segment.setId
+                ? [
+                    {
+                      ordinal: segment.ordinal,
+                      setId: segment.setId,
+                      sourceMaterialId: segment.materialId
+                    }
+                  ]
+                : []
+            )
+          }
+        : {})
     });
   if (
     result.videoLinks.length !== plan.recipeRowIds.length ||

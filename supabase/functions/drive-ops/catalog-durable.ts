@@ -2,7 +2,9 @@ import {
   CatalogVideoPreparationPending,
   parseCatalogVideoGenerationProgress,
   type CatalogVideoGenerationProgress,
+  catalogPlanSegments,
   createCatalogInitialVideoPlan,
+  createCatalogInitialVideoPlanV2,
   prepareCatalogInitialVideo,
   type CatalogInitialVideoPlan,
   type CatalogVideoPreparingResult
@@ -24,8 +26,53 @@ import {
   type CreateProductCatalogRequest,
   type ProductCatalogDeps,
   type CatalogDrive,
+  type CatalogCreativeImageLink,
   type CreateProductCatalogResult
 } from './product-catalog.ts';
+
+/** 062: the per-image checkpoint of an image catalog (`creativeImage_<ordinal>`). */
+function parseCreativeImageCheckpoint(
+  value: unknown,
+  ordinal: number
+): CatalogCreativeImageLink | null {
+  if (
+    !isRecord(value) ||
+    typeof value.url !== 'string' ||
+    !/^https:\/\/\S+$/u.test(value.url) ||
+    (value.linkKind !== 'r2' && value.linkKind !== 'drive') ||
+    (value.id !== null && value.id !== undefined && typeof value.id !== 'string')
+  )
+    return null;
+  return {
+    ordinal,
+    link: value.url,
+    linkKind: value.linkKind,
+    ...(typeof value.id === 'string' ? { imageId: value.id } : {})
+  };
+}
+
+/** 062: the plan's creative blocks must be the request's, creative for creative. */
+function assertPlanMatchesCreatives(
+  plan: CatalogInitialVideoPlan,
+  request: CreateProductCatalogRequest
+): void {
+  const segments = catalogPlanSegments(plan);
+  if (!request.creatives) {
+    if (segments && segments.length !== 1) throw new TeamFunctionError('INVALID_RESPONSE');
+    return;
+  }
+  if (
+    !segments ||
+    segments.length !== request.creatives.length ||
+    segments.some(
+      (segment, index) =>
+        segment.materialId.toLowerCase() !== request.creatives![index]!.materialId.toLowerCase() ||
+        segment.rowCount !== request.creatives![index]!.copies ||
+        segment.kind !== (request.creativeKind ?? 'video')
+    )
+  )
+    throw new TeamFunctionError('INVALID_RESPONSE');
+}
 
 export type DurableCatalogDrive = Pick<
   GoogleDriveClient,
@@ -317,6 +364,24 @@ async function reverifyRegisteredInitialPublication(
   }
 }
 
+/** 062: the R2 image records an image catalog's checkpoints name, confirmed as its uses. */
+async function confirmCreativeImageUses(
+  deps: ProductCatalogDeps,
+  intent: CatalogIntent,
+  catalogMaterialId: string
+): Promise<void> {
+  if (!deps.confirmCreativeImageUses) return;
+  const ids: string[] = [];
+  for (const [key, value] of Object.entries(intent.checkpoint)) {
+    const ordinal = /^creativeImage_(\d{1,3})$/u.exec(key)?.[1];
+    if (ordinal === undefined) continue;
+    const parsed = parseCreativeImageCheckpoint(value, Number(ordinal));
+    if (!parsed) throw new TeamFunctionError('INVALID_RESPONSE');
+    if (parsed.imageId) ids.push(parsed.imageId);
+  }
+  if (ids.length > 0) await deps.confirmCreativeImageUses(catalogMaterialId, ids);
+}
+
 /** Decorates the existing generator; no second rows/template/XLSX implementation. */
 export async function createDurableProductCatalog(
   deps: ProductCatalogDeps,
@@ -370,12 +435,19 @@ export async function createDurableProductCatalog(
         initialVideoPlan.recipeRowIds.length !== request.productCount
       )
         throw new TeamFunctionError('INVALID_RESPONSE');
+      assertPlanMatchesCreatives(initialVideoPlan, request);
     } else {
-      initialVideoPlan = createCatalogInitialVideoPlan(
-        request as import('./product-catalog.ts').CatalogCreationVideoPreferences,
-        request.productCount,
-        await deps.initialVideoAuthority.serverNow()
-      );
+      const preferences = request as import('./product-catalog.ts').CatalogCreationVideoPreferences;
+      const serverNow = await deps.initialVideoAuthority.serverNow();
+      initialVideoPlan = request.creatives
+        ? await createCatalogInitialVideoPlanV2(
+            preferences,
+            request.creativeKind ?? 'video',
+            request.creatives,
+            request.productCount,
+            serverNow
+          )
+        : createCatalogInitialVideoPlan(preferences, request.productCount, serverNow);
       await store.checkpoint(intent, owner, workingState(), { initialVideoPlan });
       intent.checkpoint = { ...intent.checkpoint, initialVideoPlan };
     }
@@ -461,6 +533,7 @@ export async function createDurableProductCatalog(
     const recovered = await store.completed?.(intent);
     if (recovered) {
       await deps.finalizeImageUses?.(request.teamId, intent.id, true);
+      await confirmCreativeImageUses(deps, intent, recovered.catalog.materialId);
       await store.checkpoint(intent, owner, 'registered', {}, undefined, recovered);
       // The catalog already exists, but its initial publication may never have
       // begun (the first verification failed before the policy was created).
@@ -543,9 +616,41 @@ export async function createDurableProductCatalog(
       await store.checkpoint(intent, owner, workingState(), { sheetEngine: 'native' });
       intent.checkpoint.sheetEngine = 'native';
     }
+    const publishCreativeImages = deps.publishCreativeImages;
     const wrapped: ProductCatalogDeps = {
       ...deps,
       nativeSpreadsheet,
+      // 062: one checkpoint per published image, so a resumed creation never publishes twice.
+      ...(publishCreativeImages
+        ? {
+            async publishCreativeImages(input) {
+              const links: CatalogCreativeImageLink[] = [];
+              for (const image of input.images) {
+                const key = `creativeImage_${image.ordinal}`;
+                const known = intent.checkpoint[key];
+                if (known !== undefined) {
+                  const parsed = parseCreativeImageCheckpoint(known, image.ordinal);
+                  if (!parsed) throw new TeamFunctionError('INVALID_RESPONSE');
+                  links.push(parsed);
+                  continue;
+                }
+                await check();
+                const [published] = await publishCreativeImages({ ...input, images: [image] });
+                if (!published || published.ordinal !== image.ordinal)
+                  throw new TeamFunctionError('INVALID_RESPONSE');
+                await store.checkpoint(intent, owner, workingState(), {
+                  [key]: {
+                    id: published.imageId ?? null,
+                    url: published.link,
+                    linkKind: published.linkKind
+                  }
+                });
+                links.push(published);
+              }
+              return links;
+            }
+          }
+        : {}),
       async beforeImageWrite() {
         await deps.validateImageUses?.(request.teamId, intent.id);
         await deps.beforeImageWrite?.();
@@ -935,6 +1040,9 @@ export async function createDurableProductCatalog(
       });
     await deps.bindGlobalImageCatalog?.(request.teamId, intent.id, result.catalog.materialId);
     await deps.finalizeImageUses?.(request.teamId, intent.id, true);
+    // 062 (R33): the catalog holds its R2 images from registration on, so a scheduled
+    // publication still finds its `c1/` object when it is due.
+    await confirmCreativeImageUses(deps, intent, result.catalog.materialId);
     await store.checkpoint(intent, owner, 'registered', {}, undefined, result);
     return result;
   } catch (error) {

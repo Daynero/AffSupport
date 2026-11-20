@@ -22,17 +22,23 @@ import {
   SOURCE_LINK_MAX,
   SPREADSHEET_MIME_TYPE,
   buildProductCatalogRows,
+  catalogCreativeSnapshot,
+  catalogRowCreatives,
   parseProductCount,
   parseWebLink,
   planCatalogRows,
   productCatalogName,
   videoShareLink,
+  type CatalogCreativeCells,
+  type CatalogCreativeKind,
+  type CatalogSnapshotCreative,
   type ProductCatalogRowValues,
   type ProductCatalogSpaceSettings
 } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { RESTITCH_DURATION_MODES } from '../../../packages/shared/dist/team/restitch.js';
 import { buildXlsx, type XlsxCell } from '../_shared/xlsx.ts';
+import { catalogIdPrefix } from '../_shared/product-details.ts';
 
 /**
  * `POST /drive-ops/product-catalog/create` (feature 022).
@@ -66,8 +72,12 @@ const BODY_KEYS = new Set([
   'restitchDuration',
   'expectedExecutorId',
   'foregroundExecutor',
-  'copyVideoToR2'
+  'copyVideoToR2',
+  'creativeKind',
+  'creatives'
 ]);
+/** Same alphabet as a Launch alias (`validation.ts`). */
+const CREATIVE_ALIAS = /^[A-Za-z0-9_-]{1,160}$/u;
 
 export type CatalogDrive = Pick<
   GoogleDriveClient,
@@ -158,6 +168,23 @@ export interface ProductCatalogDeps {
     queueCopy: boolean;
   }): Promise<void>;
   bindGlobalImageCatalog?(teamId: string, intentId: string, materialId: string): Promise<void>;
+  /**
+   * 062: publishes every image creative (R2 `c1/` or Drive by the catalog's R2 option) and
+   * returns each one's verified public link, in creative order. Required for an image catalog.
+   */
+  publishCreativeImages?(input: {
+    teamId: string;
+    actorId: string;
+    copyToR2: boolean;
+    images: ReadonlyArray<{
+      ordinal: number;
+      material: CatalogVideo;
+      live: DriveFileMetadata;
+      drive: CatalogDrive;
+    }>;
+  }): Promise<CatalogCreativeImageLink[]>;
+  /** 062: records which R2 creative images a registered catalog uses (R33). */
+  confirmCreativeImageUses?(catalogMaterialId: string, imageIds: readonly string[]): Promise<void>;
   finalizeImageUses?(teamId: string, attemptId: string, delivered: boolean): Promise<void>;
   readSettings(teamId: string): Promise<ProductCatalogSpaceSettings | null>;
   /** Restores already frozen choices before any fresh pool draws. */
@@ -233,6 +260,22 @@ export interface ProductCatalogDeps {
   log(message: string, detail: string): void;
 }
 
+/** 062: an image creative's published link. */
+export interface CatalogCreativeImageLink {
+  ordinal: number;
+  link: string;
+  linkKind: 'r2' | 'drive';
+  /** The `launch_creative_images` record behind an R2 link. */
+  imageId?: string;
+}
+
+/** 062: one creative of a catalog request, in row order. */
+export interface CatalogRequestCreative {
+  materialId: string;
+  alias: string;
+  copies: number;
+}
+
 export interface CatalogCreationVideoPreferences {
   catalogVideoProtocolVersion: 1;
   restitchEnabled: boolean;
@@ -257,6 +300,9 @@ export interface CreateProductCatalogRequest extends Partial<CatalogCreationVide
   replacesMaterialId: string | null;
   restitchOperationId: string | null;
   idempotencyKey: string;
+  /** 062: absent on requests from before (one video, prefix from its name). */
+  creativeKind?: CatalogCreativeKind;
+  creatives?: CatalogRequestCreative[];
 }
 
 export interface CreateProductCatalogResult {
@@ -313,8 +359,19 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
   )
     throw new TeamFunctionError('CATALOG_IMAGE_UPGRADE_REQUIRED');
   const videoPreferences = parseCatalogCreationVideoPreferences(body, count.value);
+  const creatives = parseCatalogRequestCreatives(body, count.value, videoMaterialId);
+  if (
+    creatives &&
+    (creatives.creatives.length > 1 || creatives.creativeKind === 'image') &&
+    (videoPreferences.catalogVideoProtocolVersion !== 1 ||
+      restitchOperationId != null ||
+      replacesMaterialId != null)
+  )
+    throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
+  if (creatives?.creativeKind === 'image' && videoPreferences.restitchEnabled) invalid();
   return {
     ...videoPreferences,
+    ...(creatives ?? {}),
     ...([2, 3].includes(Number(body.catalogImageContractVersion))
       ? { catalogImageContractVersion: body.catalogImageContractVersion as 2 | 3 }
       : {}),
@@ -328,6 +385,45 @@ export function parseCreateProductCatalogRequest(body: unknown): CreateProductCa
     restitchOperationId: typeof restitchOperationId === 'string' ? restitchOperationId : null,
     idempotencyKey
   };
+}
+
+/** 062: the creative list of a request: distinct materials, the first is the request's video, shares add up. */
+function parseCatalogRequestCreatives(
+  body: Record<string, unknown>,
+  productCount: number,
+  videoMaterialId: string
+): { creativeKind: CatalogCreativeKind; creatives: CatalogRequestCreative[] } | null {
+  if (body.creatives === undefined && body.creativeKind === undefined) return null;
+  const kind = body.creativeKind;
+  const list = body.creatives;
+  if ((kind !== 'video' && kind !== 'image') || !Array.isArray(list) || list.length < 1) invalid();
+  if (list.length > productCount) invalid('count');
+  const seen = new Set<string>();
+  const creatives: CatalogRequestCreative[] = [];
+  let total = 0;
+  for (const item of list) {
+    if (
+      !isRecord(item) ||
+      Object.keys(item).some(key => !['materialId', 'alias', 'copies'].includes(key)) ||
+      typeof item.materialId !== 'string' ||
+      !UUID.test(item.materialId) ||
+      typeof item.alias !== 'string' ||
+      !CREATIVE_ALIAS.test(item.alias) ||
+      typeof item.copies !== 'number' ||
+      !Number.isSafeInteger(item.copies) ||
+      item.copies < 1
+    )
+      invalid();
+    const id = item.materialId.toLowerCase();
+    if (seen.has(id)) throw new TeamFunctionError('CREATIVE_DUPLICATE', { retryable: false });
+    seen.add(id);
+    total += item.copies;
+    creatives.push({ materialId: item.materialId, alias: item.alias, copies: item.copies });
+  }
+  if (total !== productCount)
+    throw new TeamFunctionError('DISTRIBUTION_INVALID', { retryable: false });
+  if (creatives[0]!.materialId.toLowerCase() !== videoMaterialId.toLowerCase()) invalid();
+  return { creativeKind: kind, creatives };
 }
 
 /** Structural parsing deliberately does not reject a past accepted due time.
@@ -491,7 +587,7 @@ async function alongside<A, B>(first: Promise<A>, second: Promise<B>): Promise<[
 }
 
 /** Use the same MIME/extension rules as indexing, against the proven live file. */
-function assertLiveVideo(file: DriveFileMetadata) {
+function assertLiveVideo(file: DriveFileMetadata, kind: CatalogCreativeKind = 'video') {
   const dot = file.name.lastIndexOf('.');
   const classification = classifyMaterial({
     kind: file.shortcutTargetId
@@ -503,8 +599,33 @@ function assertLiveVideo(file: DriveFileMetadata) {
     fileExtension: dot > 0 && dot < file.name.length - 1 ? file.name.slice(dot + 1) : null,
     sourceVersion: file.version
   });
-  if (classification.category !== 'video')
+  if (classification.category !== kind)
     throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
+}
+
+/** A creative other than the first: loaded, of the catalog's kind, proven live. */
+interface ProvenCreative {
+  ordinal: number;
+  request: CatalogRequestCreative;
+  material: CatalogVideo;
+  drive: CatalogDrive;
+  live: DriveFileMetadata;
+}
+
+/** Opens a proven video to anyone with the link, as the first video always was. */
+async function shareCreativeVideo(
+  deps: ProductCatalogDeps,
+  teamId: string,
+  actorId: string,
+  creative: Pick<ProvenCreative, 'material' | 'drive' | 'live'>
+): Promise<boolean> {
+  const permissions = await creative.drive.listAnyonePermissions(creative.live.id);
+  if (permissions.length > 0) return false;
+  // Opening a video to anyone with the link changes the video, so it needs `edit` on it.
+  await deps.loadVideo({ teamId, videoId: creative.material.id, actorId, permission: 'edit' });
+  if (creative.live.capabilities.canShare !== true)
+    throw new TeamFunctionError('SHARE_NOT_ALLOWED', { retryable: false });
+  return (await ensureAnyoneReader(creative.drive, creative.live.id, permissions)).added;
 }
 
 export async function createProductCatalog(
@@ -516,9 +637,29 @@ export async function createProductCatalog(
   const { teamId, videoMaterialId: videoId } = request;
 
   await deps.assertImageContract?.(teamId, request.catalogImageContractVersion);
+  const kind: CatalogCreativeKind = request.creativeKind ?? 'video';
   // Refusals first: nothing below this block may leave anything behind.
   const video = await deps.loadVideo({ teamId, videoId, actorId, permission: 'view' });
-  if (video.category !== 'video') wrongState('not_a_video');
+  if (video.category !== kind) {
+    if (kind === 'video') wrongState('not_a_video');
+    throw new TeamFunctionError('CREATIVES_MIXED', { retryable: false });
+  }
+  // 062: the other creatives are loaded and checked before anything is written.
+  const others: Array<Omit<ProvenCreative, 'drive' | 'live'>> = [];
+  for (const [ordinal, creative] of (request.creatives ?? []).entries()) {
+    if (ordinal === 0) continue;
+    const material = await deps.loadVideo({
+      teamId,
+      videoId: creative.materialId,
+      actorId,
+      permission: 'view'
+    });
+    if (material.category !== kind)
+      throw new TeamFunctionError('CREATIVES_MIXED', { retryable: false });
+    others.push({ ordinal, request: creative, material });
+  }
+  if (kind === 'image' && !deps.publishCreativeImages)
+    throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
   if (request.copyVideoToR2) await deps.assertVideoR2Option?.(teamId, actorId);
   const settings = await deps.readSettings(teamId);
   if (!settings) wrongState('settings_missing');
@@ -548,7 +689,7 @@ export async function createProductCatalog(
 
   const drive = await deps.driveFor(video.credentialId);
   const liveVideo = await deps.proveVideo(video, drive);
-  assertLiveVideo(liveVideo);
+  assertLiveVideo(liveVideo, kind);
   // The selected file can move before the index catches up. Do not publish
   // beside its stale parent or redirect a durable operation's frozen target.
   if (!video.parentFolderId || !liveVideo.parents.includes(video.parentFolderId))
@@ -563,8 +704,17 @@ export async function createProductCatalog(
   const liveCopy = restitched && copyDrive ? await deps.proveVideo(restitched, copyDrive) : null;
   if (liveCopy) assertLiveVideo(liveCopy);
 
+  const proven: ProvenCreative[] = [];
+  for (const other of others) {
+    const otherDrive = await deps.driveFor(other.material.credentialId);
+    const live = await deps.proveVideo(other.material, otherDrive);
+    assertLiveVideo(live, kind);
+    proven.push({ ...other, drive: otherDrive, live });
+  }
+
   let videoShared = false;
   if (
+    kind === 'video' &&
     videoPermissions.length === 0 &&
     !(request.catalogVideoProtocolVersion === 1 && request.restitchEnabled)
   ) {
@@ -579,6 +729,42 @@ export async function createProductCatalog(
     liveVideo.id,
     liveVideo.resourceKey ?? video.resourceKey
   );
+  // Every other video is shared the same way; a restitched one links its set's outputs instead.
+  const creativeVideoLinks: string[] = [originalVideoLink];
+  for (const creative of proven) {
+    if (kind !== 'video') break;
+    if (!(request.catalogVideoProtocolVersion === 1 && request.restitchEnabled))
+      await shareCreativeVideo(deps, teamId, actorId, creative);
+    creativeVideoLinks.push(
+      videoShareLink(creative.live.id, creative.live.resourceKey ?? creative.material.resourceKey)
+    );
+  }
+  // Image creatives are published (R2 or Drive) and anonymously verified before any sheet exists.
+  const imageLinks =
+    kind === 'image'
+      ? await deps.publishCreativeImages!({
+          teamId,
+          actorId,
+          copyToR2: request.copyVideoToR2 === true,
+          images: [
+            { ordinal: 0, material: video, live: liveVideo, drive },
+            ...proven.map(creative => ({
+              ordinal: creative.ordinal,
+              material: creative.material,
+              live: creative.live,
+              drive: creative.drive
+            }))
+          ]
+        })
+      : [];
+  if (
+    kind === 'image' &&
+    (imageLinks.length !== 1 + proven.length ||
+      imageLinks.some(
+        (image, ordinal) => image.ordinal !== ordinal || !/^https:\/\/\S+$/u.test(image.link)
+      ))
+  )
+    throw new TeamFunctionError('INVALID_RESPONSE');
   let videoLink = originalVideoLink;
   if (restitched && copyDrive && liveCopy) {
     const copyPermissions = await copyDrive.listAnyonePermissions(liveCopy.id);
@@ -602,7 +788,7 @@ export async function createProductCatalog(
     teamId,
     destinationMaterialId: destination.materialId,
     live: destination.live,
-    name: productCatalogName(video.name, variant),
+    name: productCatalogName(video.name, variant, proven.length),
     idempotencyKey: request.idempotencyKey,
     replacingDriveFileId: live?.driveFileId ?? null
   });
@@ -633,12 +819,47 @@ export async function createProductCatalog(
         }))
       });
       if (!planned) wrongState('settings_missing');
+      // An image row keeps the white picture's words and details; it has no video, so no tag.
+      if (kind === 'image') planned = planned.map(row => ({ ...row, videoTag: '' }));
       if (deps.rememberRowRecipe) planned = await deps.rememberRowRecipe(planned);
       return planned;
     })(),
     namePlan
   );
   const first = planned[0]!;
+  /* 062: which creative owns which rows. A request from before names its one video, whose
+     prefix comes from the file's name (explorer) — older catalogs have no layout at all. */
+  const requestCreatives: CatalogRequestCreative[] = request.creatives ?? [
+    { materialId: videoId, alias: catalogIdPrefix(video.name), copies: request.productCount }
+  ];
+  const rowCreatives = catalogRowCreatives(requestCreatives.map(creative => creative.copies));
+  if (rowCreatives.length !== request.productCount) throw new TeamFunctionError('INVALID_INPUT');
+  // H holds the creative's own image at once only when nothing schedules its publication.
+  const publicationHeld = request.videoPublication?.mode === 'scheduled';
+  const snapshotCreatives: CatalogSnapshotCreative[] = requestCreatives.map((creative, ordinal) => {
+    const image = imageLinks[ordinal];
+    const ownVideo =
+      kind === 'video' &&
+      !restitched &&
+      !(request.catalogVideoProtocolVersion === 1 && request.restitchEnabled);
+    return {
+      ordinal,
+      materialId: creative.materialId,
+      alias: creative.alias,
+      kind,
+      ...(image?.imageId ? { imageId: image.imageId } : {}),
+      ...(image && !publicationHeld ? { link: image.link, linkKind: image.linkKind } : {}),
+      ...(ownVideo && !publicationHeld
+        ? { link: creativeVideoLinks[ordinal]!, linkKind: 'drive' as const }
+        : {})
+    };
+  });
+  const creativeCells: CatalogCreativeCells[] = requestCreatives.map((creative, ordinal) => ({
+    idPrefix: catalogIdPrefix(creative.alias),
+    kind,
+    ...(kind === 'video' && ordinal > 0 ? { videoLink: creativeVideoLinks[ordinal]! } : {}),
+    ...(kind === 'image' && !publicationHeld ? { imageLink: imageLinks[ordinal]!.link } : {})
+  }));
   /* Kept for sheets and workers that read one value: the first row's. */
   const snapshot = {
     title: first.title,
@@ -647,7 +868,8 @@ export async function createProductCatalog(
     imageLink: first.imageLink,
     randomLinkVariation: request.randomLinkVariation !== false,
     rows: planned,
-    ...(settings.contentPolicyVersion === 1 ? { contentPolicyVersion: 1 } : {})
+    ...(settings.contentPolicyVersion === 1 ? { contentPolicyVersion: 1 } : {}),
+    ...catalogCreativeSnapshot({ kind, creatives: snapshotCreatives, rowCreatives })
   };
   if (deps.resolveSourceLink) {
     const link = parseWebLink(await deps.resolveSourceLink(plan.name), SOURCE_LINK_MAX);
@@ -684,7 +906,9 @@ export async function createProductCatalog(
       videoDelivery: deps.videoDelivery,
       count: request.productCount,
       randomLinkVariation: request.randomLinkVariation,
-      rows: planned
+      rows: planned,
+      creatives: creativeCells,
+      rowCreatives
     });
     if (deps.rememberSheetRows) sheetRows = await deps.rememberSheetRows(sheetRows);
     if (deps.nativeSpreadsheet) nativeCatalogCellRows(sheetRows);
@@ -755,7 +979,8 @@ export async function createProductCatalog(
           sourceLink: request.sourceLink,
           productCount: request.productCount,
           sheetUrl,
-          videoLink: originalVideoLink,
+          // An image catalog has no video link (R19); the first creative is still its material.
+          videoLink: kind === 'image' ? null : originalVideoLink,
           ...(restitched && request.restitchOperationId
             ? {
                 currentVideoLink: videoLink,

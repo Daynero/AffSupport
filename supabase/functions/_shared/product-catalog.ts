@@ -27,6 +27,8 @@ import { isRecord } from './validation.ts';
  */
 
 import {
+  catalogIdPrefix,
+  catalogProductId,
   colorOf,
   contentId,
   drawProductDetails,
@@ -390,9 +392,156 @@ function catalogVideoVariation(link: string, mark: string): string {
  * US15). The owner names the catalog on Meta the same way, so the sheet, the product and the ad
  * account all say which video and which variation it is.
  */
-export function productCatalogName(videoName: string, variant: number): string {
+export function productCatalogName(videoName: string, variant: number, others = 0): string {
   const stem = videoName.replace(/\.[^.]+$/u, '');
-  return `${stem.length > 0 ? stem : videoName}_v${variant}_catalog`;
+  /* 062: a catalog of several creatives is named for the first, `+N` for the rest. */
+  const more = Number.isSafeInteger(others) && others > 0 ? `+${others}` : '';
+  return `${stem.length > 0 ? stem : videoName}${more}_v${variant}_catalog`;
+}
+
+export type CatalogCreativeKind = 'video' | 'image';
+
+/** 062: one creative as the catalog's settings snapshot keeps it (`_catalogCreatives`). */
+export interface CatalogSnapshotCreative {
+  ordinal: number;
+  materialId: string;
+  alias: string;
+  kind: CatalogCreativeKind;
+  imageId?: string;
+  /** The creative's current link in H (image) or the base of Z (video without restitch). */
+  link?: string;
+  linkKind?: 'r2' | 'drive';
+  linkRevision?: number;
+}
+
+/** 062: what a catalog's snapshot says about its creatives; null for a catalog from before. */
+export interface CatalogCreativeLayout {
+  kind: CatalogCreativeKind;
+  creatives: CatalogSnapshotCreative[];
+  /** The creative's ordinal for every row, in row order. */
+  rowCreatives: number[];
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+/** Reads `_catalogCreativeKind` / `_catalogCreatives` / `_catalogRowCreatives`. Absent → null; damaged → throws. */
+export function parseCatalogCreativeLayout(
+  snapshot: Record<string, unknown> | null | undefined,
+  productCount?: number
+): CatalogCreativeLayout | null {
+  if (
+    !snapshot ||
+    (snapshot._catalogCreativeKind === undefined &&
+      snapshot._catalogCreatives === undefined &&
+      snapshot._catalogRowCreatives === undefined)
+  )
+    return null;
+  const kind = snapshot._catalogCreativeKind;
+  const list = snapshot._catalogCreatives;
+  const rows = snapshot._catalogRowCreatives;
+  if (
+    (kind !== 'video' && kind !== 'image') ||
+    !Array.isArray(list) ||
+    list.length < 1 ||
+    list.length > PRODUCT_COUNT_MAX ||
+    !Array.isArray(rows) ||
+    rows.length < 1 ||
+    rows.length > PRODUCT_COUNT_MAX ||
+    (productCount !== undefined && rows.length !== productCount)
+  )
+    throw new Error('INVALID_CATALOG_CREATIVES');
+  const creatives: CatalogSnapshotCreative[] = list.map((entry, index) => {
+    if (
+      !isRecord(entry) ||
+      entry.ordinal !== index ||
+      typeof entry.materialId !== 'string' ||
+      !UUID_PATTERN.test(entry.materialId) ||
+      typeof entry.alias !== 'string' ||
+      entry.alias.length > 160 ||
+      entry.kind !== kind ||
+      (entry.imageId !== undefined &&
+        (typeof entry.imageId !== 'string' || !UUID_PATTERN.test(entry.imageId))) ||
+      (entry.link !== undefined &&
+        (typeof entry.link !== 'string' || !/^https:\/\/\S+$/u.test(entry.link))) ||
+      (entry.linkKind !== undefined && entry.linkKind !== 'r2' && entry.linkKind !== 'drive') ||
+      (entry.linkRevision !== undefined &&
+        (typeof entry.linkRevision !== 'number' || !Number.isSafeInteger(entry.linkRevision)))
+    )
+      throw new Error('INVALID_CATALOG_CREATIVES');
+    return {
+      ordinal: index,
+      materialId: entry.materialId,
+      alias: entry.alias,
+      kind,
+      ...(typeof entry.imageId === 'string' ? { imageId: entry.imageId } : {}),
+      ...(typeof entry.link === 'string' ? { link: entry.link } : {}),
+      ...(entry.linkKind === 'r2' || entry.linkKind === 'drive'
+        ? { linkKind: entry.linkKind }
+        : {}),
+      ...(typeof entry.linkRevision === 'number' ? { linkRevision: entry.linkRevision } : {})
+    };
+  });
+  const rowCreatives = rows.map(value => {
+    if (
+      typeof value !== 'number' ||
+      !Number.isSafeInteger(value) ||
+      value < 0 ||
+      value >= creatives.length
+    )
+      throw new Error('INVALID_CATALOG_CREATIVES');
+    return value;
+  });
+  // Blocks are contiguous and in creative order; every creative keeps at least one row.
+  for (let index = 1; index < rowCreatives.length; index += 1)
+    if (
+      rowCreatives[index]! < rowCreatives[index - 1]! ||
+      rowCreatives[index]! > rowCreatives[index - 1]! + 1
+    )
+      throw new Error('INVALID_CATALOG_CREATIVES');
+  if (rowCreatives[0] !== 0 || rowCreatives[rowCreatives.length - 1] !== creatives.length - 1)
+    throw new Error('INVALID_CATALOG_CREATIVES');
+  return { kind, creatives, rowCreatives };
+}
+
+/** The snapshot keys for a layout, ready to spread into `settings_snapshot`. */
+export function catalogCreativeSnapshot(layout: CatalogCreativeLayout): Record<string, unknown> {
+  return {
+    _catalogCreativeKind: layout.kind,
+    _catalogCreatives: layout.creatives.map(creative => ({ ...creative })),
+    _catalogRowCreatives: [...layout.rowCreatives]
+  };
+}
+
+/** Row ordinals from copies: contiguous blocks in creative order. */
+export function catalogRowCreatives(copies: readonly number[]): number[] {
+  return copies.flatMap((count, ordinal) => Array.from({ length: count }, () => ordinal));
+}
+
+/**
+ * 062: what a row's cells take from its creative. The ID is prefixed; Z is the creative's own
+ * video (with the row's `?v=`), or empty for an image; H is the creative's image link when it is
+ * already published, otherwise the row's own (white) picture; AA is empty for an image.
+ */
+export interface CatalogCreativeCells {
+  idPrefix: string | null;
+  kind: CatalogCreativeKind;
+  videoLink?: string | null;
+  imageLink?: string | null;
+}
+
+/** The cell inputs of a layout: prefixes from aliases, links from the creatives' current links. */
+export function catalogCreativeCells(
+  layout: CatalogCreativeLayout,
+  options: { imageLinks?: boolean } = {}
+): CatalogCreativeCells[] {
+  return layout.creatives.map(creative => ({
+    idPrefix: catalogIdPrefix(creative.alias),
+    kind: creative.kind,
+    ...(creative.kind === 'video' && creative.link ? { videoLink: creative.link } : {}),
+    ...(creative.kind === 'image' && options.imageLinks !== false && creative.link
+      ? { imageLink: creative.link }
+      : {})
+  }));
 }
 
 export const PRODUCT_CATALOG_TEMPLATE: readonly ProductCatalogColumn[] = [
@@ -653,7 +802,21 @@ export function buildProductCatalogRows(input: {
   newId?: () => string;
   /** Trusted frozen publication decision; never inferred from metadata video_link. */
   videoDelivery?: CatalogVideoCellDelivery;
+  /** 062: the catalog's creatives and, per row, which one it belongs to. */
+  creatives?: readonly CatalogCreativeCells[];
+  rowCreatives?: readonly number[];
 }): Cell[][] {
+  if (
+    (input.creatives === undefined) !== (input.rowCreatives === undefined) ||
+    (input.rowCreatives &&
+      (input.rowCreatives.length !== input.count ||
+        input.rowCreatives.some(
+          ordinal => !Number.isSafeInteger(ordinal) || !input.creatives![ordinal]
+        )))
+  )
+    throw new Error('INVALID_INPUT');
+  const creativeOf = (index: number): CatalogCreativeCells | null =>
+    input.rowCreatives ? input.creatives![input.rowCreatives[index - 1]!]! : null;
   if (
     input.videoDelivery?.kind === 'assigned' &&
     (input.videoDelivery.videoLinks.length !== input.count ||
@@ -690,12 +853,19 @@ export function buildProductCatalogRows(input: {
       const source = column.source;
       let cell: Cell;
       switch (source.kind) {
-        case 'contentId':
-          cell = text(newId());
+        case 'contentId': {
+          const creative = creativeOf(index);
+          cell = text(creative ? catalogProductId(creative.idPrefix, newId()) : newId());
           break;
-        case 'setting':
-          cell = settingCell(source.setting, index);
+        }
+        case 'setting': {
+          const creative = creativeOf(index);
+          cell =
+            source.setting === 'imageLink' && creative?.kind === 'image' && creative.imageLink
+              ? text(creative.imageLink)
+              : settingCell(source.setting, index);
           break;
+        }
         case 'sourceLink':
           cell = text(input.sourceLink);
           break;
@@ -703,6 +873,11 @@ export function buildProductCatalogRows(input: {
           cell = byColumn.get(source.column) ?? text('');
           break;
         case 'videoLink': {
+          const creative = creativeOf(index);
+          if (creative?.kind === 'image') {
+            cell = text('');
+            break;
+          }
           if (input.videoDelivery) {
             cell = text(
               input.videoDelivery.kind === 'deferred'
@@ -712,15 +887,17 @@ export function buildProductCatalogRows(input: {
             break;
           }
           const mark = input.rows?.[index - 1]?.videoParam ?? String(index).padStart(3, '0');
+          const base = creative?.videoLink ?? input.videoLink;
           cell = text(
-            input.randomLinkVariation === false
-              ? input.videoLink
-              : catalogVideoVariation(input.videoLink, mark)
+            input.randomLinkVariation === false ? base : catalogVideoVariation(base, mark)
           );
           break;
         }
         case 'rowDetail':
-          cell = detailCell(source.detail, index, source.fallback);
+          cell =
+            source.detail === 'videoTag' && creativeOf(index)?.kind === 'image'
+              ? text('')
+              : detailCell(source.detail, index, source.fallback);
           break;
         case 'blank':
           cell = text('');

@@ -216,6 +216,101 @@ export function contentId(now: number = Date.now(), random: () => number = Math.
   return `${stamp}-${tail}`;
 }
 
+/** Characters of a creative's name that prefix a product ID (062; shared CATALOG_ID_PREFIX_MAX). */
+export const CATALOG_ID_PREFIX_MAX = 40;
+
+/* Ukrainian national transliteration (КМУ 2010): the first form at the start of a word, the
+   second inside it. A few Russian letters are read the closest way, so a name typed in either
+   alphabet still makes a readable prefix. */
+const TRANSLIT: Record<string, readonly [string, string]> = {
+  а: ['a', 'a'],
+  б: ['b', 'b'],
+  в: ['v', 'v'],
+  г: ['h', 'h'],
+  ґ: ['g', 'g'],
+  д: ['d', 'd'],
+  е: ['e', 'e'],
+  є: ['ye', 'ie'],
+  ж: ['zh', 'zh'],
+  з: ['z', 'z'],
+  и: ['y', 'y'],
+  і: ['i', 'i'],
+  ї: ['yi', 'i'],
+  й: ['y', 'i'],
+  к: ['k', 'k'],
+  л: ['l', 'l'],
+  м: ['m', 'm'],
+  н: ['n', 'n'],
+  о: ['o', 'o'],
+  п: ['p', 'p'],
+  р: ['r', 'r'],
+  с: ['s', 's'],
+  т: ['t', 't'],
+  у: ['u', 'u'],
+  ф: ['f', 'f'],
+  х: ['kh', 'kh'],
+  ц: ['ts', 'ts'],
+  ч: ['ch', 'ch'],
+  ш: ['sh', 'sh'],
+  щ: ['shch', 'shch'],
+  ь: ['', ''],
+  ю: ['yu', 'iu'],
+  я: ['ya', 'ia'],
+  ы: ['y', 'y'],
+  э: ['e', 'e'],
+  ё: ['yo', 'io'],
+  ъ: ['', '']
+};
+
+/** A name in Latin letters: Cyrillic transliterated, accents dropped, everything else kept. */
+export function transliterateName(name: string): string {
+  const chars = [...name.normalize('NFC')];
+  let out = '';
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index]!;
+    const lower = char.toLowerCase();
+    const previous = index > 0 ? chars[index - 1]!.toLowerCase() : '';
+    // "зг" is written "zgh" so it is not read as "ж".
+    if (lower === 'г' && previous === 'з') {
+      out += char === lower ? 'gh' : 'Gh';
+      continue;
+    }
+    const pair = TRANSLIT[lower];
+    if (!pair) {
+      out += char.normalize('NFKD').replace(/\p{M}/gu, '');
+      continue;
+    }
+    const wordStart = index === 0 || !/[\p{L}'’ʼ]/u.test(chars[index - 1]!);
+    const latin = wordStart ? pair[0] : pair[1];
+    out += char !== lower && latin.length > 0 ? latin[0]!.toUpperCase() + latin.slice(1) : latin;
+  }
+  return out;
+}
+
+/**
+ * The product-ID prefix of a creative (062). A Launch alias is already `[A-Za-z0-9_-]` and is
+ * only cut to length; a video's name from the explorer loses its extension, is transliterated,
+ * and keeps only what an ID may hold. Never empty.
+ */
+export function catalogIdPrefix(name: string): string {
+  const stem = name.replace(/\.[A-Za-z0-9]{1,8}$/u, '');
+  const prefix = transliterateName(stem)
+    .replace(/['’ʼ]/gu, '')
+    .replace(/\s+/gu, '_')
+    .replace(/[^A-Za-z0-9_-]/gu, '')
+    .replace(/_{2,}/gu, '_')
+    .replace(/-{2,}/gu, '-')
+    .replace(/^[_-]+|[_-]+$/gu, '')
+    .slice(0, CATALOG_ID_PREFIX_MAX)
+    .replace(/[_-]+$/u, '');
+  return prefix.length > 0 ? prefix : 'creative';
+}
+
+/** A content ID under a creative's prefix; an older catalog without one keeps the bare ID. */
+export function catalogProductId(prefix: string | null, unique: string = contentId()): string {
+  return prefix ? `${prefix.slice(0, CATALOG_ID_PREFIX_MAX)}-${unique}`.slice(0, 100) : unique;
+}
+
 /** A whole-dollar price under `price`, at least a dollar: 15% to 40% off. */
 export function salePriceFor(price: number, random: () => number = Math.random): number {
   const cut = 0.6 + random() * 0.25;

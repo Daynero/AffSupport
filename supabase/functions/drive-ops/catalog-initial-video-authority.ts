@@ -19,10 +19,101 @@ import {
   acceptCatalogVideoSet,
   type CatalogVideoFreshSource
 } from './catalog-video-set-admission.ts';
-import type {
-  CatalogInitialVideoAuthority,
-  CatalogInitialVideoPlan
+import {
+  catalogPlanSegments,
+  catalogPlanVideoSets,
+  type CatalogInitialVideoAuthority,
+  type CatalogInitialVideoPlan
 } from './catalog-video-generation.ts';
+
+type PrepareResult = Awaited<ReturnType<CatalogInitialVideoAuthority['prepare']>>;
+
+/**
+ * 062: a catalog of several restitched videos has one set per video, each accepted with the
+ * Launch (never here). Ready means every set is ready; the links are each set's outputs over
+ * its own rows, joined in row order.
+ */
+async function prepareSegmentSets(
+  service: ServiceRpcClient,
+  identity: { teamId: string; actorId: string },
+  intentId: string,
+  plan: CatalogInitialVideoPlan,
+  resolveReadyLinks: (
+    setId: string,
+    recipeRevision: number,
+    rowIds: readonly string[]
+  ) => Promise<readonly string[]>
+): Promise<PrepareResult> {
+  const sets = catalogPlanVideoSets(plan, '');
+  let registered = 0;
+  let unknown = false;
+  let complete = true;
+  for (const set of sets) {
+    const accepted = await service.rpc('service_read_catalog_video_acceptance', {
+      p_set: set.setId,
+      p_team: identity.teamId,
+      p_actor: identity.actorId
+    });
+    if (
+      accepted.error ||
+      !isRecord(accepted.data) ||
+      accepted.data.catalogIntentId !== intentId ||
+      !isRecord(accepted.data.snapshot) ||
+      accepted.data.snapshot.setId !== set.setId ||
+      !Array.isArray(accepted.data.snapshot.children)
+    )
+      throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+    let children: unknown[] = accepted.data.snapshot.children;
+    if (
+      accepted.data.parentState === 'canceled' ||
+      accepted.data.parentState === 'cancel_requested'
+    )
+      return {
+        state: accepted.data.parentState,
+        registeredCount:
+          registered +
+          children.filter(child => isRecord(child) && child.state === 'registered').length
+      };
+    if (
+      children.some(
+        child => isRecord(child) && (child.state === 'unknown' || child.state === 'working')
+      )
+    ) {
+      let settled: Awaited<ReturnType<ServiceRpcClient['rpc']>> | null;
+      try {
+        settled = await service.rpc('service_retry_failed_catalog_video_variants', {
+          p_set: set.setId,
+          p_team: identity.teamId,
+          p_actor: identity.actorId
+        });
+      } catch {
+        settled = null;
+      }
+      if (
+        settled &&
+        !settled.error &&
+        isRecord(settled.data) &&
+        isRecord(settled.data.snapshot) &&
+        settled.data.snapshot.setId === set.setId &&
+        Array.isArray(settled.data.snapshot.children) &&
+        settled.data.snapshot.children.length === children.length
+      )
+        children = settled.data.snapshot.children;
+    }
+    const done = children.filter(
+      child => isRecord(child) && child.state === 'registered' && typeof child.outputId === 'string'
+    ).length;
+    registered += done;
+    if (done !== set.variantCount) complete = false;
+    if (children.some(child => isRecord(child) && child.state === 'unknown')) unknown = true;
+  }
+  if (!complete) return { state: unknown ? 'unknown' : 'preparing', registeredCount: registered };
+  if (plan.preferences.videoPublication.mode === 'scheduled')
+    return { state: 'ready', videoLinks: [] };
+  const links: string[] = [];
+  for (const set of sets) links.push(...(await resolveReadyLinks(set.setId, 1, set.rowIds)));
+  return { state: 'ready', videoLinks: links };
+}
 
 /** Server-owned callbacks retain existing Drive ancestry/access checks and
  * original-operation output resolution. No browser-supplied output URL is used. */
@@ -66,6 +157,8 @@ export function catalogInitialVideoAuthority(
     async prepare({ intentId, plan }) {
       if (identity.readyCatalogIntentId && identity.readyCatalogIntentId !== intentId)
         throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+      if (catalogPlanVideoSets(plan, identity.sourceMaterialId).length > 1)
+        return prepareSegmentSets(service, identity, intentId, plan, identity.resolveReadyLinks);
       let accepted = await service.rpc('service_read_catalog_video_acceptance', {
         p_set: plan.setId,
         p_team: identity.teamId,
@@ -371,6 +464,70 @@ export async function createCatalogInitialVideoAuthority(
   const parsed = parseTeamRestitchDefaults(defaults);
   if (!parsed.ok) throw new TeamFunctionError('RESTITCH_INVALID');
   let indexedVersion = typeof original.version === 'string' ? original.version : null;
+  /**
+   * 062: an original video other than the first, proven and captured for the catalog's
+   * publication target the same way the first one is.
+   */
+  const captureOtherSource = async (materialId: string, intentId: string) => {
+    const context = await service.rpc('service_initial_catalog_video_context', {
+      p_team: identity.teamId,
+      p_actor: identity.actorId,
+      p_source: materialId,
+      p_executor: null,
+      p_require_executor: false
+    });
+    if (context.error || !isRecord(context.data) || !isRecord(context.data.material))
+      throw new TeamFunctionError('PERMISSION_DENIED');
+    const material = context.data.material;
+    const value = (key: string) => {
+      if (typeof material[key] !== 'string') throw new TeamFunctionError('INVALID_RESPONSE');
+      return material[key] as string;
+    };
+    const drive = await driveFor(value('credentialId'));
+    await proveLiveAncestry({
+      client: drive,
+      fileId: value('fileId'),
+      rootFolderId: value('rootFolderId'),
+      maximumDepth: 16
+    });
+    const live = await drive.getFile(value('fileId'));
+    if (
+      !live.version ||
+      !live.checksum ||
+      live.size === null ||
+      live.capabilities.canDownload !== true
+    )
+      throw new TeamFunctionError('SOURCE_CHANGED');
+    const result = await service.rpc('service_capture_initial_catalog_publication_source', {
+      p_team: identity.teamId,
+      p_actor: identity.actorId,
+      p_intent: intentId,
+      p_source: materialId,
+      p_connection: value('connectionId'),
+      p_file: value('fileId'),
+      p_expected_version: typeof material.version === 'string' ? material.version : null,
+      p_observed: {
+        fileId: live.id,
+        version: live.version,
+        checksum: live.checksum,
+        sizeBytes: live.size,
+        mimeType: live.mimeType
+      }
+    });
+    if (result.error?.message === 'PERMISSION_DENIED')
+      throw new TeamFunctionError('PERMISSION_DENIED');
+    if (result.error?.message === 'WRONG_STATE') throw new TeamFunctionError('WRONG_STATE');
+    if (result.error || !isRecord(result.data) || result.data.version !== live.version)
+      throw new TeamFunctionError('SOURCE_CHANGED');
+  };
+  /** Every original a source-only publication links: the first, then the other videos. */
+  const refreshSources = async (plan: CatalogInitialVideoPlan, intentId: string) => {
+    const segments = catalogPlanSegments(plan);
+    if (segments?.[0]?.kind === 'image') return;
+    await refreshOriginal(intentId);
+    for (const segment of segments ?? [])
+      if (segment.ordinal > 0) await captureOtherSource(segment.materialId, intentId);
+  };
   const refreshOriginal = async (intentId?: string) => {
     const drive = await driveFor(credentialId);
     await proveLiveAncestry({ client: drive, fileId, rootFolderId: root, maximumDepth: 16 });
@@ -462,7 +619,8 @@ export async function createCatalogInitialVideoAuthority(
     verifyAndRegisterCreated: async (intentId, plan, catalogMaterialId) => {
       // Original sharing may advance only metadata. Refresh before freezing a
       // source-only publication target; copied-N creation never shares original.
-      if (!plan.preferences.restitchEnabled) await refreshOriginal(intentId);
+      if (!plan.preferences.restitchEnabled) await refreshSources(plan, intentId);
+      const sets = catalogPlanVideoSets(plan, identity.sourceMaterialId);
       await verifyInitialCatalogPublication(
         service,
         { teamId: identity.teamId, actorId: identity.actorId, intentId, catalogMaterialId },
@@ -471,10 +629,10 @@ export async function createCatalogInitialVideoAuthority(
           ? plan.preferences.videoPublication.mode === 'scheduled'
             ? undefined
             : async () => {
-                await resolveReadyLinks(plan.setId!, 1, plan.recipeRowIds);
+                for (const set of sets) await resolveReadyLinks(set.setId, 1, set.rowIds);
               }
           : async () => {
-              await refreshOriginal(intentId);
+              await refreshSources(plan, intentId);
             }
       );
     }

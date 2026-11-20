@@ -28,8 +28,11 @@ import {
   PRODUCT_COUNT_MAX,
   randomPrice,
   automaticCatalogRow,
+  catalogCreativeSnapshot,
+  parseCatalogCreativeLayout,
   parseCatalogRowRecipe,
   takeMatchingText,
+  type CatalogCreativeLayout,
   type Cell,
   type ProductCatalogRowDetails,
   type ProductCatalogRowValues,
@@ -103,6 +106,8 @@ export interface ClaimedCatalog {
   currentVideoLink: string | null;
   /** The spare to swap to at this update, when one is ready. */
   spare: { materialId: string; link: string } | null;
+  /** 062: the catalog's creatives from its snapshot; absent for a catalog from before. */
+  creatives?: CatalogCreativeLayout;
 }
 
 export interface RetiredCopy {
@@ -117,6 +122,8 @@ export interface CatalogNonVideoUpdate {
   contextToken: string;
   productCount: number;
   videoCells: readonly string[];
+  /** 062: H cells of an image catalog, as stored; only the publication lane writes them. */
+  imageCells?: readonly string[];
   recipeRowIds?: readonly string[];
   write(rows: Cell[][], marker: string): Promise<void>;
   verify(marker: string): Promise<void>;
@@ -321,6 +328,9 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
   const price = settings ? wholeNumber(settings.price) : null;
   const spareMaterialId = text(row.spare_material_id);
   const spareLink = text(row.spare_link);
+  // 062: a damaged layout throws, and the claim is parked like any unreadable row.
+  const creatives =
+    settings && productCount !== null ? parseCatalogCreativeLayout(settings, productCount) : null;
   if (
     !catalogId ||
     attempts === null ||
@@ -328,7 +338,8 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
     productCount === null ||
     productCount < 1 ||
     !sourceLink ||
-    !videoLink ||
+    // An image catalog has no video (R19).
+    (!videoLink && creatives?.kind !== 'image') ||
     !driveFileId ||
     !credentialId ||
     !settings ||
@@ -340,6 +351,9 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
     return null;
   }
   const rows = parseSnapshotRows(settings.rows, productCount);
+  // 062 (R34): several creatives or images hide these actions; a stored flag is ignored.
+  const restricted =
+    creatives !== null && (creatives.creatives.length > 1 || creatives.kind === 'image');
   return {
     catalogId,
     imageAttemptId: text(row.image_attempt_id) ?? undefined,
@@ -348,7 +362,8 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
     updateCount,
     productCount,
     sourceLink,
-    videoLink,
+    videoLink: videoLink ?? '',
+    ...(creatives ? { creatives } : {}),
     settings: {
       title: settings.title,
       description: settings.description,
@@ -357,14 +372,14 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
     },
     ...(rows ? { rows } : {}),
     teamId: text(row.team_id),
-    refreshImages: row.refresh_images !== false,
+    refreshImages: !restricted && row.refresh_images !== false,
     refreshTexts: row.refresh_texts !== false,
     randomLinkVariation:
       row.random_link_variation === undefined
         ? settings.randomLinkVariation !== false
         : row.random_link_variation !== false,
     priceRange: priceRangeOf(row),
-    growProducts: row.grow_products === true,
+    growProducts: !restricted && row.grow_products === true,
     driveFileId,
     resourceKey: text(row.resource_key),
     credentialId,
@@ -810,6 +825,17 @@ async function updateOne(
       )
         throw new TeamFunctionError('CATALOG_PUBLICATION_PENDING', { retryable: false });
     }
+    // 062: one link written over every row would mix several videos or cover images:
+    // such a catalog is only ever written by the targeted writer, under its policy.
+    const layout = item.creatives;
+    if (!nonVideo && layout && (layout.creatives.length > 1 || layout.kind === 'image'))
+      throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
+    if (
+      layout?.kind === 'image' &&
+      nonVideo &&
+      nonVideo.imageCells?.length !== nonVideo.productCount
+    )
+      throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
     const swappedCopy = nonVideo ? null : (item.spare?.materialId ?? null);
     await deps.progress(item.catalogId, 'preparing').catch(() => false);
     const drive = await deps.driveFor(item.credentialId);
@@ -872,6 +898,16 @@ async function updateOne(
           .resolveVideoLink?.(item.catalogId, item.spare?.materialId ?? null)
           .catch(() => null);
     await deps.progress(item.catalogId, 'building').catch(() => false);
+    // Added rows belong to the last creative; growth is offered only to a single creative.
+    if (layout && layout.creatives.length > 1 && count !== layout.rowCreatives.length)
+      throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
+    const grownLayout: CatalogCreativeLayout | undefined = layout && {
+      ...layout,
+      rowCreatives: Array.from(
+        { length: count },
+        (_, index) => layout.rowCreatives[index] ?? layout.creatives.length - 1
+      )
+    };
     const builtRows = rebuildCatalogRows({
       record: {
         settings: item.settings,
@@ -879,11 +915,16 @@ async function updateOne(
         videoLink: item.videoLink,
         productCount: count,
         randomLinkVariation: item.randomLinkVariation,
-        rows
+        // AA of an image row is written empty by the builder, whatever the row's tag says.
+        rows,
+        ...(grownLayout ? { creatives: grownLayout } : {})
       },
       videoLinkOverride:
         videoR2?.kind === 'r2' ? videoR2.url : (item.spare?.link ?? item.currentVideoLink),
-      ...(nonVideo ? { preservedVideoCells: nonVideo.videoCells } : {})
+      ...(nonVideo ? { preservedVideoCells: nonVideo.videoCells } : {}),
+      ...(nonVideo && grownLayout?.kind === 'image'
+        ? { preservedImageCells: nonVideo.imageCells }
+        : {})
     });
     const bytes = nonVideo
       ? null
@@ -907,6 +948,9 @@ async function updateOne(
           productCount: count,
           snapshot: { ...item.settings, randomLinkVariation: item.randomLinkVariation !== false }
         };
+    // 062: the snapshot is replaced as a whole on completion; the creatives travel with it.
+    if (grownLayout)
+      became.snapshot = { ...became.snapshot, ...catalogCreativeSnapshot(grownLayout) };
     if (nonVideo) {
       const idColumn = PRODUCT_CATALOG_TEMPLATE.findIndex(
         column => column.source.kind === 'contentId'

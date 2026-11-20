@@ -11,6 +11,9 @@ import { TeamFunctionError } from './errors.ts';
 import {
   PRODUCT_CATALOG_TEMPLATE,
   buildProductCatalogRows,
+  catalogCreativeCells,
+  type CatalogCreativeKind,
+  type CatalogCreativeLayout,
   type Cell,
   type ProductCatalogRowValues,
   type ProductCatalogSettingsValues
@@ -46,6 +49,8 @@ export interface CatalogRecord {
   sourceLink: string;
   videoLink: string;
   productCount: number;
+  /** 062: the catalog's creatives from its snapshot; absent for a catalog from before (no prefix). */
+  creatives?: CatalogCreativeLayout;
 }
 
 const ID_COLUMN = PRODUCT_CATALOG_TEMPLATE.findIndex(column => column.source.kind === 'contentId');
@@ -68,28 +73,59 @@ export function rebuildCatalogRows(input: {
   newId?: () => string;
   /** Exact stored video cells from a bounded provider read, including proven blanks. */
   preservedVideoCells?: readonly string[];
+  /** 062: exact stored H cells of an image catalog; only the publication lane writes them. */
+  preservedImageCells?: readonly string[];
 }): Cell[][] {
-  const preserved = input.preservedVideoCells;
-  if (
-    preserved &&
-    (preserved.length !== input.record.productCount ||
-      preserved.some(v => typeof v !== 'string' || v.length > 8192))
-  )
-    throw new TeamFunctionError('INVALID_INPUT');
+  const count = input.record.productCount;
+  for (const preserved of [input.preservedVideoCells, input.preservedImageCells])
+    if (
+      preserved &&
+      (preserved.length !== count || preserved.some(v => typeof v !== 'string' || v.length > 8192))
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
+  const layout = input.record.creatives;
+  if (layout && layout.rowCreatives.length !== count) throw new TeamFunctionError('INVALID_INPUT');
   const rows = buildProductCatalogRows({
     settings: input.record.settings,
     sourceLink: input.record.sourceLink,
     videoLink: input.videoLinkOverride ?? input.record.videoLink,
-    count: input.record.productCount,
+    count,
     randomLinkVariation: input.record.randomLinkVariation,
     rows: input.record.rows,
-    newId: input.newId
+    newId: input.newId,
+    ...(layout
+      ? {
+          // A video override belongs to a single-video catalog; the creative's own link is
+          // the base only when nothing replaces it. H of an image catalog is never rebuilt.
+          creatives: catalogCreativeCells(layout).map(cells =>
+            input.videoLinkOverride ? { ...cells, videoLink: null } : cells
+          ),
+          rowCreatives: layout.rowCreatives
+        }
+      : {})
   });
-  if (preserved)
-    for (let index = 0; index < preserved.length; index++)
+  if (input.preservedVideoCells)
+    for (let index = 0; index < count; index++)
       for (const column of catalogVideoColumnIndices())
-        rows[index + 2]![column] = { t: 'string', v: preserved[index]! };
+        rows[index + 2]![column] = { t: 'string', v: input.preservedVideoCells[index]! };
+  if (input.preservedImageCells)
+    for (let index = 0; index < count; index++)
+      rows[index + 2]![CATALOG_IMAGE_COLUMN] = {
+        t: 'string',
+        v: input.preservedImageCells[index]!
+      };
   return rows;
+}
+
+/** H, `image_link`: the picture cell an image catalog's publication lane owns (062, R30). */
+export const CATALOG_IMAGE_COLUMN = PRODUCT_CATALOG_TEMPLATE.findIndex(
+  column => column.source.kind === 'setting' && column.source.setting === 'imageLink'
+);
+
+/** Columns a targeted nonvideo writer must not touch: video cells, and H for an image catalog. */
+export function catalogPreservedColumnIndices(kind: CatalogCreativeKind = 'video'): number[] {
+  const video = catalogVideoColumnIndices();
+  return kind === 'image' ? [...video, CATALOG_IMAGE_COLUMN].sort((a, b) => a - b) : video;
 }
 
 /** Includes copied video columns; a targeted nonvideo writer must exclude the
@@ -111,7 +147,11 @@ export function catalogVideoColumnIndices(): number[] {
 
 /** Never includes video cells, even empty ones. Values are explicit strings in
  * the native Sheets adapter, so refreshed user text cannot become a formula. */
-export function catalogNonVideoCellUpdates(rows: readonly (readonly Cell[])[], sheetId: number) {
+export function catalogNonVideoCellUpdates(
+  rows: readonly (readonly Cell[])[],
+  sheetId: number,
+  kind: CatalogCreativeKind = 'video'
+) {
   if (
     !Number.isSafeInteger(sheetId) ||
     sheetId < 0 ||
@@ -120,7 +160,7 @@ export function catalogNonVideoCellUpdates(rows: readonly (readonly Cell[])[], s
     rows.some(row => row.length !== PRODUCT_CATALOG_TEMPLATE.length)
   )
     throw new TeamFunctionError('INVALID_INPUT');
-  const excluded = new Set(catalogVideoColumnIndices());
+  const excluded = new Set(catalogPreservedColumnIndices(kind));
   return PRODUCT_CATALOG_TEMPLATE.flatMap((_, columnIndex) =>
     excluded.has(columnIndex)
       ? []

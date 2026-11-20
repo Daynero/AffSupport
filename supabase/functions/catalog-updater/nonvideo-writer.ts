@@ -3,7 +3,9 @@ import { proveLiveAncestry, type GoogleDriveClient } from '../_shared/drive.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
 import {
+  CATALOG_IMAGE_COLUMN,
   catalogNonVideoCellUpdates,
+  catalogPreservedColumnIndices,
   catalogVideoColumnIndices
 } from '../_shared/catalog-updater.ts';
 import {
@@ -84,7 +86,9 @@ export function createCatalogNonVideoUpdater(
       throw new TeamFunctionError('CATALOG_PUBLICATION_PENDING', { retryable: false });
     const id = PRODUCT_CATALOG_TEMPLATE.findIndex(column => column.source.kind === 'contentId');
     const observed = new Map<number, string[]>();
-    for (const column of catalogVideoColumnIndices()) {
+    // 062: an image catalog's H is the publication lane's, read and kept like the video cells.
+    const kind = item.creatives?.kind ?? 'video';
+    for (const column of catalogPreservedColumnIndices(kind)) {
       const actual = await drive.readNativeCatalogColumns({
         fileId: item.driveFileId,
         sheetName: PRODUCT_CATALOG_SHEET_NAME,
@@ -109,18 +113,21 @@ export function createCatalogNonVideoUpdater(
     }
     const after = await drive.getFile(item.driveFileId, item.resourceKey);
     if (after.version !== before.version || after.trashed) throw uncertain();
-    const cells = observed.values().next().value as string[] | undefined;
+    const cells = observed.get(catalogVideoColumnIndices()[0]!);
     if (!cells) throw uncertain();
+    const imageCells = kind === 'image' ? observed.get(CATALOG_IMAGE_COLUMN) : undefined;
+    if (kind === 'image' && !imageCells) throw uncertain();
     return {
       contextToken: c.contextToken,
       productCount: productCount,
       videoCells: cells.slice(2),
+      ...(imageCells ? { imageCells: imageCells.slice(2) } : {}),
       ...(Array.isArray(c.recipeRowIds) ? { recipeRowIds: c.recipeRowIds as string[] } : {}),
       async write(rows, marker) {
         if (rows.length !== productCount + 2) throw uncertain();
         await drive.writeNativeSpreadsheetCells({
           fileId: item.driveFileId,
-          updates: catalogNonVideoCellUpdates(rows, sheet.sheetId),
+          updates: catalogNonVideoCellUpdates(rows, sheet.sheetId, kind),
           marker: {
             key: CATALOG_NONVIDEO_MARKER,
             value: marker,

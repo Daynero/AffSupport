@@ -2,13 +2,21 @@ import type { CatalogVideoForegroundExecutor } from '../../../packages/shared/di
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
-import type { LaunchConfig } from '../../../packages/shared/dist/team/launches.js';
+import {
+  launchCreativesOf,
+  type LaunchConfig
+} from '../../../packages/shared/dist/team/launches.js';
 import {
   parseTeamRestitchDefaults,
   type TeamRestitchDefaults
 } from '../../../packages/shared/dist/team/restitch.js';
 import { createCatalogVideoAssignment } from '../../../packages/shared/dist/team/catalog-video-set.js';
-import { createCatalogInitialVideoPlan } from './catalog-video-generation.ts';
+import {
+  catalogPlanSegments,
+  catalogSegmentRowIds,
+  createCatalogInitialVideoPlanV2,
+  type CatalogCreativeKind
+} from './catalog-video-generation.ts';
 import { catalogVideoSettingsDigest } from './catalog-video-set-admission.ts';
 /** Trusted generation admission only. Settings, executor authority, clock and
  * all random identifiers are captured before the atomic SQL acceptance. */
@@ -26,6 +34,12 @@ export async function prepareLaunchCatalogVideoAdmission(
   const { teamId, actorId, config } = input;
   if (config.method !== 'catalog' || config.catalog.catalogVideoProtocolVersion !== 1)
     throw new TeamFunctionError('INVALID_INPUT');
+  // 062: the creatives in order; an older config reads as its one video.
+  const creatives = launchCreativesOf(config);
+  const kind: CatalogCreativeKind = config.creativeKind ?? 'video';
+  const several = creatives.length > 1;
+  if (creatives.length < 1 || (kind === 'image' && config.catalog.restitchEnabled))
+    throw new TeamFunctionError('INVALID_INPUT');
   const context = await service.rpc('service_initial_catalog_video_context', {
     p_team: teamId,
     p_actor: actorId,
@@ -35,8 +49,10 @@ export async function prepareLaunchCatalogVideoAdmission(
   });
   if (context.error || !isRecord(context.data))
     throw new TeamFunctionError('TEAM_TRANSPORT_UNAVAILABLE');
+  // The foreground controller drives one set per enrollment (R6): several videos go to
+  // the background executor, and an offered foreground enrollment is retired below.
   const executorId =
-    config.catalog.restitchEnabled && input.foregroundExecutor
+    config.catalog.restitchEnabled && input.foregroundExecutor && !several
       ? input.foregroundExecutor.enrollmentId
       : config.catalog.restitchEnabled && typeof context.data.executorId === 'string'
         ? context.data.executorId
@@ -62,9 +78,26 @@ export async function prepareLaunchCatalogVideoAdmission(
       : {}),
     // The accepted request payload is these preferences over the base fields, frozen in SQL
     // and replayed verbatim by the catalog step: an option left out here never reaches it.
-    ...(config.catalog.copyVideoToR2 === true ? { copyVideoToR2: true as const } : {})
+    ...(config.catalog.copyVideoToR2 === true ? { copyVideoToR2: true as const } : {}),
+    // 062: the catalog step reads which creative owns which rows from the frozen payload.
+    ...(config.creatives
+      ? {
+          creativeKind: kind,
+          creatives: creatives.map(creative => ({
+            materialId: creative.materialId,
+            alias: creative.alias,
+            copies: creative.copies
+          }))
+        }
+      : {})
   };
-  let plan = createCatalogInitialVideoPlan(preferences, config.catalog.productCount, read.data);
+  let plan = await createCatalogInitialVideoPlanV2(
+    preferences,
+    kind,
+    creatives,
+    config.catalog.productCount,
+    read.data
+  );
   let settings: TeamRestitchDefaults | null = null;
   if (config.catalog.restitchEnabled) {
     const saved = parseTeamRestitchDefaults(context.data.defaults ?? {});
@@ -86,7 +119,8 @@ export async function prepareLaunchCatalogVideoAdmission(
   }
   const settingsDigest = settings ? await catalogVideoSettingsDigest(settings) : null;
   let acceptedExecutor = executorId;
-  if (settings && input.launchId) {
+  // A ready set of an earlier Launch is reused only for a single video (R5).
+  if (settings && input.launchId && !several) {
     const reuse = await service.rpc('service_find_launch_catalog_video_reuse', {
       p_team: teamId,
       p_launch: input.launchId,
@@ -116,13 +150,19 @@ export async function prepareLaunchCatalogVideoAdmission(
         setId: frozen.setId as string,
         assignmentSeed: frozen.assignmentSeed as string,
         recipeRowIds: frozen.recipeRowIds as string[],
-        childRequestIds: frozen.childRequestIds as string[]
+        childRequestIds: frozen.childRequestIds as string[],
+        segments: plan.segments?.map(segment => ({
+          ...segment,
+          setId: frozen.setId as string,
+          assignmentSeed: frozen.assignmentSeed as string,
+          childRequestIds: frozen.childRequestIds as string[]
+        }))
       };
       settings = reuse.data.settings as unknown as TeamRestitchDefaults;
     }
   }
   if (input.foregroundExecutor) {
-    if (plan.setId && acceptedExecutor === input.foregroundExecutor.enrollmentId) {
+    if (!several && plan.setId && acceptedExecutor === input.foregroundExecutor.enrollmentId) {
       const { expectedExecutorId: _backgroundExecutor, ...foregroundPreferences } = preferences;
       void _backgroundExecutor;
       preferences = {
@@ -141,18 +181,26 @@ export async function prepareLaunchCatalogVideoAdmission(
   }
   if (config.catalog.restitchEnabled && !acceptedExecutor)
     throw new TeamFunctionError('AGENT_REQUIRED', { retryable: false });
+  const segments = catalogPlanSegments(plan) ?? [];
+  // One assignment per restitched video, over its own rows and with its own seed. A single
+  // video keeps the plan's rows and seed, exactly as before 062.
+  const segmentAssignments = segments.map(segment =>
+    segment.setId
+      ? createCatalogVideoAssignment({
+          recipeRevision: 1,
+          recipeRowIds: several ? catalogSegmentRowIds(plan, segment) : plan.recipeRowIds,
+          variantCount: several ? segment.variantCount : preferences.videoVariationCount,
+          seed: several ? segment.assignmentSeed : plan.assignmentSeed
+        }).assignments
+      : []
+  );
   return {
     plan,
     executorId: acceptedExecutor,
     settings,
     settingsDigest,
-    assignments: config.catalog.restitchEnabled
-      ? createCatalogVideoAssignment({
-          recipeRevision: 1,
-          recipeRowIds: plan.recipeRowIds,
-          variantCount: preferences.videoVariationCount,
-          seed: plan.assignmentSeed
-        }).assignments
-      : []
+    // Rows are disjoint between segments, so the concatenation names each row once.
+    assignments: segmentAssignments.flat(),
+    ...(several ? { segmentAssignments } : {})
   };
 }

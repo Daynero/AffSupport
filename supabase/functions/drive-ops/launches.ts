@@ -40,6 +40,20 @@ export interface LaunchGenerationDeps {
     source: LaunchSourceSnapshot
   ) => Promise<void>;
 }
+/**
+ * 062: the source snapshot of each creative after the first, so each one is proven against
+ * the identity the server resolved for it (the first is the snapshot itself).
+ */
+export function launchOtherMaterialSnapshots(source: LaunchSourceSnapshot): LaunchSourceSnapshot[] {
+  return (source.materials ?? []).slice(1).map(material => ({
+    ...source,
+    materialId: material.materialId,
+    materialType: material.type,
+    materialVersion: material.version,
+    ...(material.checksum !== undefined ? { materialChecksum: material.checksum } : {}),
+    ...(material.driveFileId !== undefined ? { materialDriveFileId: material.driveFileId } : {})
+  }));
+}
 async function rpc(
   client: ServiceRpcClient,
   name: string,
