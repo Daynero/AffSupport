@@ -399,7 +399,7 @@ describe('createProductCatalog with images', () => {
 
   it('writes white texts and the creative in H, with no video, tag or video link', async () => {
     const { deps, drive, captured } = setup({ kind: 'image' });
-    await createProductCatalog(deps, images(), ACTOR);
+    await createProductCatalog(deps, images({ copyVideoToR2: true }), ACTOR);
     // The white pool is drawn exactly as for a white catalog.
     expect(deps.drawImages).toHaveBeenCalledWith(TEAM, 3, expect.anything());
     const rows = captured.rows!;
@@ -411,8 +411,11 @@ describe('createProductCatalog with images', () => {
     expect(cells(rows, Z)).toEqual(['', '', '']);
     expect(cells(rows, AA)).toEqual(['', '', '']);
     expect(cells(rows, column('title'))).toEqual(['Polo', 'Polo', 'Polo']);
-    // The images themselves are never opened to anyone here: their link is published.
+    // With R2 the images themselves are never opened to anyone: their copy is published.
     expect(drive.createAnyoneReaderPermission.mock.calls.map(call => call[0])).toEqual(['sheet']);
+    expect(deps.publishCreativeImages).toHaveBeenCalledWith(
+      expect.objectContaining({ copyToR2: true })
+    );
     const record = deps.link.mock.calls[0][0].record;
     expect(record.videoLink).toBeNull();
     expect(record.settingsSnapshot._catalogCreativeKind).toBe('image');
@@ -422,6 +425,26 @@ describe('createProductCatalog with images', () => {
       imageId: '62000000-0000-4000-8000-000000000201'
     });
     expect(record.settingsSnapshot.rows.every(row => row.videoTag === '')).toBe(true);
+  });
+
+  it('opens Drive images to anyone with the link when R2 is off', async () => {
+    const { deps, drive } = setup({
+      kind: 'image',
+      images: ordinal => ({
+        link: `https://drive.google.com/uc?export=view&id=drive-${ordinal + 1}`,
+        linkKind: 'drive'
+      })
+    });
+    await createProductCatalog(deps, images(), ACTOR);
+    expect(drive.createAnyoneReaderPermission.mock.calls.map(call => call[0])).toEqual([
+      'drive-1',
+      'drive-2',
+      'sheet'
+    ]);
+    expect(deps.loadVideo).toHaveBeenCalledWith(expect.objectContaining({ permission: 'edit' }));
+    const snapshot = deps.link.mock.calls[0][0].record.settingsSnapshot;
+    expect(snapshot._catalogCreatives[0]).toMatchObject({ linkKind: 'drive' });
+    expect(snapshot._catalogCreatives[0].imageId).toBeUndefined();
   });
 
   it('keeps white pictures in H until a scheduled publication', async () => {

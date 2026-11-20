@@ -612,7 +612,7 @@ interface ProvenCreative {
   live: DriveFileMetadata;
 }
 
-/** Opens a proven video to anyone with the link, as the first video always was. */
+/** Opens a proven creative to anyone with the link, as the first video always was. */
 async function shareCreativeVideo(
   deps: ProductCatalogDeps,
   teamId: string,
@@ -738,6 +738,13 @@ export async function createProductCatalog(
     creativeVideoLinks.push(
       videoShareLink(creative.live.id, creative.live.resourceKey ?? creative.material.resourceKey)
     );
+  }
+  // Without R2 an image creative is linked from Drive, so it is opened to anyone with the
+  // link the same way a video is (and needs `edit` for that).
+  if (kind === 'image' && request.copyVideoToR2 !== true) {
+    if (videoPermissions.length === 0)
+      await shareCreativeVideo(deps, teamId, actorId, { material: video, drive, live: liveVideo });
+    for (const creative of proven) await shareCreativeVideo(deps, teamId, actorId, creative);
   }
   // Image creatives are published (R2 or Drive) and anonymously verified before any sheet exists.
   const imageLinks =

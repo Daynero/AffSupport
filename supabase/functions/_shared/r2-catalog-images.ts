@@ -76,7 +76,8 @@ export class CatalogImageR2 {
   ) {}
 
   private endpoint(kind: 'staging' | 'public', key: string): URL {
-    if (!(kind === 'public' ? /^(?:v1|g1)\/[a-f0-9-]{36}$/u : /^[a-f0-9-]{36}$/u).test(key))
+    // c1/: a Launch's image creative (062), same shape as the pool's v1/ and g1/.
+    if (!(kind === 'public' ? /^(?:v1|g1|c1)\/[a-f0-9-]{36}$/u : /^[a-f0-9-]{36}$/u).test(key))
       throw new TeamFunctionError('INVALID_INPUT');
     return new URL(
       `https://${this.config.accountId}.r2.cloudflarestorage.com/${kind === 'staging' ? this.config.stagingBucket : this.config.publicBucket}/${key}`

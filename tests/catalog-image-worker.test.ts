@@ -341,6 +341,8 @@ describe('catalog image worker publication receipts and recovery', () => {
       });
       expect(remove).toHaveBeenCalledWith('staging', STAGING, expect.any(AbortSignal));
       expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+        // 062: retired Launch image creatives are swept first, bounded and isolated.
+        'service_sweep_launch_creative_images',
         'service_catalog_image_purge_claim_v2',
         'service_catalog_image_purge_finish_v2',
         'service_catalog_image_kick_v2'

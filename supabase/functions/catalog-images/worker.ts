@@ -23,12 +23,8 @@ import { optimizeCatalogImage } from '../_shared/catalog-image-optimization.ts';
 
 const PERMIT = createCatalogImagePermit();
 
-export interface CatalogDriveEnumeration {
-  entries: Record<string, unknown>[];
-  cursor: unknown[];
-  complete: boolean;
-  more: boolean;
-}
+import type { CatalogDriveEnumeration } from '../_shared/catalog-drive-image-read.ts';
+export type { CatalogDriveEnumeration };
 export interface CatalogImageWorkerDeps {
   service: CatalogImageRpc;
   r2: CatalogImageR2;
@@ -70,6 +66,44 @@ function candidateOf(raw: unknown): Candidate {
   };
 }
 
+const CREATIVE_SWEEP_LIMIT = 2;
+
+/**
+ * Removes retired `c1/` objects. Bounded per invocation and isolated: a sweep that cannot
+ * run (or one object that cannot be removed) never stops the pool's own work; an object is
+ * marked purged only after its removal was proven.
+ */
+export async function sweepCreativeImages(
+  deps: Pick<CatalogImageWorkerDeps, 'service' | 'r2'>,
+  signal: AbortSignal
+): Promise<number> {
+  let rows: unknown;
+  try {
+    rows = await catalogImageRpc(deps.service, 'service_sweep_launch_creative_images', {
+      p_limit: CREATIVE_SWEEP_LIMIT
+    });
+  } catch {
+    return 0;
+  }
+  let removed = 0;
+  for (const raw of Array.isArray(rows) ? rows.slice(0, CREATIVE_SWEEP_LIMIT) : []) {
+    try {
+      const row = catalogImageObject(raw);
+      const id = catalogImageId(row.id);
+      const key = catalogImageString(row.object_key, 64);
+      if (!/^c1\/[0-9a-f-]{36}$/u.test(key)) continue;
+      await deps.r2.remove('public', key, signal);
+      await catalogImageRpc(deps.service, 'service_mark_launch_creative_image_purged', {
+        p_id: id
+      });
+      removed += 1;
+    } catch {
+      // Left retiring; the next pass tries again.
+    }
+  }
+  return removed;
+}
+
 export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promise<unknown> {
   const release = PERMIT.acquire();
   if (!release) return { busy: true, retryAfterSeconds: 5 };
@@ -84,6 +118,10 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
   const rpc = (name: string, parameters: Record<string, unknown>) =>
     catalogImageRpc(deps.service, name, parameters);
   try {
+    // 062: a Launch's image creative no catalog uses any more, past its grace, leaves the
+    // public bucket the way a pool picture does (delete, prove 404, purge the CDN).
+    const creatives = await sweepCreativeImages(deps, abort.signal);
+    if (creatives > 0) purgeClaimed = true;
     // Revocation/team deletion remains available when new imports are disabled.
     const purgeRaw = await rpc('service_catalog_image_purge_claim_v2', {});
     if (purgeRaw !== null) {

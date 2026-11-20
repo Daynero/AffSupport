@@ -67,6 +67,11 @@ import {
   resumeOrReadInitialCatalog
 } from './catalog-durable.ts';
 import { generateLaunch, launchOtherMaterialSnapshots } from './launches.ts';
+import { createCreativeImagePublisher } from './creative-images.ts';
+import { createCatalogImageDriveSources } from '../_shared/catalog-drive-image-read.ts';
+import { catalogImageObject } from '../_shared/catalog-images.ts';
+import { CatalogImageR2, readCatalogR2Config } from '../_shared/r2-catalog-images.ts';
+import { AwsClient } from 'npm:aws4fetch@1.0.20';
 import { acceptLaunchBatch, recoverLaunchBatchOther } from './launch-batch.ts';
 import {
   handleCatalogRename,
@@ -455,6 +460,20 @@ function consumedGrant(value: unknown): ConsumedOperationGrant | null {
   };
 }
 
+/** 062: the public image bucket the white pool uses, for a Launch's image creatives. */
+function creativeImageR2(): CatalogImageR2 | null {
+  const env = (key: string) => Deno.env.get(key);
+  const configured = readCatalogR2Config(env);
+  const accessKeyId = env('R2_CATALOG_ACCESS_KEY_ID');
+  const secretAccessKey = env('R2_CATALOG_SECRET_ACCESS_KEY');
+  return configured && accessKeyId && secretAccessKey
+    ? new CatalogImageR2(
+        configured,
+        new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' })
+      )
+    : null;
+}
+
 function productionSignals(request: Request): OAuthProductionSignals {
   return {
     siteUrl: Deno.env.get('WISHLY_SITE_URL'),
@@ -463,6 +482,14 @@ function productionSignals(request: Request): OAuthProductionSignals {
 }
 
 async function driveClient(service: RpcClient, credentialId: string, request: Request) {
+  return new GoogleDriveClient(await driveAccessToken(service, credentialId, request));
+}
+
+async function driveAccessToken(
+  service: RpcClient,
+  credentialId: string,
+  request: Request
+): Promise<string> {
   const credential = await readDriveCredential(service, credentialId);
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
@@ -477,7 +504,7 @@ async function driveClient(service: RpcClient, credentialId: string, request: Re
       oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
       productionSignals: productionSignals(request)
     });
-    return new GoogleDriveClient(token.accessToken);
+    return token.accessToken;
   } catch (error) {
     if (error instanceof TeamFunctionError && error.code === 'NEEDS_REAUTH') {
       await rpcValue(service, 'service_mark_drive_needs_reauth', {
@@ -3032,6 +3059,31 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
       await rpcValue(service, 'service_catalog_video_r2_kick', { p_route: 'claim' }).catch(
         () => undefined
       );
+    },
+    // 062: a Launch's image creatives — R2 `c1/` or Drive's own link, verified anonymously.
+    publishCreativeImages: createCreativeImagePublisher({
+      service,
+      r2: creativeImageR2(),
+      readMaterial: createCatalogImageDriveSources({
+        context: async (team, actor, material) => {
+          const raw = await rpcValue(service, 'service_get_material_operation_context', {
+            p_team: team,
+            p_actor: actor,
+            p_material: material,
+            p_permission: 'download',
+            p_allow_trashed: false
+          });
+          return catalogImageObject(Array.isArray(raw) ? raw[0] : raw);
+        },
+        token: credential => driveAccessToken(service, credential, request),
+        drive: credential => driveClient(service, credential, request)
+      }).readMaterial
+    }),
+    confirmCreativeImageUses: async (catalog, images) => {
+      await rpcValue(service, 'service_confirm_launch_creative_image_uses', {
+        p_catalog: catalog,
+        p_images: images
+      });
     },
     bindGlobalImageCatalog: async (team, intent, material) => {
       await imageRpc('service_catalog_global_bind_existing', {

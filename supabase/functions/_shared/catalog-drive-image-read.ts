@@ -5,16 +5,27 @@ import {
   requireDriveCapability,
   type GoogleDriveClient,
   type DriveFileMetadata
-} from '../_shared/drive.ts';
+} from './drive.ts';
 import {
   catalogImageId,
   catalogImageInteger,
   catalogImageObject,
   catalogImageString
-} from '../_shared/catalog-images.ts';
-import { readCatalogImageBytes } from '../_shared/catalog-image-validation.ts';
-import { TeamFunctionError } from '../_shared/errors.ts';
-import type { CatalogDriveEnumeration } from './worker.ts';
+} from './catalog-images.ts';
+import { readCatalogImageBytes } from './catalog-image-validation.ts';
+import { TeamFunctionError } from './errors.ts';
+
+/**
+ * Reading catalog pictures out of a space's Drive with proof (045), shared since 062 by the
+ * pool import (`catalog-images`) and by a Launch's image creatives (`drive-ops`): the file is
+ * proven inside its root and unchanged before and after the bytes are read.
+ */
+export interface CatalogDriveEnumeration {
+  entries: Record<string, unknown>[];
+  cursor: unknown[];
+  complete: boolean;
+  more: boolean;
+}
 
 /** Narrow read-only seams; production credential refresh and authenticated client stay in index. */
 export interface CatalogImageDriveSourcesDeps {
@@ -41,7 +52,34 @@ export function createCatalogImageDriveSources(dependencies: CatalogImageDriveSo
     const instance = await drive(credentialId, signal);
     return { row, rootId, credentialId, instance };
   };
-  return {
+  const sources = {
+    /** 062: one material's own file, its root and credential taken from its current context. */
+    async readMaterial(
+      team: string,
+      actor: string,
+      material: string,
+      expected: {
+        fileId: string;
+        resourceKey: string | null;
+        version: string | null;
+        checksum: string | null;
+        size: number | null;
+      },
+      signal: AbortSignal
+    ): Promise<Uint8Array> {
+      const current = await rootContext(team, actor, material, signal);
+      return sources.readDrive(
+        {
+          rootMaterialId: material,
+          rootId: current.rootId,
+          credentialId: current.credentialId,
+          ...expected
+        },
+        actor,
+        team,
+        signal
+      );
+    },
     async readDrive(
       source: Record<string, unknown>,
       actor: string,
@@ -221,4 +259,5 @@ export function createCatalogImageDriveSources(dependencies: CatalogImageDriveSo
       };
     }
   };
+  return sources;
 }
