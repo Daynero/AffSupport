@@ -950,23 +950,31 @@ export class GoogleDriveClient {
   }
 
   /** Read only two bounded catalog columns. Formula expressions remain literal,
-   * so a computed/displayed URL cannot masquerade as a verified stored link. */
+   * so a computed/displayed URL cannot masquerade as a verified stored link.
+   *
+   * `tolerant` is for a reader that takes the product rows as they are and judges nothing
+   * else: the sheet is Soty's output and people edit it. Only rows 1..expectedRows are asked
+   * for, so whatever sits under the last product is never seen; a shorter grid reads as empty
+   * cells, and a cell that is not text (a typed number) reads as its text. The strict form
+   * stays for the one place that compares a sheet with what was written a moment ago. */
   async readNativeCatalogColumns(input: {
     fileId: string;
     sheetName: string;
     columns: readonly number[];
     rowCount: number;
     expectedRows: number;
+    tolerant?: boolean;
   }): Promise<string[][]> {
+    const tolerant = input.tolerant === true;
     if (
       !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/u.test(input.sheetName) ||
       !Number.isSafeInteger(input.rowCount) ||
-      input.rowCount < 3 ||
-      input.rowCount > 10000 ||
+      input.rowCount < (tolerant ? 1 : 3) ||
+      (!tolerant && input.rowCount > 10000) ||
       !Number.isSafeInteger(input.expectedRows) ||
       input.expectedRows < 3 ||
       input.expectedRows > 402 ||
-      input.expectedRows > input.rowCount ||
+      (!tolerant && input.expectedRows > input.rowCount) ||
       input.columns.length !== 2 ||
       new Set(input.columns).size !== 2 ||
       input.columns.some(c => !Number.isSafeInteger(c) || c < 0 || c >= 64)
@@ -982,8 +990,9 @@ export class GoogleDriveClient {
       }
       return result;
     };
+    const lastRow = tolerant ? Math.min(input.rowCount, input.expectedRows) : input.rowCount;
     const ranges = input.columns.map(
-      c => `${input.sheetName}!${column(c)}1:${column(c)}${input.rowCount}`
+      c => `${input.sheetName}!${column(c)}1:${column(c)}${lastRow}`
     );
     const url = new URL(
       `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(input.fileId)}/values:batchGet`
@@ -1028,14 +1037,42 @@ export class GoogleDriveClient {
           !isRecord(range) ||
           typeof range.range !== 'string' ||
           range.range.replace(/'/gu, '') !== ranges[index] ||
-          range.majorDimension !== 'COLUMNS' ||
+          range.majorDimension !== 'COLUMNS'
+        )
+          throw new TeamFunctionError('INVALID_RESPONSE');
+        if (tolerant) {
+          // The Values API leaves `values` out altogether for a range with nothing in it.
+          if (range.values === undefined)
+            return Array.from({ length: input.expectedRows }, () => '');
+          if (
+            !Array.isArray(range.values) ||
+            range.values.length !== 1 ||
+            !Array.isArray(range.values[0])
+          )
+            throw new TeamFunctionError('INVALID_RESPONSE');
+          const found = range.values[0] as unknown[];
+          return Array.from({ length: input.expectedRows }, (_, i) => {
+            const v = found[i];
+            if (typeof v === 'string') return v.length > 8192 ? '' : v;
+            return typeof v === 'number' || typeof v === 'boolean' ? String(v) : '';
+          });
+        }
+        if (
           !Array.isArray(range.values) ||
           range.values.length !== 1 ||
-          !Array.isArray(range.values[0]) ||
+          !Array.isArray(range.values[0])
+        )
+          throw new TeamFunctionError('INVALID_RESPONSE');
+        // The envelope above is the provider's; what the cells hold is the sheet's. A value
+        // under the last product row, a number, or a cell longer than anything Soty writes
+        // was put there by hand, and no retry reads it differently. Production 2026-11-20
+        // (DreamTeam, TR 84_v1): a 170-row video column pasted over a 108-product sheet
+        // answered INVALID_RESPONSE, «спробуйте ще раз», every fifteen minutes for good.
+        if (
           range.values[0].length > input.expectedRows ||
           range.values[0].some(v => typeof v !== 'string' || v.length > 8192)
         )
-          throw new TeamFunctionError('INVALID_RESPONSE');
+          throw new TeamFunctionError('SOURCE_CHANGED');
         // The provider explicitly returns this complete requested range. Trailing
         // empty cells are omitted by Values API; an absent range is rejected above.
         const cells = range.values[0] as string[];
@@ -1050,9 +1087,53 @@ export class GoogleDriveClient {
     }
   }
 
+  /** Give the catalog tab its name back. A renamed tab is found by being the only one. */
+  async renameNativeSpreadsheetSheet(input: {
+    fileId: string;
+    sheetId: number;
+    title: string;
+  }): Promise<void> {
+    if (
+      !input.fileId ||
+      !Number.isSafeInteger(input.sheetId) ||
+      input.sheetId < 0 ||
+      !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/u.test(input.title)
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
+    const response = await this.#request(
+      new URL(
+        `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(input.fileId)}:batchUpdate`
+      ),
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({
+          requests: [
+            {
+              updateSheetProperties: {
+                properties: { sheetId: input.sheetId, title: input.title },
+                fields: 'title'
+              }
+            }
+          ]
+        }),
+        signal: AbortSignal.timeout(30_000)
+      }
+    );
+    const data: unknown = await response.json().catch(() => null);
+    if (!isRecord(data) || data.spreadsheetId !== input.fileId)
+      throw new TeamFunctionError('INVALID_RESPONSE');
+  }
+
   /** Narrow Sheets mutation: literal cell values and one atomic receipt marker.
-   * No formatting, dimensions, identifiers or other cells are included. This is
-   * atomic batching, not a compare-and-swap against collaborator edits. */
+   * No formatting or identifiers are included. This is atomic batching, not a
+   * compare-and-swap against collaborator edits.
+   *
+   * `frame` names the product area of the tab — the header rows and the products, the
+   * template's columns. With it the same batch first makes the grid at least that large
+   * (rows or columns someone deleted) and empties every row under it: a row under the last
+   * product is a product of nobody's in the feed. A column someone added beside the template
+   * is theirs and stays as it is. Values only; nothing is removed from the grid itself. */
   async writeNativeSpreadsheetCells(input: {
     fileId: string;
     updates: readonly {
@@ -1062,7 +1143,38 @@ export class GoogleDriveClient {
       values: readonly string[];
     }[];
     marker: { key: string; value: string; replacesValue?: string };
+    frame?: {
+      sheetId: number;
+      rows: number;
+      columns: number;
+      /** The tab's grid as it was just read. */
+      gridRows: number;
+      gridColumns: number;
+    };
   }): Promise<void> {
+    const frame = input.frame;
+    if (
+      frame &&
+      (!Number.isSafeInteger(frame.sheetId) ||
+        frame.sheetId < 0 ||
+        !Number.isSafeInteger(frame.rows) ||
+        frame.rows < 3 ||
+        frame.rows > 402 ||
+        !Number.isSafeInteger(frame.columns) ||
+        frame.columns < 1 ||
+        frame.columns > 64 ||
+        !Number.isSafeInteger(frame.gridRows) ||
+        frame.gridRows < 1 ||
+        !Number.isSafeInteger(frame.gridColumns) ||
+        frame.gridColumns < 1 ||
+        input.updates.some(
+          u =>
+            u.sheetId !== frame.sheetId ||
+            u.rowIndex + u.values.length > frame.rows ||
+            u.columnIndex >= frame.columns
+        ))
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
     if (
       !input.fileId ||
       input.updates.length < 1 ||
@@ -1086,13 +1198,48 @@ export class GoogleDriveClient {
       )
     )
       throw new TeamFunctionError('INVALID_INPUT');
-    const requests: unknown[] = input.updates.map(u => ({
-      updateCells: {
-        start: { sheetId: u.sheetId, rowIndex: u.rowIndex, columnIndex: u.columnIndex },
-        rows: nativeCatalogCellRows(u.values.map(value => [{ t: 'string' as const, v: value }])),
-        fields: 'userEnteredValue'
-      }
-    }));
+    const requests: unknown[] = [];
+    if (frame) {
+      const { sheetId } = frame;
+      // Grow first: a cell cannot be written outside the grid, and one request that fails
+      // fails the whole batch.
+      if (frame.gridRows < frame.rows)
+        requests.push({
+          appendDimension: { sheetId, dimension: 'ROWS', length: frame.rows - frame.gridRows }
+        });
+      if (frame.gridColumns < frame.columns)
+        requests.push({
+          appendDimension: {
+            sheetId,
+            dimension: 'COLUMNS',
+            length: frame.columns - frame.gridColumns
+          }
+        });
+      const gridRows = Math.max(frame.gridRows, frame.rows),
+        gridColumns = Math.max(frame.gridColumns, frame.columns);
+      // An updateCells with a range and no rows clears the named field over the range.
+      if (gridRows > frame.rows)
+        requests.push({
+          updateCells: {
+            range: {
+              sheetId,
+              startRowIndex: frame.rows,
+              endRowIndex: gridRows,
+              startColumnIndex: 0,
+              endColumnIndex: gridColumns
+            },
+            fields: 'userEnteredValue'
+          }
+        });
+    }
+    for (const u of input.updates)
+      requests.push({
+        updateCells: {
+          start: { sheetId: u.sheetId, rowIndex: u.rowIndex, columnIndex: u.columnIndex },
+          rows: nativeCatalogCellRows(u.values.map(value => [{ t: 'string' as const, v: value }])),
+          fields: 'userEnteredValue'
+        }
+      });
     if (input.marker.replacesValue !== undefined) {
       if (!/^[a-zA-Z0-9:_-]{1,1024}$/u.test(input.marker.replacesValue))
         throw new TeamFunctionError('INVALID_INPUT');
