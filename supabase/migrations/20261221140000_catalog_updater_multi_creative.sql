@@ -32,24 +32,66 @@ end $$;
 revoke all on function private.patch_function_062(regprocedure, text, text) from public, anon, authenticated, service_role;
 
 -- Profile list: + creative_kind ('video' | 'image' | null for catalogs from before 062) and creatives.
-do $list$
-declare d text; head text; body text;
+-- The return type grows, so the function is dropped and created again; the body is the
+-- previous live one with the two columns added at the end (as the anchored patch made it).
+drop function public.list_team_catalog_update_profiles(uuid);
+create function public.list_team_catalog_update_profiles(p_team uuid)
+ RETURNS TABLE(catalog_material_id uuid, refresh_images boolean, refresh_texts boolean, grow_products boolean, random_link_variation boolean, restitch boolean, version bigint, updated_at timestamp with time zone, last_error_at timestamp with time zone, restitch_status text, restitch_blocked_code text, reconciliation_required boolean, last_result text, latest_attempt_at timestamp with time zone, last_successful_at timestamp with time zone, schedule jsonb, video_variant_count integer, creative_kind text, creatives jsonb)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
 begin
-  d := pg_get_functiondef('public.list_team_catalog_update_profiles(uuid)'::regprocedure);
-  head := $find$schedule jsonb, video_variant_count integer)$find$;
-  body := $find$profile.schedule,profile.video_variant_count
-    from public.team_catalog_update_profiles as profile$find$;
-  if strpos(d, head) = 0 or strpos(d, body) = 0 then raise exception 'PATCH_062_ANCHOR_MISSING: list_team_catalog_update_profiles'; end if;
-  d := replace(d, head, $repl$schedule jsonb, video_variant_count integer, creative_kind text, creatives jsonb)$repl$);
-  d := replace(d, body, $repl$profile.schedule,profile.video_variant_count,
+  if auth.uid() is null or not private.can(p_team, 'view', auth.uid()) then
+    raise exception 'PERMISSION_DENIED' using errcode = '42501';
+  end if;
+  return query
+    select profile.catalog_material_id, profile.refresh_images, profile.refresh_texts,
+           profile.grow_products, profile.random_link_variation, profile.restitch,
+           profile.version, profile.updated_at, catalog.last_update_error_at,
+           case when private.catalog_has_usable_spare(profile.catalog_material_id) then 'ready'
+           when exists (
+             select 1 from private.catalog_restitch_jobs as job
+             where job.catalog_material_id = profile.catalog_material_id and job.state = 'leased' and job.lease_expires_at > clock_timestamp()
+           ) then 'preparing'
+           when exists (
+             select 1 from private.catalog_restitch_jobs as job
+             where job.catalog_material_id = profile.catalog_material_id
+               and private.catalog_restitch_visible_error(profile.catalog_material_id) is not null
+           ) then 'blocked'
+           else 'waiting' end,
+           private.catalog_restitch_visible_error(profile.catalog_material_id), (coalesce(item.reconciliation_required, false) or exists (
+             select 1 from private.catalog_update_reconciliations pending
+             where pending.catalog_material_id=profile.catalog_material_id)),
+           latest.result, latest.started_at,
+           (select max(attempt.delivery_verified_at)
+              from public.team_catalog_update_attempts as attempt
+             where attempt.catalog_material_id = profile.catalog_material_id
+               and attempt.team_id = p_team
+               and attempt.result = 'success'
+               and attempt.delivery_verified_at is not null), profile.schedule,profile.video_variant_count,
            case when catalog.settings_snapshot->>'_catalogCreativeKind' in ('video','image') then catalog.settings_snapshot->>'_catalogCreativeKind' end,
            case when jsonb_typeof(catalog.settings_snapshot->'_catalogCreatives') = 'array' then
              (select coalesce(jsonb_agg(jsonb_build_object('alias', c.value->'alias', 'kind', c.value->'kind') order by c.ordinality), '[]'::jsonb)
                 from jsonb_array_elements(catalog.settings_snapshot->'_catalogCreatives') with ordinality c) end
-    from public.team_catalog_update_profiles as profile$repl$);
-  drop function public.list_team_catalog_update_profiles(uuid);
-  execute d;
-end $list$;
+    from public.team_catalog_update_profiles as profile
+    join public.team_product_catalogs as catalog
+      on catalog.material_id = profile.catalog_material_id
+    join private.live_product_catalogs(p_team) as live
+      on live.catalog_material_id = profile.catalog_material_id
+    left join public.team_catalog_updater_items as item
+      on item.catalog_material_id = profile.catalog_material_id
+    left join lateral (
+      select attempt.result, attempt.started_at
+        from public.team_catalog_update_attempts as attempt
+       where attempt.catalog_material_id = profile.catalog_material_id
+         and attempt.team_id = p_team
+       order by attempt.started_at desc, attempt.attempt_id desc
+       limit 1
+    ) as latest on true
+    where profile.team_id = p_team;
+end;
+$function$;
 revoke all on function public.list_team_catalog_update_profiles(uuid) from public, anon;
 grant execute on function public.list_team_catalog_update_profiles(uuid) to authenticated, service_role;
 
