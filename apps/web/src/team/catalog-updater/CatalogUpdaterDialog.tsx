@@ -8,7 +8,7 @@ import { withCatalogCommandDeadline } from './catalogCommandCoordinator';
 import { useCatalogCommands, type CatalogCommandClient } from './useCatalogCommands';
 import { privateClientId, usePrivateCacheEpoch } from '../private-cache-scope';
 import { withReadDeadline } from '../readCoordinator';
-import type { TeamAnalyticsStorage } from '@video-compressor/shared';
+import { catalogHasOneVideo, type TeamAnalyticsStorage } from '@video-compressor/shared';
 import { useOptionalWorkspaceOperations } from '../explorer/WorkspaceOperationsProvider';
 import { BulkTrashPanel } from '../explorer/BulkTrashPanel';
 import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
@@ -1951,7 +1951,12 @@ function CatalogUpdaterDialogScope({
                 >
                   <h2 id={`${titleId}-profile`}>{row.name}</h2>
                   <div className="team-updater-profile">
-                    {permissions?.edit && mayRun && (
+                    {(row.profile?.creatives?.length ?? 0) > 1 && (
+                      <p className="m-0 text-ink-muted">
+                        {row.profile!.creatives!.map(creative => creative.alias).join(' · ')}
+                      </p>
+                    )}
+                    {permissions?.edit && mayRun && (!row.profile || catalogHasOneVideo(row.profile)) && (
                       <Button
                         variant="outline"
                         disabled={editorPending}
@@ -2022,6 +2027,7 @@ function CatalogUpdaterDialogScope({
                         {catalogVideoR2Sentence(videoR2.row(row.catalogId), t)}
                       </p>
                     )}
+                    {row.profile.creativeKind !== 'image' && (
                     <CatalogProfileVideoCount
                       value={row.profile.videoVariantCount ?? 1}
                       productCount={row.productCount}
@@ -2038,6 +2044,7 @@ function CatalogUpdaterDialogScope({
                         if (!confirmed) throw new TeamApiError('PROCESS_RESULT_UNCERTAIN', true);
                       }}
                     />
+                    )}
                     <CatalogIconLegend
                       teamId={teamId}
                       videoR2={videoR2.available}

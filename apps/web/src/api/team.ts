@@ -585,7 +585,36 @@ function catalogUpdateProfileFrom(value: unknown, snakeCase = false): CatalogUpd
         : undefined,
     restitchBlockedCode:
       snakeCase && typeof row.restitch_blocked_code === 'string' ? row.restitch_blocked_code : null,
-    reconciliationRequired: snakeCase && row.reconciliation_required === true
+    reconciliationRequired: snakeCase && row.reconciliation_required === true,
+    ...catalogCreativesOf(get('creativeKind', 'creative_kind'), get('creatives', 'creatives'))
+  };
+}
+
+/** 062: the catalog's creatives as the profile list reports them; nothing for older servers. */
+function catalogCreativesOf(
+  kind: unknown,
+  list: unknown
+): Pick<CatalogUpdateProfile, 'creativeKind' | 'creatives'> {
+  const creativeKind = kind === 'video' || kind === 'image' ? kind : undefined;
+  const creatives = Array.isArray(list)
+    ? list.flatMap(item =>
+        item &&
+        typeof item === 'object' &&
+        typeof (item as { alias?: unknown }).alias === 'string' &&
+        ((item as { kind?: unknown }).kind === 'video' ||
+          (item as { kind?: unknown }).kind === 'image')
+          ? [
+              {
+                alias: (item as { alias: string }).alias,
+                kind: (item as { kind: 'video' | 'image' }).kind
+              }
+            ]
+          : []
+      )
+    : undefined;
+  return {
+    ...(creativeKind ? { creativeKind } : {}),
+    ...(creatives && creatives.length ? { creatives } : {})
   };
 }
 

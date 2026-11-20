@@ -10,7 +10,7 @@ import {
   LoaderCircle,
   LockKeyhole
 } from 'lucide-react';
-import type { CatalogUpdateProfile } from '@video-compressor/shared';
+import { catalogUpdateFieldAllowed, type CatalogUpdateProfile } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { spaceRouteFor } from '../SpaceSettingsLink';
 import { Tooltip } from '../../components/ui/index';
@@ -110,7 +110,11 @@ export function CatalogIconControls({
   videoR2?: { row: CatalogVideoR2Row; disabledReason?: string; onToggle: (next: boolean) => void };
 }) {
   const legacyImages = useLegacyCatalogImageSettings();
-  const fields = CATALOG_FIELDS.filter(({ field }) => legacyImages || field !== 'refreshImages');
+  // 062: several videos keep restitch and texts; images keep texts (R2 is separate).
+  const fields = CATALOG_FIELDS.filter(
+    ({ field }) =>
+      (legacyImages || field !== 'refreshImages') && catalogUpdateFieldAllowed(profile, field)
+  );
   const { t } = useI18n();
   const count = fields.length + (videoR2 ? 1 : 0);
   const group = useRef<HTMLDivElement>(null);

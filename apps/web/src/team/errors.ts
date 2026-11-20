@@ -12,6 +12,15 @@ import type { UnavailableReason } from './materials/actions';
  * it a sentence is a type error rather than a silent fallback in production.
  */
 const COPY: Record<TeamErrorCode, TranslationKey> = {
+  CREATIVES_MIXED: 'launchCreativesMixed',
+  CREATIVES_LIMIT: 'launchCreativesLimit',
+  CREATIVE_DUPLICATE: 'launchCreativeDuplicate',
+  DISTRIBUTION_INVALID: 'launchProductsBelowCreatives',
+  VARIATIONS_RANGE: 'launchVariationsRange',
+  CREATIVE_IMAGE_FORMAT: 'launchCreativeImageFormat',
+  CREATIVE_IMAGE_TOO_LARGE: 'launchCreativeImageTooLarge',
+  PUBLIC_READ_UNVERIFIED: 'launchCreativeImageUnverified',
+  MULTI_CREATIVE_UNSUPPORTED: 'catalogMultiCreativeUnsupported',
   FEATURE_RETIRED: 'teamErrorWrongState',
   GLOBAL_IMAGE_POOL_UNAVAILABLE: 'catalogImagesErrorUnavailable',
   GLOBAL_IMAGE_READINESS_UNKNOWN: 'catalogImagesErrorVerification',
