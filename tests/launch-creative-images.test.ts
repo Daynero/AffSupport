@@ -501,3 +501,115 @@ describe('the durable image step', () => {
     expect(h.published).toEqual([1]);
   });
 });
+
+describe('a failed image in the durable step', () => {
+  it('records which creative stopped the catalog, by ordinal only', async () => {
+    const saved: Record<string, unknown> = {};
+    const intent = {
+      id: '62000000-0000-4000-8000-0000000007ff',
+      variant: 1,
+      state: 'reserved',
+      fence: 'f',
+      attempt: 1,
+      checkpoint: saved,
+      result: null,
+      operationId: null
+    };
+    const store = {
+      begin: vi.fn(async () => intent),
+      checkpoint: vi.fn(async (current, _owner, state, patch) => {
+        Object.assign(saved, patch);
+        current.state = state;
+        current.checkpoint = { ...current.checkpoint, ...patch };
+      }),
+      permission: vi.fn(async () => undefined)
+    };
+    const failing = vi.fn(async ({ images }) => {
+      if (images[0].ordinal === 1)
+        throw new TeamFunctionError('CREATIVE_IMAGE_FORMAT', { retryable: false });
+      return [{ ordinal: 0, link: 'https://images.example.test/c1/0.jpg', linkKind: 'r2' }];
+    });
+    const M = (n: number) => `62000000-0000-4000-8000-00000000070${n}`;
+    const live = (video: { driveFileId: string; name: string }) => ({
+      id: video.driveFileId,
+      name: video.name,
+      mimeType: 'image/jpeg',
+      parents: ['folder'],
+      trashed: false,
+      resourceKey: null,
+      capabilities: { canDownload: true, canShare: true },
+      version: '1',
+      checksum: 'c'.repeat(32),
+      size: 10,
+      modifiedAt: null,
+      appProperties: {}
+    });
+    const providerDrive = {
+      listAnyonePermissions: vi.fn(async () => []),
+      getFile: vi.fn(async () => live({ driveFileId: 'x', name: 'x' }))
+    };
+    const deps = {
+      initialVideoAuthority: {
+        serverNow: async () => Date.now(),
+        prepare: vi.fn(),
+        registerCreated: vi.fn()
+      },
+      loadVideo: vi.fn(async ({ videoId }) => ({
+        id: videoId,
+        name: 'p.jpg',
+        category: 'image',
+        driveFileId: `drive-${videoId.slice(-1)}`,
+        resourceKey: null,
+        parentFolderId: 'folder',
+        credentialId: 'cred'
+      })),
+      readSettings: vi.fn(async () => ({
+        title: 't',
+        description: 'd',
+        imageLink: 'https://w.test/x.png',
+        priceMin: 1,
+        priceMax: 1
+      })),
+      readLiveCatalogs: vi.fn(async () => []),
+      driveFor: vi.fn(async () => providerDrive),
+      proveVideo: vi.fn(async video => live(video)),
+      destination: vi.fn(async () => ({
+        materialId: null,
+        live: live({ driveFileId: 'folder', name: 'f' })
+      })),
+      publishCreativeImages: failing,
+      failOperation: vi.fn(),
+      log: vi.fn()
+    };
+    await expect(
+      createDurableProductCatalog(
+        deps,
+        store,
+        async () => providerDrive,
+        {
+          teamId: '62000000-0000-4000-8000-0000000007aa',
+          videoMaterialId: M(1),
+          sourceLink: 'https://offer.example.test/',
+          productCount: 2,
+          replacesMaterialId: null,
+          restitchOperationId: null,
+          idempotencyKey: 'launch:62000000-0000-4000-8000-0000000007ee:catalog',
+          catalogVideoProtocolVersion: 1,
+          restitchEnabled: false,
+          videoVariationCount: 1,
+          videoPublication: { mode: 'immediate' },
+          copyVideoToR2: true,
+          creativeKind: 'image',
+          creatives: [
+            { materialId: M(1), alias: 'a', copies: 1 },
+            { materialId: M(2), alias: 'b', copies: 1 }
+          ]
+        },
+        ACTOR
+      )
+    ).rejects.toMatchObject({ code: 'CREATIVE_IMAGE_FORMAT' });
+    expect(saved.creativeOrdinal).toBe(1);
+    expect(saved.safeErrorCode).toBe('CREATIVE_IMAGE_FORMAT');
+    expect(saved.creativeImage_0).toBeDefined();
+  });
+});

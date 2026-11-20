@@ -1609,6 +1609,72 @@ function build(): Record<string, CodeLocation> {
         'Inspect the generation and child receipt, including a child found by the frozen process key but not yet bound. Settle before choosing explicit retry; reconcile lost acceptance replies without creating a new Launch. Do not repeat provider creation while its outcome is unknown.'
     };
   }
+  // 062 — several creatives and image creatives in catalog Launches.
+  const creativeFiles: Record<string, string[]> = {
+    CREATIVES_MIXED: [
+      'packages/shared/src/team/launches/validation.ts',
+      'packages/shared/src/team/launches/preview.ts',
+      'supabase/functions/drive-ops/product-catalog.ts'
+    ],
+    CREATIVES_LIMIT: ['packages/shared/src/team/launches/validation.ts'],
+    CREATIVE_DUPLICATE: [
+      'packages/shared/src/team/launches/validation.ts',
+      'supabase/functions/drive-ops/product-catalog.ts'
+    ],
+    DISTRIBUTION_INVALID: [
+      'packages/shared/src/team/launches/creative-distribution.ts',
+      'packages/shared/src/team/launches/validation.ts',
+      'supabase/functions/drive-ops/product-catalog.ts'
+    ],
+    VARIATIONS_RANGE: [
+      'packages/shared/src/team/launches/validation.ts',
+      'supabase/functions/drive-ops/launch-catalog-video.ts',
+      'supabase/functions/drive-ops/catalog-video-generation.ts'
+    ],
+    CREATIVE_IMAGE_FORMAT: [
+      'supabase/functions/drive-ops/creative-images.ts',
+      'supabase/functions/_shared/catalog-image-optimization.ts'
+    ],
+    CREATIVE_IMAGE_TOO_LARGE: [
+      'supabase/functions/drive-ops/creative-images.ts',
+      'supabase/functions/_shared/catalog-image-optimization.ts'
+    ],
+    PUBLIC_READ_UNVERIFIED: [
+      'supabase/functions/drive-ops/creative-images.ts',
+      'supabase/functions/_shared/catalog-image-sharing.ts',
+      'supabase/functions/catalog-updater/publication-io.ts'
+    ],
+    MULTI_CREATIVE_UNSUPPORTED: [
+      'supabase/functions/catalog-updater/worker.ts',
+      'supabase/functions/drive-ops/product-catalog.ts',
+      'supabase/functions/drive-ops/launch-catalog.ts'
+    ]
+  };
+  const creativeChecks: Record<string, string> = {
+    CREATIVES_MIXED:
+      'One catalog takes creatives of one kind: check the material categories of every creative against creativeKind (the first decides).',
+    CREATIVES_LIMIT:
+      'More creatives than products (400 at most), or several creatives on the "other" method, which takes one.',
+    CREATIVE_DUPLICATE: 'The same material appears twice in the creative list.',
+    DISTRIBUTION_INVALID:
+      'The shares must be whole, at least one each, and add up to the product count; compare the saved copies with creative-distribution.',
+    VARIATIONS_RANGE:
+      'With restitch the variation count lies between the number of videos and the product count.',
+    CREATIVE_IMAGE_FORMAT:
+      'The image creative is not a JPEG, PNG or WebP of at least 500 px a side after optimization; the creativeOrdinal names which one.',
+    CREATIVE_IMAGE_TOO_LARGE:
+      'The image creative is over 50 MB in Drive or does not fit 8 MB after optimization.',
+    PUBLIC_READ_UNVERIFIED:
+      'A signed-out read of the creative link failed (the R2 read-back or the Drive picture link). Retryable: check the bucket origin and the Drive link grant.',
+    MULTI_CREATIVE_UNSUPPORTED:
+      'An action hidden for several creatives or images was attempted (legacy one-link write, restitch on images, catalog off the video protocol). Check the catalog snapshot _catalogCreatives.'
+  };
+  for (const [code, files] of Object.entries(creativeFiles))
+    for (const prefix of ['launches:generation', 'catalog:generation', 'catalog:update'])
+      map[`${prefix}:${code}`] = {
+        files: [...files, 'apps/web/src/team/errors.ts'],
+        check: creativeChecks[code]!
+      };
   for (const code of ACCOUNT_ANALYTICS_CODES) {
     map[`accounts:workspace:${code}`] = {
       files: [

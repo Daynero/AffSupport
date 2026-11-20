@@ -602,6 +602,30 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'Original child request UUID and actual server process UUID remain distinct. Registered K/N is output evidence, not a published catalog. Private source snapshots, names, URLs, grants and image contents are excluded.'
   },
   {
+    id: 'team.launch_multi_creative',
+    tool: 'team',
+    title: 'Catalog Launch · several creatives and image creatives',
+    stages: [
+      'configuration_accepted',
+      'creative_image.accepted',
+      'creative_image.published',
+      'creative_image.verified',
+      'catalog_verified',
+      'ui_visible'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'pending_producer',
+    source: 'events',
+    unobservable: [
+      'Refusals reach the Launch terminal as closed codes (CREATIVES_MIXED, DISTRIBUTION_INVALID, VARIATIONS_RANGE, CREATIVE_IMAGE_FORMAT, CREATIVE_IMAGE_TOO_LARGE, PUBLIC_READ_UNVERIFIED, MULTI_CREATIVE_UNSUPPORTED); per-image stages with creativeOrdinal and the failed set ordinal (failedOrdinal) are not emitted yet.',
+      'Per-image publication is proven by durable creativeImage_<ordinal> checkpoints and launch_creative_images states, not by an event stream; a missing checkpoint leaves that image unknown, never published.'
+    ],
+    note: 'Bounded props only: creativeKind, creativeCount, productCount, variationCount, customDistribution, creativeOrdinal, failedOrdinal. Never names, aliases, material IDs or links.'
+  },
+  {
     id: 'team.catalog_publication',
     tool: 'team',
     title: 'Catalog video publication',

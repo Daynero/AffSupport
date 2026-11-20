@@ -635,7 +635,16 @@ export async function createDurableProductCatalog(
                   continue;
                 }
                 await check();
-                const [published] = await publishCreativeImages({ ...input, images: [image] });
+                let published: CatalogCreativeImageLink | undefined;
+                try {
+                  [published] = await publishCreativeImages({ ...input, images: [image] });
+                } catch (error) {
+                  // Diagnosis names which image stopped the catalog (a number, never a name).
+                  await store
+                    .checkpoint(intent, owner, workingState(), { creativeOrdinal: image.ordinal })
+                    .catch(() => undefined);
+                  throw error;
+                }
                 if (!published || published.ordinal !== image.ordinal)
                   throw new TeamFunctionError('INVALID_RESPONSE');
                 await store.checkpoint(intent, owner, workingState(), {
