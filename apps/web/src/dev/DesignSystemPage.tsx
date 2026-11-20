@@ -409,7 +409,14 @@ export default function DesignSystemPage() {
           </Row>
           <Row title="slider">
             <Slider min={0} max={100} defaultValue={40} aria-label="Quality" />
-            <Slider size="lg" className="max-w-40" min={1} max={97} defaultValue={25} aria-label="Copies" />
+            <Slider
+              size="lg"
+              className="max-w-40"
+              min={1}
+              max={97}
+              defaultValue={25}
+              aria-label="Copies"
+            />
           </Row>
         </Section>
       )}
