@@ -48,6 +48,7 @@ async function prepareSegmentSets(
   let registered = 0;
   let unknown = false;
   let complete = true;
+  let failedOrdinal: number | undefined;
   for (const set of sets) {
     const accepted = await service.rpc('service_read_catalog_video_acceptance', {
       p_set: set.setId,
@@ -105,9 +106,17 @@ async function prepareSegmentSets(
     ).length;
     registered += done;
     if (done !== set.variantCount) complete = false;
-    if (children.some(child => isRecord(child) && child.state === 'unknown')) unknown = true;
+    if (children.some(child => isRecord(child) && child.state === 'unknown')) {
+      unknown = true;
+      failedOrdinal ??= set.ordinal;
+    }
   }
-  if (!complete) return { state: unknown ? 'unknown' : 'preparing', registeredCount: registered };
+  if (!complete)
+    return {
+      state: unknown ? 'unknown' : 'preparing',
+      registeredCount: registered,
+      ...(failedOrdinal !== undefined ? { failedOrdinal } : {})
+    };
   if (plan.preferences.videoPublication.mode === 'scheduled')
     return { state: 'ready', videoLinks: [] };
   const links: string[] = [];

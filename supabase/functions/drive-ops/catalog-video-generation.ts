@@ -24,6 +24,36 @@ export interface CatalogVideoGenerationProgress {
   executor?: CatalogVideoForegroundProgressExecutor;
   publicationHeld?: boolean;
   providerCas?: 'unsupported';
+  /** 062: every restitch set of a several-video catalog, in segment order (videoSetId is the first). */
+  videoSets?: CatalogVideoSetRef[];
+}
+/** 062: one segment's restitch set, as receipts and waits name it. */
+export interface CatalogVideoSetRef {
+  ordinal: number;
+  setId: string;
+  sourceMaterialId: string;
+}
+const SET_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+/** A stored set list, or null when absent or not exactly well-formed. */
+export function parseCatalogVideoSetRefs(raw: unknown): CatalogVideoSetRef[] | null {
+  if (!Array.isArray(raw) || raw.length < 2 || raw.length > 400) return null;
+  const sets: CatalogVideoSetRef[] = [];
+  for (const value of raw) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const v = value as Record<string, unknown>;
+    if (
+      !Number.isSafeInteger(v.ordinal) ||
+      Number(v.ordinal) < 0 ||
+      Number(v.ordinal) > 399 ||
+      typeof v.setId !== 'string' ||
+      !SET_UUID.test(v.setId) ||
+      typeof v.sourceMaterialId !== 'string' ||
+      !SET_UUID.test(v.sourceMaterialId)
+    )
+      return null;
+    sets.push({ ordinal: Number(v.ordinal), setId: v.setId, sourceMaterialId: v.sourceMaterialId });
+  }
+  return sets;
 }
 export function parseCatalogVideoGenerationProgress(
   raw: unknown
@@ -45,7 +75,8 @@ export function parseCatalogVideoGenerationProgress(
     !['preparing', 'ready', 'unknown', 'cancel_requested', 'canceled'].includes(String(p.state)) ||
     !['deferred_blank', 'assigned'].includes(String(p.catalogVideoCells)) ||
     (p.publicationHeld !== undefined && typeof p.publicationHeld !== 'boolean') ||
-    (p.providerCas !== undefined && p.providerCas !== 'unsupported')
+    (p.providerCas !== undefined && p.providerCas !== 'unsupported') ||
+    (p.videoSets !== undefined && !parseCatalogVideoSetRefs(p.videoSets))
   )
     return null;
   return {
@@ -56,7 +87,8 @@ export function parseCatalogVideoGenerationProgress(
     state: p.state as CatalogVideoGenerationProgress['state'],
     catalogVideoCells: p.catalogVideoCells as CatalogVideoGenerationProgress['catalogVideoCells'],
     ...(p.publicationHeld === undefined ? {} : { publicationHeld: p.publicationHeld as boolean }),
-    ...(p.providerCas === undefined ? {} : { providerCas: 'unsupported' as const })
+    ...(p.providerCas === undefined ? {} : { providerCas: 'unsupported' as const }),
+    ...(p.videoSets === undefined ? {} : { videoSets: parseCatalogVideoSetRefs(p.videoSets)! })
   };
 }
 export interface CatalogVideoPreparingResult {
@@ -70,7 +102,9 @@ export interface CatalogVideoPreparingResult {
   /** The agent running this creation stopped heartbeating two minutes ago. */
   agentSilent?: true;
   /** 062: every restitch set of a several-video catalog, so each can be settled on its own. */
-  videoSets?: Array<{ ordinal: number; setId: string; sourceMaterialId: string }>;
+  videoSets?: CatalogVideoSetRef[];
+  /** 062: the first segment whose set cannot be proven (its video stopped the catalog). */
+  failedOrdinal?: number;
 }
 export class CatalogVideoPreparationPending extends Error {
   constructor(readonly result: CatalogVideoPreparingResult) {
@@ -314,6 +348,8 @@ export interface CatalogInitialVideoAuthority {
         state: 'preparing' | 'unknown' | 'cancel_requested' | 'canceled';
         registeredCount: number;
         executor?: CatalogVideoForegroundProgressExecutor;
+        /** 062: the first segment whose set holds an unprovable variation. */
+        failedOrdinal?: number;
       }
   >;
   /** Trusted post-creation readback registers the initial blank/delivered target.
@@ -329,6 +365,15 @@ export interface CatalogInitialVideoAuthority {
   claimReverify?(intentId: string): Promise<'go' | 'paced' | 'exhausted' | 'done'>;
   /** Records the closed code a re-verification attempt ended with. */
   noteReverify?(intentId: string, code: string): Promise<void>;
+}
+/** The plan's restitch sets when there are several; null for one set or none. */
+function planSetRefs(plan: CatalogInitialVideoPlan): CatalogVideoSetRef[] | null {
+  const sets = (plan.segments ?? []).flatMap(segment =>
+    segment.setId
+      ? [{ ordinal: segment.ordinal, setId: segment.setId, sourceMaterialId: segment.materialId }]
+      : []
+  );
+  return sets.length > 1 ? sets : null;
 }
 export async function prepareCatalogInitialVideo(
   authority: CatalogInitialVideoAuthority,
@@ -354,7 +399,8 @@ export async function prepareCatalogInitialVideo(
     ...(scheduled && !authority.targetedWriterEnabled
       ? { providerCas: 'unsupported' as const }
       : {}),
-    ...(scheduled ? { publicationHeld: false } : {})
+    ...(scheduled ? { publicationHeld: false } : {}),
+    ...(planSetRefs(plan) ? { videoSets: planSetRefs(plan)! } : {})
   });
   if (
     scheduled &&
@@ -370,20 +416,9 @@ export async function prepareCatalogInitialVideo(
       registeredCount: result.registeredCount,
       state: result.state,
       ...(result.executor ? { executor: result.executor } : {}),
-      ...((plan.segments?.length ?? 0) > 1
-        ? {
-            videoSets: (plan.segments ?? []).flatMap(segment =>
-              segment.setId
-                ? [
-                    {
-                      ordinal: segment.ordinal,
-                      setId: segment.setId,
-                      sourceMaterialId: segment.materialId
-                    }
-                  ]
-                : []
-            )
-          }
+      ...(planSetRefs(plan) ? { videoSets: planSetRefs(plan)! } : {}),
+      ...('failedOrdinal' in result && typeof result.failedOrdinal === 'number'
+        ? { failedOrdinal: result.failedOrdinal }
         : {})
     });
   if (

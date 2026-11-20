@@ -4,7 +4,8 @@ import {
 } from '../../../packages/shared/dist/team/restitch.js';
 import {
   parseCatalogVideoGenerationProgress,
-  type CatalogInitialVideoAuthority
+  type CatalogInitialVideoAuthority,
+  type CatalogVideoSetRef
 } from './catalog-video-generation.ts';
 import { launchFailure, launchRetryAfterMs } from '../_shared/launch-failures.ts';
 import {
@@ -173,6 +174,11 @@ export async function executeLaunchCatalog(
       original.videoGenerationObservation ?? original.videoGeneration
     );
     if (!progress) throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+    // 062: a catalog of several videos waits for every one of its sets, not just the first.
+    const sets =
+      progress.videoSets ??
+      parseCatalogVideoGenerationProgress(original.videoGeneration)?.videoSets;
+    if (sets && sets.length > 1) return waitForEverySet(sets);
     if (progress.state === 'ready') return false;
     let stillUnknown = progress.state === 'unknown';
     // A preparing set may hold an abandoned or confirmed-but-unrecorded video;
@@ -199,6 +205,45 @@ export async function executeLaunchCatalog(
     }
     await call(deps.service, 'service_wait_launch_catalog_video', authority);
     return stillUnknown ? ('failed' as const) : ('waiting' as const);
+  };
+  /** Every segment set read on its own: ready ones pass, preparing ones are settled, an
+   * unprovable one with a known cause stops the generation. Not all ready → the SQL wait,
+   * whose aggregate (worst set wins) decides between waiting and failed. */
+  const waitForEverySet = async (sets: readonly CatalogVideoSetRef[]) => {
+    let allReady = true;
+    for (const set of sets) {
+      const read = await deps.service.rpc('service_read_catalog_video_acceptance', {
+        p_set: set.setId,
+        p_team: teamId,
+        p_actor: actorId
+      });
+      if (read.error || !isRecord(read.data) || typeof read.data.parentState !== 'string')
+        throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+      let state = read.data.parentState;
+      if (state === 'ready') continue;
+      if (state === 'preparing' || state === 'unknown') {
+        const settled = await settleVideoFailures(set.setId);
+        if (settled) state = settled.parentState;
+        if (state === 'unknown' && deps.readCatalogVideoFailure) {
+          const cause = await deps.readCatalogVideoFailure({
+            teamId,
+            actorId,
+            sourceMaterialId: set.sourceMaterialId,
+            setId: set.setId
+          });
+          if (cause) {
+            await stopForVideoFailure(cause, Boolean(settled && settled.terminal > 0));
+            return 'failed' as const;
+          }
+        }
+      }
+      if (state !== 'ready') allReady = false;
+    }
+    if (allReady) return false;
+    const waited = await call(deps.service, 'service_wait_launch_catalog_video', authority);
+    return isRecord(waited) && waited.state === 'unknown'
+      ? ('failed' as const)
+      : ('waiting' as const);
   };
   // A slow catalog step (Drive upload or sharing under load) can outlast the
   // 180 s generation lease; recovery then claims the same generation and the two
