@@ -36,6 +36,13 @@ import { acquireWebReleaseLock, assertWebReleaseUnlocked } from './lib/web-only-
 const WRANGLER = 'wrangler@4.112.0';
 const LOG = 'release/automation/next-quick.jsonl';
 const confirm = process.argv.includes('--confirm');
+/**
+ * Shared-package changes the installed app does not run (062: launch/catalog contracts the
+ * web and the server read). Allowed only when apps/agent and packaging are untouched; the
+ * files are named in the publication log so the full runner later sees what rode along.
+ * Owner-approved 2026-11-20.
+ */
+const sharedServerOnly = process.argv.includes('--shared-server-only');
 const root = process.cwd();
 
 const git = (...args) =>
@@ -117,7 +124,9 @@ const isWeb = file => file.startsWith('apps/web/') || file.startsWith('packages/
 const head = git('rev-parse', 'HEAD');
 const base = lastPublishedSha();
 const changed = git('diff', '--name-only', `${base}..${head}`).split('\n').filter(Boolean);
-const agent = changed.filter(isAgent);
+const isShared = file => file.startsWith('packages/shared/') && !RELEASE_IDENTITY.has(file);
+const sharedOnly = sharedServerOnly ? changed.filter(isAgent).filter(isShared) : [];
+const agent = changed.filter(isAgent).filter(file => !sharedOnly.includes(file));
 const backend = changed.filter(isBackend);
 const worker = changed.filter(isWorker);
 const web = changed.filter(isWeb);
@@ -128,6 +137,13 @@ process.stdout.write(
     `  server (shared with production): ${backend.length ? `${backend.length} file(s) through the backend plan` : 'unchanged'}\n` +
     `  delivery Worker: ${worker.length ? 'redeploy' : 'unchanged'}\n`
 );
+if (sharedOnly.length) {
+  process.stdout.write(
+    `\nShared changes published without an app build (--shared-server-only):\n` +
+      sharedOnly.map(file => `  ${file}`).join('\n') +
+      '\nThe installed app keeps its own copy; these must not be something it runs.\n'
+  );
+}
 if (agent.length) {
   process.stderr.write(
     `\nThe installed app would have to carry these, and next:quick does not build it:\n` +
@@ -273,7 +289,7 @@ try {
 
   appendFileSync(
     LOG,
-    `${JSON.stringify({ sourceSha: head, base, web: web.length > 0, backend: backend.length > 0, worker: worker.length > 0, at: new Date().toISOString() })}\n`,
+    `${JSON.stringify({ sourceSha: head, base, web: web.length > 0, backend: backend.length > 0, worker: worker.length > 0, ...(sharedOnly.length ? { sharedServerOnly: sharedOnly } : {}), at: new Date().toISOString() })}\n`,
     { mode: 0o600 }
   );
   process.stdout.write(
