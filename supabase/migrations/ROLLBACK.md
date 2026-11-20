@@ -3314,3 +3314,8 @@ must not be done casually:
   once no catalog with several creatives can be reached by the manager.
 - `20261221150000_launch_multi_creative_analytics` — additive allowlist entries;
   removing them only drops the new events again.
+- `20261221090000_launch_creative_error_codes` — additive vocabulary; keep the codes
+  while any client can still receive them.
+- `20261221160000_launch_multi_creative_edge_followups` — the widened publication
+  source check and `service_confirm_catalog_creative_links` only serve catalogs with a
+  `creatives` target; drop the RPC only after no worker build calls it.
