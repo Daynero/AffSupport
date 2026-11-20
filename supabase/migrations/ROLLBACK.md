@@ -3267,3 +3267,50 @@ Additive only: the attachment cleanup guard on `team_creative_launch_events` and
 orphaned task upload can be claimed. Removing creative ranks removes the tables and the
 triggers with them.
 
+
+## 20261221100000–20261221150000 — several creatives and images in catalog Launches (062)
+
+Forward-only in production. Every migration keeps configs without `creatives` on the
+exact path they took before, so the compatible rollback is a web/edge release that
+stops writing `creatives`/`creativeKind`; the SQL stays. Do not drop anything while a
+Launch, catalog or image created by 062 exists. What each step would need, and why it
+must not be done casually:
+
+- `20261221100000_launch_multi_creative_config` — `save_launch_draft` and admission
+  patches only add refusals; `launch_sources_from_config` adds `materials` only for a
+  list. Reverting the identity/equivalence functions would make a retry of a
+  several-creative Launch blind to changes of its non-first creatives. To undo on a
+  disposable database: restore the four functions from `20261201121000`,
+  `20261201156000` and `20261215100000` bodies as they are live before this migration
+  (`pg_get_functiondef` on a copy), then drop `private.launch_creatives_error`,
+  `launch_creatives_kind_error`, `launch_normalize_sub`, `launch_json_positive`,
+  `launch_material_entry_identity`, `launch_materials_versionless`,
+  `launch_generation_creative_count`.
+- `20261221110000_launch_catalog_video_segments` — `catalog_video_sets` unique per
+  (intent, source) and recipe references per (intent, set) cannot go back to one per
+  intent while an intent holds several sets. `launch_catalog_video_segments` is the
+  only record of which set belongs to which creative block: dropping it orphans the
+  sets of running generations from waiting, cancellation and retry. Settle or cancel
+  every such generation first; never delete sets or variants.
+- `20261221115000_catalog_image_creatives_invariants` — `video_link` may not return to
+  `not null` while an image catalog exists; the widened payload limits are harmless.
+- `20261221116000_catalog_publication_creatives_target` — a `creatives` target is the
+  publication truth of its catalog (segments, sets, sources, images). Do not delete
+  targets, segments, policies or jobs; a future single-video target can only be added
+  by a forward migration after the catalog is rebuilt.
+- `20261221120000_launch_creative_images` — rows are the evidence of public `c1/`
+  objects. Never delete a row that is not `purged`: the object would outlive its
+  record and nothing would ever remove it. Stopping new images is a release of the
+  edge, not a schema change. Purge only through the catalog-images worker (delete,
+  404, CDN purge, `service_mark_launch_creative_image_purged`).
+- `20261221130000_launch_multi_creative_ranks` — the ledger is unique per material of
+  a source. Going back would require deleting the extra events of several-creative
+  Launches and re-running `private.backfill_creative_ranks()`; ranks shown to people
+  would drop. Prefer leaving it.
+- `20261221140000_catalog_updater_multi_creative` — only refusals, a wider
+  `list_team_catalog_update_profiles` (extra columns are ignored by old clients), video
+  R2 sources of `creatives` targets and `set_catalog_creative_image_r2`. The renamed
+  `*_before_062` functions are the original bodies; restoring them by rename is safe
+  once no catalog with several creatives can be reached by the manager.
+- `20261221150000_launch_multi_creative_analytics` — additive allowlist entries;
+  removing them only drops the new events again.
