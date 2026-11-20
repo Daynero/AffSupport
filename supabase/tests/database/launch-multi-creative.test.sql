@@ -1,5 +1,5 @@
 begin;
-select plan(63);
+select plan(70);
 
 -- Fixture: one space, an editor, four videos, one image, a "sheet" material.
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
@@ -188,6 +188,15 @@ insert into private.catalog_video_publication_policies(catalog_material_id,team_
  values('c0620000-0000-4000-8000-000000000061','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001',1,'immediate',(select id from target_probe));
 select is(private.catalog_multi_creative_kind('c0620000-0000-4000-8000-000000000061'),'image','an image catalog is recognized');
 select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='private.catalog_publication_target_segments'::regclass) and private.task_cleanup_coverage_verified(),'target segments are private and fenced');
+
+-- 062 manager: hidden actions of catalogs with several creatives.
+select ok((select not refresh_images and not grow_products and not random_link_variation and not restitch from public.team_catalog_update_profiles where catalog_material_id='c0620000-0000-4000-8000-000000000061'),'a new image catalog profile starts with the hidden switches off');
+select throws_ok($$select public.patch_team_catalog_update_profile('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000061',(select version from public.team_catalog_update_profiles where catalog_material_id='c0620000-0000-4000-8000-000000000061'),'{"randomLinkVariation":true}')$$,'22023','MULTI_CREATIVE_UNSUPPORTED','random link variation cannot be turned on');
+select throws_ok($$select public.patch_team_catalog_update_profile('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000061',(select version from public.team_catalog_update_profiles where catalog_material_id='c0620000-0000-4000-8000-000000000061'),'{"restitch":true}')$$,'22023','MULTI_CREATIVE_UNSUPPORTED','an image catalog is never restitched');
+select throws_ok($$select public.service_accept_catalog_video_replacement('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000061','c0620000-0000-4000-8000-000000000001','{}')$$,'22023','MULTI_CREATIVE_UNSUPPORTED','video replacement is refused');
+select throws_ok($$select public.service_begin_catalog_baseline_check(gen_random_uuid(),'c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000061',1)$$,'22023','MULTI_CREATIVE_UNSUPPORTED','the link check is refused');
+select ok((select 'creative_kind'=any(proargnames) and 'creatives'=any(proargnames) from pg_proc where oid='public.list_team_catalog_update_profiles(uuid)'::regprocedure),'the manager learns the creative kind and list');
+select throws_ok($$select public.set_catalog_creative_image_r2('c0620000-0000-4000-8000-000000000041',true)$$,'P0002','NOT_FOUND','image R2 is only for image catalogs');
 
 select * from finish();
 rollback;
