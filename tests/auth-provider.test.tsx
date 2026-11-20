@@ -321,8 +321,19 @@ describe('global Supabase auth provider', () => {
           finish = resolve;
         })
     );
+    // An activation starts the read; sibling changes keep arriving while it is under way.
+    // (Repeated focus events are one activation since the 2026-11-20 audit, so the changes
+    // that must force a second read are the ones a sibling reports.)
     act(() => {
-      for (let i = 0; i < 5; i++) window.dispatchEvent(new Event('focus'));
+      window.dispatchEvent(new Event('focus'));
+      for (let i = 0; i < 4; i++)
+        window.dispatchEvent(
+          new StorageEvent('storage', {
+            key: 'soty.auth.profile-change.v1:https://project.supabase.co',
+            newValue: `opaque-change-${i}`,
+            storageArea: localStorage
+          })
+        );
     });
     expect(testState.readProfile).toHaveBeenCalledTimes(before + 1);
     testState.profile = profile;
@@ -359,6 +370,170 @@ describe('global Supabase auth provider', () => {
     expect(screen.getByTestId('onboarded').textContent).toBe('true');
   });
 
+  it('keeps the read that lands when the browser reports one return to the tab twice', async () => {
+    // Backend audit 2026-11-20: `visibilitychange` and `focus` arrive together and each
+    // started a read — 38% of all background profile reads were the second of such a pair.
+    // The session library also re-announces the session when a tab becomes visible, and the
+    // page re-establishes the identity, which disowns any read started before it. So the one
+    // read that is kept has to start after that, or every return would report a cancelled
+    // read and nothing else.
+    testState.session = session;
+    testState.profile = profile;
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('authenticated'));
+    const observed = vi.spyOn(analytics, 'trackForActor').mockImplementation(() => {});
+    const before = testState.readProfile.mock.calls.length;
+    testState.profile = { ...profile, display_name: 'Changed elsewhere' };
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('focus'));
+      // What auth-js does a few milliseconds after the tab becomes visible.
+      testState.onAuthStateChange.mock.calls[0]![0]('SIGNED_IN', session);
+    });
+    await waitFor(() =>
+      expect(observed.mock.calls.map(([, name]) => name)).toContain('operation_completed')
+    );
+    expect(screen.getByTestId('profile').textContent).toBe('Changed elsewhere');
+    // The identity re-read and one activation read: the pair did not start a second one.
+    expect(testState.readProfile).toHaveBeenCalledTimes(before + 2);
+    const refreshes = observed.mock.calls
+      .filter(
+        ([, , props]) => (props as { flow_step?: string }).flow_step === 'auth_profile_refresh'
+      )
+      .map(([, name, props]) => `${name}:${(props as { source_kind?: string }).source_kind}`);
+    expect(refreshes).toEqual(['operation_started:visible', 'operation_completed:visible']);
+  });
+
+  it('reads at once for a focus that comes on its own', async () => {
+    // Another window or application, with the tab visible all along: no session event, no wait.
+    testState.session = session;
+    testState.profile = profile;
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('authenticated'));
+    const before = testState.readProfile.mock.calls.length;
+    act(() => window.dispatchEvent(new Event('focus')));
+    expect(testState.readProfile).toHaveBeenCalledTimes(before + 1);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(testState.readProfile).toHaveBeenCalledTimes(before + 1);
+  });
+
+  it('queues one more read for a return to the tab that arrives during a slow read', async () => {
+    testState.session = session;
+    testState.profile = { ...profile, onboarding_completed: false };
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('onboarded').textContent).toBe('false'));
+    const before = testState.readProfile.mock.calls.length;
+    let finish!: (value: unknown) => void;
+    testState.readProfile.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          finish = resolve;
+        })
+    );
+    const clock = vi.spyOn(Date, 'now');
+    try {
+      const start = 1_800_000_000_000;
+      clock.mockReturnValue(start);
+      act(() => window.dispatchEvent(new Event('focus')));
+      // The person left and came back while the first read is still under way.
+      clock.mockReturnValue(start + 5_000);
+      act(() => window.dispatchEvent(new Event('focus')));
+      expect(testState.readProfile).toHaveBeenCalledTimes(before + 1);
+      testState.profile = profile;
+      await act(async () => {
+        finish({ data: { ...profile, onboarding_completed: false }, error: null });
+      });
+      await waitFor(() => expect(screen.getByTestId('onboarded').textContent).toBe('true'));
+      expect(testState.readProfile).toHaveBeenCalledTimes(before + 2);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('tries a failed activation read once more, and only once', async () => {
+    // The pair of events used to supply this retry by accident; a laptop that has just woken
+    // up is the usual reason the first read fails.
+    testState.session = session;
+    testState.profile = profile;
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('authenticated'));
+    const before = testState.readProfile.mock.calls.length;
+    testState.profile = { ...profile, display_name: 'After the retry' };
+    testState.readProfile.mockRejectedValueOnce(new Error('network'));
+    act(() => window.dispatchEvent(new Event('focus')));
+    await waitFor(() => expect(screen.getByTestId('profile').textContent).toBe('After the retry'));
+    expect(testState.readProfile).toHaveBeenCalledTimes(before + 2);
+
+    // Two failures in a row: the page keeps the profile it has and waits for the next return.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60_000);
+    try {
+      testState.readProfile
+        .mockRejectedValueOnce(new Error('network'))
+        .mockRejectedValueOnce(new Error('network'));
+      act(() => window.dispatchEvent(new Event('focus')));
+      await waitFor(() => expect(testState.readProfile).toHaveBeenCalledTimes(before + 4));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(testState.readProfile).toHaveBeenCalledTimes(before + 4);
+      expect(screen.getByTestId('status').textContent).toBe('authenticated');
+      expect(screen.getByTestId('profile').textContent).toBe('After the retry');
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('reads again on a later return to the tab', async () => {
+    testState.session = session;
+    testState.profile = profile;
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('authenticated'));
+    const before = testState.readProfile.mock.calls.length;
+    const clock = vi.spyOn(Date, 'now');
+    try {
+      const start = 1_800_000_000_000;
+      clock.mockReturnValue(start);
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      await waitFor(() => expect(testState.readProfile).toHaveBeenCalledTimes(before + 1));
+      clock.mockReturnValue(start + 999);
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      expect(testState.readProfile).toHaveBeenCalledTimes(before + 1);
+      clock.mockReturnValue(start + 1_000);
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'));
+      });
+      await waitFor(() => expect(testState.readProfile).toHaveBeenCalledTimes(before + 2));
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
   it('bounds a stalled background read and retries on the next activation without blocking the page', async () => {
     testState.session = session;
     testState.profile = profile;
@@ -381,9 +556,17 @@ describe('global Supabase auth provider', () => {
     });
     expect(screen.getByTestId('status').textContent).toBe('authenticated');
     vi.useRealTimers();
-    testState.profile = { ...profile, display_name: 'Recovered' };
-    act(() => window.dispatchEvent(new Event('focus')));
-    await waitFor(() => expect(screen.getByTestId('profile').textContent).toBe('Recovered'));
+    // Ten seconds passed for the page while the read stalled. The timers are real again, so
+    // the wall clock has to keep saying so: an activation that close to the one before it
+    // would be the same return to the tab, not the next one.
+    const later = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 10_000);
+    try {
+      testState.profile = { ...profile, display_name: 'Recovered' };
+      act(() => window.dispatchEvent(new Event('focus')));
+      await waitFor(() => expect(screen.getByTestId('profile').textContent).toBe('Recovered'));
+    } finally {
+      later.mockRestore();
+    }
   });
 
   it('aborts a background read and removes activation listeners on unmount', async () => {

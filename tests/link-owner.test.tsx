@@ -452,6 +452,97 @@ describe('the owner of the connection state', () => {
     expect(JSON.stringify(track.mock.calls)).not.toContain('a'.repeat(64));
   });
 
+  it('reports a failing link once while the page keeps retrying, then its recovery', async () => {
+    // Backend audit 2026-11-20: a tab open with Soty not running reported the same failed
+    // check every fifteen seconds. The reporter is tested on its own in link-analytics; this
+    // is the wiring — one reporter for the page, fed by every attempt.
+    const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+    fake.connect = async () => {
+      throw new Error('CONNECTION_FAILED');
+    };
+    render(
+      <AgentProvider>
+        <Probe />
+      </AgentProvider>
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    // Two fast retries and three slow ones.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_100 + 4_100 + 3 * 15_100);
+    });
+    expect(fake.connectCalls).toBeGreaterThanOrEqual(5);
+    const checks = () =>
+      track.mock.calls
+        .filter(([name]) => String(name).startsWith('link_check_'))
+        .map(([name, props]) => {
+          const p = props as Record<string, unknown>;
+          return `${String(name)}:${String(p.link_trigger ?? p.outcome)}`;
+        });
+    expect(checks()).toEqual(['link_check_started:boot', 'link_check_completed:failure']);
+
+    fake.connect = async () => healthy();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_100);
+    });
+    expect(text('connection')).toBe('connected');
+    expect(checks()).toEqual([
+      'link_check_started:boot',
+      'link_check_completed:failure',
+      'link_check_started:retry',
+      'link_check_completed:success'
+    ]);
+    track.mockRestore();
+  });
+
+  it('reports the background retry a Reconnect joined, even when it fails like the last one', async () => {
+    const track = vi.spyOn(analytics, 'track').mockImplementation(() => {});
+    fake.connect = async () => {
+      throw new Error('CONNECTION_FAILED');
+    };
+    render(
+      <AgentProvider>
+        <Probe />
+      </AgentProvider>
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    track.mockClear();
+    // The next retry hangs long enough for a press to land on it, then fails as before.
+    let fail!: () => void;
+    fake.connect = () =>
+      new Promise((_resolve, reject) => {
+        fail = () => reject(new Error('CONNECTION_FAILED'));
+      });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4_100);
+    });
+    expect(text('attempt')).toBe('retry:solo');
+    expect(track.mock.calls.filter(([name]) => String(name).startsWith('link_check_'))).toEqual([]);
+    await act(async () => {
+      screen.getByText('reconnect').click();
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(text('attempt')).toBe('retry:joined');
+    await act(async () => {
+      fail();
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    const reported = track.mock.calls.filter(([name]) => String(name).startsWith('link_check_'));
+    expect(reported.map(([name]) => name)).toEqual(['link_check_started', 'link_check_completed']);
+    const clicked = track.mock.calls.find(([name]) => name === 'reconnect_clicked');
+    // The click, the start and the answer are one flow.
+    expect((reported[0]![1] as { flow_id: string }).flow_id).toBe(
+      (clicked![1] as { flow_id: string }).flow_id
+    );
+    expect((reported[1]![1] as { flow_id: string }).flow_id).toBe(
+      (clicked![1] as { flow_id: string }).flow_id
+    );
+    track.mockRestore();
+  });
+
   it('checks the link when the tab comes back, but not when it is already live', async () => {
     await boot();
     const calls = fake.connectCalls;

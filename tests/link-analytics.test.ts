@@ -9,6 +9,8 @@ import {
   sanitizeAnalyticsProperties
 } from '../apps/web/src/analytics/events';
 import {
+  LINK_REPEAT_REPORT_MS,
+  createLinkCheckReporter,
   linkOrigin,
   trackBlockedByBrowser,
   trackLinkCheckCompleted,
@@ -120,6 +122,179 @@ describe('browser family', () => {
     expect(browserFamilyFromUserAgent(firefox)).toBe('firefox');
     expect(browserFamilyFromUserAgent('curl/8.6.0')).toBe('other');
     expect(browserFamilyFromUserAgent('')).toBe('other');
+  });
+});
+
+describe('link check reporter', () => {
+  // Backend audit 2026-11-20: a tab left open while Soty is not running sent an identical
+  // started/failed pair every fifteen seconds — 45 000 a week, a quarter of all stored events.
+  const recorder = () => {
+    const sent: { name: string; flow: unknown; props: Record<string, unknown> }[] = [];
+    // The reporter only needs something to hand events to; what they must contain is the
+    // business of the two helpers it calls, which the suite above checks against the schema.
+    const track = ((name: string, properties?: unknown) => {
+      const props = (properties ?? {}) as Record<string, unknown>;
+      sent.push({ name, flow: props.flow_id, props });
+    }) as ProductAnalytics['track'];
+    const clock = { now: 1_800_000_000_000 };
+    const reporter = createLinkCheckReporter({ track }, () => clock.now);
+    const check = (
+      flowId: string,
+      trigger: Parameters<typeof reporter.begin>[0]['trigger'],
+      outcome: 'success' | 'failure' | 'blocked',
+      reason?: Parameters<ReturnType<typeof reporter.begin>['complete']>[0]['reason'],
+      stage: Parameters<ReturnType<typeof reporter.begin>['complete']>[0]['stage'] = 'health'
+    ) => reporter.begin({ flowId, trigger }).complete({ outcome, reason, stage, durationMs: 10 });
+    return {
+      sent,
+      reporter,
+      check,
+      clock,
+      names: () => sent.map(event => `${event.name}:${event.flow}`)
+    };
+  };
+
+  it('reports the first failure of a streak and stays silent while retries repeat it', () => {
+    const { check, names } = recorder();
+    check('a', 'boot', 'failure', 'not_running');
+    for (const flow of ['b', 'c', 'd', 'e']) check(flow, 'retry', 'failure', 'not_running');
+    expect(names()).toEqual(['link_check_started:a', 'link_check_completed:a']);
+  });
+
+  it('reports the retry that succeeds, as a whole pair, and starts a new streak after it', () => {
+    const { check, names, sent } = recorder();
+    check('a', 'stream_lost', 'failure', 'not_running');
+    check('b', 'retry', 'failure', 'not_running');
+    check('c', 'retry', 'success');
+    check('d', 'retry', 'failure', 'not_running');
+    check('e', 'retry', 'failure', 'not_running');
+    expect(names()).toEqual([
+      'link_check_started:a',
+      'link_check_completed:a',
+      'link_check_started:c',
+      'link_check_completed:c',
+      'link_check_started:d',
+      'link_check_completed:d'
+    ]);
+    expect(sent[2]!.props.link_trigger).toBe('retry');
+    expect(sent[3]!.props.outcome).toBe('success');
+  });
+
+  it('reports a retry that fails for another reason, at another stage or turns into a block', () => {
+    const { check, names } = recorder();
+    check('a', 'boot', 'failure', 'not_running');
+    check('b', 'retry', 'failure', 'timeout');
+    check('c', 'retry', 'failure', 'timeout');
+    check('d', 'retry', 'failure', 'timeout', 'entitlement');
+    check('e', 'retry', 'blocked', 'timeout', 'entitlement');
+    expect(names()).toEqual([
+      'link_check_started:a',
+      'link_check_completed:a',
+      'link_check_started:b',
+      'link_check_completed:b',
+      'link_check_started:d',
+      'link_check_completed:d',
+      'link_check_started:e',
+      'link_check_completed:e'
+    ]);
+  });
+
+  it('always reports a check somebody asked for, even when it repeats the failure', () => {
+    const { check, names } = recorder();
+    check('a', 'boot', 'failure', 'not_running');
+    check('b', 'retry', 'failure', 'not_running');
+    check('c', 'manual', 'failure', 'not_running');
+    check('d', 'visibility', 'failure', 'not_running');
+    check('e', 'retry', 'failure', 'not_running');
+    expect(names()).toEqual([
+      'link_check_started:a',
+      'link_check_completed:a',
+      'link_check_started:c',
+      'link_check_completed:c',
+      'link_check_started:d',
+      'link_check_completed:d'
+    ]);
+  });
+
+  it('says a failure that goes on again once an hour, so it is never said only once', () => {
+    // A report can be lost on the way and a reader looking at one day must still see a tab
+    // that has been failing since the day before.
+    const { check, names, clock } = recorder();
+    check('a', 'boot', 'failure', 'not_running');
+    clock.now += LINK_REPEAT_REPORT_MS - 1;
+    check('b', 'retry', 'failure', 'not_running');
+    clock.now += 1;
+    check('c', 'retry', 'failure', 'not_running');
+    check('d', 'retry', 'failure', 'not_running');
+    clock.now += LINK_REPEAT_REPORT_MS;
+    check('e', 'retry', 'failure', 'not_running');
+    expect(names()).toEqual([
+      'link_check_started:a',
+      'link_check_completed:a',
+      'link_check_started:c',
+      'link_check_completed:c',
+      'link_check_started:e',
+      'link_check_completed:e'
+    ]);
+  });
+
+  it('does not let a clock set backwards silence the tab', () => {
+    const { check, names, clock } = recorder();
+    check('a', 'boot', 'failure', 'not_running');
+    clock.now -= 5 * LINK_REPEAT_REPORT_MS;
+    check('b', 'retry', 'failure', 'not_running');
+    expect(names()).toEqual([
+      'link_check_started:a',
+      'link_check_completed:a',
+      'link_check_started:b',
+      'link_check_completed:b'
+    ]);
+  });
+
+  it('reports every rejected pairing, because counting them is how the loop is found', () => {
+    const { check, names } = recorder();
+    check('a', 'boot', 'failure', 'pairing_rejected', 'token');
+    check('b', 'retry', 'failure', 'pairing_rejected', 'token');
+    check('c', 'retry', 'failure', 'pairing_rejected', 'token');
+    expect(names()).toEqual([
+      'link_check_started:a',
+      'link_check_completed:a',
+      'link_check_started:b',
+      'link_check_completed:b',
+      'link_check_started:c',
+      'link_check_completed:c'
+    ]);
+  });
+
+  it('reports a silent retry in full once somebody asks for its answer', () => {
+    const { reporter, check, names, sent } = recorder();
+    check('a', 'boot', 'failure', 'not_running');
+    const running = reporter.begin({ flowId: 'b', trigger: 'retry' });
+    expect(names()).toHaveLength(2);
+    // Reconnect was pressed while it runs: the start goes now, the answer when it comes.
+    running.asked();
+    running.asked();
+    expect(names().slice(2)).toEqual(['link_check_started:b']);
+    expect(sent[2]!.props.link_trigger).toBe('retry');
+    running.complete({ outcome: 'failure', reason: 'not_running', stage: 'health', durationMs: 5 });
+    running.complete({ outcome: 'failure', reason: 'not_running', stage: 'health', durationMs: 5 });
+    expect(names().slice(2)).toEqual(['link_check_started:b', 'link_check_completed:b']);
+    // And the streak goes quiet again afterwards.
+    check('c', 'retry', 'failure', 'not_running');
+    expect(names()).toHaveLength(4);
+  });
+
+  it('sends the start at once when nothing has failed yet, so a hung first check is visible', () => {
+    const { reporter, names } = recorder();
+    reporter.begin({ flowId: 'a', trigger: 'retry' });
+    expect(names()).toEqual(['link_check_started:a']);
+  });
+
+  it('sends nothing for a silent retry that never finishes', () => {
+    const { reporter, check, names } = recorder();
+    check('a', 'boot', 'failure', 'not_running');
+    reporter.begin({ flowId: 'b', trigger: 'retry' });
+    expect(names()).toEqual(['link_check_started:a', 'link_check_completed:a']);
   });
 });
 
