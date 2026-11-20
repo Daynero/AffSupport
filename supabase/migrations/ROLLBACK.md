@@ -3382,3 +3382,25 @@ accounting of 047 is as it was. `restitch_selection_roots_created_idx` can stay.
 `agent_journal_records_instance_seq_idx` duplicated the unique constraint's index
 `agent_journal_records_instance_seq_key`. Nothing to roll back; recreating it only brings
 back 20 MB and a second index write per journal record.
+
+## 20261221180000–20261221190000 — updater restitch per video and creative diagnostics (062 follow-up)
+
+- `20261221180000_catalog_updater_restitch_segments` — forward-only while any update
+  attempt holds more than one set. `catalog_video_sets` is unique per (update attempt,
+  source) and recipe references per (update attempt, set); going back to one per attempt
+  needs every multi-video round settled or canceled first, and never deletes sets,
+  variants or references. `private.catalog_updater_variant_segments` is the only record of
+  which set of a round belongs to which video: dropping it while a round runs orphans its
+  sets from read, cancel, the sweeps and publication. Every patched function keeps its
+  old branch for single-video catalogs, so the compatible rollback is an edge release
+  that stops reading `segments` (an old edge treats a segmented answer as one set and
+  admits only the first video); restoring a patched body means re-applying it from the
+  live database copy before this migration (`pg_get_functiondef`), never from an older
+  file. A `creatives` target written by an attached round is the catalog's publication
+  truth: do not delete it, its segments, the policy or the jobs. Do not drop the
+  `task_cleanup_reference_fence` trigger of the segments table while it exists:
+  `task_cleanup_coverage_verified` then answers false for the whole database.
+- `20261221190000_analytics_catalog_generations_creatives` — additive: a last view
+  column and two pure functions. Re-creating the view from `20261208121000` drops
+  `creative_diagnostics` (the analytics CLI then reports no creative evidence) and the
+  nine 062 safe error codes (they read as `UNKNOWN` again); the functions can stay.

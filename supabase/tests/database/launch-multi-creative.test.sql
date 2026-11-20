@@ -1,5 +1,5 @@
 begin;
-select plan(80);
+select plan(122);
 
 -- Fixture: one space, an editor, four videos, one image, a "sheet" material.
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
@@ -224,6 +224,145 @@ update private.catalog_video_publication_jobs set worker_id='c0620000-0000-4000-
 create temporary table cells_probe as select public.service_catalog_publication_cells_context((select id from private.catalog_video_publication_jobs where catalog_material_id='c0620000-0000-4000-8000-000000000063' and revision=2),'c0620000-0000-4000-8000-000000000903') value;
 select is((select value->>'creativeKind' from cells_probe),'image','the job context names the creative kind');
 select ok((select value#>>'{sources,0,kind}'='image' and value#>'{sources,0,r2}'='true'::jsonb and value#>>'{segments,0,rowCount}'='2' from cells_probe),'image sources carry their R2 choice and segments their rows');
+
+-- 062 updater restitch per video (T065): a catalog of three videos, rows 2+2+2.
+insert into public.team_restitch_defaults(team_id,operation,fit_mode,final_duration_mode,configured,source_mode,start_enabled,end_enabled)
+ values('c0620000-0000-4000-8000-000000000011','restitch','cover','custom',true,'drive',false,true)
+ on conflict (team_id) do update set configured=true;
+insert into private.team_recovery_delegations(team_id,actor_id,installation_id,refresh_hash)
+ values('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000904',sha256('multi-delegation'));
+insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version,companion_of,companion_kind) values
+ ('c0620000-0000-4000-8000-000000000064','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000031','multi-s4','Sheet 4','file','other','application/vnd.google-apps.spreadsheet','1','c0620000-0000-4000-8000-000000000041','product_catalog');
+update public.team_materials set lifecycle='active' where id in('c0620000-0000-4000-8000-000000000041','c0620000-0000-4000-8000-000000000042','c0620000-0000-4000-8000-000000000043');
+insert into public.team_product_catalogs(material_id,team_id,video_material_id,source_link,product_count,sheet_url,video_link,settings_snapshot)
+ values('c0620000-0000-4000-8000-000000000064','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000041','https://offer.example.invalid/',6,
+  'https://docs.google.com/spreadsheets/d/s4/edit','https://drive.google.com/file/d/multi-v1/view',
+  '{"_catalogCreativeKind":"video","_catalogCreatives":[{"ordinal":0,"alias":"c41","kind":"video"},{"ordinal":1,"alias":"c42","kind":"video"},{"ordinal":2,"alias":"c43","kind":"video"}]}');
+create temporary table round_target as select private.register_catalog_creatives_target('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000401','c0620000-0000-4000-8000-000000000041',
+ (select jsonb_build_object('segments',jsonb_agg(jsonb_build_object('ordinal',o,'materialId','c0620000-0000-4000-8000-0000000000'||(41+o)::text,'kind','video','rowStart',2*o,'rowCount',2,'variantCount',1,'setId',null) order by o)) from generate_series(0,2) o),
+ 6,'immediate','video') id;
+insert into private.catalog_video_publication_policies(catalog_material_id,team_id,actor_id,revision,mode,target_id,legacy_delivery_unverified)
+ values('c0620000-0000-4000-8000-000000000064','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001',1,'immediate',(select id from round_target),false);
+create function pg_temp.round(p_request uuid, p_count int, p_version bigint default null) returns jsonb language sql as $$
+ select public.service_accept_catalog_updater_variants('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000064',
+  p_request,p_count,coalesce(p_version,(select version from public.team_catalog_update_profiles where catalog_material_id='c0620000-0000-4000-8000-000000000064')),null);
+$$;
+
+select ok((select count(*)=1 from pg_constraint where conrelid='private.catalog_video_sets'::regclass and contype='u' and pg_get_constraintdef(oid)='UNIQUE (update_attempt_id, source_material_id)')
+  and (select count(*)=1 from pg_constraint where conrelid='private.catalog_video_recipe_references'::regclass and contype='u' and pg_get_constraintdef(oid)='UNIQUE (update_attempt_id, video_set_id)')
+  and not exists(select 1 from pg_constraint where conrelid in('private.catalog_video_sets'::regclass,'private.catalog_video_recipe_references'::regclass) and contype='u' and pg_get_constraintdef(oid)='UNIQUE (update_attempt_id)'),
+  'an update attempt holds one set per video');
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='private.catalog_updater_variant_segments'::regclass)
+  and not has_table_privilege('service_role','private.catalog_updater_variant_segments','select,insert,update,delete')
+  and not has_table_privilege('authenticated','private.catalog_updater_variant_segments','select,insert,update,delete')
+  and private.task_cleanup_coverage_verified(),'round segments are private and fenced');
+select throws_ok($$select pg_temp.round('c0620000-0000-4000-8000-000000000701',2)$$,'22023','VARIATIONS_RANGE','a round of three videos needs three variations');
+select throws_ok($$select public.service_accept_catalog_updater_variants('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000063',
+  'c0620000-0000-4000-8000-000000000702',1,(select version from public.team_catalog_update_profiles where catalog_material_id='c0620000-0000-4000-8000-000000000063'),null)$$,
+  '22023','MULTI_CREATIVE_UNSUPPORTED','an image catalog is never restitched by the updater');
+create temporary table round_probe as select pg_temp.round('c0620000-0000-4000-8000-000000000703',4) rp;
+select is(jsonb_array_length((select rp->'segments' from round_probe)),3,'a round of three videos names three sets');
+select is((select jsonb_agg((s->>'requested_count')::int order by (s->>'ordinal')::int) from round_probe, jsonb_array_elements(rp->'segments') s),'[2,1,1]'::jsonb,'variations go round-robin: one each, then in turn');
+select is((select jsonb_agg(s->>'source_material_id' order by (s->>'ordinal')::int) from round_probe, jsonb_array_elements(rp->'segments') s),
+  '["c0620000-0000-4000-8000-000000000041","c0620000-0000-4000-8000-000000000042","c0620000-0000-4000-8000-000000000043"]'::jsonb,'each set restitches its own video');
+select ok((select (rp#>>'{segments,0,set_id}')=(rp->>'set_id') and (rp#>>'{segments,0,source_material_id}')=(rp->>'source_material_id')
+   and (rp->>'requested_count')::int=4 and jsonb_array_length(rp->'recipe_row_ids')=6 from round_probe),'the round keeps the first set and every row and variation on top');
+select ok((select bool_and(s->'recipe_row_ids'=(select jsonb_agg(x.v order by x.o) from jsonb_array_elements(rp->'recipe_row_ids') with ordinality x(v,o) where x.o between 2*(s->>'ordinal')::int+1 and 2*(s->>'ordinal')::int+2))
+   from round_probe, jsonb_array_elements(rp->'segments') s),'each set gets its own block of rows');
+select ok((select bool_and(s->>'assignment_seed'=encode(sha256(convert_to((rp->>'assignment_seed')||':'||(s->>'ordinal'),'UTF8')),'hex')) from round_probe, jsonb_array_elements(rp->'segments') s)
+  and (select count(distinct c) = 4 from round_probe, jsonb_array_elements(rp->'segments') s, jsonb_array_elements_text(s->'child_request_ids') c),
+  'each set has its own seed and its share of the round''s child requests');
+select ok((select bool_and(jsonb_typeof(s->'provider_context')='object' and s#>>'{provider_context,fileId}'='multi-v'||((s->>'ordinal')::int+1)::text) from round_probe, jsonb_array_elements(rp->'segments') s),'each set carries its own video''s Drive context');
+select is(pg_temp.round('c0620000-0000-4000-8000-000000000703',4,(select (rp->>'profile_version')::bigint-1 from round_probe)),(select rp from round_probe),'replaying the round returns the same sets');
+
+-- Each set is admitted only for its own video.
+create function pg_temp.round_set(o int, p_source text default null, p_set text default null) returns jsonb language sql as $$
+ select public.service_accept_catalog_video_set_before_foreground('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000904',
+  jsonb_build_object('setId',coalesce(p_set,s->>'set_id'),'catalogMaterialId','c0620000-0000-4000-8000-000000000064','updateAttemptId',rp->>'attempt_id',
+   'sourceMaterialId',coalesce(p_source,s->>'source_material_id'),'sourceVersion','1','settings',pg_temp.settings(),
+   'settingsDigest',repeat('b',64),'requestedCount',(s->>'requested_count')::int,'productCount',2,'recipeRevision',1,'seed',s->>'assignment_seed'),
+  (select jsonb_agg(jsonb_build_object('index',c.o-1,'requestId',c.id) order by c.o) from jsonb_array_elements_text(s->'child_request_ids') with ordinality c(id,o)),
+  (select jsonb_agg(jsonb_build_object('recipeRowId',x.id,'videoVariantIndex',(x.o-1)%(s->>'requested_count')::int) order by x.o) from jsonb_array_elements_text(s->'recipe_row_ids') with ordinality x(id,o)))
+ from round_probe, jsonb_array_elements(rp->'segments') s where (s->>'ordinal')::int=o;
+$$;
+select throws_ok($$select pg_temp.round_set(1,'c0620000-0000-4000-8000-000000000044')$$,'42501','PERMISSION_DENIED','a video outside the round is refused');
+select throws_ok($$select pg_temp.round_set(1,null,(select rp->>'set_id' from round_probe))$$,'42501','PERMISSION_DENIED','a video admits only its own set');
+select lives_ok($$select pg_temp.round_set(o) from generate_series(0,2) o$$,'every video of the round admits its set');
+select is((select count(*)::int from private.catalog_video_sets where update_attempt_id=(select (rp->>'attempt_id')::uuid from round_probe)),3,'one update attempt holds three sets');
+select is((select count(*)::int from private.catalog_video_recipe_references where update_attempt_id=(select (rp->>'attempt_id')::uuid from round_probe)),3,'each set of the round keeps its recipe reference');
+select lives_ok($$select pg_temp.round_set(2)$$,'replaying a set of the round returns it');
+
+-- Read and the attach lane wait for every set.
+create function pg_temp.round_read() returns jsonb language sql as $$
+ select public.service_read_catalog_updater_variants('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000064','c0620000-0000-4000-8000-000000000703');
+$$;
+update private.catalog_video_sets set state='ready' where id=(select (rp->>'set_id')::uuid from round_probe);
+select ok((select r->>'state'='accepted' and (r->>'requestedCount')::int=4 and jsonb_array_length(r->'segments')=3 and r#>>'{segments,0,state}'='ready' from (select pg_temp.round_read() r) x),'the round is as far as its least advanced set');
+select ok(not exists(select 1 from jsonb_array_elements(public.service_list_catalog_updater_variant_targets(3)) e where e->>'requestId'='c0620000-0000-4000-8000-000000000703'),'one ready set does not make the round attachable');
+insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version,checksum,size_bytes)
+ select ('c0620000-0000-4000-8000-0000000008'||lpad(n::text,2,'0'))::uuid,'c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000031','multi-out-'||n,'Out '||n||'.mp4','file','video','video/mp4','1',md5(n::text),1000 from generate_series(0,3) n;
+update private.catalog_video_variants v set state='registered',output_material_id=('c0620000-0000-4000-8000-0000000008'||lpad(o.n::text,2,'0'))::uuid
+ from (select v2.video_set_id,v2.video_variant_index,(row_number() over (order by g.ordinal,v2.video_variant_index))-1 n
+       from private.catalog_video_variants v2 join private.catalog_updater_variant_segments g on g.set_id=v2.video_set_id
+       where g.request_id='c0620000-0000-4000-8000-000000000703') o
+ where v.video_set_id=o.video_set_id and v.video_variant_index=o.video_variant_index;
+update private.catalog_video_sets set state='ready' where update_attempt_id=(select (rp->>'attempt_id')::uuid from round_probe);
+select ok((select r->>'state'='ready' and (r->>'registeredCount')::int=4 from (select pg_temp.round_read() r) x),'every set ready makes the round ready');
+select is(jsonb_array_length(public.service_catalog_updater_variant_outputs('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000703')),6,'outputs name every row from its own video''s set');
+select ok((select bool_and(o->>'rowId'=(select rp->'recipe_row_ids'->>((o->>'ordinal')::int-1) from round_probe)) from jsonb_array_elements(public.service_catalog_updater_variant_outputs('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000703')) o),'outputs keep the round''s row order');
+select ok(exists(select 1 from jsonb_array_elements(public.service_list_catalog_updater_variant_targets(3)) e where e->>'requestId'='c0620000-0000-4000-8000-000000000703'),'a round with every set ready is attachable');
+
+-- Attach writes a new 'creatives' target revision with the round's sets.
+select lives_ok($$select public.service_attach_catalog_updater_variant_target('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000703')$$,'the ready round attaches');
+select ok((select t.kind='creatives' and t.id<>(select id from round_target) and p.revision=2 from private.catalog_video_publication_policies p join private.catalog_publication_targets t on t.id=p.target_id where p.catalog_material_id='c0620000-0000-4000-8000-000000000064'),'the catalog publishes a new creatives target revision');
+select is((select jsonb_agg(g.video_set_id order by g.ordinal) from private.catalog_video_publication_policies p join private.catalog_publication_target_segments g on g.target_id=p.target_id where p.catalog_material_id='c0620000-0000-4000-8000-000000000064'),
+  (select jsonb_agg(s->'set_id' order by (s->>'ordinal')::int) from round_probe, jsonb_array_elements(rp->'segments') s),'each video block names its set of the round');
+select ok((select bool_and(g.row_start=2*g.ordinal and g.row_count=2 and g.recipe_revision=1) from private.catalog_video_publication_policies p join private.catalog_publication_target_segments g on g.target_id=p.target_id where p.catalog_material_id='c0620000-0000-4000-8000-000000000064'),'the blocks keep their rows');
+select throws_ok($$select public.service_save_catalog_publication('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001',gen_random_uuid(),'c0620000-0000-4000-8000-000000000064',2,'immediate',null,null,
+  private.catalog_publication_target_json((select id from round_target)))$$,'22023','INVALID_INPUT','a stale creatives target cannot be published from outside');
+update private.catalog_video_publication_jobs set worker_id='c0620000-0000-4000-8000-000000000905',lease_until=clock_timestamp()+interval '5 minutes',state='waiting',blocked_reason=null
+ where catalog_material_id='c0620000-0000-4000-8000-000000000064' and revision=2;
+update private.catalog_variant_round_snapshots set regular_verified_at=clock_timestamp() where attempt_id=(select (rp->>'attempt_id')::uuid from round_probe);
+create temporary table round_cells as select public.service_catalog_publication_cells_context((select id from private.catalog_video_publication_jobs where catalog_material_id='c0620000-0000-4000-8000-000000000064' and revision=2),'c0620000-0000-4000-8000-000000000905') value;
+select is((select value->'recipeRowIds' from round_cells),(select rp->'recipe_row_ids' from round_probe),'the publication lane reads the round''s rows');
+select ok((select jsonb_array_length(value->'sources')=6 and value->>'creativeKind'='video' and (select bool_and(src->>'materialId' like 'c0620000-0000-4000-8000-0000000008%') from jsonb_array_elements(value->'sources') src) from round_cells),'every row is published from its set''s output');
+
+-- Cancel stops every set of the round.
+select lives_ok($$select public.service_cancel_catalog_updater_variants('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000064','c0620000-0000-4000-8000-000000000703')$$,'the round can be canceled');
+select is((select count(*)::int from private.catalog_video_sets where update_attempt_id=(select (rp->>'attempt_id')::uuid from round_probe) and state in('canceled','cancel_requested')),3,'canceling the round stops every set');
+select ok(not (private.catalog_updater_variant_request_json(jsonb_populate_record(null::private.catalog_updater_variant_requests,jsonb_build_object('request_id',gen_random_uuid(),'attempt_id',gen_random_uuid()))) ? 'segments'),'a single-video round answers without segments');
+
+-- 062 analytics: creative diagnostics of a catalog generation.
+select is((select attname::text from pg_attribute where attrelid='public.analytics_catalog_generations'::regclass and attnum>0 and not attisdropped order by attnum desc limit 1),'creative_diagnostics','creative diagnostics are the last column');
+select ok(has_table_privilege('service_role','public.analytics_catalog_generations','select') and not has_table_privilege('service_role','public.analytics_catalog_generations','insert')
+  and not has_table_privilege('authenticated','public.analytics_catalog_generations','select') and not has_table_privilege('anon','public.analytics_catalog_generations','select'),'the view keeps its grants');
+update private.catalog_generation_intents set state='interrupted',safe_error_code='CREATIVES_MIXED',checkpoint=checkpoint||jsonb_build_object('creativeDiagnostics',
+  '{"creativeKind":"image","creativeCount":2,"productCount":4,"variationCount":0,"customDistribution":true,"failedOrdinal":1,"alias":"private",
+    "images":[{"creativeOrdinal":1,"stage":"creative_image.failed","attemptId":"c0620000-0000-4000-8000-0000000009aa","code":"CREATIVE_IMAGE_TOO_LARGE","url":"https://private.invalid"},
+              {"creativeOrdinal":0,"stage":"creative_image.verified","attemptId":null,"code":"Bearer private"}]}'::jsonb)
+ where id='c0620000-0000-4000-8000-000000000401';
+select is((select safe_error_code from public.analytics_catalog_generations where intent_id='c0620000-0000-4000-8000-000000000401'),'CREATIVES_MIXED','062 codes are safe error codes');
+select is((select creative_diagnostics from public.analytics_catalog_generations where intent_id='c0620000-0000-4000-8000-000000000401'),
+  '{"creativeKind":"image","creativeCount":2,"productCount":4,"variationCount":0,"customDistribution":true,"failedOrdinal":1,
+    "images":[{"creativeOrdinal":1,"stage":"creative_image.failed","attemptId":"c0620000-0000-4000-8000-0000000009aa","code":"CREATIVE_IMAGE_TOO_LARGE"},
+              {"creativeOrdinal":0,"stage":"creative_image.verified","attemptId":null,"code":"UNKNOWN"}]}'::jsonb,'diagnostics keep only the shared shape');
+select ok(private.catalog_creative_diagnostics_v1('{"creativeKind":"video","creativeCount":1.5,"productCount":4,"variationCount":0,"customDistribution":false,"images":[]}') is null
+  and private.catalog_creative_diagnostics_v1('{"creativeKind":"video","creativeCount":1,"productCount":4,"variationCount":0,"customDistribution":false,"images":"x"}') is null
+  and private.catalog_creative_diagnostics_v1('{"creativeKind":"video","creativeCount":1,"productCount":4,"variationCount":0,"customDistribution":false,"images":[{"creativeOrdinal":0,"stage":"creative_image.accepted"}]}') is null
+  and private.catalog_creative_diagnostics_v1('[1]') is null,'anything outside the shape reads as nothing');
+
+-- A scheduled round of several videos: at least one variation per video, one set per video.
+update public.team_catalog_update_profiles set video_variant_count=1,restitch=true where catalog_material_id='c0620000-0000-4000-8000-000000000064';
+insert into public.team_catalog_updater_items(catalog_material_id,team_id,round_due_at,next_attempt_at)
+ values('c0620000-0000-4000-8000-000000000064','c0620000-0000-4000-8000-000000000011',clock_timestamp(),clock_timestamp()-interval '1 minute')
+ on conflict (catalog_material_id) do update set round_due_at=excluded.round_due_at,next_attempt_at=excluded.next_attempt_at,lease_owner=null,lease_expires_at=null;
+create temporary table scheduled_round as select a.attempt_id from public.team_catalog_update_attempts a join public.team_catalog_updater_items i on i.catalog_material_id=a.catalog_material_id and i.round_due_at=a.round_due_at
+ where a.catalog_material_id='c0620000-0000-4000-8000-000000000064' and a.result='running';
+select is((select requested_count from private.catalog_variant_round_snapshots where attempt_id=(select attempt_id from scheduled_round)),3,'a scheduled round asks for one variation per video at least');
+select is((select jsonb_agg((s->>'requested_count')::int order by (s->>'ordinal')::int) from jsonb_array_elements(public.service_adopt_catalog_variant_round('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001',
+  'c0620000-0000-4000-8000-000000000064',(select attempt_id from scheduled_round),null)->'segments') s),'[1,1,1]'::jsonb,'adopting a scheduled round opens one set per video');
+select is(jsonb_array_length(public.service_resume_catalog_updater_variants('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001',
+  'c0620000-0000-4000-8000-000000000064',(select attempt_id from scheduled_round))->'segments'),3,'resuming the round returns its sets');
 
 select * from finish();
 rollback;
