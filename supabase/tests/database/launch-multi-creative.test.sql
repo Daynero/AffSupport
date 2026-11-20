@@ -1,5 +1,5 @@
 begin;
-select plan(74);
+select plan(76);
 
 -- Fixture: one space, an editor, four videos, one image, a "sheet" material.
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
@@ -203,6 +203,10 @@ select ok(public.analytics_properties_are_safe_v2('{"launch_method":"catalog","c
 select ok(public.analytics_properties_are_safe_v2('{"creative_kind":"image","creative_ordinal":0,"launch_code":"CREATIVE_IMAGE_TOO_LARGE"}'),'image publication stages are accepted');
 select ok(not public.analytics_properties_are_safe_v2('{"creative_kind":"gif"}'),'the creative kind is an enum');
 select ok(not public.analytics_properties_are_safe_v2('{"creative_count":401}'),'counts are bounded');
+
+-- 062 edge follow-ups.
+select ok(has_function_privilege('service_role','public.service_confirm_catalog_creative_links(uuid)','execute') and not has_function_privilege('authenticated','public.service_confirm_catalog_creative_links(uuid)','execute'),'creative link confirmation is service only');
+select throws_ok($$select public.service_confirm_catalog_creative_links(gen_random_uuid())$$,'P0002','NOT_FOUND','an unknown job has no links');
 
 select * from finish();
 rollback;
