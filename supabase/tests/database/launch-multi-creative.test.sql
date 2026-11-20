@@ -1,5 +1,5 @@
 begin;
-select plan(76);
+select plan(80);
 
 -- Fixture: one space, an editor, four videos, one image, a "sheet" material.
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
@@ -207,6 +207,23 @@ select ok(not public.analytics_properties_are_safe_v2('{"creative_count":401}'),
 -- 062 edge follow-ups.
 select ok(has_function_privilege('service_role','public.service_confirm_catalog_creative_links(uuid)','execute') and not has_function_privilege('authenticated','public.service_confirm_catalog_creative_links(uuid)','execute'),'creative link confirmation is service only');
 select throws_ok($$select public.service_confirm_catalog_creative_links(gen_random_uuid())$$,'P0002','NOT_FOUND','an unknown job has no links');
+
+-- 062 publication lane: an image catalog's R2 switch publishes H through a runnable job.
+insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version) values
+ ('c0620000-0000-4000-8000-000000000063','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000031','multi-s3','Sheet 3','file','other','application/vnd.google-apps.spreadsheet','1');
+insert into public.team_product_catalogs(material_id,team_id,video_material_id,source_link,product_count,sheet_url,video_link,settings_snapshot)
+ values('c0620000-0000-4000-8000-000000000063','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000045','https://offer.example.invalid/',2,
+  'https://docs.google.com/spreadsheets/d/s3/edit',null,'{"_catalogCreativeKind":"image","_catalogCreatives":[{"ordinal":0,"alias":"c45","kind":"image"}]}');
+-- An adopted catalog: its initial delivery was verified.
+insert into private.catalog_video_publication_policies(catalog_material_id,team_id,actor_id,revision,mode,target_id,legacy_delivery_unverified)
+ values('c0620000-0000-4000-8000-000000000063','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001',1,'immediate',(select id from image_probe),false);
+select is((public.set_catalog_creative_image_r2('c0620000-0000-4000-8000-000000000063',true))->>'enabled','true','an image catalog switches to R2 links');
+select ok(exists(select 1 from private.catalog_video_publication_jobs where catalog_material_id='c0620000-0000-4000-8000-000000000063' and revision=2 and state not in('published','superseded')),'the switch asks for an immediate publication of H');
+update private.catalog_video_publication_jobs set worker_id='c0620000-0000-4000-8000-000000000903',lease_until=clock_timestamp()+interval '5 minutes'
+ where catalog_material_id='c0620000-0000-4000-8000-000000000063' and revision=2;
+create temporary table cells_probe as select public.service_catalog_publication_cells_context((select id from private.catalog_video_publication_jobs where catalog_material_id='c0620000-0000-4000-8000-000000000063' and revision=2),'c0620000-0000-4000-8000-000000000903') value;
+select is((select value->>'creativeKind' from cells_probe),'image','the job context names the creative kind');
+select ok((select value#>>'{sources,0,kind}'='image' and value#>'{sources,0,r2}'='true'::jsonb and value#>>'{segments,0,rowCount}'='2' from cells_probe),'image sources carry their R2 choice and segments their rows');
 
 select * from finish();
 rollback;
