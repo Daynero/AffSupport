@@ -36,6 +36,7 @@ import { LaunchSelector } from './LaunchSelectors';
 import { LaunchCreativePicker } from './LaunchCreativePicker';
 import { creativesPatch, draftCreatives } from './launchCreatives';
 import { LaunchCreativeDistribution } from './LaunchCreativeDistribution';
+import { teamErrorMessageFor } from '../errors';
 import { LaunchRestitchDurationField } from './LaunchRestitchDurationField.js';
 import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
@@ -428,6 +429,11 @@ export function LaunchEditor({
                   submitted={submitted}
                   disabled={disabled}
                 />
+                {submitted && errors.creatives && errors.creatives !== 'DISTRIBUTION_INVALID' && (
+                  <p className="ui-field-error" role="alert">
+                    {teamErrorMessageFor({ code: errors.creatives }, t)}
+                  </p>
+                )}
                 {keptFirstCreative && config.method === 'other' && (
                   <p className="field-hint">{t('launchOtherMethodOneCreative')}</p>
                 )}

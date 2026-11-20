@@ -65,6 +65,7 @@ const LAUNCH_FIELD_LABELS: Record<string, TranslationKey> = {
   buyerId: 'launchesBuyer',
   materialId: 'launchesCreative',
   creativeAlias: 'launchesCreative',
+  creatives: 'launchesCreative',
   campaignCount: 'launchesCampaignCount',
   adsCount: 'launchesAdsCount',
   minBudget: 'launchesMinBudget',
@@ -618,7 +619,10 @@ export function LaunchSession({
     draft.config.buyerId,
     draft.config.materialId,
     draft.config.method,
-    draft.config.catalog?.restitchEnabled
+    draft.config.catalog?.restitchEnabled,
+    // 062: every creative is a source; adding or removing one re-reads them.
+    draft.config.creativeKind,
+    (draft.config.creatives ?? []).map(creative => creative.materialId).join(',')
   ].join('|');
   const lastIds = useRef<string | null>(draft.sources ? sourceIds : null);
   useEffect(() => {
