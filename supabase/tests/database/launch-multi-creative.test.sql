@@ -1,5 +1,5 @@
 begin;
-select plan(70);
+select plan(74);
 
 -- Fixture: one space, an editor, four videos, one image, a "sheet" material.
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
@@ -197,6 +197,12 @@ select throws_ok($$select public.service_accept_catalog_video_replacement('c0620
 select throws_ok($$select public.service_begin_catalog_baseline_check(gen_random_uuid(),'c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000061',1)$$,'22023','MULTI_CREATIVE_UNSUPPORTED','the link check is refused');
 select ok((select 'creative_kind'=any(proargnames) and 'creatives'=any(proargnames) from pg_proc where oid='public.list_team_catalog_update_profiles(uuid)'::regprocedure),'the manager learns the creative kind and list');
 select throws_ok($$select public.set_catalog_creative_image_r2('c0620000-0000-4000-8000-000000000041',true)$$,'P0002','NOT_FOUND','image R2 is only for image catalogs');
+
+-- 062 analytics allowlist.
+select ok(public.analytics_properties_are_safe_v2('{"launch_method":"catalog","creative_kind":"video","creative_count":4,"product_count":10,"variation_count":8,"custom_distribution":true,"failed_ordinal":2}'),'multi-creative launch properties are accepted');
+select ok(public.analytics_properties_are_safe_v2('{"creative_kind":"image","creative_ordinal":0,"launch_code":"CREATIVE_IMAGE_TOO_LARGE"}'),'image publication stages are accepted');
+select ok(not public.analytics_properties_are_safe_v2('{"creative_kind":"gif"}'),'the creative kind is an enum');
+select ok(not public.analytics_properties_are_safe_v2('{"creative_count":401}'),'counts are bounded');
 
 select * from finish();
 rollback;
