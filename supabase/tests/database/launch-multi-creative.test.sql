@@ -1,5 +1,5 @@
 begin;
-select plan(53);
+select plan(63);
 
 -- Fixture: one space, an editor, four videos, one image, a "sheet" material.
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
@@ -163,6 +163,31 @@ select is((public.retry_launch_catalog_video_segment('c0620000-0000-4000-8000-00
 select throws_ok($$select public.retry_launch_catalog_video_segment('c0620000-0000-4000-8000-000000000301',9)$$,'P0002','NOT_FOUND','an unknown segment cannot be retried');
 update public.team_launch_generations set state='cancel_requested' where id='c0620000-0000-4000-8000-000000000301';
 select is((select count(*)::int from private.catalog_video_sets where catalog_intent_id='c0620000-0000-4000-8000-000000000401' and state='canceled'),4,'canceling the Launch stops every segment set');
+
+-- 062 image catalogs and the 'creatives' publication target.
+insert into public.team_materials(id,team_id,connection_id,drive_file_id,name,kind,category,mime_type,drive_version) values
+ ('c0620000-0000-4000-8000-000000000061','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000031','multi-s1','Sheet','file','other','application/vnd.google-apps.spreadsheet','1'),
+ ('c0620000-0000-4000-8000-000000000062','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000031','multi-s2','Sheet 2','file','other','application/vnd.google-apps.spreadsheet','1');
+select lives_ok($$insert into public.team_product_catalogs(material_id,team_id,video_material_id,source_link,product_count,sheet_url,video_link,settings_snapshot)
+ values('c0620000-0000-4000-8000-000000000061','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000045','https://offer.example.invalid/',2,
+  'https://docs.google.com/spreadsheets/d/s1/edit',null,'{"_catalogCreativeKind":"image"}')$$,'an image catalog has no video link');
+select throws_ok($$insert into public.team_product_catalogs(material_id,team_id,video_material_id,source_link,product_count,sheet_url,video_link,settings_snapshot)
+ values('c0620000-0000-4000-8000-000000000062','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000041','https://offer.example.invalid/',2,
+  'https://docs.google.com/spreadsheets/d/s2/edit',null,'{}')$$,'23514',null,'a video catalog still needs its video link');
+select lives_ok($$select public.service_initial_catalog_video_context_before_foreground('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000045',null,false)$$,'an image is a valid source without restitch');
+select throws_ok($$select public.service_initial_catalog_video_context_before_foreground('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000045',null,true)$$,'55000','SOURCE_CHANGED','an image is never restitched');
+create temporary table image_probe as select private.register_catalog_creatives_target('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000401','c0620000-0000-4000-8000-000000000045','{}'::jsonb,2,'immediate','image') id;
+select is(private.catalog_publication_target_json((select id from image_probe))#>>'{segments,0,kind}','image','one image gets a creatives target of one image block');
+create temporary table target_probe as select private.register_catalog_creatives_target('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000401','c0620000-0000-4000-8000-000000000041',
+ '{"segments":[{"ordinal":0,"materialId":"c0620000-0000-4000-8000-000000000041","kind":"video","rowStart":0,"rowCount":2,"variantCount":1,"setId":null},{"ordinal":1,"materialId":"c0620000-0000-4000-8000-000000000042","kind":"video","rowStart":2,"rowCount":1,"variantCount":1,"setId":null}]}'::jsonb,3,'immediate','video') id;
+select is(jsonb_array_length(private.catalog_publication_target_json((select id from target_probe))->'segments'),2,'several videos get one segment each');
+select is(private.catalog_publication_target_observation((select id from target_probe))->>'state','available','unchanged sources are available');
+select throws_ok($$select private.register_catalog_creatives_target('c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001','c0620000-0000-4000-8000-000000000401','c0620000-0000-4000-8000-000000000041',
+ '{"segments":[{"ordinal":0,"materialId":"c0620000-0000-4000-8000-000000000041","kind":"video","rowStart":0,"rowCount":2,"setId":null}]}'::jsonb,3,'immediate','video')$$,'55000','WRONG_STATE','segments must cover every row');
+insert into private.catalog_video_publication_policies(catalog_material_id,team_id,actor_id,revision,mode,target_id)
+ values('c0620000-0000-4000-8000-000000000061','c0620000-0000-4000-8000-000000000011','c0620000-0000-4000-8000-000000000001',1,'immediate',(select id from target_probe));
+select is(private.catalog_multi_creative_kind('c0620000-0000-4000-8000-000000000061'),'image','an image catalog is recognized');
+select ok((select relrowsecurity and relforcerowsecurity from pg_class where oid='private.catalog_publication_target_segments'::regclass) and private.task_cleanup_coverage_verified(),'target segments are private and fenced');
 
 select * from finish();
 rollback;
