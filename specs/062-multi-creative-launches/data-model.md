@@ -3,7 +3,7 @@
 ## Shared-типи (`packages/shared/src/team/launches.ts`)
 
 ```ts
-export const LAUNCH_CATALOG_PRODUCTS_MAX = 400; // наявна межа, винести в константу, якщо ще inline
+// межа товарів — наявна CATALOG_PRODUCT_COUNT_MAX = 400 (packages/shared/src/team/catalog-video-set.ts)
 export const CATALOG_ID_PREFIX_MAX = 40;
 
 export type LaunchCreativeKind = 'video' | 'image';
@@ -71,7 +71,7 @@ interface CatalogInitialVideoPlanV2 extends CatalogInitialVideoPlan {
 ## Snapshot каталогу (`team_product_catalogs.settings_snapshot`)
 
 - `_catalogCreativeKind: 'video' | 'image'`
-- `_catalogCreatives: Array<{ordinal, materialId, alias, kind, imageId?: string}>`
+- `_catalogCreatives: Array<{ordinal, materialId, alias, kind, imageId?: string, link?: string, linkKind?: 'r2' | 'drive', linkRevision?: number}>` — `link` (поточне посилання креативу для H/Z) оновлює лише лінія публікації при підтвердженому записі; зміна R2-перемикача збільшує `linkRevision`
 - `_catalogRowCreatives: number[]` — ordinal креативу для кожного рядка в порядку рядків.
 
 Відсутність ключів = старий каталог: без префікса ID, поведінка без змін.

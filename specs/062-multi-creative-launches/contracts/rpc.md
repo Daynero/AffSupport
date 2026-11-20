@@ -6,7 +6,7 @@
 
 | RPC | Зміна |
 |---|---|
-| `save_launch_draft` | перевіряє `creatives` (UUID, ≤10, унікальні, `creativeKind`), дзеркало першого |
+| `save_launch_draft` | перевіряє `creatives` (UUID, ≤400, унікальні, `creativeKind`), дзеркало першого |
 | `service_launch_sources` / `get_launch_sources` | + `materials[]` у порядку креативів, кожен з `type/version/checksum/driveFileId`; відмова, якщо категорія ≠ `creativeKind` |
 | `service_accept_launch_catalog_video_generation` | приймає `plan.segments`; для кожного відео-сегмента з перезашивкою — `service_accept_catalog_video_set`; вставляє `launch_catalog_video_segments`; reuse готового набору лише при k=1 |
 | `service_accept_catalog_video_set` | пошук за `(intent, source)`; джерело має бути серед сегментів інтенту |

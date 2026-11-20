@@ -36,12 +36,16 @@ distributeVariations(copies: number[], total: number): number[]
 // distributeVariations([25,25,25,25],30) = [8,8,7,7]
 // distributeVariations([40,30,20,10],100) = [40,30,20,10]
 
-isValidDistribution(copies: number[], n: number, k: number): boolean
+isValidDistribution(copies: number[], n: number): boolean  // k = copies.length
+
+addCreatives(list, added, n): { creatives, productCount }
+// дедуп за materialId; productCount = max(n, k'); рівний лишається рівним,
+// у нерівному новачок отримує рівну частку, решта компенсують (як setCopies).
 ```
 
 ## Властивості (тест SC-006)
 
-Для 10 000 випадкових послідовностей операцій (`dragCopies`, `setCopies`, `rescaleCopies`, `removeCreative`, `balanceCopies`) при `1 ≤ k ≤ 10`, `k ≤ n ≤ 400`:
+Для 10 000 випадкових послідовностей операцій (`dragCopies`, `setCopies`, `rescaleCopies`, `removeCreative`, `balanceCopies`) при `1 ≤ k ≤ 400`, `k ≤ n ≤ 400` (+ `addCreatives`):
 - `Σ copies = n`, кожен `≥ 1`;
 - `setCopies` ніколи не змінює значення pinned-креативу, якщо є незакріплені з запасом;
 - `distributeVariations`: `Σ = total`, `1 ≤ v[i] ≤ copies[i]`, `max−min ≤ 1` серед ненасичених.

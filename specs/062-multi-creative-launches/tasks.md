@@ -10,25 +10,27 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Встановити залежності воркдерева й перебудувати shared: `npm ci` і `npm run build -w @video-compressor/shared` у /Users/daynero/RiderProjects/AffSupport-062
+- [x] T001 Встановити залежності воркдерева й перебудувати shared: `npm ci` і `npm run build -w @video-compressor/shared` у /Users/daynero/RiderProjects/AffSupport-062
 - [ ] T002 Перевірити на беті, що публічний origin бакета `soty-catalog-images-${env}-public` віддає новий об'єкт `c1/<uuid>` напряму анонімно (`curl -sI` без cookies); результат і рішення (origin чи маршрут Worker `/c/*`) записати в research.md R7
 
 ## Phase 2: Foundational (блокує всі історії)
 
-- [ ] T003 [P] Типи `LaunchCreative` (`pinned: number | null`), `LaunchCreativeKind`, поля `creatives`/`creativeKind` у `LaunchConfig`, `materials[]` у `LaunchSources`, `creativeCount`/`creativeKind` у `LaunchSummary`, константи `LAUNCH_CATALOG_PRODUCTS_MAX`, `CATALOG_ID_PREFIX_MAX` у packages/shared/src/team/launches.ts
-- [ ] T004 [P] Тест-властивості розподілу (10 000 послідовностей, k до 400, приклади з контракту, автопідняття N) у tests/launch-creative-distribution.test.ts
-- [ ] T005 `evenCopies`, `dragCopies`, `setCopies`, `rescaleCopies`, `addCreatives` (автопідняття N до k), `removeCreative`, `balanceCopies`, `distributeVariations`, `isValidDistribution` у packages/shared/src/team/launches/creative-distribution.ts, експорт з індексу shared
-- [ ] T006 [P] Тести розбору конфігурації: нормалізація старої, коди відмов data-model, дзеркало першого, `method='other'` ⇒ k=1, `productCount < k` відхилено у tests/launch-multi-creative-config.test.ts
-- [ ] T007 `parseLaunchConfig`/`catalogConfig` (коди `CREATIVES_LIMIT`, `CREATIVES_MIXED`, `CREATIVE_DUPLICATE`, `DISTRIBUTION_INVALID`, `VARIATIONS_RANGE`), `parseLaunchSources` (`materials[]`) у packages/shared/src/team/launches/validation.ts
-- [ ] T008 Межі варіацій `k ≤ V ≤ N` з перезашивкою у `parseLaunchCatalogVideoConfig` packages/shared/src/team/launches/catalog-video.ts
-- [ ] T009 [P] `creatives`, `creativeKind` у whitelist `parseLaunchDraft` packages/shared/src/team/launches/persistence.ts
-- [ ] T010 [P] Перевірка типу кожного креативу через `sources.materials` замість `materialType !== 'video'` у packages/shared/src/team/launches/preview.ts
-- [ ] T011 [P] `launchCampaignName` з `+N` і `launchCreativeIdPrefix(alias)` у packages/shared/src/team/launches/naming.ts; тести в tests/launch-generators.test.ts
+- [x] T003 [P] Типи `LaunchCreative` (`pinned: number | null`), `LaunchCreativeKind`, поля `creatives`/`creativeKind` у `LaunchConfig`, `materials[]` у `LaunchSources`, `creativeCount`/`creativeKind` у `LaunchSummary`, константа `CATALOG_ID_PREFIX_MAX` (межа товарів — наявна `CATALOG_PRODUCT_COUNT_MAX`) у packages/shared/src/team/launches.ts
+- [x] T004 [P] Тест-властивості розподілу (10 000 послідовностей, k до 400, приклади з контракту, автопідняття N) у tests/launch-creative-distribution.test.ts
+- [x] T005 `evenCopies`, `dragCopies`, `setCopies`, `rescaleCopies`, `addCreatives` (автопідняття N до k), `removeCreative`, `balanceCopies`, `distributeVariations`, `isValidDistribution` у packages/shared/src/team/launches/creative-distribution.ts, експорт з індексу shared
+- [x] T006 [P] Тести розбору конфігурації: нормалізація старої, коди відмов data-model, дзеркало першого, `method='other'` ⇒ k=1, `productCount < k` відхилено у tests/launch-multi-creative-config.test.ts
+- [x] T007 `parseLaunchConfig`/`catalogConfig` (коди `CREATIVES_LIMIT`, `CREATIVES_MIXED`, `CREATIVE_DUPLICATE`, `DISTRIBUTION_INVALID`, `VARIATIONS_RANGE`), `parseLaunchSources` (`materials[]`) у packages/shared/src/team/launches/validation.ts
+- [x] T008 Межі варіацій `k ≤ V ≤ N` з перезашивкою (`VARIATIONS_RANGE` у `parseLaunchCreatives` packages/shared/src/team/launches/validation.ts; `V ≤ N` лишився в catalog-video.ts)
+- [x] T009 [P] `creatives`, `creativeKind` у whitelist `parseLaunchDraft` packages/shared/src/team/launches/persistence.ts
+- [x] T010 [P] Перевірка типу кожного креативу через `sources.materials` замість `materialType !== 'video'` у packages/shared/src/team/launches/preview.ts
+- [x] T011 [P] `launchCampaignName` з `+N` (`launchCreativeLabel`) і `launchCreativeIdPrefix(alias)` у packages/shared/src/team/launches/naming.ts; тести в tests/launch-multi-creative-config.test.ts
 - [ ] T012 Міграція 20261220100000_launch_multi_creative_config.sql: `save_launch_draft` (UUID кожного, ≤400, унікальні, тип, дзеркало), `service_launch_sources`/`get_launch_sources` з `materials[]` і перевіркою категорії, `list_launches_pre_assignment` + `creativeCount`/`creativeKind`, назва каталогу `<stem>+N_v<n>_catalog` у `pendingCatalogName`/резерві у supabase/migrations/
 - [ ] T013 [P] `catalogIdPrefix(name)` і `catalogProductId(prefix, unique)` у supabase/functions/_shared/product-details.ts; тести в tests/catalog-product-id-prefix.test.ts
 - [ ] T014 pgTAP-основа: чернетка з 4 креативами, змішані типи, дубль, `productCount < k`, метод «Інше» з k>1 у supabase/tests/database/launch-multi-creative.test.sql
 - [ ] T015 Паритет shared↔SQL для валідації креативів у tests/launch-shared-parity.test.ts
-- [ ] T016 Міграція 20261220116000_catalog_publication_creatives_target.sql: вид цілі `creatives`, `private.catalog_publication_target_segments` (RLS, fence), реєстрація цілі для k>1/image замість `source`/`video_set` (169000:571-577) у supabase/migrations/; pgTAP у supabase/tests/database/launch-multi-creative.test.sql
+- [ ] T016 Міграція 20261220116000_catalog_publication_creatives_target.sql: вид цілі `creatives`, `private.catalog_publication_target_segments` (RLS, fence), реєстрація цілі для k>1/image у живому `service_begin_initial_catalog_publication` (патч 20261207191000, через `pg_get_functiondef`) у supabase/migrations/; pgTAP у supabase/tests/database/launch-multi-creative.test.sql
+
+- [ ] T085 Аудит читачів `t.kind` цілі публікації (R31): 20261207176000 (контекст клітинок), 20261207399500 (`waiting_for_videos`), 20261207390000, 20261207192000, 20261207172000, 20261207175000, 20261207177000, 20261207195000 — кожен або обробляє `creatives`, або явно відхиляє; pgTAP-кейс на кожен у supabase/tests/database/launch-multi-creative.test.sql
 
 **Checkpoint**: конфігурація з кількома креативами зберігається й перевіряється однаково на клієнті й сервері; каталог може мати ціль `creatives`.
 
@@ -56,9 +58,9 @@
 **Independent Test**: quickstart §1 кроки 3–6.
 
 - [ ] T031 [P] [US2] Тест компонента: повзунок 40 → 20/20/20, поля 40/30/20/10, «Порівну», N 100→200, N < k → попередження й значення k, клавіатура ±1/±10 у tests/launch-creative-distribution.test.tsx
-- [ ] T032 [US2] `LaunchCreativeDistribution` (`Accordion` з підсумком, `Slider` → `dragCopies`, `Input` → `setCopies`, «Порівну», прокрутка при великих k) у apps/web/src/team/launches/LaunchCreativeDistribution.tsx; PageUp/PageDown через `onKeyDown` у apps/web/src/components/ui/Choice.tsx
+- [ ] T032 [US2] `LaunchCreativeDistribution` (`Accordion` з підсумком, `Slider` → `dragCopies`, `Input` → `setCopies`, «Порівну», прокрутка при великих k) у apps/web/src/team/launches/LaunchCreativeDistribution.tsx; PageUp/PageDown через `onKeyDown` у apps/web/src/components/ui/Choice.tsx з оновленням specs/021-design-system-redesign/contracts/components.md, `/design` і tests/design-components.test.tsx; авторозгортання при помилці всередині (FR-009)
 - [ ] T033 [US2] Підключити під «Товарів у каталозі»: `min = k`, попередження «Товарів не може бути менше, ніж креативів», `rescaleCopies`, `removeCreative` у apps/web/src/team/launches/LaunchEditor.tsx
-- [ ] T034 [P] [US2] Стилі лише утилітами від токенів у apps/web/src/styles/launch-settings.css
+- [ ] T034 [P] [US2] Стилі списку й розподілу — лише утиліти від токенів у самих компонентах (без нових правил у apps/web/src/styles/launch-settings.css), `node scripts/check-tailwind-classes.mjs`
 - [ ] T035 [P] [US2] Варіант на сторінці `/design` у apps/web/src/dev/DesignSystemPage.tsx
 - [ ] T036 [US2] Ручний розподіл на сервері (блоки з `copies`) — тест у tests/catalog-multi-creative-rows.test.ts
 
@@ -67,7 +69,7 @@
 **Independent Test**: quickstart §2.
 
 - [ ] T037 [P] [US3] pgTAP: 4 набори на інтент, `(intent, source)`, чуже джерело відхилено, wait чекає всі, `assignment_seed`, retry сегмента у supabase/tests/database/launch-multi-creative.test.sql
-- [ ] T038 [US3] Міграція 20261220110000_launch_catalog_video_segments.sql: `private.launch_catalog_video_segments` (RLS, імутабельність, fence, `assignment_seed`), унікальності `catalog_video_sets`/`catalog_video_recipe_references`, accept за `(intent, source)`, `service_accept_launch_catalog_video_generation` з `plan.segments`, `service_wait_launch_catalog_video` (`failedOrdinal`), прогрес/`videoGeneration` у ланцюжку `get_launch` (`get_launch_before_started_at`), `list_launches_pre_assignment`, `retry_launch_catalog_video_segment`, reuse лише k=1 у supabase/migrations/
+- [ ] T038 [US3] Міграція 20261220110000_launch_catalog_video_segments.sql: `private.launch_catalog_video_segments` (RLS, імутабельність, fence, `assignment_seed`), унікальності `catalog_video_sets`/`catalog_video_recipe_references`, accept за `(intent, source)` у живому `service_accept_catalog_video_set_before_foreground` (20261207180000:286, патч 20261207199000:117) через `pg_get_functiondef`, `service_accept_launch_catalog_video_generation` з `plan.segments`, `service_wait_launch_catalog_video` (`failedOrdinal`), прогрес/`videoGeneration` у ланцюжку `get_launch` (`get_launch_before_started_at`), `list_launches_pre_assignment`, `retry_launch_catalog_video_segment`, reuse лише k=1 у supabase/migrations/
 - [ ] T039 [US3] `prepareLaunchCatalogVideoAdmission`: сегменти, `distributeVariations`, зерно `hex(sha256(seed ‖ ':' ‖ ordinal))`, передній режим лише k=1 у supabase/functions/drive-ops/launch-catalog-video.ts
 - [ ] T040 [US3] `resolveCatalogReadyLinks` — наявна per-set RPC по разу на сегмент у supabase/functions/drive-ops/catalog-initial-video-authority.ts; `prepareCatalogInitialVideo` у supabase/functions/drive-ops/catalog-video-generation.ts
 - [ ] T041 [P] [US3] Тести 4 відео × 30 варіацій, збій одного набору, повтор без перерахунку готових у tests/launch-catalog-video-admission.test.ts і tests/launch-catalog-video-execution.test.ts
@@ -85,11 +87,14 @@
 - [ ] T048 [US4] Ключі `c1/<uuid>` у supabase/functions/_shared/r2-catalog-images.ts (або маршрут Worker за T002)
 - [ ] T049 [US4] Публікація посилання креативу: R2 (резерв → читання → `optimizeCatalogImage` → `putFinal` → `verify(publicRead)` → commit) або Drive (`ensureAnyoneReader` + `driveImageLink` + анонімна перевірка) за преференцією R2 у supabase/functions/drive-ops/creative-images.ts; тест у tests/launch-creative-images.test.ts
 - [ ] T050 [US4] Крок `creativeImages` з чекпойнтом на зображення в supabase/functions/drive-ops/catalog-durable.ts; пул білих тягнеться як завжди (R25)
-- [ ] T051 [US4] Рядки зображень: вміст від білої картинки (ідентично), `imageLink` = посилання креативу (без розкладу), Z/AA порожні у supabase/functions/_shared/product-catalog.ts; виняток для посилання креативу в `catalogImagesInRows`/`validateImageUses` у supabase/functions/_shared/catalog-image-rows.ts
+- [ ] T051 [US4] Рядки зображень: вміст від білої картинки (ідентично), `imageLink` = посилання креативу (без розкладу), Z порожня, AA `videoTag=''` (і при створенні, і в оновлювачі) у supabase/functions/_shared/product-catalog.ts; виняток для посилань креативів сегментів у `catalogImagesInRows` (мапа дозволених посилань) у supabase/functions/_shared/catalog-image-rows.ts (SQL `service_catalog_image_validate_uses_v3` без змін — `pictureImage` лишається білою)
 - [ ] T052 [P] [US4] Тест рядків зображень: тексти = як для білих (той самий draw), H = креатив, Z/AA порожні у tests/catalog-multi-creative-rows.test.ts
-- [ ] T053 [US4] Оновлювач для зображень: без примусового `refresh_images`, порожній `video_link` дозволений, `refreshTexts` зберігає H креативу, R2-перемикач переписує H на R2/Drive з наступного оновлення у supabase/functions/catalog-updater/claim-preparation.ts і supabase/functions/catalog-updater/worker.ts; тест у tests/catalog-updater-multi-creative.test.ts
+- [ ] T053 [US4] Оновлювач для зображень: білі перетягуються для текстів як завжди, H — збережена колонка (`catalogPreservedColumnIndices`, R30) у nonvideo-writer і `rebuildCatalogRows`, порожній `video_link` дозволений у `parseClaimedCatalog` у supabase/functions/_shared/catalog-updater.ts, supabase/functions/catalog-updater/nonvideo-writer.ts і supabase/functions/catalog-updater/worker.ts; тест «H не змінюється після двох оновлень, тексти змінились» у tests/catalog-updater-multi-creative.test.ts
+- [ ] T086 [US4] Підтвердження `launch_creative_image_uses` при реєстрації каталогу (не при записі H), щоб розклад не втратив `c1/` об'єкт (R33) у supabase/functions/drive-ops/catalog-durable.ts і міграції 20261220120000; pgTAP
+- [ ] T087 [US4] `verifyAnonymousImage` (Drive: `GET` з `credentials:'omit'`, `image/*`, довжина) у supabase/functions/_shared/catalog-image-sharing.ts; тест у tests/launch-creative-images.test.ts
+- [ ] T088 [US4] `set_catalog_creative_image_r2(p_catalog, p_enabled)` → негайна задача публікації H (R32) у міграції 20261220140000 і виклик з apps/web/src/team/product-catalog/CatalogVideoR2Toggle.tsx
 - [ ] T054 [US4] Sweep `c1/` (видалити, 404, purge CDN) у supabase/functions/catalog-images/worker.ts
-- [ ] T055 [US4] Редактор для зображень: без перезашивки/варіацій/тривалості, R2 лишається, формат на вході у apps/web/src/team/launches/LaunchEditor.tsx і apps/web/src/team/launches/LaunchCreativePicker.tsx
+- [ ] T055 [US4] Редактор для зображень: без перезашивки/варіацій/тривалості; R2 лишається з підписом без «відео» (`CatalogVideoR2Toggle`, режим `image` з власною доступністю, R32); розклад доступний з підказкою `launchImagesScheduleHint`; формат на вході у apps/web/src/team/launches/LaunchEditor.tsx, apps/web/src/team/product-catalog/CatalogVideoR2Toggle.tsx і apps/web/src/team/launches/LaunchCreativePicker.tsx
 
 ## Phase 7: User Story 5 — Без змішування (P2)
 
@@ -104,11 +109,11 @@
 - [ ] T061 [US6] `productCatalogName` з `+N` у supabase/functions/_shared/product-catalog.ts; паритет із SQL у tests/launch-catalog.test.ts
 - [ ] T062 [US6] Картка `alias +N` і значок типу, деталі/результати зі списком креативів у apps/web/src/team/launches/
 - [ ] T063 [US6] Міграція 20261220130000_launch_multi_creative_ranks.sql (події з `material_id`, кредит кожному, поглинання для збіжного); pgTAP у supabase/tests/database/creative-ranks.test.sql
-- [ ] T064 [US6] Розклад для кількох креативів: лінія публікації по сегментах цілі `creatives` — Z для відео, H для зображень (білі → креатив), `parseFrozenPublicationCells`/`applyPublicationCells`/`verifyPublicationCells` у supabase/functions/catalog-updater/publication-io.ts і supabase/functions/catalog-updater/publication-cells.ts; SQL-контекст задач у міграції 20261220140000_catalog_updater_multi_creative.sql; тест у tests/catalog-publication-multi-creative.test.ts
-- [ ] T065 [US6] Перезашивка оновлювачем по сегментах: `unique(update_attempt_id, source_material_id)`, джерело — відео-сегмент цілі, `distributeVariations` профілю, нормалізація `max(V, k)` у міграції 20261220140000 і supabase/functions/catalog-updater/worker.ts; pgTAP + tests/catalog-updater-multi-creative.test.ts
-- [ ] T066 [US6] R2 для кількох відео: копія на кожне джерело, `resolveVideoLink` на сегмент, `confirm_use` з множиною копій у supabase/functions/_shared/catalog-video-link.ts і supabase/functions/catalog-updater/publication-io.ts (+ SQL у 20261220140000 за потреби)
-- [ ] T067 [US6] Відмови `MULTI_CREATIVE_UNSUPPORTED` для прихованих дій (R27): заміна відео (20261208110000), перевірка посилань (20261207290000), `randomLinkVariation`/`refreshImages`/`grow` у профілі, `restitch` для зображень — у міграції 20261220140000; pgTAP
-- [ ] T068 [US6] Менеджер каталогів: список креативів; іконки за таблицею R27 у apps/web/src/team/catalog-updater/CatalogIconControls.tsx, CatalogProfileEditor.tsx, UpdaterRowActions.tsx; «Замінити відео» не рендериться (apps/web/src/team/product-catalog/CatalogVideoReplacementDialog.tsx точка входу); тест у tests/ (наявні тести іконок оновлювача)
+- [ ] T064 [US6] Розклад для кількох креативів: лінія публікації по сегментах цілі `creatives` — колонка як параметр за видом сегмента (Z для відео, H для зображень; старі заморожені payload лишаються розбірними), резолвер посилань зображень (`c1/` запис або `driveImageLink`), маркер публікації для H, повторне анонімне читання в `prepare` (R33), оновлення `_catalogCreatives[].link` при підтвердженому записі у supabase/functions/catalog-updater/publication-io.ts і supabase/functions/catalog-updater/publication-cells.ts; SQL-контекст задач у міграції 20261220140000_catalog_updater_multi_creative.sql; тест у tests/catalog-publication-multi-creative.test.ts
+- [ ] T065 [US6] Перезашивка оновлювачем по сегментах (R28, R31): `catalog_video_sets` `unique(update_attempt_id, source_material_id)`, `catalog_updater_variant_requests.attempt_id`, PK `catalog_variant_round_snapshots`, `catalog_video_recipe_references unique(update_attempt_id)`, пошук accept і advisory lock — до `(attempt, source)`; нова ревізія цілі `creatives` з id нових наборів; `distributeVariations` профілю, нормалізація `max(V, k)` у міграції 20261220140000 і supabase/functions/catalog-updater/worker.ts; pgTAP + tests/catalog-updater-multi-creative.test.ts
+- [ ] T066 [US6] R2 для кількох відео: `catalog_video_r2_cell_sources`/`catalog_video_r2_reconcile` по відео-сегментах цілі `creatives`, image-сегменти виключені (R32) — SQL у 20261220140000; `confirm_use` уже приймає масив (без змін); тест у tests/catalog-updater-multi-creative.test.ts
+- [ ] T067 [US6] Відмови `MULTI_CREATIVE_UNSUPPORTED` для прихованих дій (R27, R34): заміна відео (20261208110000), перевірка посилань (20261207290000), `patch_team_catalog_update_profile` (20261207174000 + overlay 20261208100100:437) для `random_link_variation`/`refresh_images`/`grow_products` і `restitch` для зображень; ті самі прапорці примусово вимкнені при створенні профілю (дефолти 20261203110000:171-177) і ігноруються в claim (worker.ts:360-367) — у міграції 20261220140000; pgTAP
+- [ ] T068 [US6] Менеджер каталогів: поля `creativeKind`/`creatives` у `list_team_catalog_update_profiles` (міграція 20261220140000); список креативів; іконки за таблицею R27/R35 у apps/web/src/team/catalog-updater/CatalogIconControls.tsx, CatalogProfileEditor.tsx, UpdaterRowActions.tsx (кількість варіацій прихована для зображень); «Замінити відео» не рендериться з apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx; CatalogBulkEditor.tsx/CatalogDefaultsEditor.tsx пропускають приховані поля для таких каталогів із лічильником; тест у tests/ (наявні тести іконок оновлювача)
 - [ ] T069 [US6] Нормалізація профілю при застосуванні: зображення → перезашивка вимкнена; k відео → `V = max(V, k)` у packages/shared/src/team/launches/validation.ts і місці застосування профілю
 - [ ] T070 [US6] Регресія старих запусків у tests/launch-persistence.test.ts і tests/launch-original-video.test.ts
 
@@ -122,8 +127,11 @@
 - [ ] T076 Статичні гейти: `node scripts/check-design-tokens.mjs`, `node scripts/check-tailwind-classes.mjs`, `node scripts/verify-styles.mjs`, lint і typecheck змінених воркспейсів
 - [ ] T077 Пов'язані тести single-worker після `uptime`/`pgrep`
 - [ ] T078 Накат міграцій 062 на бету через psql + `schema_migrations`, pgTAP у rolled-back транзакції
+- [ ] T089 Перевірити Realtime: зміна стану сегмента, повтор сегмента й H-публікація торкаються таблиць, на які вже підписаний шов команди (менеджер і картка запуску оновлюються без перезавантаження); за потреби — тригер-«дотик» наявної підписаної таблиці
 - [ ] T079 Приймання на беті за quickstart.md через Playwright-драйвер (обидві теми, desktop і вузька форма, клавіатура)
 - [ ] T080 RELEASE_NOTES.md (розділ next)
+- [ ] T081 Зворотні кроки кожної міграції 062 у supabase/migrations/ROLLBACK.md
+- [ ] T082 `npm run types:supabase` після міграцій і перевірка типів веба
 
 ## Dependencies & Execution Order
 
