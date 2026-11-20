@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.5.8",
-  "buildNumber": "100",
-  "buildId": "1.5.8+100",
+  "version": "1.5.9",
+  "buildNumber": "101",
+  "buildId": "1.5.9+101",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-19T00:00:00.000Z",
+  "publishedAt": "2026-11-20T00:00:00.000Z",
   "summary": {
-    "uk": "Зашиті відео більше не йдуть на Facebook як слайд-шоу, ліги креативів у провіднику, плавні переходи між екранами.",
-    "en": "Stitched videos no longer play as a slideshow on Facebook, creative leagues in the explorer, and smooth transitions between screens."
+    "uk": "Каталожний запуск приймає кілька креативів — відео або зображень — і ділить товари між ними.",
+    "en": "A catalog launch takes several creatives — videos or images — and splits the products between them."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.8/Soty-v1.5.8-macOS-arm64.dmg",
-      "sha256": "d353b6f55061047f2eee71dfe35ccae6e9816b90dee618dd46837e68d4bd464c"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.9/Soty-v1.5.9-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.8/Soty-v1.5.8-macOS-x64.dmg",
-      "sha256": "80437afdda001401a9504556ab4829a37ba1db831dbcfc0eb6ecb48600c315f0"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.9/Soty-v1.5.9-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.8/Soty-v1.5.8-Windows-x64.exe",
-      "sha256": "16d41ef930227817d022ed3210d3f2ee504b162140e81983cc34248b9d342b38"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.9/Soty-v1.5.9-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -48,5 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "5L8lc9Q7EKiwWPwOBlzLreLiRbkTBUck7Q41tg-r4ZaKdOzxZ-EMtstWy0y5viBZ8Ls4jUMHtl7RHciqRLn7-g"
+  "signature": "C3GuSZPD_iWYDZ28taXpqkXGkktTE03PYIENVdF50gLz7wvvS1JzcoqqxPsu1lqW9Qx5LLM40oHHZgYvXSNS5Q"
 }

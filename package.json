@@ -1,7 +1,7 @@
 {
   "name": "local-video-compressor",
   "private": true,
-  "version": "1.5.8",
+  "version": "1.5.9",
   "engines": {
     "node": ">=22.12 <25"
   },
