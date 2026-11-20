@@ -865,6 +865,9 @@ export function LaunchEditor({
                               onChange={catalog => changed({ catalog })}
                             />
                           </Suspense>
+                          {creativeKind === 'image' && scheduledPublication && (
+                            <p className="field-hint basis-full">{t('launchImagesScheduleHint')}</p>
+                          )}
                         </div>
                       )
                     }

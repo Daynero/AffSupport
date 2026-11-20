@@ -5,6 +5,7 @@ import type { LaunchNote } from '@video-compressor/shared';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   isLaunchUrl,
+  launchCreativeLabel,
   parseLaunchOverrides,
   launchValuesEqual,
   type LaunchRevision,
@@ -167,7 +168,7 @@ export function LaunchResult({
         <Card
           role="section"
           className="launch-result-card"
-          title={`${revision.sources.offer} / ${revision.sources.social}-${revision.sources.agentId.slice(-3)} / ${revision.config.creativeAlias}`}
+          title={`${revision.sources.offer} / ${revision.sources.social}-${revision.sources.agentId.slice(-3)} / ${launchCreativeLabel(revision.config)}`}
           aside={
             <span className="launch-result-date">
               <CalendarDays size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
@@ -181,6 +182,17 @@ export function LaunchResult({
               <Info size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               {t('launchesCopyHint')}
             </span>
+            {(revision.config.creatives?.length ?? 0) > 1 && (
+              <p className="m-0 text-ink-muted" aria-label={t('launchesCreative')}>
+                {t(
+                  revision.config.creativeKind === 'image'
+                    ? 'launchCreativeKindImage'
+                    : 'launchCreativeKindVideo'
+                )}
+                {': '}
+                {revision.config.creatives!.map(c => `${c.alias} × ${c.copies}`).join(' · ')}
+              </p>
+            )}
             {revision.catalog && (
               <section className="launch-result-copy-section" aria-label={t('launchesCatalog')}>
                 <CopyResultField

@@ -446,6 +446,14 @@ export function parseLaunchSummary(value: unknown): LaunchSummary | null {
     ...(typeof value.sourceMaterialId === 'string'
       ? { sourceMaterialId: value.sourceMaterialId }
       : {}),
+    ...(typeof value.creativeCount === 'number' &&
+    Number.isSafeInteger(value.creativeCount) &&
+    value.creativeCount >= 1
+      ? { creativeCount: value.creativeCount }
+      : {}),
+    ...(value.creativeKind === 'video' || value.creativeKind === 'image'
+      ? { creativeKind: value.creativeKind }
+      : {}),
     generationState,
     ...(value.generation !== undefined ? { generation } : {})
   };
