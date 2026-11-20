@@ -35,7 +35,6 @@ import { LaunchAccountSelector } from './LaunchAccountSelector';
 import { LaunchSelector } from './LaunchSelectors';
 import { LaunchCreativePicker } from './LaunchCreativePicker';
 import { creativesPatch, draftCreatives } from './launchCreatives';
-import { LaunchCreativeDistribution } from './LaunchCreativeDistribution';
 import { teamErrorMessageFor } from '../errors';
 import { LaunchRestitchDurationField } from './LaunchRestitchDurationField.js';
 import { SubBuilder } from './SubBuilder';
@@ -91,7 +90,6 @@ export function LaunchEditor({
   const prefix = useId();
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const [subSettingsOpen, setSubSettingsOpen] = useState(false);
-  const [catalogAdvancedOpen, setCatalogAdvancedOpen] = useState(false);
   const [productsBelowCreatives, setProductsBelowCreatives] = useState(false);
   const [productText, setProductText] = useState<string | null>(null);
   // The split before a count was being typed, so each keystroke scales from it.
@@ -128,10 +126,6 @@ export function LaunchEditor({
     if (submitted && invalidSubSettings) setSubSettingsOpen(true);
   }, [submitted, invalidSubSettings]);
   const scheduledPublication = config.catalog?.videoPublication?.mode === 'scheduled';
-  const invalidCatalog = Boolean(errors.catalog);
-  useEffect(() => {
-    if (scheduledPublication || (submitted && invalidCatalog)) setCatalogAdvancedOpen(true);
-  }, [scheduledPublication, submitted, invalidCatalog]);
   const account = accounts.find(account =>
     account.agents.some(agent => agent.id === config.agentRowId)
   );
@@ -417,6 +411,102 @@ export function LaunchEditor({
               >
                 <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               </IconButton>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <SegmentedControl
+                label={t('launchesMethod')}
+                disabled={disabled}
+                value={config.method ?? 'other'}
+                options={[
+                  { value: 'catalog', label: t('launchesCatalog') },
+                  { value: 'other', label: t('launchesOther') }
+                ]}
+                onChange={method => {
+                  if (method === 'catalog' || method === 'other') {
+                    const chosen = draftCreatives(config);
+                    // "Other" takes one creative: the first stays, the list is dropped.
+                    setKeptFirstCreative(method === 'other' && chosen.length > 1);
+                    changed({
+                      method,
+                      ...(method === 'other'
+                        ? { creatives: undefined, creativeKind: undefined }
+                        : {}),
+                      ...(method === 'catalog' && !config.catalog
+                        ? { catalog: newLaunchCatalogConfig() }
+                        : {})
+                    });
+                  }
+                }}
+              />
+              {config.method === 'catalog' && config.catalog && (
+                <>
+                  <label className="flex items-center gap-2 text-label text-ink-muted">
+                    {t('launchSettingsProducts')}
+                    <Input
+                      id={`${prefix}-productCount`}
+                      aria-label={t('launchesCatalogProductCount')}
+                      type="number"
+                      width="narrow"
+                      value={productText ?? config.catalog.productCount}
+                      min={Math.max(1, creativeCount)}
+                      max={400}
+                      disabled={disabled}
+                      onChange={e => {
+                        if (creativeCount <= 1) {
+                          changed({
+                            catalog: { ...config.catalog!, productCount: Number(e.target.value) }
+                          });
+                          return;
+                        }
+                        // Several creatives: what is typed is committed only once it is a
+                        // whole count the creatives fit in, so an intermediate "1" on the way
+                        // to "100" does not wipe a custom split. Fewer than the creatives is
+                        // refused with the reason.
+                        if (productText === null) typingBase.current = draftCreatives(config);
+                        setProductText(e.target.value);
+                        const typed = Number(e.target.value);
+                        const whole = e.target.value !== '' && Number.isSafeInteger(typed);
+                        setProductsBelowCreatives(whole && typed < creativeCount);
+                        if (whole && typed >= creativeCount && typed <= 400)
+                          changed(
+                            creativesPatch(
+                              config,
+                              rescaleCopies(typingBase.current ?? draftCreatives(config), typed),
+                              creativeKind,
+                              typed
+                            )
+                          );
+                      }}
+                      onBlur={() => {
+                        if (productText === null) return;
+                        const typed = Number(productText);
+                        // Leaving the field below the creatives settles on the smallest count
+                        // that fits them; anything else unusable returns to the saved count.
+                        if (
+                          productText !== '' &&
+                          Number.isSafeInteger(typed) &&
+                          typed < creativeCount
+                        )
+                          changed(
+                            creativesPatch(
+                              config,
+                              rescaleCopies(draftCreatives(config), creativeCount),
+                              creativeKind,
+                              creativeCount
+                            )
+                          );
+                        setProductText(null);
+                        typingBase.current = null;
+                      }}
+                    />
+                  </label>
+                  {productsBelowCreatives && (
+                    <p className="ui-field-error basis-full" role="alert">
+                      {t('launchProductsBelowCreatives')}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
             <div className="launch-editor-input-grid">
               <div className="launch-editor-creative">
@@ -710,210 +800,97 @@ export function LaunchEditor({
             </div>
           </section>
 
-          <section
-            className="launch-editor-section launch-editor-method"
-            aria-labelledby={`${prefix}-method-heading`}
-          >
-            <div className="launch-editor-section-heading">
-              <div>
-                <h3 id={`${prefix}-method-heading`}>{t('launchesSectionMethod')}</h3>
+          {config.method === 'catalog' && config.catalog && (
+            <section
+              className="launch-editor-section launch-editor-method"
+              aria-labelledby={`${prefix}-method-heading`}
+            >
+              <div className="launch-editor-section-heading">
+                <div>
+                  <h3 id={`${prefix}-method-heading`}>{t('launchesCatalog')}</h3>
+                </div>
               </div>
-            </div>
-            <SegmentedControl
-              label={t('launchesMethod')}
-              disabled={disabled}
-              value={config.method ?? 'other'}
-              options={[
-                { value: 'catalog', label: t('launchesCatalog') },
-                { value: 'other', label: t('launchesOther') }
-              ]}
-              onChange={method => {
-                if (method === 'catalog' || method === 'other') {
-                  const chosen = draftCreatives(config);
-                  // "Other" takes one creative: the first stays, the list is dropped.
-                  setKeptFirstCreative(method === 'other' && chosen.length > 1);
-                  changed({
-                    method,
-                    ...(method === 'other'
-                      ? { creatives: undefined, creativeKind: undefined }
-                      : {}),
-                    ...(method === 'catalog' && !config.catalog
-                      ? { catalog: newLaunchCatalogConfig() }
-                      : {})
-                  });
-                }
-              }}
-            />
-            {config.method === 'catalog' && config.catalog && (
-              <div className="launch-editor-catalog-options">
-                {field(
-                  'productCount',
-                  'launchesCatalogProductCount',
-                  <Input
-                    id={`${prefix}-productCount`}
-                    aria-label={t('launchesCatalogProductCount')}
-                    type="number"
-                    width="narrow"
-                    value={productText ?? config.catalog.productCount}
-                    min={Math.max(1, creativeCount)}
-                    max={400}
+              {config.method === 'catalog' && config.catalog && (
+                <div className="launch-editor-catalog-options">
+                  {creativeKind !== 'image' && (
+                    <div className="launch-editor-restitch">
+                      <Switch
+                        label={t('launchesRestitch')}
+                        checked={config.catalog.restitchEnabled}
+                        disabled={disabled}
+                        onChange={restitchEnabled =>
+                          changed({
+                            catalog: {
+                              ...config.catalog!,
+                              restitchEnabled,
+                              ...(config.catalog!.catalogVideoProtocolVersion === 1 &&
+                              !restitchEnabled
+                                ? {
+                                    videoVariationCount:
+                                      restitchEnabled && creativeCount > 1 ? creativeCount : 1
+                                  }
+                                : {})
+                            }
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+                  {creativeKind !== 'image' && (
+                    <Suspense fallback={null}>
+                      <LaunchCatalogVideoFields
+                        part="variations"
+                        value={config.catalog}
+                        disabled={disabled}
+                        creativeCopies={
+                          creativeCount > 1 ? draftCreatives(config).map(c => c.copies) : undefined
+                        }
+                        onChange={catalog => changed({ catalog })}
+                      />
+                    </Suspense>
+                  )}
+                  <CatalogVideoR2Toggle
+                    mode="create"
+                    teamId={teamId}
+                    control="switch"
+                    media={creativeKind === 'image' ? 'image' : 'video'}
+                    checked={config.catalog!.copyVideoToR2 === true}
                     disabled={disabled}
-                    onChange={e => {
-                      if (creativeCount <= 1) {
-                        changed({
-                          catalog: { ...config.catalog!, productCount: Number(e.target.value) }
-                        });
-                        return;
-                      }
-                      // Several creatives: what is typed is committed only once it is a
-                      // whole count the creatives fit in, so an intermediate "1" on the way
-                      // to "100" does not wipe a custom split. Fewer than the creatives is
-                      // refused with the reason.
-                      if (productText === null) typingBase.current = draftCreatives(config);
-                      setProductText(e.target.value);
-                      const typed = Number(e.target.value);
-                      const whole = e.target.value !== '' && Number.isSafeInteger(typed);
-                      setProductsBelowCreatives(whole && typed < creativeCount);
-                      if (whole && typed >= creativeCount && typed <= 400)
-                        changed(
-                          creativesPatch(
-                            config,
-                            rescaleCopies(typingBase.current ?? draftCreatives(config), typed),
-                            creativeKind,
-                            typed
-                          )
-                        );
-                    }}
-                    onBlur={() => {
-                      if (productText === null) return;
-                      const typed = Number(productText);
-                      // Leaving the field below the creatives settles on the smallest count
-                      // that fits them; anything else unusable returns to the saved count.
-                      if (
-                        productText !== '' &&
-                        Number.isSafeInteger(typed) &&
-                        typed < creativeCount
-                      )
-                        changed(
-                          creativesPatch(
-                            config,
-                            rescaleCopies(draftCreatives(config), creativeCount),
-                            creativeKind,
-                            creativeCount
-                          )
-                        );
-                      setProductText(null);
-                      typingBase.current = null;
-                    }}
-                  />,
-                  true,
-                  'launchesCatalogProductCountHelp'
-                )}
-                {productsBelowCreatives && (
-                  <p className="ui-field-error basis-full" role="alert">
-                    {t('launchProductsBelowCreatives')}
-                  </p>
-                )}
-                <LaunchCreativeDistribution
-                  creatives={draftCreatives(config)}
-                  productCount={config.catalog.productCount}
-                  disabled={disabled}
-                  invalid={submitted && errors.creatives === 'DISTRIBUTION_INVALID'}
-                  onChange={creatives => changed(creativesPatch(config, creatives, creativeKind))}
-                />
-                {creativeKind !== 'image' && (
-                  <div className="launch-editor-restitch">
-                    <Switch
-                      label={t('launchesRestitch')}
-                      checked={config.catalog.restitchEnabled}
-                      disabled={disabled}
-                      onChange={restitchEnabled =>
-                        changed({
-                          catalog: {
-                            ...config.catalog!,
-                            restitchEnabled,
-                            ...(config.catalog!.catalogVideoProtocolVersion === 1 &&
-                            !restitchEnabled
-                              ? {
-                                  videoVariationCount:
-                                    restitchEnabled && creativeCount > 1 ? creativeCount : 1
-                                }
-                              : {})
-                          }
-                        })
-                      }
-                    />
-                  </div>
-                )}
-                {creativeKind !== 'image' && (
-                  <Suspense fallback={null}>
-                    <LaunchCatalogVideoFields
-                      part="variations"
+                    onChange={copyVideoToR2 =>
+                      changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
+                    }
+                  />
+                  {config.catalog.restitchEnabled && creativeKind !== 'image' && (
+                    <LaunchRestitchDurationField
                       value={config.catalog}
                       disabled={disabled}
-                      creativeCopies={
-                        creativeCount > 1 ? draftCreatives(config).map(c => c.copies) : undefined
+                      error={
+                        errors.customFinalDurationSeconds && (submitted || touched.has('catalog'))
+                          ? t('launchesDurationInvalid')
+                          : undefined
                       }
-                      onChange={catalog => changed({ catalog })}
+                      onChange={duration =>
+                        changed({ catalog: { ...config.catalog!, ...duration } })
+                      }
                     />
-                  </Suspense>
-                )}
-                <CatalogVideoR2Toggle
-                  mode="create"
-                  teamId={teamId}
-                  control="switch"
-                  media={creativeKind === 'image' ? 'image' : 'video'}
-                  checked={config.catalog!.copyVideoToR2 === true}
-                  disabled={disabled}
-                  onChange={copyVideoToR2 =>
-                    changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
-                  }
-                />
-                {config.catalog.restitchEnabled && creativeKind !== 'image' && (
-                  <LaunchRestitchDurationField
-                    value={config.catalog}
-                    disabled={disabled}
-                    error={
-                      errors.customFinalDurationSeconds && (submitted || touched.has('catalog'))
-                        ? t('launchesDurationInvalid')
-                        : undefined
-                    }
-                    onChange={duration => changed({ catalog: { ...config.catalog!, ...duration } })}
-                  />
-                )}
-                <Accordion
-                  className="launch-editor-catalog-advanced"
-                  openIds={
-                    catalogAdvancedOpen || (submitted && invalidCatalog)
-                      ? new Set(['catalog-advanced'])
-                      : new Set()
-                  }
-                  onToggle={() => setCatalogAdvancedOpen(open => !open)}
-                  items={[
-                    {
-                      id: 'catalog-advanced',
-                      title: t('launchSettingsAdvancedCatalog'),
-                      content: (
-                        <div className="launch-editor-advanced-content">
-                          <Suspense fallback={null}>
-                            <LaunchCatalogVideoFields
-                              part="publication"
-                              value={config.catalog!}
-                              disabled={disabled}
-                              onChange={catalog => changed({ catalog })}
-                            />
-                          </Suspense>
-                          {creativeKind === 'image' && scheduledPublication && (
-                            <p className="field-hint basis-full">{t('launchImagesScheduleHint')}</p>
-                          )}
-                        </div>
-                      )
-                    }
-                  ]}
-                />
-              </div>
-            )}
-          </section>
+                  )}
+                  <div className="flex basis-full flex-col gap-2">
+                    <Suspense fallback={null}>
+                      <LaunchCatalogVideoFields
+                        part="publication"
+                        value={config.catalog!}
+                        disabled={disabled}
+                        onChange={catalog => changed({ catalog })}
+                      />
+                    </Suspense>
+                    {creativeKind === 'image' && scheduledPublication && (
+                      <p className="field-hint">{t('launchImagesScheduleHint')}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
           <section className="launch-editor-section" aria-labelledby={`${prefix}-audience-heading`}>
             <div className="launch-editor-section-heading">

@@ -94,7 +94,7 @@ it('keeps invalid catalog controls neutral until validation and excludes hidden 
   const count = screen.getByRole('spinbutton', { name: 'Products in catalog' });
   fireEvent.click(screen.getByRole('button', { name: 'Stitch duration · 30 min' }));
   const duration = screen.getByRole('slider', { name: 'Duration, minutes' });
-  expect(count.closest('.ui-field')?.classList.contains('bg-warning-soft')).toBe(false);
+  expect(count.closest('.bg-warning-soft')).toBeNull();
   expect(
     duration.closest('.restitch-duration-control')?.classList.contains('bg-warning-soft')
   ).toBe(false);
@@ -107,7 +107,7 @@ it('keeps invalid catalog controls neutral until validation and excludes hidden 
       }}
     />
   );
-  expect(count.closest('.ui-field')?.classList.contains('bg-warning-soft')).toBe(false);
+  expect(count.closest('.bg-warning-soft')).toBeNull();
   expect(
     duration.closest('.restitch-duration-control')?.classList.contains('bg-warning-soft')
   ).toBe(false);

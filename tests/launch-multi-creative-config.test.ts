@@ -184,3 +184,13 @@ describe('naming', () => {
     expect(launchCreativeIdPrefix('a'.repeat(60))).toHaveLength(40);
   });
 });
+
+import { launchCreativeAlias } from '../packages/shared/src/team/launches';
+describe('creative names from file names', () => {
+  it('are always valid without typing', () => {
+    expect(launchCreativeAlias('Відео Ролик 1.mp4')).toBe('Video_Rolyk_1');
+    expect(launchCreativeAlias('Щастя-Їжак.png')).toBe('Shchastia-Izhak');
+    expect(launchCreativeAlias('BG_2.mov')).toBe('BG_2');
+    expect(launchCreativeAlias('  ###.mp4')).toBe('creative');
+  });
+});

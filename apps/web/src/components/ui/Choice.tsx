@@ -364,7 +364,8 @@ export function RadioGroup<T extends string>({
 }
 
 export interface SliderProps {
-  size?: Extract<UiSize, 'sm' | 'md'>;
+  /** `lg`: a thick, short control for a value set by hand in a row (062 copy split). */
+  size?: Extract<UiSize, 'sm' | 'md' | 'lg'>;
   /** A gradient track, as the quality slider uses. */
   gradient?: boolean;
   value?: number;

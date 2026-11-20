@@ -2373,6 +2373,20 @@
 .ui-slider--sm .ui-slider-track {
   height: 4px;
 }
+.ui-slider--lg .ui-slider-track {
+  height: 10px;
+  background: var(--color-neutral-border);
+}
+/* The library paints the space it keeps for the thumb at the start in its own accent;
+   it reads as a stray stripe before the fill. It is the fill's colour here. */
+.ui-slider-track[data-fill-start='true'] {
+  border-inline-start-color: var(--color-secondary-solid);
+}
+.ui-slider--lg .ui-slider-thumb {
+  width: var(--space-5);
+  height: var(--space-5);
+  border-width: 2px;
+}
 .ui-slider-fill {
   height: 100%;
   border-radius: var(--radius-full);

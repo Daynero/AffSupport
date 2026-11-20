@@ -25,7 +25,6 @@ vi.mock('../apps/web/src/team/tasks/TaskAttachmentPicker', () => ({
   }
 }));
 import { LaunchCreativePicker } from '../apps/web/src/team/launches/LaunchCreativePicker';
-import { LaunchCreativeDistribution } from '../apps/web/src/team/launches/LaunchCreativeDistribution';
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -137,59 +136,35 @@ it('removes a creative and gives its products back', () => {
   expect(patch.creatives?.map(c => [c.materialId, c.copies])).toEqual([['m1', 100]]);
 });
 
-it('keeps the first creative mirrored when it is renamed', () => {
+it('shows the share of each creative in its own row and lets a typed share hold', () => {
   const change = picker({
     method: 'catalog',
     catalog: catalog(),
     materialId: 'm1',
     creativeAlias: 'clip_1',
     creativeKind: 'video',
-    creatives: [creative(1, 50), creative(2, 50)]
+    creatives: [1, 2, 3, 4].map(i => creative(i, 25))
   });
-  fireEvent.change(screen.getAllByLabelText(/alias|Name/i)[0]!, { target: { value: 'summer a' } });
-  const patch = change.mock.calls.at(-1)![0] as LaunchDraft;
-  expect(patch.creativeAlias).toBe('summer_a');
-  expect(patch.creatives?.[0]?.alias).toBe('summer_a');
-});
-
-it('shows the split collapsed, then lets a typed share hold', () => {
-  const change = vi.fn();
-  render(
-    <LaunchCreativeDistribution
-      creatives={[1, 2, 3, 4].map(i => creative(i, 25))}
-      productCount={100}
-      disabled={false}
-      onChange={change}
-    />
-  );
-  expect(screen.getByText('25 · 25 · 25 · 25')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: /Split between creatives/ }));
+  // Names are not typed here: no text field per creative.
+  expect(screen.queryByRole('textbox')).toBeNull();
   expect((screen.getByRole('button', { name: 'Even' }) as HTMLButtonElement).disabled).toBe(true);
-  const inputs = screen.getAllByRole('spinbutton', { name: 'Copies for clip_1' });
-  fireEvent.change(inputs.at(-1)!, { target: { value: '40' } });
-  const next = change.mock.calls.at(-1)![0] as LaunchCreative[];
-  expect(next.map(c => c.copies)).toEqual([40, 20, 20, 20]);
-  expect(next[0]!.pinned).toBe(1);
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Copies for clip_1' }), {
+    target: { value: '40' }
+  });
+  const patch = change.mock.calls.at(-1)![0] as LaunchDraft;
+  expect(patch.creatives?.map(c => c.copies)).toEqual([40, 20, 20, 20]);
+  expect(patch.creatives?.[0]?.pinned).toBe(1);
 });
 
-it('opens by itself when a share inside is invalid, and hides for one creative', () => {
-  const { rerender } = render(
-    <LaunchCreativeDistribution
-      creatives={[creative(1, 60), creative(2, 40)]}
-      productCount={100}
-      disabled={false}
-      invalid
-      onChange={vi.fn()}
-    />
-  );
-  expect(screen.getAllByRole('spinbutton').length).toBeGreaterThan(0);
-  rerender(
-    <LaunchCreativeDistribution
-      creatives={[creative(1, 100)]}
-      productCount={100}
-      disabled={false}
-      onChange={vi.fn()}
-    />
-  );
-  expect(screen.queryByText(/Split between creatives/)).toBeNull();
+it('gives one creative every product without a slider', () => {
+  picker({
+    method: 'catalog',
+    catalog: catalog(),
+    materialId: 'm1',
+    creativeAlias: 'clip_1',
+    creativeKind: 'video',
+    creatives: [creative(1, 100)]
+  });
+  expect(screen.queryByRole('slider')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Even' })).toBeNull();
 });

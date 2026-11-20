@@ -160,6 +160,32 @@ describe('auto crossfade (058)', () => {
     expect(ghost()).toBeNull();
   });
 
+  it('leaves a form being filled in a dialog alone, but not its tabs', () => {
+    render(
+      <div className="ui-modal">
+        <div role="tablist">
+          <button role="tab" aria-selected="true">
+            Settings
+          </button>
+        </div>
+        <fieldset>
+          <button role="radio" aria-checked="false">
+            Women
+          </button>
+          <button role="switch" aria-checked="false">
+            Restitch
+          </button>
+        </fieldset>
+      </div>
+    );
+    fireEvent.click(screen.getByText('Women'));
+    expect(ghost()).toBeNull();
+    fireEvent.click(screen.getByText('Restitch'));
+    expect(ghost()).toBeNull();
+    fireEvent.click(screen.getByText('Settings'));
+    expect(ghost()).not.toBeNull();
+  });
+
   it('honours an opt-out', () => {
     render(
       <div className="page-viewport">

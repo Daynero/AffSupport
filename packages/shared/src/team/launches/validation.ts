@@ -28,12 +28,65 @@ export function normalizeLaunchSub(value: unknown, max = 160): string | null {
     .replace(/\p{Zs}+/gu, '_');
   return text.length <= max && /^[A-Za-z0-9_-]+$/u.test(text) ? text : null;
 }
+const CYRILLIC_LATIN: Record<string, string> = {
+  а: 'a',
+  б: 'b',
+  в: 'v',
+  г: 'h',
+  ґ: 'g',
+  д: 'd',
+  е: 'e',
+  є: 'ie',
+  ж: 'zh',
+  з: 'z',
+  и: 'y',
+  і: 'i',
+  ї: 'i',
+  й: 'i',
+  к: 'k',
+  л: 'l',
+  м: 'm',
+  н: 'n',
+  о: 'o',
+  п: 'p',
+  р: 'r',
+  с: 's',
+  т: 't',
+  у: 'u',
+  ф: 'f',
+  х: 'kh',
+  ц: 'ts',
+  ч: 'ch',
+  ш: 'sh',
+  щ: 'shch',
+  ь: '',
+  ю: 'iu',
+  я: 'ia',
+  ё: 'e',
+  ы: 'y',
+  э: 'e',
+  ъ: ''
+};
+/**
+ * A creative's name from its file name, always a valid SUB value: Ukrainian
+ * transliteration, spaces to `_`, anything else outside `A–Z a–z 0–9 _ -` dropped.
+ * 062: names are no longer typed by hand, so this is the name.
+ */
 export function launchCreativeAlias(filename: string): string {
-  const stem = filename.replace(/\.[^.]+$/u, '');
-  return stem
-    .normalize('NFC')
-    .replace(/^\p{Zs}+|\p{Zs}+$/gu, '')
-    .replace(/\p{Zs}+/gu, '_');
+  const stem = filename.replace(/\.[^.]+$/u, '').normalize('NFC');
+  const latin = Array.from(stem, char => {
+    const lower = char.toLowerCase();
+    const mapped = CYRILLIC_LATIN[lower];
+    if (mapped === undefined) return char;
+    return char === lower || !mapped ? mapped : mapped[0]!.toUpperCase() + mapped.slice(1);
+  }).join('');
+  const alias = latin
+    .replace(/\p{Zs}+/gu, '_')
+    .replace(/[^A-Za-z0-9_-]+/gu, '')
+    .replace(/([_-])[_-]+/gu, '$1')
+    .replace(/^[_-]+|[_-]+$/gu, '')
+    .slice(0, 160);
+  return alias || 'creative';
 }
 export function normalizeLaunchOffer(value: unknown): string | null {
   if (typeof value !== 'string' || /\p{Cc}/u.test(value)) return null;

@@ -47,7 +47,7 @@ size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 | **Checkbox**         | —                   | xs–md  | rest, checked, indeterminate, disabled                | `Checkbox`, explorer row checkboxes                                 |
 | **RadioGroup**       | list, cards, pictos | sm, md | —                                                     | `.fit-mode-pictos`, onboarding language choice                      |
 | **Switch**           | —                   | sm, md | on, off, disabled                                     | `.feature-switch`                                                   |
-| **Slider**           | —                   | sm, md | + gradient track                                      | `.rate-slider`, `.crf-gradient`                                     |
+| **Slider**           | —                   | sm, md, lg | + gradient track                                      | `.rate-slider`, `.crf-gradient`                                     |
 | **SegmentedControl** | soft                | xs–md  | —                                                     | `SegmentedControl`, `.task-status-filter`, scope switch             |
 | **InputTags**        | —                   | sm     | —                                                     | task tags input, metadata tags                                      |
 | **FileUpload**       | dropzone, button    | —      | idle, dragging, rejecting, busy                       | `DropZone` (product-specific shell, this anatomy)                   |

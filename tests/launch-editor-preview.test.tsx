@@ -450,9 +450,8 @@ it('opens hidden catalog schedule controls on submit without hiding the variatio
     onRefreshSources: vi.fn()
   };
   render(<LaunchEditor {...props} submitted />);
-  expect(
-    screen.getByRole('button', { name: 'More catalog options' }).getAttribute('aria-expanded')
-  ).toBe('true');
+  // The schedule is one switch shown in place (owner, 2026-11-20): no disclosure to open.
+  expect(screen.queryByRole('button', { name: 'More catalog options' })).toBeNull();
   const variation = await screen.findByLabelText('Video variations');
   expect(variation.closest('[hidden]')).toBeNull();
   const time = await screen.findByLabelText('Time');

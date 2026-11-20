@@ -1,65 +1,177 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { ImageIcon, Play, X } from 'lucide-react';
 import type { LaunchCreativeKind } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
-import { Button, IconButton, Input } from '../../components/ui/index.js';
+import { Button, IconButton, Input, Slider, Tooltip } from '../../components/ui/index.js';
 import { useI18n } from '../../i18n.js';
 
+const PAGE_STEP = 10;
+
+function Thumbnail({
+  thumbnailUrl,
+  kind,
+  disabled,
+  onPreview
+}: {
+  thumbnailUrl: string | null;
+  kind: LaunchCreativeKind | null;
+  disabled: boolean;
+  onPreview: () => void;
+}) {
+  const { t } = useI18n();
+  const [broken, setBroken] = useState<string | null>(null);
+  return (
+    <Button
+      className="launch-creative-thumbnail"
+      variant="ghost"
+      disabled={disabled}
+      aria-label={t('launchesPreviewCreative')}
+      onClick={onPreview}
+    >
+      {thumbnailUrl && broken !== thumbnailUrl ? (
+        <img src={thumbnailUrl} alt="" onError={() => setBroken(thumbnailUrl)} />
+      ) : (
+        <ImageIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      )}
+      {kind !== 'image' && (
+        <span className="launch-creative-play">
+          <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </span>
+      )}
+    </Button>
+  );
+}
+
 /**
- * 062: one chosen creative — its thumbnail opens the preview, its name becomes
- * the product-ID prefix, and in a catalog Launch it can be removed.
+ * 062: one creative of a catalog Launch — its thumbnail opens the preview, its
+ * name (from the file, not typed) shows short with the whole name on hover, and
+ * its share of the products is set right here: a slider and a number. The cross
+ * removes it and its products go back to the others.
+ */
+export function LaunchCreativeShareRow({
+  alias,
+  kind,
+  thumbnailUrl,
+  copies,
+  max,
+  shared,
+  disabled,
+  onPreview,
+  onDrag,
+  onType,
+  onRemove
+}: {
+  alias: string;
+  kind: LaunchCreativeKind | null;
+  thumbnailUrl: string | null;
+  copies: number;
+  /** The largest share while every other creative keeps one product. */
+  max: number;
+  /** With one creative it holds every product: no slider, no number. */
+  shared: boolean;
+  disabled: boolean;
+  onPreview: () => void;
+  onDrag: (value: number) => void;
+  onType: (value: number) => void;
+  onRemove: () => void;
+}) {
+  const { t } = useI18n();
+  const label = t('launchDistributionCopiesFor', { name: alias });
+  const pageKeys = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'PageUp' && event.key !== 'PageDown') return;
+    event.preventDefault();
+    onDrag(copies + (event.key === 'PageUp' ? PAGE_STEP : -PAGE_STEP));
+  };
+  return (
+    <li className="flex min-w-0 items-center gap-3">
+      <Thumbnail
+        thumbnailUrl={thumbnailUrl}
+        kind={kind}
+        disabled={disabled}
+        onPreview={onPreview}
+      />
+      <div className="flex w-14 shrink-0 items-center self-stretch">
+        <Tooltip label={alias} asChild>
+          <span tabIndex={0} className="flex min-w-0 items-center text-caption text-ink-muted">
+            <span className="min-w-0 truncate">{alias}</span>
+          </span>
+        </Tooltip>
+      </div>
+      {shared && (
+        <>
+          <div className="w-32 shrink-0">
+            <Slider
+              size="lg"
+              aria-label={label}
+              min={1}
+              max={Math.max(1, max)}
+              step={1}
+              value={copies}
+              disabled={disabled || max <= 1}
+              onKeyDown={pageKeys}
+              onChange={onDrag}
+            />
+          </div>
+          <Input
+            aria-label={label}
+            type="number"
+            width="narrow"
+            min={1}
+            max={max}
+            value={copies}
+            disabled={disabled}
+            onChange={event => {
+              const value = Number(event.target.value);
+              if (Number.isFinite(value) && value >= 1) onType(value);
+            }}
+          />
+        </>
+      )}
+      <IconButton
+        className="ml-auto"
+        label={t('launchCreativeRemoveOf', { name: alias || t('launchesCreative') })}
+        disabled={disabled}
+        onClick={onRemove}
+      >
+        <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </IconButton>
+    </li>
+  );
+}
+
+/**
+ * The single creative of a Launch without a catalog: thumbnail and its name,
+ * which stays editable there because it names the campaigns.
  */
 export function LaunchCreativeRow({
-  as: Tag = 'li',
   inputId,
   alias,
   kind,
   thumbnailUrl,
   disabled,
   invalid,
-  repeated,
-  removable,
   onPreview,
-  onRename,
-  onRemove
+  onRename
 }: {
-  /** `div` when the row sits inside the drop field (single-creative methods). */
-  as?: 'li' | 'div';
   inputId: string;
   alias: string;
   kind: LaunchCreativeKind | null;
   thumbnailUrl: string | null;
   disabled: boolean;
   invalid: boolean;
-  repeated: boolean;
-  removable: boolean;
   onPreview: () => void;
   onRename: (value: string) => void;
-  onRemove: () => void;
 }) {
   const { t } = useI18n();
-  const [broken, setBroken] = useState<string | null>(null);
   const messageId = `${inputId}-message`;
   return (
-    <Tag className="flex min-w-0 items-center gap-3">
-      <Button
-        className="launch-creative-thumbnail"
-        variant="ghost"
+    <div className="flex min-w-0 items-center gap-3">
+      <Thumbnail
+        thumbnailUrl={thumbnailUrl}
+        kind={kind}
         disabled={disabled}
-        aria-label={t('launchesPreviewCreative')}
-        onClick={onPreview}
-      >
-        {thumbnailUrl && broken !== thumbnailUrl ? (
-          <img src={thumbnailUrl} alt="" onError={() => setBroken(thumbnailUrl)} />
-        ) : (
-          <ImageIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        )}
-        {kind !== 'image' && (
-          <span className="launch-creative-play">
-            <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </span>
-        )}
-      </Button>
+        onPreview={onPreview}
+      />
       <div className="launch-creative-name">
         <label className="sr-only" htmlFor={inputId}>
           {t('launchesAlias')}
@@ -69,28 +181,15 @@ export function LaunchCreativeRow({
           value={alias}
           disabled={disabled}
           aria-invalid={invalid || undefined}
-          aria-describedby={invalid || repeated ? messageId : undefined}
+          aria-describedby={invalid ? messageId : undefined}
           onChange={event => onRename(event.target.value)}
         />
-        {(invalid || repeated) && (
-          <p
-            id={messageId}
-            className={invalid ? 'ui-field-error' : 'field-hint'}
-            role={invalid ? 'alert' : undefined}
-          >
-            {invalid ? t('launchesSubInvalid') : t('launchCreativeAliasRepeated')}
+        {invalid && (
+          <p id={messageId} className="ui-field-error" role="alert">
+            {t('launchesSubInvalid')}
           </p>
         )}
       </div>
-      {removable && (
-        <IconButton
-          label={t('launchCreativeRemoveOf', { name: alias || t('launchesCreative') })}
-          disabled={disabled}
-          onClick={onRemove}
-        >
-          <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </IconButton>
-      )}
-    </Tag>
+    </div>
   );
 }

@@ -1,8 +1,13 @@
-import { ChevronDown, FolderOpen, Monitor, Plus, Upload } from 'lucide-react';
+import { ChevronDown, FolderOpen, Monitor, Upload } from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   CATALOG_PRODUCT_COUNT_MAX,
   addCreatives,
+  balanceCopies,
+  dragCopies,
+  evenCopies,
+  maxCopiesFor,
+  setCopies,
   classifyMaterial,
   launchCreativeAlias,
   normalizeLaunchSub,
@@ -32,7 +37,7 @@ import {
   reportFileAttemptError,
   retryableError
 } from '../../analytics/file-attempt-errors.js';
-import { LaunchCreativeRow } from './LaunchCreativeList.js';
+import { LaunchCreativeRow, LaunchCreativeShareRow } from './LaunchCreativeList.js';
 import { creativesPatch, draftCreatives } from './launchCreatives.js';
 
 type PickerError =
@@ -298,11 +303,6 @@ export function LaunchCreativePicker({
       ? `${kind}/*`
       : 'video/*,image/*'
     : 'video/*,image/*';
-  const repeatedAliases = new Set(
-    creatives
-      .map(creative => creative.alias)
-      .filter((alias, index, all) => alias && all.indexOf(alias) !== index)
-  );
   const errorText =
     error === null
       ? null
@@ -316,31 +316,21 @@ export function LaunchCreativePicker({
               ? t('launchCreativesLimit')
               : t('launchesOneFile');
   const previewed = creatives.find(creative => creative.materialId === previewId);
-  const rowFor = (creative: LaunchCreative, index: number, as: 'li' | 'div' = 'li') => {
-    const invalid =
-      (submitted || touchedAliases.has(creative.materialId)) && !normalizeLaunchSub(creative.alias);
-    return (
-      <LaunchCreativeRow
-        key={creative.materialId}
-        as={as}
-        inputId={`${id}-alias-${index}`}
-        alias={creative.alias}
-        kind={kind}
-        thumbnailUrl={thumbnailFor(creative.materialId)}
-        disabled={unavailable}
-        invalid={invalid}
-        repeated={!invalid && repeatedAliases.has(creative.alias)}
-        removable={catalogMode}
-        onPreview={() => setPreviewId(creative.materialId)}
-        onRename={value => rename(index, value)}
-        onRemove={() => remove(index)}
-      />
-    );
-  };
+  const n = config.catalog?.productCount ?? creatives.length;
+  const shareMax = maxCopiesFor(n, creatives.length);
+  const evenSplit = evenCopies(n, creatives.length);
+  const isEven = creatives.every((creative, index) => creative.copies === evenSplit[index]);
+  const share = (next: LaunchCreative[]) => onChange(creativesPatch(latest.current, next, kind));
+  const singleInvalid =
+    creatives[0] !== undefined &&
+    (submitted || touchedAliases.has(creatives[0].materialId)) &&
+    !normalizeLaunchSub(creatives[0].alias);
+  // One compact drop strip: it says it takes dropped files and opens the source menu.
+  const compactDrop = catalogMode || creatives.length === 0;
   return (
     <FormField label={t('launchesCreative')} error={selectionError}>
       <div
-        className="flex min-w-0 flex-col gap-2"
+        className="flex min-w-0 max-w-xl flex-col gap-2"
         onDragOver={event => {
           if (event.dataTransfer.types?.includes('Files')) {
             event.preventDefault();
@@ -364,19 +354,72 @@ export function LaunchCreativePicker({
       >
         {catalogMode && creatives.length > 0 && (
           <ul
-            className="m-0 flex max-h-96 max-w-lg list-none flex-col gap-2 overflow-y-auto p-0"
+            className="m-0 flex max-h-96 list-none flex-col gap-2 overflow-y-auto p-0"
             aria-label={t('launchesCreative')}
           >
-            {creatives.map((creative, index) => rowFor(creative, index))}
+            {creatives.map((creative, index) => (
+              <LaunchCreativeShareRow
+                key={creative.materialId}
+                alias={creative.alias}
+                kind={kind}
+                thumbnailUrl={thumbnailFor(creative.materialId)}
+                copies={creative.copies}
+                max={shareMax}
+                shared={creatives.length > 1}
+                disabled={unavailable}
+                onPreview={() => setPreviewId(creative.materialId)}
+                onDrag={value => share(dragCopies(draftCreatives(latest.current), index, value, n))}
+                onType={value => share(setCopies(draftCreatives(latest.current), index, value, n))}
+                onRemove={() => remove(index)}
+              />
+            ))}
           </ul>
         )}
         <div
-          className="launch-creative-field"
+          className={
+            compactDrop
+              ? `flex min-h-10 min-w-0 items-center gap-2 rounded-control border border-dashed px-3 text-caption text-ink-muted ${
+                  dragging ? 'border-secondary-border bg-secondary-soft' : 'border-neutral-border'
+                }`
+              : 'launch-creative-field'
+          }
           data-dragging={dragging || undefined}
           data-busy={busy || undefined}
           aria-busy={busy}
         >
-          {!catalogMode && creatives[0] && rowFor(creatives[0], 0, 'div')}
+          {!compactDrop && creatives[0] && (
+            <LaunchCreativeRow
+              inputId={`${id}-alias-0`}
+              alias={creatives[0].alias}
+              kind={kind}
+              thumbnailUrl={thumbnailFor(creatives[0].materialId)}
+              disabled={unavailable}
+              invalid={singleInvalid}
+              onPreview={() => setPreviewId(creatives[0]!.materialId)}
+              onRename={value => rename(0, value)}
+            />
+          )}
+          {compactDrop && (
+            <>
+              <Upload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              <span className="min-w-0 truncate">
+                {busy
+                  ? t('launchCreativeUploading')
+                  : t(creatives.length ? 'launchCreativeDropMore' : 'launchCreativeDropHint')}
+              </span>
+            </>
+          )}
+          {catalogMode && creatives.length > 1 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto shrink-0"
+              disabled={unavailable || isEven}
+              onClick={() => share(balanceCopies(draftCreatives(latest.current), n))}
+            >
+              {t('launchDistributionBalance')}
+            </Button>
+          )}
           <TaskAttachmentPicker
             key={`${epoch}:${teamId}:${catalogMode}`}
             teamId={teamId}
@@ -415,34 +458,35 @@ export function LaunchCreativePicker({
                 <Button
                   ref={menuAnchor}
                   variant="ghost"
+                  size={compactDrop ? 'sm' : 'md'}
                   className={
-                    creatives.length === 0 || catalogMode
-                      ? 'launch-creative-empty'
+                    compactDrop
+                      ? catalogMode && creatives.length > 1
+                        ? 'shrink-0'
+                        : 'ml-auto shrink-0'
                       : 'launch-creative-replace'
                   }
                   disabled={
                     unavailable || (catalogMode && creatives.length >= CATALOG_PRODUCT_COUNT_MAX)
                   }
                   loading={busy}
+                  aria-label={
+                    compactDrop
+                      ? t(
+                          busy
+                            ? 'launchCreativeUploading'
+                            : creatives.length
+                              ? 'launchCreativeAdd'
+                              : 'launchCreativeChooseOrDrop'
+                        )
+                      : undefined
+                  }
                   aria-haspopup="menu"
                   aria-expanded={menuOpen && !unavailable}
                   onClick={() => setMenuOpen(value => !value)}
                 >
-                  {creatives.length === 0 ? (
-                    <Upload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  ) : (
-                    catalogMode && (
-                      <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    )
-                  )}
                   <span>
-                    {busy
-                      ? t('launchCreativeUploading')
-                      : creatives.length === 0
-                        ? t('launchCreativeChooseOrDrop')
-                        : catalogMode
-                          ? t('launchCreativeAdd')
-                          : t('launchCreativeReplace')}
+                    {compactDrop ? t('launchCreativeChoose') : t('launchCreativeReplace')}
                   </span>
                   <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 </Button>

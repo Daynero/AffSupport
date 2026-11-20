@@ -75,6 +75,10 @@ function scopeOf(control: Element): HTMLElement | null {
   // Inside a dialog (and not in a menu opened from it): the dialog redraws itself. A tick box
   // in a form is not a redraw — and the copy would sit over the field typed in next.
   if (dialog && !floating) {
+    // A control of a form being filled in edits a field; it does not change what the dialog
+    // shows. Copying the whole dialog over it on every choice read as the form blinking
+    // (owner, 2026-11-20, on the Launch settings).
+    if (control.closest('fieldset, form')) return null;
     const tick = control.matches('input[type="checkbox"], input[type="radio"]');
     return tick && control.getAttribute('role') !== 'switch' ? null : dialog;
   }

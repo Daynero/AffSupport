@@ -18,7 +18,8 @@ export function newLaunchDraft(): LaunchDraft {
     advantagePlus: true,
     launchDate: launchTomorrow(new Date(), timezone),
     timezone,
-    method: 'other',
+    // 062: catalog Launches are the usual case; the choice sits right under the account.
+    method: 'catalog',
     subConfig: {
       schemaVersion: 1,
       sub1: ['buyer'],
