@@ -37,10 +37,14 @@ export function parseCatalogUpdaterVariantSegments(
   const raw = accepted.segments;
   if (!Array.isArray(raw) || raw.length < 2 || raw.length > 400)
     throw new TeamFunctionError('INVALID_RESPONSE');
-  const segments = raw.map((value, ordinal): CatalogUpdaterVariantSegment => {
+  let previous = -1;
+  const segments = raw.map((value): CatalogUpdaterVariantSegment => {
     if (
       !isRecord(value) ||
-      value.ordinal !== ordinal ||
+      typeof value.ordinal !== 'number' ||
+      !Number.isSafeInteger(value.ordinal) ||
+      value.ordinal <= previous ||
+      value.ordinal > 399 ||
       typeof value.set_id !== 'string' ||
       !UUID.test(value.set_id) ||
       typeof value.source_material_id !== 'string' ||
@@ -57,8 +61,9 @@ export function parseCatalogUpdaterVariantSegments(
       !isRecord(value.provider_context)
     )
       throw new TeamFunctionError('INVALID_RESPONSE');
+    previous = value.ordinal;
     return {
-      ordinal,
+      ordinal: value.ordinal,
       setId: value.set_id,
       sourceMaterialId: value.source_material_id,
       recipeRowIds: value.recipe_row_ids as string[],
@@ -515,6 +520,37 @@ export async function resumeCatalogUpdaterVariants(
   );
 }
 
+/**
+ * The publication target an attached round names: one restitched set (`video_set`), or —
+ * for a catalog of several videos (062) — a new `creatives` revision whose video blocks
+ * each name their own set of this round.
+ */
+export function isAttachedVariantTarget(target: unknown): boolean {
+  if (!isRecord(target)) return false;
+  if (target.kind === 'video_set')
+    return (
+      typeof target.videoSetId === 'string' &&
+      UUID.test(target.videoSetId) &&
+      target.recipeRevision === 1
+    );
+  if (target.kind !== 'creatives' || !Array.isArray(target.segments)) return false;
+  const videos = target.segments.filter(
+    segment => isRecord(segment) && segment.videoSetId !== undefined && segment.videoSetId !== null
+  );
+  const sets = videos.map(segment => (segment as Record<string, unknown>).videoSetId);
+  return (
+    videos.length >= 2 &&
+    videos.every(
+      segment =>
+        typeof segment.videoSetId === 'string' &&
+        UUID.test(segment.videoSetId) &&
+        segment.recipeRevision === 1 &&
+        segment.kind === 'video'
+    ) &&
+    new Set(sets).size === sets.length
+  );
+}
+
 /** Bounded consumer on the existing catalog cron lane, no separate queue. */
 export async function settleCatalogUpdaterVariantTargets(
   service: ServiceRpcClient,
@@ -554,14 +590,7 @@ export async function settleCatalogUpdaterVariantTargets(
         p_request: identity.requestId
       });
       if (receipt.error) rpcError(receipt.error.message ?? '');
-      if (
-        !isRecord(receipt.data) ||
-        !isRecord(receipt.data.target) ||
-        receipt.data.target.kind !== 'video_set' ||
-        typeof receipt.data.target.videoSetId !== 'string' ||
-        !UUID.test(receipt.data.target.videoSetId) ||
-        receipt.data.target.recipeRevision !== 1
-      )
+      if (!isRecord(receipt.data) || !isAttachedVariantTarget(receipt.data.target))
         throw new TeamFunctionError('INVALID_RESPONSE');
       const released = await service.rpc('service_release_catalog_variant_regular', {
         p_team: identity.teamId,

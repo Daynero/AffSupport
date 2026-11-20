@@ -406,3 +406,46 @@ describe('an image catalog in the global white pool, round after round (R30)', (
     expect(column(second.run.written[0], AA)).toEqual(['', '', '']);
   });
 });
+
+describe('attaching a ready round of several videos', () => {
+  const uuid = (n: number) => 'c6200000-0000-4000-8000-' + String(n).padStart(12, '0');
+  const segment = (ordinal: number, set: number | null, kind = 'video') => ({
+    ordinal,
+    kind,
+    materialId: uuid(30 + ordinal),
+    ...(set === null ? {} : { videoSetId: uuid(set), recipeRevision: 1 }),
+    rowStart: ordinal * 2,
+    rowCount: 2
+  });
+  it('accepts a new creatives revision whose video blocks name their own sets', async () => {
+    const { isAttachedVariantTarget } =
+      await import('../supabase/functions/drive-ops/updater-variants.js');
+    expect(
+      isAttachedVariantTarget({ kind: 'video_set', videoSetId: uuid(1), recipeRevision: 1 })
+    ).toBe(true);
+    expect(
+      isAttachedVariantTarget({ kind: 'creatives', segments: [segment(0, 1), segment(1, 2)] })
+    ).toBe(true);
+  });
+  it('refuses a revision with one set, a shared set or a block of another kind', async () => {
+    const { isAttachedVariantTarget } =
+      await import('../supabase/functions/drive-ops/updater-variants.js');
+    expect(isAttachedVariantTarget({ kind: 'creatives', segments: [segment(0, 1)] })).toBe(false);
+    expect(
+      isAttachedVariantTarget({ kind: 'creatives', segments: [segment(0, 1), segment(1, 1)] })
+    ).toBe(false);
+    expect(
+      isAttachedVariantTarget({
+        kind: 'creatives',
+        segments: [segment(0, 1), segment(1, 2, 'image')]
+      })
+    ).toBe(false);
+    expect(
+      isAttachedVariantTarget({
+        kind: 'creatives',
+        segments: [segment(0, 1), { ...segment(1, 2), recipeRevision: 2 }]
+      })
+    ).toBe(false);
+    expect(isAttachedVariantTarget({ kind: 'source', materialId: uuid(1) })).toBe(false);
+  });
+});
