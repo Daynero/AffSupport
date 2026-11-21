@@ -2,6 +2,9 @@ import { useEffect, useId, useLayoutEffect, useRef } from 'react';
 
 /** A wheel event after this long a pause starts a new gesture and moves one row at once. */
 const GESTURE_GAP_MS = 120;
+/** What a browser reports for one notch of a mouse wheel, in pixels and in lines. */
+const PIXELS_PER_NOTCH = 100;
+const LINES_PER_NOTCH = 3;
 
 function Wheel({
   label,
@@ -59,7 +62,15 @@ function Wheel({
       last = now;
       if (fresh || event.deltaMode !== 0) {
         pending = 0;
-        chooseRef.current(latest.current.value + direction);
+        // A notch is about 100px (3 lines); notches that arrive merged in one event
+        // still move a row each, and a small first delta still moves one.
+        const rows = Math.max(
+          1,
+          Math.round(
+            Math.abs(event.deltaY) / (event.deltaMode === 1 ? LINES_PER_NOTCH : PIXELS_PER_NOTCH)
+          )
+        );
+        chooseRef.current(latest.current.value + direction * rows);
         return;
       }
       const threshold = Math.max(1, rowHeight() / 2);

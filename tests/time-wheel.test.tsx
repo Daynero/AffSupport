@@ -59,3 +59,10 @@ it('a pressed row does not take focus from the list', () => {
   expect(screen.getByTestId('value').textContent).toBe('07:03');
   expect(document.activeElement).toBe(screen.getByRole('listbox', { name: 'Hours' }));
 });
+
+it('moves a row per notch when several notches arrive merged in one event', () => {
+  render(<Host />);
+  const hours = screen.getByRole('listbox', { name: 'Hours' });
+  wheel(hours, -300, 1_000);
+  expect(screen.getByTestId('value').textContent).toBe('01:03');
+});
