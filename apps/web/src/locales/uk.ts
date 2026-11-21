@@ -2676,7 +2676,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamQueuePausedIdle: 'На паузі — у черзі: {count}',
   teamFolderProcessTruncated: 'Зупинились на перших {count} папках; для решти запустіть глибше',
   teamTranscriptSection: 'Транскрипція',
-  teamTranscriptInProgress: 'Транскрибування…',
+  teamTranscriptInProgress: 'Транскрибую',
   teamTranscriptStart: 'Транскрибувати',
   teamTranscriptRedo: 'Перетранскрибувати',
   teamTranscriptCopy: 'Копіювати транскрипцію',

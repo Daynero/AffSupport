@@ -2689,7 +2689,7 @@ export const en = {
   teamFolderProcessTruncated:
     'Stopped after the first {count} folders; run it again deeper inside for the rest',
   teamTranscriptSection: 'Transcript',
-  teamTranscriptInProgress: 'Transcribing…',
+  teamTranscriptInProgress: 'Transcribing',
   teamTranscriptStart: 'Transcribe',
   teamTranscriptRedo: 'Re-transcribe',
   teamTranscriptCopy: 'Copy transcript',

@@ -1,5 +1,5 @@
 import { Languages, RotateCcw } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Progress } from '../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -62,9 +62,6 @@ export function TranslationProgress({
   const real = variant.totalSegments > 0 ? variant.completedSegments / variant.totalSegments : 0;
   const shown = useSmoothProgress(real, variant.status === 'ready');
   const percent = Math.round(shown * 100);
-  // Read out in quarters, not every percent.
-  const quarter = Math.floor(percent / 25);
-
   if (variant.status === 'failed') {
     return (
       <div
@@ -91,25 +88,53 @@ export function TranslationProgress({
   }
 
   return (
+    <WorkStrip
+      icon={<Languages size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+      label={t('textTranslationInProgress', { language: name })}
+      percent={percent}
+      compact={compact}
+    />
+  );
+}
+
+/**
+ * One look for any work on a video's text — transcribing it or translating it (063, owner
+ * 2026-11-21: the transcription's bare text and orange bar sat beside the translation's strip
+ * as if from another product). An icon, what is happening, the percentage, one bar.
+ */
+export function WorkStrip({
+  icon,
+  label,
+  percent,
+  compact = false
+}: {
+  icon: ReactNode;
+  label: string;
+  /** 0–100; the caller decides whether it is smoothed. */
+  percent: number;
+  compact?: boolean;
+}) {
+  const value = Math.max(0, Math.min(100, Math.round(percent)));
+  // Read out in quarters, not every percent.
+  const quarter = Math.floor(value / 25);
+  return (
     <div
       className={`translation-progress${compact ? ' is-compact' : ''}`}
       aria-live="polite"
       aria-atomic="true"
     >
       <div className="translation-progress-head">
-        <Languages size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        <span className="translation-progress-text">
-          {t('textTranslationInProgress', { language: name })}
-        </span>
+        {icon}
+        <span className="translation-progress-text">{label}</span>
         <span className="translation-progress-percent" aria-hidden="true">
-          {percent}%
+          {value}%
         </span>
       </div>
       <Progress
-        value={percent}
+        value={value}
         size="sm"
         color="secondary"
-        label={t('textTranslationInProgress', { language: name })}
+        label={label}
         valueText={`${quarter * 25}%`}
       />
     </div>
