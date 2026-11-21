@@ -935,8 +935,11 @@
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
-.launch-editor-budget-preview > span {
+.launch-editor-budget-preview > span,
+.launch-editor-budget-ruler > span {
   display: inline-flex;
+  flex: 0 0 auto;
+  white-space: nowrap;
   align-items: center;
   height: var(--control-height-md);
   padding: 0 var(--space-2);

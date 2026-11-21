@@ -40,6 +40,7 @@ import { teamErrorMessageFor } from '../errors';
 import { LaunchRestitchDurationField } from './LaunchRestitchDurationField.js';
 import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
+import { LaunchBudgetPreview } from './LaunchBudgetPreview';
 import { LaunchDateField } from './LaunchDateField';
 import { launchPixel } from './launchPixel';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
@@ -735,25 +736,11 @@ export function LaunchEditor({
                         '$',
                         undefined,
                         budgets.length > 0 ? (
-                          <output
-                            className="launch-editor-budget-preview"
-                            aria-label={t('launchesBudget')}
-                          >
-                            {budgets.slice(0, 4).map((budget, index) => (
-                              <span key={index}>
-                                {budget} <span className="launch-editor-budget-currency">$</span>
-                              </span>
-                            ))}
-                            {budgets.length > 4 && (
-                              <span
-                                aria-label={t('launchSettingsMoreBudgets', {
-                                  count: budgets.length - 4
-                                })}
-                              >
-                                +{budgets.length - 4}
-                              </span>
-                            )}
-                          </output>
+                          <LaunchBudgetPreview
+                            budgets={budgets}
+                            label={t('launchesBudget')}
+                            moreLabel={count => t('launchSettingsMoreBudgets', { count })}
+                          />
                         ) : undefined
                       )}
                     </>

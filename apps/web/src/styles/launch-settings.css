@@ -134,10 +134,41 @@
 .launch-editor-compact .launch-editor-budget-preview {
   gap: var(--space-1);
 }
-.launch-editor-compact .launch-editor-budget-preview > span {
+.launch-editor-compact .launch-editor-budget-preview > span,
+.launch-editor-compact .launch-editor-budget-ruler > span {
   border: 0;
   padding-inline: var(--space-1);
   background: transparent;
+}
+/* The automatic budgets take the rest of the row, one line, as many as fit; «+N» stands
+   only for those that do not (LaunchBudgetPreview measures an invisible copy). */
+.launch-editor-compact .launch-editor-budget-row > .ui-field:has(.launch-editor-auto-budget) {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.launch-editor-compact .launch-editor-auto-budget {
+  flex-wrap: nowrap;
+}
+.launch-editor-compact .launch-editor-budget-fit {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+}
+.launch-editor-compact .launch-editor-budget-preview {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+.launch-editor-budget-ruler {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  display: flex;
+  gap: var(--space-1);
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
 }
 /* The catalog shelf: the options on the left as a column of rows, the stitch duration on
    the right. Each row is as tall as its tallest control before anything is switched on, so
@@ -183,6 +214,16 @@
 }
 /* «Варіації відео [ 2 ]» on the switch's own line: a caption and a small field, not a
    labelled block that made the row thick. Its hint and its error follow on the same line. */
+/* The field keeps to the rest of the switch's line, so a long error or hint never pushes
+   it down under the switch; they wrap under the field instead (next QA 2026-11-21). */
+.launch-editor-variations {
+  min-width: 0;
+  flex: 1 1 0;
+}
+.launch-editor-variations .ui-field-error,
+.launch-editor-variations .ui-field-help {
+  flex-basis: 100%;
+}
 .launch-editor-variations > .ui-field {
   display: flex;
   flex-wrap: wrap;
