@@ -5125,11 +5125,11 @@ export const uk: Record<keyof typeof en, string> = {
   creditsFeatureTranslation: 'Переклад',
   creditsFeatureAssistant: 'Помічник',
   creditsRefund: 'повернено',
-  creditsOpenAssistant: 'Помічник запусків',
+  creditsOpenAssistant: 'Відкрити помічника',
   creditsPickSpace: 'Відкрий простір, щоб скористатися помічником.',
   creditsMonthClosed: 'Загальний ліміт місяця вичерпано.',
   creditsUnavailable: 'Баланс зараз недоступний.',
-  assistantTitle: 'Помічник запусків',
+  assistantTitle: 'Помічник',
   assistantPlaceholder:
     'Опиши запуски: «На сьогодні 5 запусків ProCaps на G2, TR_16, по 2 кампанії, по 100 товарів»',
   assistantSend: 'Надіслати · {price}',
@@ -5137,7 +5137,7 @@ export const uk: Record<keyof typeof en, string> = {
   assistantShort: 'Бракує {missing} · поновиться о {time}',
   assistantCounter: '{count} / 4000',
   assistantEmpty:
-    'Напиши, які запуски підготувати. Я збережу звичайні чернетки, а запустиш ти кнопкою.',
+    'Напиши, що зробити. Зараз я готую запуски: збережу звичайні чернетки, а запустиш ти кнопкою.',
   assistantExample1: 'На сьогодні 5 запусків ProCaps на G2, TR_16, по 2 кампанії',
   assistantExample2: 'У другому заміни на TR_18',
   assistantExample3: 'Запусти всі на сьогодні',
@@ -5212,5 +5212,10 @@ export const uk: Record<keyof typeof en, string> = {
   assistantAlreadyAnswered: 'Відповідь уже прийнято.',
   assistantLinkSet: 'Посилання вставлено',
   assistantR2On: 'Відео копіюється в R2',
-  assistantNoFreeAccounts: 'Немає вільних РК: {written}'
+  assistantNoFreeAccounts: 'Немає вільних РК: {written}',
+  assistantNewDialog: 'Новий діалог',
+  assistantDialogs: 'Діалоги',
+  assistantMinimize: 'Згорнути',
+  assistantRetention: 'Діалоги зберігаються 7 днів',
+  assistantPlaceholderShort: 'Що зробити?'
 };

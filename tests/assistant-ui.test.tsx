@@ -61,6 +61,7 @@ function message(
 
 const api = vi.hoisted(() => ({
   open: vi.fn(),
+  newDialog: vi.fn(),
   send: vi.fn(),
   review: vi.fn(),
   undo: vi.fn(),
@@ -73,6 +74,12 @@ vi.mock('../apps/web/src/api/assistant', () => ({
   assistantApi: api,
   creditsApi: { status: vi.fn(async () => ({ ...credits, available })) }
 }));
+const bridge = vi.hoisted(() => ({
+  launchRows: vi.fn(async () => undefined),
+  openLaunch: vi.fn(),
+  notifyLaunchesChanged: vi.fn()
+}));
+vi.mock('../apps/web/src/team/assistant/bridge', () => bridge);
 vi.mock('../apps/web/src/auth/AuthContext', () => ({
   useOptionalAuth: () => ({ user: { id: 'u' } })
 }));
@@ -87,18 +94,27 @@ const budget = vi.hoisted(() => ({
 }));
 vi.mock('../apps/web/src/api/ai-budget', () => ({ aiBudgetApi: budget }));
 
-import { LaunchAssistant } from '../apps/web/src/team/launches/assistant/LaunchAssistant';
+import { AssistantWidget } from '../apps/web/src/team/assistant/AssistantWidget';
 import { CreditsButton } from '../apps/web/src/credits/CreditsButton';
 import { AiBudgetPanel } from '../apps/web/src/pages/admin/AiBudgetPanel';
 import { refreshCredits } from '../apps/web/src/credits/store';
 
+const dialog = {
+  conversationId: 'd1',
+  title: null,
+  dialogs: [{ id: 'd1', title: null, lastActiveAt: '2026-11-21T10:00:00Z' }]
+};
+
 beforeEach(async () => {
   localStorage.clear();
+  localStorage.setItem('soty.assistant.open', '1');
   available = 87;
   Object.values(api).forEach(fn => fn.mockClear());
+  Object.values(bridge).forEach(fn => fn.mockClear());
   api.open.mockImplementation(async () => ({
     enabled: true,
     canSaveDefaults: true,
+    ...dialog,
     messages: [],
     credits: { ...credits, available }
   }));
@@ -106,20 +122,44 @@ beforeEach(async () => {
 });
 afterEach(() => cleanup());
 
-function assistant(onLaunch = vi.fn(async () => undefined)) {
-  render(
-    <LaunchAssistant
-      teamId="team"
-      canEdit
-      onOpenLaunch={() => {}}
-      onLaunch={onLaunch}
-      onChanged={() => {}}
-    />
-  );
-  return onLaunch;
+function assistant() {
+  render(<AssistantWidget teamId="team" canEdit />);
+  return bridge.launchRows;
 }
 
-describe('the assistant in Launches', () => {
+describe('the space assistant', () => {
+  it('folds into a corner button and opens again from it', async () => {
+    const user = userEvent.setup();
+    assistant();
+    await screen.findByRole('textbox');
+    expect(screen.getByText('Dialogs are kept for 7 days')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Minimize' }));
+    expect(screen.queryByRole('textbox')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Assistant' }));
+    expect(await screen.findByRole('textbox')).toBeTruthy();
+  });
+
+  it('starts a new dialog and sends in the open one', async () => {
+    const user = userEvent.setup();
+    api.newDialog.mockResolvedValue({
+      enabled: true,
+      canSaveDefaults: true,
+      conversationId: 'd2',
+      title: null,
+      dialogs: [...dialog.dialogs, { id: 'd2', title: null, lastActiveAt: '2026-11-21T11:00:00Z' }],
+      messages: [],
+      credits
+    });
+    api.send.mockResolvedValue({ commandId: 'c', replayed: false, message: message([]), credits });
+    assistant();
+    await screen.findByRole('textbox');
+    await user.click(screen.getByRole('button', { name: 'New dialog' }));
+    await waitFor(() => expect(api.newDialog).toHaveBeenCalledWith('team'));
+    await user.type(screen.getByRole('textbox'), '5 запусків ProCaps на G2{Enter}');
+    await waitFor(() => expect(api.send).toHaveBeenCalledTimes(1));
+    expect(api.send.mock.calls[0]![0]).toMatchObject({ dialogId: 'd2' });
+  });
+
   it('shows the price on the send button and sends with Ctrl+Enter', async () => {
     const user = userEvent.setup();
     api.send.mockResolvedValue({
@@ -164,6 +204,7 @@ describe('the assistant in Launches', () => {
     api.open.mockResolvedValueOnce({
       enabled: true,
       canSaveDefaults: true,
+      ...dialog,
       credits,
       messages: [
         message([
@@ -181,10 +222,12 @@ describe('the assistant in Launches', () => {
     const onLaunch = assistant();
     await user.click(await screen.findByRole('button', { name: 'Launch 2' }));
     await waitFor(() => expect(onLaunch).toHaveBeenCalledTimes(1));
-    const [handed, key] = onLaunch.mock.calls[0]! as unknown as [
+    const [space, handed, key] = onLaunch.mock.calls[0]! as unknown as [
+      string,
       Array<{ launchId: string; version: string }>,
       string
     ];
+    expect(space).toBe('team');
     expect(handed).toEqual(rows.map(row => ({ launchId: row.launchId, version: '1' })));
     expect(api.reviewLaunched).toHaveBeenCalledWith('card-review', key);
     expect(await screen.findByText('Sent to generation')).toBeTruthy();
@@ -195,6 +238,7 @@ describe('the assistant in Launches', () => {
     api.open.mockResolvedValueOnce({
       enabled: true,
       canSaveDefaults: true,
+      ...dialog,
       credits,
       messages: [
         message([
@@ -227,23 +271,17 @@ describe('the assistant in Launches', () => {
     assistant();
     expect(await screen.findByText(/2 drafts/u)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(api.undo).toHaveBeenCalledWith('team', 'cmd-1', expect.any(String)));
+    await waitFor(() =>
+      expect(api.undo).toHaveBeenCalledWith('team', 'd1', 'cmd-1', expect.any(String))
+    );
     expect(await screen.findByText('Undone: 2')).toBeTruthy();
   });
 
   it('stays hidden where the assistant is not enabled', async () => {
     api.open.mockResolvedValue({ enabled: false, canSaveDefaults: false, messages: [], credits });
-    const { container } = render(
-      <LaunchAssistant
-        teamId="team"
-        canEdit
-        onOpenLaunch={() => {}}
-        onLaunch={async () => {}}
-        onChanged={() => {}}
-      />
-    );
+    const { container } = render(<AssistantWidget teamId="team" canEdit />);
     await waitFor(() => expect(api.open).toHaveBeenCalled());
-    expect(container.querySelector('.launch-assistant')).toBeNull();
+    expect(container.querySelector('.assistant-dock')).toBeNull();
   });
 });
 

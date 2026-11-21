@@ -1,22 +1,25 @@
 /**
- * 064: the launch assistant, where launches live — a quiet bar above the list in «Запуски».
+ * 064: the space's assistant — a button in the bottom-right corner of every section that opens a
+ * small window and folds back into the button. Today it prepares launches; later it answers about
+ * budgets, finds creatives, translates. Dialogs are kept as in any AI chat: a list, a new one,
+ * and each lives seven days after its last message.
  *
- * One line to write in; the price sits on the send button. Answers come back as short cards in the
- * language of the launch list (account chip, creatives, campaigns, products, budget) built by the
- * server from the stored rows. Every card action is free and never calls a model: open a draft,
- * «Запустити N» (the batch of 053 with the versions the card showed), undo, answer a question,
- * save an offer default. The conversation folds away when it is not needed.
+ * Cards come from the server, built from stored rows. Their actions are free and never call a
+ * model: open a draft, «Запустити N» (the launch section's own batch, with the versions the card
+ * showed), undo, answer a question, save an offer default. Only a typed message costs credits,
+ * and its price is on the send button.
  */
 import {
   AlertTriangle,
   ArrowUp,
   CheckCircle2,
   ChevronDown,
-  ChevronUp,
   Cloud,
   Link2,
+  Minus,
   Play,
   Sparkles,
+  SquarePen,
   Undo2
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
@@ -29,13 +32,18 @@ import {
   type AssistantMessage,
   type AssistantRow
 } from '@video-compressor/shared';
-import { assistantApi } from '../../../api/assistant';
-import { Button, IconButton, Spinner, Tooltip } from '../../../components/ui/index.js';
-import { ICON_SIZE, ICON_STROKE } from '../../../components/icons.js';
-import { kyivTime, setCredits, useCredits } from '../../../credits/store';
-import { assistantDraftsKey, useI18n, type TranslationKey } from '../../../i18n';
-import { teamErrorMessageFor } from '../../errors';
+import {
+  assistantApi,
+  type AssistantConversation,
+  type AssistantDialog
+} from '../../api/assistant';
+import { Button, DropdownMenu, IconButton, Spinner, Tooltip } from '../../components/ui/index.js';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
+import { kyivTime, setCredits, useCredits } from '../../credits/store';
+import { assistantDraftsKey, useI18n, type TranslationKey } from '../../i18n';
+import { teamErrorMessageFor } from '../errors';
 import { observeAssistant } from './analytics';
+import { launchRows, notifyLaunchesChanged, openLaunch } from './bridge';
 
 const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
   INSUFFICIENT_CREDITS: 'aiInsufficientCredits',
@@ -77,14 +85,22 @@ const FIELD_COPY: ReadonlyArray<[RegExp, TranslationKey]> = [
   [/^catalog/u, 'assistantFieldCatalog']
 ];
 
-export interface LaunchAssistantProps {
-  teamId: string;
-  canEdit: boolean;
-  onOpenLaunch: (id: string) => void;
-  /** «Запустити N»: the batch of 053 with exactly these rows; resolves when it was submitted. */
-  onLaunch: (rows: Array<{ launchId: string; version: string }>, batchKey: string) => Promise<void>;
-  /** Drafts were written: the list re-reads. */
-  onChanged: () => void;
+const OPEN_KEY = 'soty.assistant.open';
+
+function readOpen(): boolean {
+  try {
+    return localStorage.getItem(OPEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeOpen(value: boolean): void {
+  try {
+    localStorage.setItem(OPEN_KEY, value ? '1' : '0');
+  } catch {
+    /* a per-viewer convenience only */
+  }
 }
 
 function key(): string {
@@ -95,26 +111,39 @@ function stem(name: string): string {
   return name.replace(/\.[A-Za-z0-9]{1,5}$/u, '');
 }
 
-export function LaunchAssistant({
-  teamId,
-  canEdit,
-  onOpenLaunch,
-  onLaunch,
-  onChanged
-}: LaunchAssistantProps) {
+export interface AssistantWidgetProps {
+  teamId: string;
+  canEdit: boolean;
+}
+
+export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
   const { t, language } = useI18n();
   const credits = useCredits(canEdit);
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
+  const [dialogId, setDialogId] = useState<string | null>(null);
+  const [dialogs, setDialogs] = useState<AssistantDialog[]>([]);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState(true);
+  const [panel, setPanel] = useState(readOpen);
+  const [menu, setMenu] = useState(false);
   const [focused, setFocused] = useState(false);
   const [focusedCard, setFocusedCard] = useState<string | null>(null);
   const pendingKey = useRef<{ text: string; key: string } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLOListElement>(null);
+  const menuAnchor = useRef<HTMLButtonElement>(null);
+  const fab = useRef<HTMLButtonElement>(null);
+
+  const apply = (conversation: AssistantConversation) => {
+    setDialogId(conversation.conversationId);
+    setDialogs(conversation.dialogs);
+    setMessages(conversation.messages);
+    setCredits(conversation.credits);
+    setFocusedCard(null);
+    setError(null);
+  };
 
   useEffect(() => {
     if (!canEdit) return;
@@ -124,15 +153,18 @@ export function LaunchAssistant({
       .then(conversation => {
         if (!live) return;
         setEnabled(conversation.enabled);
-        setMessages(conversation.messages);
-        setCredits(conversation.credits);
+        apply(conversation);
       })
       .catch(() => live && setEnabled(false));
-    const focus = () => input.current?.focus();
-    window.addEventListener('soty:open-assistant', focus);
+    const reveal = () => {
+      setPanel(true);
+      writeOpen(true);
+      requestAnimationFrame(() => input.current?.focus());
+    };
+    window.addEventListener('soty:open-assistant', reveal);
     return () => {
       live = false;
-      window.removeEventListener('soty:open-assistant', focus);
+      window.removeEventListener('soty:open-assistant', reveal);
     };
   }, [teamId, canEdit]);
 
@@ -140,7 +172,7 @@ export function LaunchAssistant({
     const last = list.current?.lastElementChild as HTMLElement | null | undefined;
     if (last && typeof last.scrollIntoView === 'function')
       last.scrollIntoView({ block: 'nearest' });
-  }, [messages.length, open]);
+  }, [messages.length, panel]);
 
   // The field grows with the text, from one line to about six.
   useLayoutEffect(() => {
@@ -148,7 +180,7 @@ export function LaunchAssistant({
     if (!field) return;
     field.style.height = 'auto';
     field.style.height = `${Math.min(field.scrollHeight, 160)}px`;
-  }, [text, enabled]);
+  }, [text, enabled, panel]);
 
   // The card the person is looking at: the one they pressed, else the newest card with rows.
   const contextCard = useMemo(() => {
@@ -175,6 +207,28 @@ export function LaunchAssistant({
   const short =
     price !== null && price > 0 && available !== null && available < price ? price - available : 0;
   const tooLong = count > ASSISTANT_MESSAGE_MAX_CHARACTERS;
+
+  const toggle = (value: boolean) => {
+    setPanel(value);
+    writeOpen(value);
+    requestAnimationFrame(() => (value ? input.current : fab.current)?.focus());
+  };
+
+  const switchDialog = async (next: string) => {
+    setBusy(true);
+    try {
+      apply(
+        next === 'new'
+          ? await assistantApi.newDialog(teamId)
+          : await assistantApi.open(teamId, next)
+      );
+      requestAnimationFrame(() => input.current?.focus());
+    } catch (caught) {
+      setError(teamErrorMessageFor(caught, t));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const dayLabel = (date: string | null) => {
     if (!date) return null;
@@ -214,13 +268,21 @@ export function LaunchAssistant({
   ) => {
     setBusy(true);
     setError(null);
-    setOpen(true);
     if (optimistic) setMessages(current => [...current, optimistic]);
     try {
       const reply = await run();
       setCredits(reply.credits as never);
       if (reply.message) setMessages(current => [...current, reply.message!]);
-      onChanged();
+      if (optimistic && dialogId && !dialogs.find(dialog => dialog.id === dialogId)?.title) {
+        // The first message names the dialog on the server; show it without another read.
+        const title = optimistic.text.slice(0, 80);
+        setDialogs(current =>
+          current.some(dialog => dialog.id === dialogId)
+            ? current.map(dialog => (dialog.id === dialogId ? { ...dialog, title } : dialog))
+            : [{ id: dialogId, title, lastActiveAt: new Date().toISOString() }, ...current]
+        );
+      }
+      notifyLaunchesChanged(teamId);
       return true;
     } catch (caught) {
       setError(teamErrorMessageFor(caught, t));
@@ -237,7 +299,14 @@ export function LaunchAssistant({
     const flow = observeAssistant('send');
     const ok = await take(
       () =>
-        assistantApi.send({ teamId, text: trimmed, clientKey, price, contextCardId: contextCard }),
+        assistantApi.send({
+          teamId,
+          dialogId,
+          text: trimmed,
+          clientKey,
+          price,
+          contextCardId: contextCard
+        }),
       {
         id: -Date.now(),
         role: 'user',
@@ -256,11 +325,13 @@ export function LaunchAssistant({
     }
   };
 
-  // Enter sends, Shift+Enter breaks the line, as in every chat.
+  // Enter sends, Shift+Enter breaks the line, as in every chat; Escape folds the window.
   const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       void send();
+    } else if (event.key === 'Escape' && !text) {
+      toggle(false);
     }
   };
 
@@ -284,7 +355,8 @@ export function LaunchAssistant({
     setError(null);
     try {
       if (card.kind === 'review') await assistantApi.reviewLaunched(card.id, batchKey);
-      await onLaunch(
+      await launchRows(
+        teamId,
         rows.map(item => ({ launchId: item.launchId, version: item.version })),
         batchKey
       );
@@ -300,7 +372,7 @@ export function LaunchAssistant({
 
   const answer = (card: AssistantCard, optionId: string) => {
     markCard(card.id, { state: 'answered', payload: { ...card.payload, answer: optionId } });
-    void take(() => assistantApi.answer(teamId, card.id, optionId, key()));
+    void take(() => assistantApi.answer(teamId, dialogId, card.id, optionId, key()));
   };
 
   const row = (item: AssistantRow) => {
@@ -314,7 +386,11 @@ export function LaunchAssistant({
     ].filter(Boolean);
     return (
       <li key={item.launchId}>
-        <button type="button" className="assistant-row" onClick={() => onOpenLaunch(item.launchId)}>
+        <button
+          type="button"
+          className="assistant-row"
+          onClick={() => openLaunch(teamId, item.launchId)}
+        >
           <span className={`assistant-chip${item.account ? '' : ' is-missing'}`}>
             {item.account ?? t('assistantFieldAccount')}
           </span>
@@ -423,7 +499,7 @@ export function LaunchAssistant({
                 disabled={busy}
                 leading={<Undo2 size={16} strokeWidth={ICON_STROKE} />}
                 onClick={() =>
-                  void take(() => assistantApi.undo(teamId, message.commandId!, key()))
+                  void take(() => assistantApi.undo(teamId, dialogId, message.commandId!, key()))
                 }
               >
                 {t('assistantUndo')}
@@ -474,10 +550,9 @@ export function LaunchAssistant({
             </p>
             <div className="assistant-card-actions">
               {changes.map((change, index) => (
-                <span
-                  key={index}
-                  className="assistant-chip"
-                >{`${change.field}: ${change.from ?? '—'} → ${change.to}`}</span>
+                <span key={index} className="assistant-chip">
+                  {`${change.field}: ${change.from ?? '—'} → ${change.to}`}
+                </span>
               ))}
             </div>
             {card.state === 'open' && (
@@ -487,7 +562,7 @@ export function LaunchAssistant({
                   variant="primary"
                   disabled={busy}
                   onClick={() =>
-                    void take(() => assistantApi.confirmProfile(teamId, card.id, key()))
+                    void take(() => assistantApi.confirmProfile(teamId, dialogId, card.id, key()))
                   }
                 >
                   {t('assistantProfileSave')}
@@ -535,29 +610,96 @@ export function LaunchAssistant({
   const sendLabel = price
     ? t(price === 1 ? 'assistantSendPrice' : 'assistantSendPriceFew', { price })
     : t('assistantSendFree');
+  const currentTitle =
+    dialogs.find(dialog => dialog.id === dialogId)?.title ?? t('assistantTitle');
+
+  if (!panel) {
+    return (
+      <div className="assistant-dock">
+        <IconButton
+          ref={fab}
+          size="lg"
+          color="primary"
+          variant="solid"
+          className="assistant-fab"
+          label={t('assistantTitle')}
+          onClick={() => toggle(true)}
+        >
+          <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+        </IconButton>
+      </div>
+    );
+  }
+
   return (
-    <section className="launch-assistant" aria-label={t('assistantTitle')}>
-      {messages.length > 0 && (
-        <div className="assistant-head">
-          <span className="assistant-head-title">
+    <div className="assistant-dock">
+      <section className="assistant-window" aria-label={t('assistantTitle')}>
+        <header className="assistant-head">
+          <button
+            ref={menuAnchor}
+            type="button"
+            className="assistant-dialog-switch"
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            onClick={() => setMenu(value => !value)}
+          >
             <Sparkles size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t('assistantTitle')}
-          </span>
+            <span className="assistant-dialog-title">{currentTitle}</span>
+            <ChevronDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </button>
+          <DropdownMenu
+            open={menu}
+            onClose={() => setMenu(false)}
+            anchor={menuAnchor}
+            label={t('assistantDialogs')}
+            selection="single"
+            maxHeight={360}
+            items={[
+              { heading: t('assistantDialogs') },
+              ...dialogs.map(dialog => ({
+                id: dialog.id,
+                label: dialog.title ?? t('assistantNewDialog'),
+                checked: dialog.id === dialogId,
+                trailing: new Date(dialog.lastActiveAt).toLocaleDateString(language, {
+                  day: 'numeric',
+                  month: 'short'
+                }),
+                onSelect: () => void switchDialog(dialog.id)
+              }))
+            ]}
+          />
           <IconButton
             size="sm"
-            label={open ? t('assistantCollapse') : t('assistantExpand')}
-            onClick={() => setOpen(value => !value)}
+            label={t('assistantNewDialog')}
+            disabled={busy}
+            onClick={() => void switchDialog('new')}
           >
-            {open ? (
-              <ChevronUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-            ) : (
-              <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-            )}
+            <SquarePen size={ICON_SIZE} strokeWidth={ICON_STROKE} />
           </IconButton>
-        </div>
-      )}
-      {open && messages.length > 0 && (
+          <IconButton size="sm" label={t('assistantMinimize')} onClick={() => toggle(false)}>
+            <Minus size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+          </IconButton>
+        </header>
         <ol ref={list} className="assistant-thread" aria-live="polite">
+          {messages.length === 0 && (
+            <li className="assistant-empty">
+              <p className="assistant-text">{t('assistantEmpty')}</p>
+              <div className="assistant-examples">
+                {(['assistantExample1', 'assistantExample2', 'assistantExample3'] as const).map(
+                  example => (
+                    <Button
+                      key={example}
+                      size="xs"
+                      variant="outline"
+                      onClick={() => setText(t(example))}
+                    >
+                      {t(example)}
+                    </Button>
+                  )
+                )}
+              </div>
+            </li>
+          )}
           {messages.map(message => (
             <li key={message.id} className={`assistant-message is-${message.role}`}>
               {message.text && <p className="assistant-text">{message.text}</p>}
@@ -572,76 +714,60 @@ export function LaunchAssistant({
             </li>
           )}
         </ol>
-      )}
-      {error && (
-        <p className="assistant-note is-warning" role="alert">
-          <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          {error}
-        </p>
-      )}
-      <div
-        className={`assistant-bar${focused ? ' is-focused' : ''}${tooLong ? ' is-invalid' : ''}`}
-      >
-        <Sparkles
-          className="assistant-bar-icon"
-          size={ICON_SIZE}
-          strokeWidth={ICON_STROKE}
-          aria-hidden="true"
-        />
-        <textarea
-          ref={input}
-          rows={1}
-          className="assistant-input"
-          value={text}
-          aria-label={t('assistantTitle')}
-          placeholder={t('assistantPlaceholder')}
-          aria-invalid={tooLong || undefined}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          onChange={event => setText(event.target.value)}
-          onKeyDown={onKey}
-        />
-        {count > ASSISTANT_MESSAGE_MAX_CHARACTERS - 500 && (
-          <span className="assistant-note">{t('assistantCounter', { count })}</span>
+        {error && (
+          <p className="assistant-note is-warning assistant-error" role="alert">
+            <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {error}
+          </p>
         )}
-        {short > 0 && credits.status ? (
-          <span className="assistant-note is-warning">
-            {t('assistantShort', {
-              missing: short,
-              time: kyivTime(credits.status.resetsAt, language)
-            })}
-          </span>
-        ) : (
-          price !== null &&
-          price > 0 && (
-            <span className="assistant-price" aria-hidden="true">
-              {price}
-            </span>
-          )
-        )}
-        <IconButton
-          size="sm"
-          color="primary"
-          variant="solid"
-          label={sendLabel}
-          loading={busy}
-          disabled={!trimmed || price === null || short > 0 || tooLong}
-          onClick={() => void send()}
+        <div
+          className={`assistant-bar${focused ? ' is-focused' : ''}${tooLong ? ' is-invalid' : ''}`}
         >
-          <ArrowUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-        </IconButton>
-      </div>
-      {!trimmed && messages.length === 0 && (
-        <div className="assistant-examples">
-          {(['assistantExample1', 'assistantExample2', 'assistantExample3'] as const).map(
-            example => (
-              <Button key={example} size="xs" variant="ghost" onClick={() => setText(t(example))}>
-                {t(example)}
-              </Button>
+          <textarea
+            ref={input}
+            rows={1}
+            className="assistant-input"
+            value={text}
+            aria-label={t('assistantTitle')}
+            placeholder={t('assistantPlaceholderShort')}
+            aria-invalid={tooLong || undefined}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onChange={event => setText(event.target.value)}
+            onKeyDown={onKey}
+          />
+          {count > ASSISTANT_MESSAGE_MAX_CHARACTERS - 500 && (
+            <span className="assistant-note">{t('assistantCounter', { count })}</span>
+          )}
+          {short > 0 && credits.status ? (
+            <span className="assistant-note is-warning">
+              {t('assistantShort', {
+                missing: short,
+                time: kyivTime(credits.status.resetsAt, language)
+              })}
+            </span>
+          ) : (
+            price !== null &&
+            price > 0 && (
+              <span className="assistant-price" aria-hidden="true">
+                {price}
+              </span>
             )
           )}
+          <IconButton
+            size="sm"
+            color="primary"
+            variant="solid"
+            label={sendLabel}
+            loading={busy}
+            disabled={!trimmed || price === null || short > 0 || tooLong}
+            onClick={() => void send()}
+          >
+            <ArrowUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+          </IconButton>
         </div>
-      )}
-    </section>
+        <p className="assistant-retention">{t('assistantRetention')}</p>
+      </section>
+    </div>
   );
 }

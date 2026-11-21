@@ -5150,11 +5150,11 @@ export const en = {
   creditsFeatureTranslation: 'Translation',
   creditsFeatureAssistant: 'Assistant',
   creditsRefund: 'returned',
-  creditsOpenAssistant: 'Launch assistant',
+  creditsOpenAssistant: 'Open the assistant',
   creditsPickSpace: 'Open a space to use the assistant.',
   creditsMonthClosed: 'The monthly budget is used up.',
   creditsUnavailable: 'The balance is unavailable right now.',
-  assistantTitle: 'Launch assistant',
+  assistantTitle: 'Assistant',
   assistantPlaceholder:
     'Describe launches: «Today 5 ProCaps launches on G2, TR_16, 2 campaigns, 100 products each»',
   assistantSend: 'Send · {price}',
@@ -5162,7 +5162,7 @@ export const en = {
   assistantShort: 'Short by {missing} · renews at {time}',
   assistantCounter: '{count} / 4,000',
   assistantEmpty:
-    'Write which launches to prepare. I save ordinary drafts; you launch them with a button.',
+    'Write what to do. For now I prepare launches: I save ordinary drafts; you launch them with a button.',
   assistantExample1: 'Today 5 ProCaps launches on G2, TR_16, 2 campaigns each',
   assistantExample2: 'In the second one switch to TR_18',
   assistantExample3: 'Launch all for today',
@@ -5236,5 +5236,10 @@ export const en = {
   assistantAlreadyAnswered: 'The answer is already taken.',
   assistantLinkSet: 'Link set',
   assistantR2On: 'Video is copied to R2',
-  assistantNoFreeAccounts: 'No free ad accounts: {written}'
+  assistantNoFreeAccounts: 'No free ad accounts: {written}',
+  assistantNewDialog: 'New dialog',
+  assistantDialogs: 'Dialogs',
+  assistantMinimize: 'Minimize',
+  assistantRetention: 'Dialogs are kept for 7 days',
+  assistantPlaceholderShort: 'What should I do?'
 } as const;

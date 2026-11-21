@@ -17,9 +17,20 @@ import { invokeTeamFunction, TeamApiError, throwRpc } from './team.js';
 
 const FUNCTION = 'assistant';
 
+export interface AssistantDialog {
+  id: string;
+  title: string | null;
+  lastActiveAt: string;
+}
+
 export interface AssistantConversation {
   enabled: boolean;
   canSaveDefaults: boolean;
+  /** The dialog that is open; the server picks the most recent when none was asked for. */
+  conversationId: string | null;
+  title: string | null;
+  /** The person's live dialogs in this space, newest first (each lives seven days). */
+  dialogs: AssistantDialog[];
   messages: AssistantMessage[];
   credits: AiCreditsStatus | null;
 }
@@ -61,27 +72,54 @@ async function act(body: Record<string, unknown>, signal?: AbortSignal): Promise
   return reply(value);
 }
 
+function conversation(data: unknown): AssistantConversation {
+  if (!isRecord(data) || typeof data.enabled !== 'boolean')
+    throw new TeamApiError('INVALID_RESPONSE', false);
+  const messages = Array.isArray(data.messages) ? data.messages.map(parseAssistantMessage) : [];
+  if (messages.some(message => message === null)) throw new TeamApiError('INVALID_RESPONSE', false);
+  const dialogs = Array.isArray(data.dialogs)
+    ? data.dialogs.flatMap(item =>
+        isRecord(item) && typeof item.id === 'string' && typeof item.lastActiveAt === 'string'
+          ? [
+              {
+                id: item.id,
+                title: typeof item.title === 'string' ? item.title : null,
+                lastActiveAt: item.lastActiveAt
+              }
+            ]
+          : []
+      )
+    : [];
+  return {
+    enabled: data.enabled,
+    canSaveDefaults: data.canSaveDefaults === true,
+    conversationId: typeof data.conversationId === 'string' ? data.conversationId : null,
+    title: typeof data.title === 'string' ? data.title : null,
+    dialogs,
+    messages: messages as AssistantMessage[],
+    credits: parseAiCreditsStatus(data.credits)
+  };
+}
+
 export const assistantApi = {
-  async open(teamId: string): Promise<AssistantConversation> {
+  async open(teamId: string, dialogId: string | null = null): Promise<AssistantConversation> {
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('assistant_open', { p_team: teamId })
+      requireSupabaseClient().rpc('assistant_open_dialog', { p_team: teamId, p_dialog: dialogId })
     );
     throwRpc(error);
-    if (!isRecord(data) || typeof data.enabled !== 'boolean')
-      throw new TeamApiError('INVALID_RESPONSE', false);
-    const messages = Array.isArray(data.messages) ? data.messages.map(parseAssistantMessage) : [];
-    if (messages.some(message => message === null))
-      throw new TeamApiError('INVALID_RESPONSE', false);
-    return {
-      enabled: data.enabled,
-      canSaveDefaults: data.canSaveDefaults === true,
-      messages: messages as AssistantMessage[],
-      credits: parseAiCreditsStatus(data.credits)
-    };
+    return conversation(data);
+  },
+  async newDialog(teamId: string): Promise<AssistantConversation> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('assistant_new_dialog', { p_team: teamId })
+    );
+    throwRpc(error);
+    return conversation(data);
   },
   send(
     input: {
       teamId: string;
+      dialogId: string | null;
       text: string;
       clientKey: string;
       price: number;
@@ -93,6 +131,7 @@ export const assistantApi = {
       {
         action: 'send',
         teamId: input.teamId,
+        conversationId: input.dialogId,
         text: input.text,
         clientKey: input.clientKey,
         expectedPrice: input.price,
@@ -103,30 +142,45 @@ export const assistantApi = {
       signal
     );
   },
-  answer(teamId: string, cardId: string, optionId: string, clientKey: string) {
+  answer(
+    teamId: string,
+    dialogId: string | null,
+    cardId: string,
+    optionId: string,
+    clientKey: string
+  ) {
     return act({
       action: 'answer',
       teamId,
+      conversationId: dialogId,
       cardId,
       optionId,
       clientKey,
       timezone: browserTimezone()
     });
   },
-  confirmProfile(teamId: string, cardId: string, clientKey: string) {
+  confirmProfile(teamId: string, dialogId: string | null, cardId: string, clientKey: string) {
     return act({
       action: 'confirm_profile',
       teamId,
+      conversationId: dialogId,
       cardId,
       clientKey,
       timezone: browserTimezone()
     });
   },
-  review(teamId: string, cardId: string | null, clientKey: string) {
-    return act({ action: 'review', teamId, cardId, clientKey, timezone: browserTimezone() });
+  review(teamId: string, dialogId: string | null, cardId: string | null, clientKey: string) {
+    return act({
+      action: 'review',
+      teamId,
+      conversationId: dialogId,
+      cardId,
+      clientKey,
+      timezone: browserTimezone()
+    });
   },
-  undo(teamId: string, commandId: string, clientKey: string) {
-    return act({ action: 'undo', teamId, commandId, clientKey });
+  undo(teamId: string, dialogId: string | null, commandId: string, clientKey: string) {
+    return act({ action: 'undo', teamId, conversationId: dialogId, commandId, clientKey });
   },
   /** Ties a review card to the batch key the browser submits next; replays for the same key. */
   async reviewLaunched(cardId: string, batchKey: string): Promise<void> {

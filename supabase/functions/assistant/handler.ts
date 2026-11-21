@@ -65,7 +65,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const CLIENT_KEY = /^[A-Za-z0-9_-]{8,80}$/u;
 const FEATURE = 'launch_assistant';
 
-export type AssistantCommand =
+export type AssistantCommand = (
   | {
       action: 'send';
       teamId: string;
@@ -92,7 +92,18 @@ export type AssistantCommand =
       timezone: string;
     }
   | { action: 'review'; teamId: string; cardId: string | null; clientKey: string; timezone: string }
-  | { action: 'undo'; teamId: string; commandId: string; clientKey: string };
+  | { action: 'undo'; teamId: string; commandId: string; clientKey: string }
+) & {
+  /** The dialog the person has open; null takes their most recent one. */
+  dialogId: string | null;
+};
+
+/** Every command without its dialog, kept as a union. */
+type CommandBody = AssistantCommand extends infer C
+  ? C extends unknown
+    ? Omit<C, 'dialogId'>
+    : never
+  : never;
 
 function invalid(): never {
   throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
@@ -112,72 +123,85 @@ export function parseAssistantCommand(body: unknown): AssistantCommand {
   const teamId = body.teamId.toLowerCase();
   const id = (value: unknown) =>
     typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : invalid();
-  switch (body.action) {
-    case 'send': {
-      only(body, [
-        'action',
-        'teamId',
-        'text',
-        'clientKey',
-        'expectedPrice',
-        'priceVersion',
-        'contextCardId',
-        'timezone'
-      ]);
-      if (
-        typeof body.text !== 'string' ||
-        typeof body.expectedPrice !== 'number' ||
-        typeof body.priceVersion !== 'string'
-      )
+  const dialogId = body.conversationId == null ? null : id(body.conversationId);
+  const parsed = ((): CommandBody => {
+    switch (body.action) {
+      case 'send': {
+        only(body, [
+          'conversationId',
+          'action',
+          'teamId',
+          'text',
+          'clientKey',
+          'expectedPrice',
+          'priceVersion',
+          'contextCardId',
+          'timezone'
+        ]);
+        if (
+          typeof body.text !== 'string' ||
+          typeof body.expectedPrice !== 'number' ||
+          typeof body.priceVersion !== 'string'
+        )
+          invalid();
+        if (characterCount(body.text) > ASSISTANT_MESSAGE_MAX_CHARACTERS)
+          throw new TeamFunctionError('MESSAGE_TOO_LONG', { retryable: false });
+        return {
+          action: 'send',
+          teamId,
+          text: body.text,
+          clientKey: body.clientKey,
+          expectedPrice: body.expectedPrice,
+          priceVersion: body.priceVersion,
+          contextCardId: body.contextCardId == null ? null : id(body.contextCardId),
+          timezone
+        };
+      }
+      case 'answer':
+        only(body, [
+          'conversationId',
+          'action',
+          'teamId',
+          'cardId',
+          'optionId',
+          'clientKey',
+          'timezone'
+        ]);
+        if (typeof body.optionId !== 'string' || body.optionId.length > 64) invalid();
+        return {
+          action: 'answer',
+          teamId,
+          cardId: id(body.cardId),
+          optionId: body.optionId,
+          clientKey: body.clientKey,
+          timezone
+        };
+      case 'confirm_profile':
+        only(body, ['conversationId', 'action', 'teamId', 'cardId', 'clientKey', 'timezone']);
+        return {
+          action: 'confirm_profile',
+          teamId,
+          cardId: id(body.cardId),
+          clientKey: body.clientKey,
+          timezone
+        };
+      case 'review':
+        only(body, ['conversationId', 'action', 'teamId', 'cardId', 'clientKey', 'timezone']);
+        return {
+          action: 'review',
+          teamId,
+          cardId: body.cardId == null ? null : id(body.cardId),
+          clientKey: body.clientKey,
+          timezone
+        };
+      case 'undo':
+        only(body, ['conversationId', 'action', 'teamId', 'commandId', 'clientKey', 'timezone']);
+        return { action: 'undo', teamId, commandId: id(body.commandId), clientKey: body.clientKey };
+      default:
         invalid();
-      if (characterCount(body.text) > ASSISTANT_MESSAGE_MAX_CHARACTERS)
-        throw new TeamFunctionError('MESSAGE_TOO_LONG', { retryable: false });
-      return {
-        action: 'send',
-        teamId,
-        text: body.text,
-        clientKey: body.clientKey,
-        expectedPrice: body.expectedPrice,
-        priceVersion: body.priceVersion,
-        contextCardId: body.contextCardId == null ? null : id(body.contextCardId),
-        timezone
-      };
     }
-    case 'answer':
-      only(body, ['action', 'teamId', 'cardId', 'optionId', 'clientKey', 'timezone']);
-      if (typeof body.optionId !== 'string' || body.optionId.length > 64) invalid();
-      return {
-        action: 'answer',
-        teamId,
-        cardId: id(body.cardId),
-        optionId: body.optionId,
-        clientKey: body.clientKey,
-        timezone
-      };
-    case 'confirm_profile':
-      only(body, ['action', 'teamId', 'cardId', 'clientKey', 'timezone']);
-      return {
-        action: 'confirm_profile',
-        teamId,
-        cardId: id(body.cardId),
-        clientKey: body.clientKey,
-        timezone
-      };
-    case 'review':
-      only(body, ['action', 'teamId', 'cardId', 'clientKey', 'timezone']);
-      return {
-        action: 'review',
-        teamId,
-        cardId: body.cardId == null ? null : id(body.cardId),
-        clientKey: body.clientKey,
-        timezone
-      };
-    case 'undo':
-      only(body, ['action', 'teamId', 'commandId', 'clientKey', 'timezone']);
-      return { action: 'undo', teamId, commandId: id(body.commandId), clientKey: body.clientKey };
-    default:
-      invalid();
-  }
+  })();
+  return { ...parsed, dialogId } as AssistantCommand;
 }
 
 export interface AssistantDeps {
@@ -235,11 +259,20 @@ async function begin(
   kind: 'message' | 'answer' | 'confirm' | 'undo',
   request: unknown,
   text: string | null,
-  price: number
+  price: number,
+  dialogId: string | null = null
 ): Promise<Begun> {
-  const data = await service(deps, 'service_assistant_begin', {
+  const context = await service(deps, 'service_assistant_context_v2', {
     p_user: deps.userId,
     p_team: teamId,
+    p_dialog: dialogId
+  });
+  const dialog =
+    isRecord(context) && typeof context.conversationId === 'string' ? context.conversationId : null;
+  const data = await service(deps, 'service_assistant_begin_v2', {
+    p_user: deps.userId,
+    p_team: teamId,
+    p_dialog: dialog,
     p_client_key: clientKey,
     p_request_hash: await sha256(JSON.stringify({ kind, request })),
     p_kind: kind,
@@ -482,7 +515,8 @@ export async function sendMessage(
       details: { price, priceVersion: AI_PRICE_VERSION }
     });
   }
-  const context = await service(deps, 'service_assistant_context', {
+  const context = await service(deps, 'service_assistant_context_v2', {
+    p_dialog: command.dialogId,
     p_user: deps.userId,
     p_team: command.teamId
   });
@@ -494,7 +528,8 @@ export async function sendMessage(
     'message',
     { text, contextCardId: command.contextCardId, timezone: command.timezone, price },
     text,
-    price
+    price,
+    command.dialogId
   );
   if (started.replayed) {
     return {
@@ -693,7 +728,8 @@ export async function answerQuestion(
     'answer',
     { cardId: command.cardId, optionId: command.optionId },
     option.label,
-    0
+    0,
+    command.dialogId
   );
   if (started.replayed)
     return {
@@ -764,7 +800,8 @@ export async function answerQuestion(
       ...interpreted.plan,
       actions: interpreted.plan.actions.filter(action => action.type !== 'ask')
     };
-    const context = await service(deps, 'service_assistant_context', {
+    const context = await service(deps, 'service_assistant_context_v2', {
+      p_dialog: command.dialogId,
       p_user: deps.userId,
       p_team: command.teamId
     });
@@ -785,7 +822,8 @@ export async function answerQuestion(
   }
   const stored = await storedPlanOf(deps, payload.commandId);
   stored.choices = { ...stored.choices, [payload.ref]: option.id };
-  const context = await service(deps, 'service_assistant_context', {
+  const context = await service(deps, 'service_assistant_context_v2', {
+    p_dialog: command.dialogId,
     p_user: deps.userId,
     p_team: command.teamId
   });
@@ -819,7 +857,8 @@ export async function confirmProfile(
     'confirm',
     { cardId: command.cardId },
     null,
-    0
+    0,
+    command.dialogId
   );
   if (started.replayed)
     return {
@@ -910,7 +949,11 @@ export async function showReview(
   command: Extract<AssistantCommand, { action: 'review' }>,
   deps: AssistantDeps
 ): Promise<AssistantResponse> {
-  await service(deps, 'service_assistant_context', { p_user: deps.userId, p_team: command.teamId });
+  await service(deps, 'service_assistant_context_v2', {
+    p_dialog: command.dialogId,
+    p_user: deps.userId,
+    p_team: command.teamId
+  });
   const started = await begin(
     deps,
     command.teamId,
@@ -918,7 +961,8 @@ export async function showReview(
     'message',
     { review: command.cardId },
     null,
-    0
+    0,
+    command.dialogId
   );
   if (started.replayed)
     return {
@@ -1086,7 +1130,11 @@ export async function undo(
   command: Extract<AssistantCommand, { action: 'undo' }>,
   deps: AssistantDeps
 ): Promise<AssistantResponse> {
-  await service(deps, 'service_assistant_context', { p_user: deps.userId, p_team: command.teamId });
+  await service(deps, 'service_assistant_context_v2', {
+    p_dialog: command.dialogId,
+    p_user: deps.userId,
+    p_team: command.teamId
+  });
   const started = await begin(
     deps,
     command.teamId,
@@ -1094,7 +1142,8 @@ export async function undo(
     'undo',
     { commandId: command.commandId },
     null,
-    0
+    0,
+    command.dialogId
   );
   if (started.replayed)
     return {

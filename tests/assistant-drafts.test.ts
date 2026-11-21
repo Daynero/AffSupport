@@ -61,11 +61,13 @@ function world(
     calls.push(name);
     switch (name) {
       case 'service_assistant_context':
+      case 'service_assistant_context_v2':
         return {
           data: { conversationId: 'conv', canSaveDefaults: true, priceVersion: 'v1' },
           error: null
         };
       case 'service_assistant_begin':
+      case 'service_assistant_begin_v2':
         commands++;
         return options.replay
           ? {

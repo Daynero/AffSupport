@@ -1,5 +1,5 @@
 import { safeLaunchAnalyticsCode } from '@video-compressor/shared';
-import { analytics } from '../../../analytics/service';
+import { analytics } from '../../analytics/service';
 
 export type AssistantStep = 'send' | 'launch' | 'open';
 

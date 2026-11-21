@@ -94,8 +94,10 @@ function space(
     const ok = (data: unknown) => ({ data, error: null });
     switch (name) {
       case 'service_assistant_context':
+      case 'service_assistant_context_v2':
         return ok({ conversationId: 'conv', canSaveDefaults: true, priceVersion: 'v1' });
       case 'service_assistant_begin':
+      case 'service_assistant_begin_v2':
         commands++;
         return ok({ commandId: id(500 + commands), replayed: false });
       case 'service_assistant_status':

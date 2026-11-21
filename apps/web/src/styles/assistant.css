@@ -1,26 +1,83 @@
 /* 064: the launch assistant above the list, and the credits button in the header. */
-.launch-assistant {
+.assistant-dock {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.assistant-fab {
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+}
+.assistant-window {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  width: min(26rem, calc(100vw - 2 * var(--space-4)));
+  height: min(38rem, calc(100vh - 7rem));
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-xl);
 }
 .assistant-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-1);
 }
-.assistant-head-title {
+.assistant-dialog-switch {
   display: inline-flex;
+  flex: 1;
+  min-width: 0;
   align-items: center;
   gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-label);
+  font-weight: 600;
+  cursor: pointer;
+}
+.assistant-dialog-switch:hover,
+.assistant-dialog-switch:focus-visible {
+  background: var(--color-surface-raised);
+}
+.assistant-dialog-switch svg:first-child {
+  color: var(--color-accent-text);
+}
+.assistant-dialog-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assistant-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+.assistant-retention {
+  margin: 0;
   color: var(--color-text-muted);
-  font-size: var(--text-caption);
+  font-size: var(--text-micro);
+  text-align: center;
+}
+.assistant-error {
+  padding: 0 var(--space-1);
 }
 .assistant-thread {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: var(--space-3);
-  max-height: 40vh;
+  min-height: 0;
   margin: 0;
   padding: 0 var(--space-1);
   overflow-y: auto;
@@ -176,11 +233,6 @@
 }
 .assistant-bar.is-invalid {
   border-color: var(--color-error-border);
-}
-.assistant-bar-icon {
-  flex: none;
-  align-self: center;
-  color: var(--color-accent-text);
 }
 .assistant-input {
   flex: 1;

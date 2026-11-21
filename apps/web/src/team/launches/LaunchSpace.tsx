@@ -1,6 +1,6 @@
 import { privateCacheActorEpoch } from '../private-cache-scope.js';
 import type { LaunchBatch } from './LaunchBatch.js';
-import { LaunchAssistant } from './assistant/LaunchAssistant.js';
+import { onLaunchesChanged, registerLaunchRunner } from '../assistant/bridge.js';
 import { launchCardState } from './launchPresentation.js';
 import { batchEligible } from './batchModel.js';
 import { durableCardValue, durableItemState } from './durableBatchModel.js';
@@ -647,6 +647,32 @@ function LaunchSpaceContent({
     detailRead.current.revisionId === (query.revisionId ?? null)
       ? detail
       : null;
+  // 064: the space's assistant starts batches here and asks the list to read again after a change.
+  const assistantRun = useRef<
+    (rows: Array<{ launchId: string; version: string }>, key: string) => Promise<void>
+  >(async () => {});
+  assistantRun.current = async (rows, batchKey) => {
+    const known = new Map(items.map(item => [item.id, item.method]));
+    await submitBatch(
+      rows.map(row => ({
+        id: row.launchId,
+        version: row.version,
+        method: known.get(row.launchId) ?? 'catalog'
+      })),
+      batchKey
+    );
+  };
+  useEffect(
+    () => registerLaunchRunner(teamId, (rows, key) => assistantRun.current(rows, key)),
+    [teamId]
+  );
+  useEffect(
+    () =>
+      onLaunchesChanged(changed => {
+        if (changed === teamId) void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
+      }),
+    [teamId, refresh, t]
+  );
   // Everything the board shows first, read before any of it is shown (058): the cards, the
   // dictionaries their labels come from, and the batch block above them.
   const busy = !error && (!ready || !listLoaded || (Boolean(actorId) && !batchesRead));
@@ -655,25 +681,6 @@ function LaunchSpaceContent({
       className="team-panel team-launch-space flex min-w-0 flex-col gap-4"
       aria-label={t('launchesTitle')}
     >
-      <LaunchAssistant
-        teamId={teamId}
-        canEdit={can('edit') && Boolean(actorId)}
-        onOpenLaunch={id => route(id)}
-        onLaunch={async (rows, batchKey) => {
-          const known = new Map(items.map(item => [item.id, item.method]));
-          await submitBatch(
-            rows.map(row => ({
-              id: row.launchId,
-              version: row.version,
-              method: known.get(row.launchId) ?? 'catalog'
-            })),
-            batchKey
-          );
-        }}
-        onChanged={() => {
-          void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
-        }}
-      />
       <div className="launch-list-toolbar flex flex-wrap items-center gap-2">
         <div className="w-full sm:w-56">
           <Input
