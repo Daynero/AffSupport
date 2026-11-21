@@ -202,11 +202,34 @@
   height: var(--control-height-sm);
 }
 .launch-editor-compact .launch-editor-catalog-publication {
-  min-height: var(--control-height-lg);
-  justify-content: center;
+  gap: 0;
 }
+/* Every switch on the shelf stands in a row of the same height with nothing between the
+   rows, so the spacing is one rhythm whatever is switched on (next QA 2026-11-21: the
+   delayed-publication switch hugged the fields that opened under it). */
+.launch-editor-compact .launch-editor-catalog-publication > .ui-switch {
+  min-height: var(--control-height-lg);
+}
+/* What an option opens is its own group, set in under the option's label — the switch
+   track is as wide as a medium control is tall, and the label follows a gap on — so it
+   reads as part of that option and not as a heap under the switches. */
+.launch-editor-compact .launch-editor-catalog-publication > .catalog-publication-controls,
+.launch-editor-compact .launch-editor-catalog-publication > .ui-field-help {
+  margin-inline-start: calc(var(--control-height-md) + var(--space-3));
+}
+.launch-editor-compact .launch-editor-catalog-publication > .catalog-publication-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+  padding-bottom: var(--space-2);
+}
+/* The duration's name stands on the first row's line, and its panel starts under it. */
 .launch-editor-compact .launch-duration-open {
-  padding-block: var(--space-1) var(--space-2);
+  gap: 0;
+}
+.launch-editor-compact .launch-duration-open > .ui-field-label {
+  min-height: var(--control-height-lg);
 }
 .launch-editor-compact .launch-duration-open .restitch-duration-control {
   max-width: none;
