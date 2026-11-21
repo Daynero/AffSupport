@@ -1,4 +1,27 @@
-import type { LaunchCreative, LaunchCreativeKind, LaunchDraft } from '@video-compressor/shared';
+import type {
+  LaunchCatalogConfig,
+  LaunchCreative,
+  LaunchCreativeKind,
+  LaunchDraft
+} from '@video-compressor/shared';
+
+/**
+ * A catalog that carries a variation count. The count belongs to the v1 catalog video protocol
+ * and is read only together with it and a publication: a count alone makes the stored draft
+ * unreadable — «Сервер відповів несподівано» on every open (next, 2026-11-21). The variations
+ * field writes the same three together.
+ */
+export function withVariationCount(
+  catalog: LaunchCatalogConfig,
+  videoVariationCount: number
+): LaunchCatalogConfig {
+  return {
+    ...catalog,
+    catalogVideoProtocolVersion: 1,
+    videoVariationCount,
+    videoPublication: catalog.videoPublication ?? { mode: 'immediate' }
+  };
+}
 
 /** The creatives a draft names; an older single-creative draft reads as one. */
 export function draftCreatives(config: LaunchDraft): LaunchCreative[] {
@@ -52,11 +75,10 @@ export function creativesPatch(
     ...catalog,
     ...(followCount !== undefined && config.catalog
       ? {
-          catalog: {
-            ...config.catalog,
-            ...(productCount !== undefined ? { productCount } : {}),
-            videoVariationCount: followCount
-          }
+          catalog: withVariationCount(
+            { ...config.catalog, ...(productCount !== undefined ? { productCount } : {}) },
+            followCount
+          )
         }
       : {}),
     ...(kind === 'image' && config.catalog?.restitchEnabled

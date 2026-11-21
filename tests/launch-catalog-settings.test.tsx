@@ -2,6 +2,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { parseLaunchCatalogVideoConfig } from '@video-compressor/shared';
 import { LaunchEditor } from '../apps/web/src/team/launches/LaunchEditor';
 import { newLaunchDraft } from '../apps/web/src/team/launches/launchDraftDefaults';
 vi.mock('../apps/web/src/team/launches/LaunchCreativePicker', () => ({
@@ -182,6 +183,10 @@ it('starts restitch at one variation per video when a launch has several', () =>
       catalog: expect.objectContaining({ restitchEnabled: true, videoVariationCount: 3 })
     })
   );
+  // A draft saved with a bare count could never be opened again (next, 2026-11-21).
+  const catalog = change.mock.lastCall![0].catalog;
+  expect(catalog.catalogVideoProtocolVersion).toBe(1);
+  expect(parseLaunchCatalogVideoConfig(catalog, true)).not.toBeNull();
 });
 
 it('keeps a variation count that already covers every video when restitch is turned on', () => {

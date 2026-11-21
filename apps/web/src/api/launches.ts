@@ -46,6 +46,26 @@ function mutation(value: unknown): { id: string; version: string } {
     throw new TeamApiError('INVALID_RESPONSE', false);
   return { id: value.id, version: value.version };
 }
+/**
+ * A build on next for half an hour (2026-11-21, 8d862c8c) turned restitch on by writing a
+ * variation count into a draft whose catalog had no video protocol yet. The count means
+ * nothing without its protocol, and the strict parse refused the whole draft: «the server
+ * answered unexpectedly» on every open, for good. Such a count is dropped on read; the next
+ * save writes the catalog whole again.
+ */
+export function withoutBareVariationCount(data: unknown): unknown {
+  if (!isRecord(data) || !isRecord(data.draft) || !isRecord(data.draft.catalog)) return data;
+  const catalog = data.draft.catalog;
+  if (
+    catalog.catalogVideoProtocolVersion !== undefined ||
+    catalog.videoVariationCount === undefined
+  )
+    return data;
+  const rest = { ...catalog };
+  delete rest.videoVariationCount;
+  return { ...data, draft: { ...data.draft, catalog: rest } };
+}
+
 function cancelReceipt(data: unknown) {
   if (!isRecord(data) || typeof data.state !== 'string')
     throw new TeamApiError('INVALID_RESPONSE', false);
@@ -324,7 +344,7 @@ export const launchApi = {
       return signal ? query.abortSignal(signal) : query;
     });
     throwRpc(error);
-    const parsed = parseLaunchDetail(data);
+    const parsed = parseLaunchDetail(withoutBareVariationCount(data));
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
     // The server read is the truth. A local agent that is down, restarting or
     // still refusing the set (the server hands a dead predecessor's variant over

@@ -34,7 +34,7 @@ import { LaunchDictionaryManager } from './LaunchDictionaryManager';
 import { LaunchAccountSelector } from './LaunchAccountSelector';
 import { LaunchSelector } from './LaunchSelectors';
 import { LaunchCreativePicker } from './LaunchCreativePicker';
-import { creativesPatch, draftCreatives } from './launchCreatives';
+import { creativesPatch, draftCreatives, withVariationCount } from './launchCreatives';
 import { teamErrorMessageFor } from '../errors';
 import { LaunchRestitchDurationField } from './LaunchRestitchDurationField.js';
 import { SubBuilder } from './SubBuilder';
@@ -823,20 +823,19 @@ export function LaunchEditor({
                           // Turning restitch on with several videos starts at one variation per
                           // video, the least the launch accepts — not at an error the user did
                           // not make. Turning it off returns a v1 catalog to its one original.
-                          const videoVariationCount =
-                            restitchEnabled &&
-                            creativeCount > 1 &&
-                            (current.videoVariationCount ?? 1) < creativeCount
-                              ? creativeCount
-                              : !restitchEnabled && current.catalogVideoProtocolVersion === 1
-                                ? 1
-                                : undefined;
+                          const next = { ...current, restitchEnabled };
                           changed({
-                            catalog: {
-                              ...current,
-                              restitchEnabled,
-                              ...(videoVariationCount === undefined ? {} : { videoVariationCount })
-                            }
+                            catalog:
+                              restitchEnabled &&
+                              creativeCount > 1 &&
+                              (current.videoVariationCount ?? 1) < creativeCount
+                                ? withVariationCount(
+                                    next,
+                                    Math.min(creativeCount, current.productCount)
+                                  )
+                                : !restitchEnabled && current.catalogVideoProtocolVersion === 1
+                                  ? { ...next, videoVariationCount: 1 }
+                                  : next
                           });
                         }}
                       />
