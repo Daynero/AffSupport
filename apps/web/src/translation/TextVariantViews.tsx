@@ -172,6 +172,7 @@ export function CopyVariantButton({
   size = 'sm',
   variant: buttonVariant = 'outline',
   label,
+  block = false,
   ariaLabel,
   onCopied
 }: {
@@ -182,6 +183,8 @@ export function CopyVariantButton({
   size?: 'sm' | 'md';
   variant?: 'outline' | 'ghost';
   label?: string;
+  /** Fills its grid cell. */
+  block?: boolean;
   /** The accessible name, when the visible label is shortened. */
   ariaLabel?: string;
   onCopied?: (variant: TextVariant, name: string) => void;
@@ -218,6 +221,7 @@ export function CopyVariantButton({
     <>
       <Button
         ref={anchor}
+        block={block}
         color="neutral"
         variant={buttonVariant}
         size={size}

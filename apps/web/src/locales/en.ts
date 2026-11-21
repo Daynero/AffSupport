@@ -5102,5 +5102,6 @@ export const en = {
   textTranslationStarting: 'Starting…',
   textTranslationTitle: 'Video text',
   textTranslationDone: 'Done',
-  textTranslationMore: '+{count}'
+  textTranslationMore: '+{count}',
+  textTranslationList: 'Translations'
 } as const;

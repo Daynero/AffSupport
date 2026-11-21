@@ -34,14 +34,17 @@ export function TranslateLauncher({
   trigger = 'icon',
   onOpenTranslation,
   onStarted,
+  block = false,
   className
 }: {
   state: TextVariantsState;
   /** `icon`: the "+" at the end of a row of texts; `button`: "Translate" with an icon. */
-  trigger?: 'icon' | 'button' | 'compact';
+  trigger?: 'icon' | 'button';
   /** A finished translation in the chosen language already exists: show it. */
   onOpenTranslation: (language: string) => void;
   onStarted?: (language: string) => void;
+  /** Fills its grid cell. */
+  block?: boolean;
   className?: string;
 }) {
   const { t, language } = useI18n();
@@ -199,21 +202,24 @@ export function TranslateLauncher({
     ) : (
       <Button
         ref={anchor}
+        block={block}
         color="neutral"
         variant="outline"
         size="sm"
         aria-expanded={open}
-        aria-label={trigger === 'compact' ? t('textTranslationAction') : undefined}
-        title={trigger === 'compact' ? t('textTranslationAction') : undefined}
         leading={<Languages size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
         onClick={() => setOpen(value => !value)}
       >
-        {trigger === 'compact' ? null : t('textTranslationAction')}
+        {t('textTranslationAction')}
       </Button>
     );
 
   return (
-    <span className={['translate-launcher', className].filter(Boolean).join(' ')}>
+    <span
+      className={['translate-launcher', block ? 'is-block' : null, className]
+        .filter(Boolean)
+        .join(' ')}
+    >
       {triggerNode}
       <Popover
         open={open}

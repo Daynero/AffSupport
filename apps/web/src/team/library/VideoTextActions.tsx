@@ -21,6 +21,8 @@ import {
 } from '../../translation/TextVariantViews';
 import { useTextVariants, type TextVariant } from '../../translation/useTextVariants';
 import { MediaActionIcon } from './mediaActionIcons';
+import { Eye, RotateCcw } from 'lucide-react';
+import { ICON_STROKE } from '../../components/icons';
 
 export interface VideoTextActionsClient {
   listVideoTextVariants(teamId: string, videoId: string): Promise<LibraryVideoTextVariants>;
@@ -181,36 +183,44 @@ export function VideoTextActions({
 
   return (
     <div className="video-text-actions">
-      <div className="creative-library-text-actions">
+      {/* Four equal actions, each an icon and a word (063, owner 2026-11-21: an icon alone
+          beside labelled buttons read as an afterthought). */}
+      <div className="video-text-actions-grid">
         <Button
+          block
           color="neutral"
           variant="outline"
           size="sm"
-          aria-label={compact ? t('creativeLibraryViewText') : undefined}
+          aria-label={t('creativeLibraryViewText')}
+          leading={<Eye size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
           onClick={() => setViewing('original')}
         >
           {t(compact ? 'teamTranscriptViewShort' : 'creativeLibraryViewText')}
         </Button>
         <CopyVariantButton
+          block
           state={state}
           scope="team_video"
-          variant={compact ? 'outline' : 'ghost'}
+          variant="outline"
           label={t(compact ? 'teamTranscriptCopyShort' : 'creativeLibraryCopyText')}
           ariaLabel={t('creativeLibraryCopyText')}
           onCopied={copied}
         />
         <TranslateLauncher
+          block
           state={state}
-          trigger={compact ? 'compact' : 'button'}
+          trigger="button"
           onOpenTranslation={target => setViewing(`translation:${target}`)}
           onStarted={target => setAwaiting(target)}
         />
         {onRetranscribe && (
           <Button
+            block
             color="neutral"
-            variant={compact ? 'outline' : 'ghost'}
+            variant="outline"
             size="sm"
-            aria-label={compact ? t('teamTranscriptRedoLong') : undefined}
+            aria-label={t('teamTranscriptRedoLong')}
+            leading={<RotateCcw size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
             onClick={onRetranscribe}
           >
             {t(compact ? 'teamTranscriptRedoShort' : 'teamTranscriptRedo')}
@@ -218,29 +228,43 @@ export function VideoTextActions({
         )}
       </div>
       {shownChips.length > 0 && (
-        <div className="video-text-chips" aria-label={t('textTranslationVariants')} role="group">
-          {shownChips.map(item => (
-            <Button
-              key={item.key}
-              size="xs"
-              color="neutral"
-              variant="soft"
-              title={item.stale ? t('textTranslationStale') : undefined}
-              onClick={() => setViewing(item.key)}
-            >
-              {variantName(item, language, t('textTranslationOriginal'))}
-            </Button>
-          ))}
-          {ready.length > shownChips.length && (
-            <Button
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              onClick={() => setViewing(ready[shownChips.length]!.key)}
-            >
-              {t('textTranslationMore', { count: ready.length - shownChips.length })}
-            </Button>
-          )}
+        <div className="video-text-translations">
+          <span className="video-text-translations-label" id={`${videoId}-translations`}>
+            {t('textTranslationList')}
+          </span>
+          <div
+            className="video-text-chips"
+            role="group"
+            aria-labelledby={`${videoId}-translations`}
+          >
+            {shownChips.map(item => (
+              <Button
+                key={item.key}
+                size="xs"
+                color="neutral"
+                variant="soft"
+                title={item.stale ? t('textTranslationStale') : undefined}
+                leading={
+                  item.stale ? (
+                    <span className="text-variant-stale-dot" aria-hidden="true" />
+                  ) : undefined
+                }
+                onClick={() => setViewing(item.key)}
+              >
+                {variantName(item, language, t('textTranslationOriginal'))}
+              </Button>
+            ))}
+            {ready.length > shownChips.length && (
+              <Button
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                onClick={() => setViewing(ready[shownChips.length]!.key)}
+              >
+                {t('textTranslationMore', { count: ready.length - shownChips.length })}
+              </Button>
+            )}
+          </div>
         </div>
       )}
       {strips.length > 0 && (

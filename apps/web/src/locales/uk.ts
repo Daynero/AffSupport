@@ -5078,5 +5078,6 @@ export const uk: Record<keyof typeof en, string> = {
   textTranslationStarting: 'Запускаю…',
   textTranslationTitle: 'Текст відео',
   textTranslationDone: 'Готово',
-  textTranslationMore: '+{count}'
+  textTranslationMore: '+{count}',
+  textTranslationList: 'Переклади'
 };
