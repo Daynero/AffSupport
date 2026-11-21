@@ -1,4 +1,7 @@
-import { useId, useLayoutEffect, useRef } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef } from 'react';
+
+/** A wheel event after this long a pause starts a new gesture and moves one row at once. */
+const GESTURE_GAP_MS = 120;
 
 function Wheel({
   label,
@@ -22,12 +25,54 @@ function Wheel({
       list.current.scrollTop = value * rowHeight();
     }
   }, [value]);
+  const latest = useRef({ value, onChange });
+  latest.current = { value, onChange };
   const choose = (next: number) => {
     next = Math.max(0, Math.min(count - 1, next));
     observed.current = next;
     if (list.current) list.current.scrollTop = next * rowHeight();
-    if (next !== value) onChange(next);
+    if (next !== latest.current.value) {
+      latest.current.value = next;
+      latest.current.onChange(next);
+    }
   };
+  const chooseRef = useRef(choose);
+  chooseRef.current = choose;
+  /*
+   * The wheel moves one row per notch (next QA 2026-11-21: a mouse could not turn it).
+   * Left to the browser, a notch scrolled a few pixels and the mandatory snap pulled the
+   * list straight back to the same row. A notch — the first event after a pause — moves a
+   * row at once; a trackpad's stream of small deltas moves a row per half a row of travel.
+   * Not passive, so the page behind does not scroll with it.
+   */
+  useEffect(() => {
+    const node = list.current;
+    if (!node) return;
+    let pending = 0;
+    let last = 0;
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY === 0) return;
+      event.preventDefault();
+      const direction = Math.sign(event.deltaY);
+      const now = event.timeStamp;
+      const fresh = now - last > GESTURE_GAP_MS;
+      last = now;
+      if (fresh || event.deltaMode !== 0) {
+        pending = 0;
+        chooseRef.current(latest.current.value + direction);
+        return;
+      }
+      const threshold = Math.max(1, rowHeight() / 2);
+      pending += event.deltaY;
+      while (Math.abs(pending) >= threshold) {
+        const step = Math.sign(pending);
+        pending -= step * threshold;
+        chooseRef.current(latest.current.value + step);
+      }
+    };
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return () => node.removeEventListener('wheel', onWheel);
+  }, []);
   return (
     <div className="ui-time-wheel-column">
       <span className="ui-time-wheel-label" id={id}>
@@ -83,6 +128,8 @@ function Wheel({
               aria-selected={value === number}
               tabIndex={-1}
               className="ui-time-wheel-option"
+              // The list holds focus and draws the ring; a pressed row must not take it.
+              onMouseDown={event => event.preventDefault()}
               onClick={() => {
                 choose(number);
                 list.current?.focus();

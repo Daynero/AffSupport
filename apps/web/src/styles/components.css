@@ -4031,13 +4031,13 @@
 .ui-time-wheel {
   display: flex;
   align-items: stretch;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 .ui-time-wheel-column {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  width: calc(var(--control-height-md) * 2);
+  gap: var(--space-1);
+  width: calc(var(--control-height-md) * 1.75);
   min-width: 0;
 }
 .ui-time-wheel-label {
@@ -4048,49 +4048,57 @@
 .ui-time-wheel-frame {
   position: relative;
 }
+/* The chosen row is marked the way a chosen segment is — a soft fill and its edge — and
+   the rows above and below fade out, so the wheel reads as one control and not a column
+   of loose large numbers (next QA 2026-11-21). */
 .ui-time-wheel-frame::before {
   content: '';
   position: absolute;
-  inset: calc(var(--control-height-md) * 2) 0 auto;
-  height: var(--control-height-md);
+  inset: calc(var(--control-height-sm) * 2) 0 auto;
+  height: var(--control-height-sm);
   border: 1px solid var(--color-secondary-border);
-  border-radius: var(--radius-md);
-  background: var(--color-secondary-softer);
+  border-radius: var(--radius-sm);
+  background: var(--color-secondary-soft);
   pointer-events: none;
 }
 .ui-time-wheel-list {
   position: relative;
-  height: calc(var(--control-height-md) * 5);
-  padding-block: calc(var(--control-height-md) * 2);
+  height: calc(var(--control-height-sm) * 5);
+  padding-block: calc(var(--control-height-sm) * 2);
   box-sizing: border-box;
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-snap-type: y mandatory;
   scrollbar-width: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
+  mask-image: linear-gradient(transparent, black 35%, black 65%, transparent);
 }
 .ui-time-wheel-list::-webkit-scrollbar {
   display: none;
 }
 .ui-time-wheel-list:focus-visible {
   outline: 2px solid var(--color-focus-ring);
-  outline-offset: var(--space-1);
+  outline-offset: 2px;
 }
 .ui-time-wheel-option {
   display: block;
   width: 100%;
-  height: var(--control-height-md);
-  min-height: var(--control-height-md);
+  height: var(--control-height-sm);
+  min-height: var(--control-height-sm);
   padding: 0;
   border: 0;
+  outline: none;
   background: transparent;
   color: var(--color-neutral-text-muted);
   font-family: inherit;
-  font-size: var(--text-title);
+  font-size: var(--text-body);
   font-variant-numeric: tabular-nums;
   text-align: center;
   scroll-snap-align: center;
   cursor: pointer;
+}
+.ui-time-wheel-option:hover {
+  color: var(--color-neutral-text);
 }
 .ui-time-wheel-option[aria-selected='true'] {
   color: var(--color-secondary-text);
@@ -4098,8 +4106,8 @@
 }
 .ui-time-wheel-separator {
   align-self: center;
-  padding-top: calc(var(--text-caption) + var(--space-2));
-  font-size: var(--text-title);
+  padding-top: calc(var(--text-caption) + var(--space-1));
+  font-size: var(--text-body);
   color: var(--color-neutral-text-muted);
 }
 
