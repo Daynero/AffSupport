@@ -6,14 +6,7 @@ import { analytics } from '../analytics/service';
 import { analyticsRunId } from '../analytics/tools';
 
 export type TranslationAction =
-  | 'requested'
-  | 'started'
-  | 'reused'
-  | 'blocked'
-  | 'completed'
-  | 'failed'
-  | 'opened'
-  | 'copied';
+  'requested' | 'started' | 'reused' | 'blocked' | 'completed' | 'failed' | 'opened' | 'copied';
 
 export function trackTranslation(input: {
   action: TranslationAction;

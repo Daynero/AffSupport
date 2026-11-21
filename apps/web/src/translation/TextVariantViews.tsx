@@ -1,6 +1,13 @@
 import { Check, Copy } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
-import { Button, DropdownMenu, Progress, Tabs, Tooltip, type TabItem } from '../components/ui/index';
+import {
+  Button,
+  DropdownMenu,
+  Progress,
+  Tabs,
+  Tooltip,
+  type TabItem
+} from '../components/ui/index';
 import { ICON_STROKE } from '../components/icons';
 import { useI18n, type Language } from '../i18n';
 import { isRtlLanguage, languageDisplayName } from '../transcription/language';
@@ -8,9 +15,15 @@ import { TranslateLauncher } from './TranslateLauncher';
 import { trackTranslation } from './analytics';
 import type { TextVariant, TextVariantsState, TranslationVariant } from './useTextVariants';
 
-export function variantName(variant: TextVariant, language: Language, originalLabel: string): string {
+export function variantName(
+  variant: TextVariant,
+  language: Language,
+  originalLabel: string
+): string {
   if (variant.kind === 'original') {
-    return variant.language ? `${originalLabel} · ${variant.language.toUpperCase()}` : originalLabel;
+    return variant.language
+      ? `${originalLabel} · ${variant.language.toUpperCase()}`
+      : originalLabel;
   }
   return languageDisplayName(variant.language, language);
 }
@@ -63,13 +76,18 @@ export function TextVariantTabs({
         />
       ) : stale ? (
         <Tooltip label={t('textTranslationStale')}>
-          <span className="text-variant-stale-dot" role="img" aria-label={t('textTranslationStale')} />
+          <span
+            className="text-variant-stale-dot"
+            role="img"
+            aria-label={t('textTranslationStale')}
+          />
         </Tooltip>
       ) : undefined
     };
   });
   const idFor = (key: string) => `${prefix}-${key.replace(/[^A-Za-z0-9-]/gu, '-')}`;
-  const keyFor = (id: string) => variants.find(variant => idFor(variant.key) === id)?.key ?? 'original';
+  const keyFor = (id: string) =>
+    variants.find(variant => idFor(variant.key) === id)?.key ?? 'original';
   return (
     <div className="text-variant-tabs">
       <Tabs
@@ -223,7 +241,9 @@ export function CopyVariantButton({
           items={choices.map(choice => ({
             id: choice.key,
             label: variantName(choice, language, t('textTranslationOriginal')),
-            ...(choice.kind === 'translation' && choice.stale ? { note: t('textTranslationStale') } : {}),
+            ...(choice.kind === 'translation' && choice.stale
+              ? { note: t('textTranslationStale') }
+              : {}),
             onSelect: () => void copy(choice)
           }))}
         />

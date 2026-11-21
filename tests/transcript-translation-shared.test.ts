@@ -124,10 +124,17 @@ describe('parsers', () => {
   });
 
   it('requires a failure code exactly when failed', () => {
-    const failed = { ...completed, status: 'failed', segments: null, failureCode: 'TRANSLATION_REFUSED' };
+    const failed = {
+      ...completed,
+      status: 'failed',
+      segments: null,
+      failureCode: 'TRANSLATION_REFUSED'
+    };
     expect(parseTranscriptTranslation(failed)?.failureCode).toBe('TRANSLATION_REFUSED');
     expect(parseTranscriptTranslation({ ...failed, failureCode: null })).toBeNull();
-    expect(parseTranscriptTranslation({ ...completed, failureCode: 'TRANSLATION_FAILED' })).toBeNull();
+    expect(
+      parseTranscriptTranslation({ ...completed, failureCode: 'TRANSLATION_FAILED' })
+    ).toBeNull();
   });
 
   it('reads a list, the allowance and stream events', () => {
@@ -150,7 +157,9 @@ describe('parsers', () => {
         totalSegments: 2
       })
     ).toBeNull();
-    expect(parseTranslationStreamEvent({ type: 'done', translation: completed })?.type).toBe('done');
+    expect(parseTranslationStreamEvent({ type: 'done', translation: completed })?.type).toBe(
+      'done'
+    );
     expect(parseTranslationStreamEvent({ type: 'failed', code: 'TRANSLATION_TIMEOUT' })).toEqual({
       type: 'failed',
       code: 'TRANSLATION_TIMEOUT'

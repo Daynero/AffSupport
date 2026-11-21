@@ -147,7 +147,10 @@ interface ResolvedSource {
   segments: string[];
 }
 
-async function resolveSource(source: TranslateSource, deps: TranslateDeps): Promise<ResolvedSource> {
+async function resolveSource(
+  source: TranslateSource,
+  deps: TranslateDeps
+): Promise<ResolvedSource> {
   if (source.scope === 'personal') {
     return {
       scope: 'personal',
@@ -217,7 +220,8 @@ export async function startTranslation(
   const source = await resolveSource(command.source, deps);
   if (sameTranslationLanguage(source.sourceLanguage, command.targetLanguage)) invalid();
   const units = translationUnits(source.segments);
-  if (units <= 0) throw new TeamFunctionError('TRANSLATION_SOURCE_UNAVAILABLE', { retryable: false });
+  if (units <= 0)
+    throw new TeamFunctionError('TRANSLATION_SOURCE_UNAVAILABLE', { retryable: false });
   const fingerprint = await translationFingerprint(source.segments);
   // Checked before anything is reserved: without a model there is nothing to pay for.
   if (!deps.client) throw new TeamFunctionError('TRANSLATION_UNAVAILABLE', { retryable: true });

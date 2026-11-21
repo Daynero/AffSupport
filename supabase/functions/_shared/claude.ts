@@ -186,5 +186,12 @@ export async function callStructured(
     costMicroUsd: cost,
     durationMs
   });
-  return { ok: true, value, model: request.model, usage: raw.usage, costMicroUsd: cost, durationMs };
+  return {
+    ok: true,
+    value,
+    model: request.model,
+    usage: raw.usage,
+    costMicroUsd: cost,
+    durationMs
+  };
 }

@@ -306,7 +306,10 @@ if (JSON.stringify(retirementCodes) !== JSON.stringify([...TEAM_RETIREMENT_ERROR
   fail('Retirement error catalog is out of date: ' + retirementPath);
 
 // 063: the translation codes are a hand-written additive batch; check it, never rewrite it.
-const translationPath = resolve(root, 'supabase/migrations/20261222112000_translation_error_codes.sql');
+const translationPath = resolve(
+  root,
+  'supabase/migrations/20261222112000_translation_error_codes.sql'
+);
 const translationInsert =
   /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
     readFileSync(translationPath, 'utf8')

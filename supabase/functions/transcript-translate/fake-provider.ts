@@ -21,7 +21,8 @@ function requestedLines(user: string): string[] {
   const from = Number(range[1]);
   const to = Number(range[2]);
   const lines = new Map<number, string>();
-  for (const match of user.matchAll(/^(\d+)\. (.*)$/gmu)) lines.set(Number(match[1]), match[2] ?? '');
+  for (const match of user.matchAll(/^(\d+)\. (.*)$/gmu))
+    lines.set(Number(match[1]), match[2] ?? '');
   const out: string[] = [];
   for (let index = from; index <= to; index += 1) out.push(lines.get(index) ?? '');
   return out;

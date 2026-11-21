@@ -95,11 +95,7 @@ async function readLines(
 
 export const translationClient: TranslationClient = {
   start(targetLanguage, source) {
-    return invokeTeamFunction(
-      FUNCTION,
-      { action: 'start', targetLanguage, source },
-      isStarted
-    );
+    return invokeTeamFunction(FUNCTION, { action: 'start', targetLanguage, source }, isStarted);
   },
 
   async watch(translationId, onEvent, signal) {
@@ -122,10 +118,12 @@ export const translationClient: TranslationClient = {
       });
     } catch (error) {
       if (signal.aborted) return;
-      throw error instanceof TeamApiError ? error : new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true);
+      throw error instanceof TeamApiError
+        ? error
+        : new TeamApiError('TEAM_TRANSPORT_UNAVAILABLE', true);
     }
     if (!response.ok || !response.body) {
-      let code: string | null = null;
+      let code: string | null;
       try {
         const body = (await response.json()) as { error?: { code?: unknown } };
         code = typeof body.error?.code === 'string' ? body.error.code : null;

@@ -5054,7 +5054,8 @@ export const uk: Record<keyof typeof en, string> = {
   textTranslationCost: '≈ {need} хв · лишилось {left} з {limit} хв',
   textTranslationShort: 'Потрібно ≈ {need} хв, лишилось {left} хв. Ліміт оновиться о {time}.',
   textTranslationTooLong: 'Текст ≈ {need} хв — це більше за денний ліміт {limit} хв.',
-  textTranslationMinuteHint: 'Хвилина перекладу — це близько 900 знаків тексту, а не тривалість відео.',
+  textTranslationMinuteHint:
+    'Хвилина перекладу — це близько 900 знаків тексту, а не тривалість відео.',
   textTranslationInProgress: 'Перекладаю: {language}',
   textTranslationRefused: 'Модель відмовилась перекладати цей текст. Хвилини повернуто.',
   textTranslationUnavailable: 'Переклад зараз недоступний. Хвилини не списано.',

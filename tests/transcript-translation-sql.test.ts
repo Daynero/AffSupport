@@ -6,7 +6,10 @@ import { describe, expect, it } from 'vitest';
  * on a real database; this keeps the shape from drifting where a reviewer would not look.
  */
 
-const allowance = readFileSync('supabase/migrations/20261222110000_ai_allowance_and_usage.sql', 'utf8');
+const allowance = readFileSync(
+  'supabase/migrations/20261222110000_ai_allowance_and_usage.sql',
+  'utf8'
+);
 const translations = readFileSync(
   'supabase/migrations/20261222111000_transcript_translations.sql',
   'utf8'
@@ -42,7 +45,9 @@ describe('063 migrations', () => {
   });
 
   it('lets clients read only through the four public readers; writes are service-only', () => {
-    const granted = [...all.matchAll(/grant execute on function ([a-z_.]+)\([^)]*\) to ([a-z_, ]+);/gu)];
+    const granted = [
+      ...all.matchAll(/grant execute on function ([a-z_.]+)\([^)]*\) to ([a-z_, ]+);/gu)
+    ];
     for (const [, name, roles] of granted) {
       if (roles!.includes('authenticated')) {
         expect([
@@ -67,8 +72,12 @@ describe('063 migrations', () => {
   });
 
   it('checks the space view right on every reader and keeps failed attempts personal', () => {
-    expect(translations).toMatch(/list_video_translations[\s\S]*private\.can\(p_team, 'view', auth\.uid\(\)\)/u);
-    expect(translations).toMatch(/get_transcript_translation[\s\S]*private\.can\(r\.team_id, 'view', auth\.uid\(\)\)/u);
+    expect(translations).toMatch(
+      /list_video_translations[\s\S]*private\.can\(p_team, 'view', auth\.uid\(\)\)/u
+    );
+    expect(translations).toMatch(
+      /get_transcript_translation[\s\S]*private\.can\(r\.team_id, 'view', auth\.uid\(\)\)/u
+    );
     expect(translations).toMatch(/status = 'failed' and rank = 1 and requested_by = p_viewer/u);
   });
 

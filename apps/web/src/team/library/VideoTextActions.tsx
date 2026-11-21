@@ -207,7 +207,11 @@ export function VideoTextActions({
             </Chip>
           ))}
           {ready.length > shownChips.length && (
-            <Chip size="sm" variant="soft" onSelect={() => setViewing(ready[shownChips.length]!.key)}>
+            <Chip
+              size="sm"
+              variant="soft"
+              onSelect={() => setViewing(ready[shownChips.length]!.key)}
+            >
               {t('textTranslationMore', { count: ready.length - shownChips.length })}
             </Chip>
           )}
@@ -268,7 +272,9 @@ export function VideoTextActions({
                         variant="outline"
                         onClick={() => void state.start(shownVariant.language)}
                       >
-                        {t('textTranslationRefresh', { need: formatMinutes(refresh.need, language) })}
+                        {t('textTranslationRefresh', {
+                          need: formatMinutes(refresh.need, language)
+                        })}
                       </Button>
                     ) : undefined
                   }

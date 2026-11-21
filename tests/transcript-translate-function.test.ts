@@ -67,7 +67,14 @@ describe('callStructured', () => {
     const client = scripted([() => ({ stopReason: 'refusal', text: null })]);
     const outcome = await callStructured(
       client,
-      { model: 'claude-haiku-5-5', effort: 'high', system: 's', user: 'u', schema: {}, maxTokens: 10 },
+      {
+        model: 'claude-haiku-5-5',
+        effort: 'high',
+        system: 's',
+        user: 'u',
+        schema: {},
+        maxTokens: 10
+      },
       { signal: new AbortController().signal, record }
     );
     expect(outcome.ok).toBe(false);
@@ -82,16 +89,30 @@ describe('callStructured', () => {
     };
     const outcome = await callStructured(
       client,
-      { model: 'claude-haiku-5-5', effort: 'high', system: 's', user: 'u', schema: {}, maxTokens: 10 },
+      {
+        model: 'claude-haiku-5-5',
+        effort: 'high',
+        system: 's',
+        user: 'u',
+        schema: {},
+        maxTokens: 10
+      },
       { signal: new AbortController().signal, record }
     );
-    expect(outcome).toMatchObject({ ok: false, reason: 'unavailable', httpStatus: 529, costMicroUsd: 0 });
+    expect(outcome).toMatchObject({
+      ok: false,
+      reason: 'unavailable',
+      httpStatus: 529,
+      costMicroUsd: 0
+    });
   });
 
   it('prices Haiku 5.5 at $0.10 / $0.50 per million tokens, rounding up', () => {
     expect(costMicroUsd('claude-haiku-5-5', usage)).toBe(200);
     expect(costMicroUsd('claude-sonnet-5-5', usage)).toBe(4000);
-    expect(costMicroUsd('claude-haiku-5-5', { input: 1, output: 0, cacheRead: 0, cacheWrite: 0 })).toBe(1);
+    expect(
+      costMicroUsd('claude-haiku-5-5', { input: 1, output: 0, cacheRead: 0, cacheWrite: 0 })
+    ).toBe(1);
   });
 });
 
@@ -130,9 +151,17 @@ describe('translateTranscript', () => {
 
   it('retries a wrong line count once, then fails', async () => {
     const wrong = () => ({ stopReason: 'end_turn', text: JSON.stringify({ translations: ['x'] }) });
-    const fixed = await translateTranscript({ ...base, client: scripted([wrong, good]), segments: ['a', 'b'] });
+    const fixed = await translateTranscript({
+      ...base,
+      client: scripted([wrong, good]),
+      segments: ['a', 'b']
+    });
     expect(fixed.ok).toBe(true);
-    const failed = await translateTranscript({ ...base, client: scripted([wrong]), segments: ['a', 'b'] });
+    const failed = await translateTranscript({
+      ...base,
+      client: scripted([wrong]),
+      segments: ['a', 'b']
+    });
     expect(failed).toEqual({ ok: false, code: 'TRANSLATION_FAILED' });
   });
 
@@ -159,7 +188,11 @@ describe('translateTranscript', () => {
     });
     expect(result).toMatchObject({ ok: true, segments: ['[uk] Merhaba.'] });
     expect(
-      await translateTranscript({ ...base, client: createFakeClient('fake-down', 1), segments: ['a'] })
+      await translateTranscript({
+        ...base,
+        client: createFakeClient('fake-down', 1),
+        segments: ['a']
+      })
     ).toEqual({ ok: false, code: 'TRANSLATION_UNAVAILABLE' });
   });
 });
@@ -262,9 +295,14 @@ describe('startTranslation', () => {
     const harness = deps();
     const result = await startTranslation(start, harness.deps);
     expect(result).toMatchObject({ translationId: TRANSLATION, reused: false, units: 23 });
-    const begin = harness.service.mock.calls.find(call => call[0] === 'service_transcript_translation_begin')!;
+    const begin = harness.service.mock.calls.find(
+      call => call[0] === 'service_transcript_translation_begin'
+    )!;
     expect(begin[1]).toMatchObject({ p_units: 23, p_total_segments: 2, p_source_language: 'tr' });
-    expect(harness.caller).toHaveBeenCalledWith('list_video_text_variants', { p_team: TEAM, p_video: VIDEO });
+    expect(harness.caller).toHaveBeenCalledWith('list_video_text_variants', {
+      p_team: TEAM,
+      p_video: VIDEO
+    });
     expect(harness.background).toHaveBeenCalledTimes(1);
   });
 
@@ -277,7 +315,9 @@ describe('startTranslation', () => {
 
   it('refuses to translate into the source language', async () => {
     const harness = deps();
-    await expect(startTranslation({ ...start, targetLanguage: 'tr' }, harness.deps)).rejects.toMatchObject({
+    await expect(
+      startTranslation({ ...start, targetLanguage: 'tr' }, harness.deps)
+    ).rejects.toMatchObject({
       code: 'INVALID_INPUT'
     });
   });
@@ -299,7 +339,12 @@ describe('startTranslation', () => {
     });
     await expect(startTranslation(start, harness.deps)).rejects.toMatchObject({
       code: 'TRANSLATION_ALLOWANCE_EXCEEDED',
-      details: { neededUnits: 23, usedUnits: 8990, limitUnits: 9000, resetsAt: '2026-11-21T22:00:00Z' }
+      details: {
+        neededUnits: 23,
+        usedUnits: 8990,
+        limitUnits: 9000,
+        resetsAt: '2026-11-21T22:00:00Z'
+      }
     });
   });
 
@@ -356,9 +401,15 @@ describe('watchTranslation', () => {
       };
     });
     const harness = deps({ callerRpc: caller, sleep: async () => {} });
-    const stream = await watchTranslation({ action: 'watch', translationId: TRANSLATION }, harness.deps);
+    const stream = await watchTranslation(
+      { action: 'watch', translationId: TRANSLATION },
+      harness.deps
+    );
     const text = await new Response(stream).text();
-    const events = text.trim().split('\n').map(line => JSON.parse(line));
+    const events = text
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line));
     expect(events.map(event => event.type)).toEqual(['progress', 'progress', 'done']);
     expect(events[1].completedSegments).toBe(1);
     expect(events[2].translation.segments).toEqual(['a', 'b']);
@@ -376,6 +427,8 @@ describe('watchTranslation', () => {
 describe('allowanceExceeded', () => {
   it('only recognises the allowance error', () => {
     expect(allowanceExceeded({ message: 'PERMISSION_DENIED' })).toBeNull();
-    expect(allowanceExceeded({ message: 'ALLOWANCE_EXCEEDED', details: 'nope' })?.limitUnits).toBe(0);
+    expect(allowanceExceeded({ message: 'ALLOWANCE_EXCEEDED', details: 'nope' })?.limitUnits).toBe(
+      0
+    );
   });
 });

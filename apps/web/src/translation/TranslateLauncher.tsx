@@ -56,7 +56,6 @@ export function TranslateLauncher({
       sameTranslationLanguage(source, current) ? defaultTarget(source, recents) : current
     );
     void state.refreshAllowance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening
   }, [open]);
 
   const codes = useMemo(
@@ -131,7 +130,10 @@ export function TranslateLauncher({
     body = (
       <Alert color="warning" variant="soft" live="status">
         {figures.overDaily
-          ? t('textTranslationTooLong', { need: minutes(figures.need), limit: minutes(figures.limit) })
+          ? t('textTranslationTooLong', {
+              need: minutes(figures.need),
+              limit: minutes(figures.limit)
+            })
           : t('textTranslationShort', {
               need: minutes(figures.need),
               left: minutes(figures.left),
@@ -157,8 +159,16 @@ export function TranslateLauncher({
               })}
             </span>
           </Tooltip>
-          <Button color="primary" variant="solid" size="sm" loading={busy} onClick={() => void confirm()}>
-            {stale(existing) ? t('textTranslationRefresh', { need: minutes(figures.need) }) : t('textTranslationAction')}
+          <Button
+            color="primary"
+            variant="solid"
+            size="sm"
+            loading={busy}
+            onClick={() => void confirm()}
+          >
+            {stale(existing)
+              ? t('textTranslationRefresh', { need: minutes(figures.need) })
+              : t('textTranslationAction')}
           </Button>
         </div>
       </>

@@ -13,7 +13,13 @@ export interface AiUsageReport {
   cost: {
     total_usd: number;
     calls: number;
-    by_model: { model: string; calls: number; cost_usd: number; input_tokens: number; output_tokens: number }[];
+    by_model: {
+      model: string;
+      calls: number;
+      cost_usd: number;
+      input_tokens: number;
+      output_tokens: number;
+    }[];
     by_outcome: { outcome: string; calls: number }[];
     by_day: { day: string; calls: number; cost_usd: number }[];
   };
@@ -51,7 +57,10 @@ const UNITS_PER_MINUTE = 900;
 
 function window(period: ResolvedPeriod, column: string): { sql: string; params: unknown[] } {
   return period.start
-    ? { sql: `${column} >= $1::timestamptz and ${column} <= $2::timestamptz`, params: [period.start, period.end] }
+    ? {
+        sql: `${column} >= $1::timestamptz and ${column} <= $2::timestamptz`,
+        params: [period.start, period.end]
+      }
     : { sql: `${column} <= $1::timestamptz`, params: [period.end] };
 }
 
@@ -113,7 +122,10 @@ export async function getAiUsage(period: ResolvedPeriod): Promise<AiUsageReport>
       where ${day.sql} group by outcome order by calls desc`,
     day.params
   );
-  report.cost.by_outcome = outcomes.map(row => ({ outcome: String(row.outcome), calls: number(row.calls) }));
+  report.cost.by_outcome = outcomes.map(row => ({
+    outcome: String(row.outcome),
+    calls: number(row.calls)
+  }));
   const days = await query<Record<string, unknown>>(
     `select to_char(day, 'YYYY-MM-DD') as day, sum(calls)::bigint as calls, sum(cost_micro_usd)::bigint as cost
        from public.analytics_ai_usage_daily where ${day.sql} group by day order by day`,
@@ -136,7 +148,10 @@ export async function getAiUsage(period: ResolvedPeriod): Promise<AiUsageReport>
     status: String(row.key),
     count: number(row.count)
   }));
-  report.translations.total = report.translations.by_status.reduce((sum, row) => sum + row.count, 0);
+  report.translations.total = report.translations.by_status.reduce(
+    (sum, row) => sum + row.count,
+    0
+  );
   report.translations.by_language = (await group('target_language')).map(row => ({
     target_language: String(row.key),
     count: number(row.count)
@@ -150,7 +165,10 @@ export async function getAiUsage(period: ResolvedPeriod): Promise<AiUsageReport>
       where ${created.sql} and status = 'failed' group by failure_code order by count desc`,
     created.params
   );
-  report.translations.failures = failures.map(row => ({ code: String(row.key), count: number(row.count) }));
+  report.translations.failures = failures.map(row => ({
+    code: String(row.key),
+    count: number(row.count)
+  }));
   const finished = await query<Record<string, unknown>>(
     `select percentile_cont(0.5) within group (order by duration_ms) as p50,
             percentile_cont(0.95) within group (order by duration_ms) as p95,
@@ -165,7 +183,8 @@ export async function getAiUsage(period: ResolvedPeriod): Promise<AiUsageReport>
     p50: totals.p50 === null || totals.p50 === undefined ? null : Math.round(number(totals.p50)),
     p95: totals.p95 === null || totals.p95 === undefined ? null : Math.round(number(totals.p95))
   };
-  report.translations.minutes_translated = Math.round((number(totals.units) / UNITS_PER_MINUTE) * 10) / 10;
+  report.translations.minutes_translated =
+    Math.round((number(totals.units) / UNITS_PER_MINUTE) * 10) / 10;
   report.translations.escalated_to_sonnet = number(totals.escalated);
 
   const allowance = await query<Record<string, unknown>>(
@@ -183,7 +202,8 @@ export async function getAiUsage(period: ResolvedPeriod): Promise<AiUsageReport>
   }));
   report.allowance.users_at_limit = allowance.filter(row => number(row.at_limit) > 0).length;
 
-  const refused = report.translations.failures.find(row => row.code === 'TRANSLATION_REFUSED')?.count ?? 0;
+  const refused =
+    report.translations.failures.find(row => row.code === 'TRANSLATION_REFUSED')?.count ?? 0;
   report.explanation.push(
     `${report.translations.total} translation attempts, ${report.cost.calls} model calls, $${report.cost.total_usd.toFixed(4)} in ${period.label}.`
   );

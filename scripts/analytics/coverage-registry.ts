@@ -1269,7 +1269,9 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       started: ['operation_started'],
       terminal: ['operation_completed', 'operation_failed']
     },
-    start: [{ event: 'operation_started', correlate: 'attempt_id', flowStep: 'transcript_translation' }],
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'transcript_translation' }
+    ],
     terminal: [
       { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'transcript_translation' },
       { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'transcript_translation' }

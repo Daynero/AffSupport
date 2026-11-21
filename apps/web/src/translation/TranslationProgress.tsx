@@ -67,7 +67,10 @@ export function TranslationProgress({
 
   if (variant.status === 'failed') {
     return (
-      <div className={`translation-progress is-failed${compact ? ' is-compact' : ''}`} role="status">
+      <div
+        className={`translation-progress is-failed${compact ? ' is-compact' : ''}`}
+        role="status"
+      >
         <Languages size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         <span className="translation-progress-text">
           <strong>{name}</strong> · {t(failureText(variant.failureCode))}

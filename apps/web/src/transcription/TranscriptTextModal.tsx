@@ -705,9 +705,7 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                     }
                   />
                 )}
-                {shownVariant.stale && (
-                  <Alert color="warning">{t('textTranslationStale')}</Alert>
-                )}
+                {shownVariant.stale && <Alert color="warning">{t('textTranslationStale')}</Alert>}
                 {shownVariant.status === 'ready' && (
                   <TextVariantReader
                     variant={shownVariant}

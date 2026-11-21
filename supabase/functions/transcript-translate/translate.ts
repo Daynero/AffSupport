@@ -68,7 +68,9 @@ export function userPrompt(
   chunk: TranslationChunk,
   sourceLanguage: string | null
 ): string {
-  const lines = segments.map((segment, index) => `${index + 1}. ${normalizeTranslationSegment(segment)}`);
+  const lines = segments.map(
+    (segment, index) => `${index + 1}. ${normalizeTranslationSegment(segment)}`
+  );
   const count = chunk.end - chunk.start;
   return [
     `Source language: ${sourceLanguage ? languageName(sourceLanguage) : 'unknown — detect it'}.`,
@@ -170,7 +172,9 @@ export async function translateTranscript(input: TranslateInput): Promise<Transl
           }
           throw new Stop('TRANSLATION_REFUSED');
         case 'unavailable':
-          throw new Stop(controller.signal.aborted ? 'TRANSLATION_TIMEOUT' : 'TRANSLATION_UNAVAILABLE');
+          throw new Stop(
+            controller.signal.aborted ? 'TRANSLATION_TIMEOUT' : 'TRANSLATION_UNAVAILABLE'
+          );
         case 'truncated':
           if (depth === 0 && expected >= 2) {
             const middle = chunk.start + Math.floor(expected / 2);
@@ -191,7 +195,9 @@ export async function translateTranscript(input: TranslateInput): Promise<Transl
   };
 
   const pending = chunkTranslationSegments(input.segments, input.chunkUnits).filter(chunk =>
-    input.segments.slice(chunk.start, chunk.end).some(segment => normalizeTranslationSegment(segment))
+    input.segments
+      .slice(chunk.start, chunk.end)
+      .some(segment => normalizeTranslationSegment(segment))
   );
   let failure: TranslationFailureCode | null = null;
   const worker = async () => {

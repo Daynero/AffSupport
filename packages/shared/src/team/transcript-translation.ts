@@ -168,9 +168,7 @@ export async function translationFingerprint(
 ): Promise<string> {
   const body = segments.map(normalizeTranslationSegment).join('\n');
   const digest = await subtle.digest('SHA-256', new TextEncoder().encode(`v1\n${body}`));
-  const hex = [...new Uint8Array(digest)]
-    .map(byte => byte.toString(16).padStart(2, '0'))
-    .join('');
+  const hex = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
   return `v1:${hex}`;
 }
 
@@ -296,7 +294,9 @@ export function parseTranscriptTranslation(value: unknown): TranscriptTranslatio
   ) {
     return null;
   }
-  if (status === 'failed' ? !includes(TRANSLATION_FAILURE_CODES, failureCode) : failureCode !== null) {
+  if (
+    status === 'failed' ? !includes(TRANSLATION_FAILURE_CODES, failureCode) : failureCode !== null
+  ) {
     return null;
   }
   let parsedSegments: string[] | null = null;

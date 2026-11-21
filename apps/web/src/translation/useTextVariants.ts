@@ -73,7 +73,9 @@ const RECENTS_KEY = 'soty.translation.recentTargets';
 export function readRecentTargets(): string[] {
   try {
     const raw: unknown = JSON.parse(window.localStorage.getItem(RECENTS_KEY) ?? '[]');
-    return Array.isArray(raw) ? raw.filter((code): code is string => typeof code === 'string').slice(0, 6) : [];
+    return Array.isArray(raw)
+      ? raw.filter((code): code is string => typeof code === 'string').slice(0, 6)
+      : [];
   } catch {
     return [];
   }
@@ -191,7 +193,6 @@ export function useTextVariants(
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the text, not the array identity
   }, [segmentsKey]);
 
   const refreshAllowance = useCallback(async () => {
@@ -206,24 +207,26 @@ export function useTextVariants(
     }
   }, [client]);
 
-  const upsert = useCallback(
-    (translation: TranscriptTranslation) => {
-      setItems(previous => {
-        const next = previous.filter(item => item.translationId !== translation.id);
-        const variant = toVariant(translation);
-        // A finished result replaces the earlier finished one of its language.
-        const pruned =
-          variant.status === 'ready'
-            ? next.filter(item => !(item.language === variant.language && item.status !== 'processing'))
-            : next;
-        return [...pruned, variant];
-      });
-    },
-    []
-  );
+  const upsert = useCallback((translation: TranscriptTranslation) => {
+    setItems(previous => {
+      const next = previous.filter(item => item.translationId !== translation.id);
+      const variant = toVariant(translation);
+      // A finished result replaces the earlier finished one of its language.
+      const pruned =
+        variant.status === 'ready'
+          ? next.filter(
+              item => !(item.language === variant.language && item.status !== 'processing')
+            )
+          : next;
+      return [...pruned, variant];
+    });
+  }, []);
 
   const follow = useCallback(
-    (translationId: string, meta: { language: string; scope: VariantSource['scope']; started: number }) => {
+    (
+      translationId: string,
+      meta: { language: string; scope: VariantSource['scope']; started: number }
+    ) => {
       if (watches.current.has(translationId)) return;
       const controller = new AbortController();
       watches.current.set(translationId, controller);
@@ -326,7 +329,6 @@ export function useTextVariants(
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload per scope (and per text for a transcriber document)
   }, [scopeKey, source?.scope === 'personal' ? fingerprint : null]);
 
   // A stream that ended while the page was hidden is opened again when it is shown.
@@ -336,7 +338,11 @@ export function useTextVariants(
       if (document.visibilityState !== 'visible') return;
       for (const item of items) {
         if (item.status === 'processing' && !watches.current.has(item.translationId)) {
-          follow(item.translationId, { language: item.language, scope: source.scope, started: item.startedAt });
+          follow(item.translationId, {
+            language: item.language,
+            scope: source.scope,
+            started: item.startedAt
+          });
         }
       }
     };
@@ -399,7 +405,11 @@ export function useTextVariants(
             translationId: started.translationId,
             units: started.units
           });
-          follow(started.translationId, { language: targetLanguage, scope: source.scope, started: now });
+          follow(started.translationId, {
+            language: targetLanguage,
+            scope: source.scope,
+            started: now
+          });
         }
         return { ok: true, translationId: started.translationId, reused: started.reused };
       } catch (error) {

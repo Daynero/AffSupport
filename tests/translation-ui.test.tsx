@@ -85,11 +85,20 @@ afterEach(() => cleanup());
 
 describe('allowance figures', () => {
   it('shows minutes of text that agree with the decision', () => {
-    expect(allowanceFigures(2_700, 2_700, 9_000)).toMatchObject({ need: 3, left: 7, limit: 10, fits: true });
+    expect(allowanceFigures(2_700, 2_700, 9_000)).toMatchObject({
+      need: 3,
+      left: 7,
+      limit: 10,
+      fits: true
+    });
     // A tiny text that fits a remainder rounding to zero is never shown as costing more.
     expect(allowanceFigures(10, 8_980, 9_000)).toMatchObject({ fits: true, need: 0, left: 0 });
     // Does not fit but rounds equal: the cost is shown a tenth above.
-    expect(allowanceFigures(1_810, 7_200, 9_000)).toMatchObject({ fits: false, need: 2.1, left: 2 });
+    expect(allowanceFigures(1_810, 7_200, 9_000)).toMatchObject({
+      fits: false,
+      need: 2.1,
+      left: 2
+    });
     expect(allowanceFigures(12_600, 0, 9_000)).toMatchObject({ fits: false, overDaily: true });
   });
 });
@@ -106,11 +115,19 @@ describe('translating a space transcript', () => {
     }));
     const client = fakeClient({ start });
     render(
-      <VideoTextActions teamId={TEAM} videoId={VIDEO} client={textClient} translations={client} onTranscribe={() => {}} />
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
     );
     await user.click(await screen.findByRole('button', { name: 'Translate' }));
     const dialog = await screen.findByRole('dialog');
-    await waitFor(() => expect(within(dialog).getByText(/0 of 10 min left|of 10 min left/u)).toBeTruthy());
+    await waitFor(() =>
+      expect(within(dialog).getByText(/0 of 10 min left|of 10 min left/u)).toBeTruthy()
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Translate' }));
     expect(start).toHaveBeenCalledWith('uk', { scope: 'team_video', teamId: TEAM, videoId: VIDEO });
     expect(await screen.findByText(/Translating: Ukrainian/u)).toBeTruthy();
@@ -128,11 +145,19 @@ describe('translating a space transcript', () => {
       }))
     });
     render(
-      <VideoTextActions teamId={TEAM} videoId={VIDEO} client={textClient} translations={client} onTranscribe={() => {}} />
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
     );
     await user.click(await screen.findByRole('button', { name: 'Translate' }));
     const dialog = await screen.findByRole('dialog');
-    expect(await within(dialog).findByText(/Needs ≈ .* min left\. The limit renews at 00:00\./u)).toBeTruthy();
+    expect(
+      await within(dialog).findByText(/Needs ≈ .* min left\. The limit renews at 00:00\./u)
+    ).toBeTruthy();
     expect(within(dialog).queryByRole('button', { name: 'Translate' })).toBeNull();
   });
 
@@ -144,11 +169,19 @@ describe('translating a space transcript', () => {
       })
     });
     render(
-      <VideoTextActions teamId={TEAM} videoId={VIDEO} client={textClient} translations={client} onTranscribe={() => {}} />
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
     );
     await user.click(await screen.findByRole('button', { name: 'Translate' }));
     const dialog = await screen.findByRole('dialog');
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Translate' })).toBeTruthy());
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: 'Translate' })).toBeTruthy()
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Translate' }));
     await waitFor(() => expect(client.allowance).toHaveBeenCalledTimes(3));
   });
@@ -171,7 +204,13 @@ describe('several texts', () => {
       ])
     });
     render(
-      <VideoTextActions teamId={TEAM} videoId={VIDEO} client={textClient} translations={client} onTranscribe={() => {}} />
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
     );
     await user.click(await screen.findByRole('button', { name: 'Copy text' }));
     const menu = await screen.findByRole('menu');
@@ -183,11 +222,11 @@ describe('several texts', () => {
     await user.click(screen.getByRole('button', { name: 'View text' }));
     const viewer = screen.getByRole('dialog');
     const tabs = within(viewer).getByRole('tablist');
-    expect(within(tabs).getAllByRole('tab').map(tab => tab.textContent)).toEqual([
-      'Original · TR',
-      'Ukrainian',
-      expect.stringMatching(/Spanish/u)
-    ]);
+    expect(
+      within(tabs)
+        .getAllByRole('tab')
+        .map(tab => tab.textContent)
+    ).toEqual(['Original · TR', 'Ukrainian', expect.stringMatching(/Spanish/u)]);
     await user.click(within(tabs).getByRole('tab', { name: 'Ukrainian' }));
     expect(viewer.textContent).toContain('Візьми таблетку.');
     await user.click(within(viewer).getByRole('button', { name: 'Copy text' }));
@@ -198,7 +237,13 @@ describe('several texts', () => {
     const user = userEvent.setup();
     const client = fakeClient({ listForVideo: vi.fn(async () => [translation()]) });
     render(
-      <VideoTextActions teamId={TEAM} videoId={VIDEO} client={textClient} translations={client} onTranscribe={() => {}} />
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
     );
     await user.click(await screen.findByRole('button', { name: 'View text' }));
     await user.click(within(screen.getByRole('tablist')).getByRole('tab', { name: /Ukrainian/u }));
@@ -211,7 +256,13 @@ describe('several texts', () => {
     let finish: () => void = () => {};
     const client = fakeClient({
       listForVideo: vi.fn(async () => [
-        translation({ status: 'processing', segments: null, completedSegments: 0, model: null, completedAt: null })
+        translation({
+          status: 'processing',
+          segments: null,
+          completedSegments: 0,
+          model: null,
+          completedAt: null
+        })
       ]),
       watch: vi.fn(
         (_id, onEvent) =>
@@ -222,7 +273,13 @@ describe('several texts', () => {
       )
     });
     render(
-      <VideoTextActions teamId={TEAM} videoId={VIDEO} client={textClient} translations={client} onTranscribe={() => {}} />
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
     );
     expect(await screen.findByText(/Translating: Ukrainian/u)).toBeTruthy();
     emit!({ type: 'progress', status: 'processing', completedSegments: 1, totalSegments: 2 });

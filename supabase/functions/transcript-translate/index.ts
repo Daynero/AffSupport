@@ -51,7 +51,8 @@ function modelClient(): ClaudeClient | null {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
   if (apiKey) return createClaudeClient(apiKey);
   const fake = Deno.env.get('SOTY_TRANSLATION_PROVIDER');
-  if (Deno.env.get('SOTY_ENVIRONMENT') === 'beta' && isFakeMode(fake)) return createFakeClient(fake);
+  if (Deno.env.get('SOTY_ENVIRONMENT') === 'beta' && isFakeMode(fake))
+    return createFakeClient(fake);
   return null;
 }
 

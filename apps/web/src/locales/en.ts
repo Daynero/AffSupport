@@ -5078,7 +5078,8 @@ export const en = {
   textTranslationCost: '≈ {need} min · {left} of {limit} min left',
   textTranslationShort: 'Needs ≈ {need} min, {left} min left. The limit renews at {time}.',
   textTranslationTooLong: 'This text is ≈ {need} min — more than the daily limit of {limit} min.',
-  textTranslationMinuteHint: 'A translation minute is about 900 characters of text, not the length of the video.',
+  textTranslationMinuteHint:
+    'A translation minute is about 900 characters of text, not the length of the video.',
   textTranslationInProgress: 'Translating: {language}',
   textTranslationRefused: 'The model declined to translate this text. Minutes returned.',
   textTranslationUnavailable: 'Translation is unavailable right now. No minutes used.',
