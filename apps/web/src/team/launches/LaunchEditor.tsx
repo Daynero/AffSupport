@@ -910,7 +910,7 @@ export function LaunchEditor({
                         }
                       />
                     </div>
-                    <div className="flex basis-full flex-col gap-2">
+                    <div className="launch-editor-catalog-publication flex basis-full flex-col gap-2">
                       <Suspense fallback={null}>
                         <LaunchCatalogVideoFields
                           part="publication"

@@ -185,8 +185,22 @@
   height: var(--control-height-sm);
 }
 /* The duration folds open under the re-stitch row, lined up with its label. */
+/* The duration belongs to re-stitch: it folds open under the switch's label, not under the
+   switch, and reads as part of that option rather than as a heading of its own. */
 .launch-editor-compact .launch-editor-catalog-fold .launch-duration-disclosure {
-  padding-bottom: var(--space-1);
+  /* The switch track is as wide as a medium control is tall; the label follows a gap on. */
+  padding-inline-start: calc(var(--control-height-md) + var(--space-3));
+}
+.launch-editor-compact .launch-editor-catalog-fold .ui-accordion-trigger {
+  width: auto;
+  min-height: var(--control-height-sm);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-body);
+}
+.launch-editor-compact .launch-editor-catalog-publication {
+  min-height: var(--control-height-lg);
+  justify-content: center;
 }
 .launch-editor-catalog-advanced {
   flex-basis: 100%;
