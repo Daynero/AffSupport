@@ -516,7 +516,7 @@
 }
 /* The creative and the ad account are chosen, not typed: their boxes take the error edge too. */
 .launch-editor-compact .ui-field.is-invalid .launch-creative-drop,
-.launch-editor-compact .ui-field.is-invalid > .ui-field-control > .ui-button {
+.launch-editor-compact .ui-field.is-invalid > .ui-field-control .ui-button--outline {
   border-color: var(--color-error-solid);
 }
 /* «Згенерувати запуск» lands on the first field with an error and flashes it once, so the

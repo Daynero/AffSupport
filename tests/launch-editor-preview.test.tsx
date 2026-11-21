@@ -195,7 +195,8 @@ it('explains an empty required Buyer after submit without tinting the field back
   expect(
     screen.queryByLabelText('Required values are checked when you generate the launch.')
   ).toBeNull();
-  expect(screen.getByRole('alert').textContent).toBe('Check the value');
+  // An empty choice says it is missing, not «check the value» (next QA 2026-11-21).
+  expect(screen.getByRole('alert').textContent).toBe('Required');
 });
 
 it('keeps the campaign count and ads count adjacent and switches compact budget modes', () => {

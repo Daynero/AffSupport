@@ -283,9 +283,10 @@ export function LaunchEditor({
             ? t(
                 key === 'originalUrl'
                   ? 'launchesUrlInvalid'
-                  : // «Потрібно заповнити» only for an empty field: 101 campaigns, typed, was
-                    // called missing until submit (next QA 2026-11-21).
-                    submitted || !emptyValue(key)
+                  : // «Потрібно заповнити» for an empty field and only for it: 101 campaigns,
+                    // typed, was called missing, and an unchosen РК «Перевірте значення»
+                    // (next QA 2026-11-21).
+                    !emptyValue(key)
                     ? key === 'campaignCount'
                       ? 'launchesCampaignCountInvalid'
                       : key === 'adsCount'

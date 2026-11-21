@@ -21,6 +21,7 @@ import {
 import { launchApi, teamApi, TeamApiError } from '../../api/team';
 import type { LaunchDictionaryItem } from '../../api/launches';
 import {
+  Alert,
   Button,
   Card,
   Checkbox,
@@ -957,14 +958,6 @@ export function LaunchSession({
       // The editor scrolls to the field error under the deferred-link block.
       generation.blocked('INVALID_INPUT');
       setError(t('catalogPublicationTimePassed'));
-      // Generate first reveals the progress card; land on the field once that settles.
-      window.setTimeout(
-        () =>
-          document
-            .querySelector('.launch-publication-error')
-            ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }),
-        350
-      );
       return;
     }
     if (sourceChanged) {
@@ -1664,9 +1657,11 @@ export function LaunchSession({
         </Button>
       )}
       {error && !showProgress && !detail?.generation?.errorCode && (
-        <p role="alert" className="text-error-text">
+        // A refusal of the whole launch reads as an alert, not as a line of body text above
+        // the form (next QA 2026-11-21); the field it is about is marked in the editor.
+        <Alert color="error" live="alert">
           {error}
-        </p>
+        </Alert>
       )}
       {!showProgress && error && restitchSettingsError(requestErrorCode) && (
         <Button onClick={openRestitchSettings}>{t('launchesOpenRestitchSettings')}</Button>
