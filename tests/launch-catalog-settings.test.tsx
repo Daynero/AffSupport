@@ -254,3 +254,50 @@ it('keeps the re-stitch switch in place: its variations join its row, its durati
   expect(document.querySelector('.launch-editor-catalog-fold')).toBe(fold);
   expect(fold?.classList.contains('is-open')).toBe(true);
 });
+it('lands every press of «Generate» on the first visible error, focuses and flashes it (next QA 2026-11-21)', async () => {
+  const scrolled: Element[] = [];
+  // jsdom has no scrollIntoView; the editor calls it optionally, so give it one to watch.
+  const original = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function (this: Element) {
+    scrolled.push(this);
+  };
+  try {
+    // «Без каталогу» keeps the folded catalog settings: an error in them (999 variations)
+    // must not be the target, however early it stands in the form.
+    const base = newLaunchDraft();
+    const draft = {
+      ...base,
+      method: 'other' as const,
+      campaignCount: 0,
+      catalog: {
+        ...base.catalog!,
+        restitchEnabled: true,
+        catalogVideoProtocolVersion: 1 as const,
+        videoVariationCount: 999,
+        videoPublication: { mode: 'immediate' as const }
+      }
+    };
+    const view = render(
+      <LaunchEditor {...editorProps(vi.fn())} config={draft} submitted submitAttempt={1} />
+    );
+    await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
+    const errors = [...document.querySelectorAll('.ui-field-error')];
+    expect(errors.some(error => error.closest('[inert]'))).toBe(true);
+    const visible = errors.find(
+      error => !error.closest('[hidden], [inert], [aria-hidden="true"]')
+    )!;
+    const field = visible.closest<HTMLElement>('.ui-field')!;
+    expect(scrolled).toEqual([field]);
+    expect(field.classList.contains('is-invalid')).toBe(true);
+    expect(field.contains(document.activeElement)).toBe(true);
+    expect(field.classList.contains('is-attention')).toBe(true);
+    // The second press finds it again.
+    view.rerender(
+      <LaunchEditor {...editorProps(vi.fn())} config={draft} submitted submitAttempt={2} />
+    );
+    await new Promise(resolve => requestAnimationFrame(() => resolve(null)));
+    expect(scrolled).toEqual([field, field]);
+  } finally {
+    Element.prototype.scrollIntoView = original;
+  }
+});

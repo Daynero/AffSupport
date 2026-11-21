@@ -35,10 +35,16 @@ export function CatalogCreationVideoFields({
   const change = (patch: Partial<CatalogCreationVideoDraft>) => onChange({ ...value, ...patch });
   const count = Number(value.variationCount);
   const minimum = creativeCopies && creativeCopies.length > 1 ? creativeCopies.length : 1;
+  // No upper bound while the product count is itself invalid: it has its own error, and «from
+  // 1 to 0 variations» said nothing true (next QA 2026-11-21).
+  const productLimit =
+    Number.isSafeInteger(productCount) && productCount >= 1 ? productCount : null;
   const tooFew = value.variationCount !== '' && Number.isInteger(count) && count < minimum;
   const invalid =
     value.variationCount !== '' &&
-    (!Number.isInteger(count) || count < minimum || count > productCount);
+    (!Number.isInteger(count) ||
+      count < minimum ||
+      (productLimit !== null && count > productLimit));
   const split =
     minimum > 1 && !invalid && value.variationCount !== ''
       ? distributeVariations(creativeCopies!, count).join(' · ')
@@ -53,7 +59,7 @@ export function CatalogCreationVideoFields({
             tooFew
               ? t('launchVariationsAtLeastCreatives', { count: minimum })
               : invalid
-                ? t('catalogVideoVariationLimit', { count: productCount })
+                ? t('catalogVideoVariationLimit', { count: productLimit ?? productCount })
                 : undefined
           }
         >

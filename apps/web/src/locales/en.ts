@@ -613,6 +613,10 @@ export const en = {
     'The operation outcome is not confirmed. Retry the same request to reconcile it.',
   launchesSubInvalid: 'Use Latin letters, digits, underscores or hyphens for SUB values.',
   launchesBudgetRangeInvalid: 'Use positive budgets; the minimum cannot exceed the maximum.',
+  launchesBudgetRangeTooNarrow:
+    'For {count} campaigns, “To” must be at least {gap} $ above “From”: each campaign gets a budget of its own.',
+  launchesBudgetMaxBelowCampaigns:
+    'For {count} campaigns, “To” must be at least {count} $: each campaign gets a budget of its own.',
   launchesBudgetInvalid:
     'Budgets must be positive, distinct and ascending; the final budget equals the maximum.',
   launchesUrlInvalid: 'Enter a valid HTTP(S) URL without spaces or control characters.',

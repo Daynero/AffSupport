@@ -1970,6 +1970,15 @@
 .ui-select.is-invalid .ui-select-trigger {
   border-color: var(--color-error-border);
 }
+/* A field that shows an error shows it on the control too, not only in the line under it:
+   the line alone did not say which box to fix (next QA 2026-11-21). */
+.ui-field.is-invalid > .ui-field-control .ui-input,
+.ui-field.is-invalid > .ui-field-control .ui-textarea {
+  border-color: var(--color-error-solid);
+}
+.ui-field.is-invalid > .ui-field-control .ui-select-trigger {
+  border-color: var(--color-error-border);
+}
 .ui-select.is-disabled .ui-select-trigger {
   cursor: not-allowed;
   opacity: 0.55;

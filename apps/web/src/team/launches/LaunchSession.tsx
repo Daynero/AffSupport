@@ -211,6 +211,7 @@ export function LaunchSession({
   const [dictionaryBusy, setDictionaryBusy] = useState(false);
   const dictionaryRequests = useRef(0);
   const [submitted, setSubmitted] = useState(false);
+  const [submitAttempt, setSubmitAttempt] = useState(0);
   const [history, setHistory] = useState<Awaited<ReturnType<typeof launchApi.history>>>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<string | null>(null);
@@ -937,6 +938,7 @@ export function LaunchSession({
       return;
     }
     setSubmitted(true);
+    setSubmitAttempt(attempt => attempt + 1);
     const key = generation.intent(draft.config.method ?? 'other', detail?.id);
     if (uploading || sourcesPending || dictionaryRequests.current > 0) {
       generation.blocked('WRONG_STATE');
@@ -1936,6 +1938,7 @@ export function LaunchSession({
             }
             onUploadBusyChange={setUploading}
             submitted={submitted}
+            submitAttempt={submitAttempt}
             sources={draft.sources}
             onChange={patch => {
               if (

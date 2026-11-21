@@ -48,6 +48,8 @@ import { CatalogVideoR2Toggle } from '../product-catalog/CatalogVideoR2Toggle';
 import { prefetchCatalogVideoR2Availability } from '../product-catalog/useCatalogVideoR2Availability';
 import { teamApi } from '../../api/team';
 
+/** As long as the flash on a field with an error (launch-settings.css). */
+const ATTENTION_MS = 1_600;
 const loadCatalogVideoFields = () => import('./LaunchCatalogVideoFields');
 const LaunchCatalogVideoFields = lazy(() =>
   loadCatalogVideoFields().then(module => ({
@@ -70,7 +72,8 @@ export function LaunchEditor({
   onRefreshSources,
   onUploadBusyChange,
   sourceNotice,
-  submitted = false
+  submitted = false,
+  submitAttempt = 0
 }: {
   teamId: string;
   config: LaunchDraft;
@@ -93,6 +96,8 @@ export function LaunchEditor({
   /** A question the sources raised — the offer's saved settings — asked right under them. */
   sourceNotice?: ReactNode;
   submitted?: boolean;
+  /** Counts presses of «Згенерувати запуск», so every press, not only the first, finds the error. */
+  submitAttempt?: number;
 }) {
   const { t } = useI18n();
   const prefix = useId();
@@ -117,12 +122,30 @@ export function LaunchEditor({
   }, [config.budgetMode, config.budgets]);
   useEffect(() => {
     if (!submitted) return;
-    const firstError = [
-      ...(editorRef.current?.querySelectorAll<HTMLElement>('.ui-field-error') ?? [])
-    ].find(error => !error.closest('[hidden]'));
-    const target = firstError?.closest('.ui-field');
-    target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-  }, [submitted]);
+    // Every press of «Згенерувати запуск» lands on the first error that can be seen — not one
+    // inside a folded or hidden part of the form, which scrolled to «a field that is not
+    // there» — puts the cursor in its field and flashes it (next QA 2026-11-21).
+    const frame = requestAnimationFrame(() => {
+      const firstError = [
+        ...(editorRef.current?.querySelectorAll<HTMLElement>('.ui-field-error') ?? [])
+      ].find(error => !error.closest('[hidden], [inert], [aria-hidden="true"]'));
+      if (!firstError) return;
+      // Errors set beside their fields (budgets, products) have no field around them.
+      const target = firstError.closest<HTMLElement>('.ui-field') ?? firstError.parentElement;
+      if (!target) return;
+      target.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      target
+        .querySelector<HTMLElement>(
+          '[aria-invalid="true"], input:not([type="hidden"]):not(:disabled), textarea, button:not(:disabled)'
+        )
+        ?.focus({ preventScroll: true });
+      target.classList.remove('is-attention');
+      void target.offsetWidth;
+      target.classList.add('is-attention');
+      window.setTimeout(() => target.classList.remove('is-attention'), ATTENTION_MS);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [submitted, submitAttempt]);
   const changed = (patch: LaunchDraft) => {
     setTouched(previous => new Set([...previous, ...Object.keys(patch)]));
     onChange(patch);
@@ -190,11 +213,53 @@ export function LaunchEditor({
     age: 'launchSettingsAge',
     productCount: 'launchSettingsProducts'
   };
+  // Before the error below is decided: budgets that are each valid but cannot all differ
+  // (30 campaigns between 5 $ and 30 $) were caught only after it, so the preview went
+  // blank with no word why (next QA 2026-11-21).
+  let budgets: number[] = config.budgetMode === 'manual' ? [...(config.budgets ?? [])] : [];
+  try {
+    budgets = launchBudgets(
+      config.campaignCount ?? 0,
+      config.maxBudget ?? 0,
+      config.budgetMode === 'manual' ? config.budgets : null,
+      config.minBudget,
+      config.budgetMode
+    );
+  } catch {
+    errors.budgets = 'LAUNCH_BUDGET_INVALID';
+    if (config.budgetMode !== 'manual') {
+      errors.minBudget = 'LAUNCH_BUDGET_INVALID';
+      errors.maxBudget = 'LAUNCH_BUDGET_INVALID';
+    }
+  }
+  // An automatic range too narrow for one budget per campaign is said as such: «the minimum
+  // cannot exceed the maximum» was the only message, and here it is not the reason.
+  const campaignCount = config.campaignCount ?? 0;
+  const narrowRange =
+    (config.budgetMode ?? 'auto') === 'auto' &&
+    Number.isSafeInteger(campaignCount) &&
+    campaignCount > 1 &&
+    Number.isSafeInteger(config.maxBudget) &&
+    (config.minBudget === undefined
+      ? config.maxBudget! < campaignCount
+      : Number.isSafeInteger(config.minBudget) &&
+        config.minBudget >= 1 &&
+        config.minBudget <= config.maxBudget! &&
+        config.maxBudget! - config.minBudget < campaignCount - 1);
   const budgetKeys = ['minBudget', 'maxBudget', 'budgets'];
+  const productCountError =
+    config.method === 'catalog' &&
+    productText === null &&
+    Boolean(errors.productCount) &&
+    (submitted || touched.has('catalog'));
   const budgetError =
     !editingBudget &&
     budgetKeys.some(key => Boolean(errors[key])) &&
     (submitted || budgetKeys.some(key => touched.has(key)));
+  const emptyValue = (key: string) => {
+    const value = (config as Record<string, unknown>)[key];
+    return value === undefined || value === null || value === '';
+  };
   const field = (
     key: string,
     label: TranslationKey,
@@ -218,7 +283,9 @@ export function LaunchEditor({
             ? t(
                 key === 'originalUrl'
                   ? 'launchesUrlInvalid'
-                  : submitted
+                  : // «Потрібно заповнити» only for an empty field: 101 campaigns, typed, was
+                    // called missing until submit (next QA 2026-11-21).
+                    submitted || !emptyValue(key)
                     ? key === 'campaignCount'
                       ? 'launchesCampaignCountInvalid'
                       : key === 'adsCount'
@@ -366,22 +433,6 @@ export function LaunchEditor({
       help
     );
   };
-  let budgets: number[] = config.budgetMode === 'manual' ? [...(config.budgets ?? [])] : [];
-  try {
-    budgets = launchBudgets(
-      config.campaignCount ?? 0,
-      config.maxBudget ?? 0,
-      config.budgetMode === 'manual' ? config.budgets : null,
-      config.minBudget,
-      config.budgetMode
-    );
-  } catch {
-    errors.budgets = 'LAUNCH_BUDGET_INVALID';
-    if (config.budgetMode !== 'manual') {
-      errors.minBudget = 'LAUNCH_BUDGET_INVALID';
-      errors.maxBudget = 'LAUNCH_BUDGET_INVALID';
-    }
-  }
   const previewRows = launchNamingPreview(config, localSources);
   const missingSubSlots = isLaunchUrl(config.originalUrl)
     ? missingLaunchSubSlots(config.originalUrl)
@@ -460,6 +511,10 @@ export function LaunchEditor({
                     <Input
                       id={`${prefix}-productCount`}
                       aria-label={t('launchesCatalogProductCount')}
+                      invalid={productCountError}
+                      aria-describedby={
+                        productCountError ? `${prefix}-productCount-error` : undefined
+                      }
                       type="number"
                       width="narrow"
                       value={productText ?? config.catalog.productCount}
@@ -515,10 +570,22 @@ export function LaunchEditor({
                       }}
                     />
                   </label>
-                  {productsBelowCreatives && (
+                  {productsBelowCreatives ? (
                     <p className="ui-field-error basis-full" role="alert">
                       {t('launchProductsBelowCreatives')}
                     </p>
+                  ) : (
+                    // The count sits beside the method, outside the shared field: 0 or 401
+                    // products said nothing until generation refused them (next QA 2026-11-21).
+                    productCountError && (
+                      <p
+                        id={`${prefix}-productCount-error`}
+                        className="ui-field-error basis-full"
+                        role="alert"
+                      >
+                        {t('launchesProductCountInvalid')}
+                      </p>
+                    )
                   )}
                 </>
               )}
@@ -783,13 +850,20 @@ export function LaunchEditor({
                     className="ui-field-error launch-editor-budget-error"
                     role="alert"
                   >
-                    {t(
-                      config.budgetMode === 'single'
-                        ? 'launchesMaxBudgetInvalid'
-                        : config.budgetMode === 'manual'
-                          ? 'launchesBudgetInvalid'
-                          : 'launchesBudgetRangeInvalid'
-                    )}
+                    {narrowRange
+                      ? config.minBudget === undefined
+                        ? t('launchesBudgetMaxBelowCampaigns', { count: campaignCount })
+                        : t('launchesBudgetRangeTooNarrow', {
+                            count: campaignCount,
+                            gap: campaignCount - 1
+                          })
+                      : t(
+                          config.budgetMode === 'single'
+                            ? 'launchesMaxBudgetInvalid'
+                            : config.budgetMode === 'manual'
+                              ? 'launchesBudgetInvalid'
+                              : 'launchesBudgetRangeInvalid'
+                        )}
                   </p>
                 )}
               </div>

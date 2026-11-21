@@ -41,8 +41,20 @@
 .launch-editor-compact .launch-editor-creative {
   max-width: none;
 }
-.launch-editor-compact .launch-editor-source-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+/* Three sources and the refresh on one line only where they fit: unconditional, this rule
+   undid the single column a phone gets, and РК, Офер and Баєр shrank to «Обр…» (next QA
+   2026-11-21). */
+@media (min-width: 640px) {
+  .launch-editor-compact .launch-editor-source-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  }
+}
+/* One column: the refresh no longer drops to a label's line, it closes the sources. */
+@media (max-width: 639px) {
+  .launch-editor-compact .launch-editor-refresh {
+    margin-top: 0;
+    justify-self: end;
+  }
 }
 .launch-editor-compact .ui-field-label {
   min-height: var(--space-6);
@@ -215,10 +227,16 @@
 /* «Варіації відео [ 2 ]» on the switch's own line: a caption and a small field, not a
    labelled block that made the row thick. Its hint and its error follow on the same line. */
 /* The field keeps to the rest of the switch's line, so a long error or hint never pushes
-   it down under the switch; they wrap under the field instead (next QA 2026-11-21). */
+   it down under the switch; they wrap under the field instead (next QA 2026-11-21). The row
+   is aligned to its top, and the field set down to the switch's centre line, so a two-line
+   error grows the row downwards and the switch stays where it was. */
+.launch-editor-catalog-row:has(> .launch-editor-variations) {
+  align-items: flex-start;
+}
 .launch-editor-variations {
   min-width: 0;
   flex: 1 1 0;
+  padding-top: calc((var(--control-height-lg) - var(--control-height-sm)) / 2);
 }
 .launch-editor-variations .ui-field-error,
 .launch-editor-variations .ui-field-help {
@@ -255,6 +273,7 @@
    track is as wide as a medium control is tall, and the label follows a gap on — so it
    reads as part of that option and not as a heap under the switches. */
 .launch-editor-compact .launch-editor-catalog-publication > .catalog-publication-controls,
+.launch-editor-compact .launch-editor-catalog-publication > .launch-publication-error,
 .launch-editor-compact .launch-editor-catalog-publication > .ui-field-help {
   margin-inline-start: calc(var(--control-height-md) + var(--space-3));
 }
@@ -474,4 +493,44 @@
   border-color: var(--color-neutral-border-strong);
   background: var(--color-neutral-surface-subtle);
   color: var(--color-neutral-text-muted);
+}
+/* The audience row lines its controls up from the top, so an error under «Вік» grows that
+   field downwards instead of lifting it above its neighbours (next QA 2026-11-21: aligned to
+   the bottom, the age field rose by the error's height). The unlabelled controls are set
+   down by a field's label and the gap under it, onto the fields' line. */
+.launch-editor-compact .launch-editor-audience-row {
+  align-items: flex-start;
+}
+.launch-editor-compact .launch-editor-audience-row > .ui-segmented,
+.launch-editor-compact .launch-editor-audience-row > .ui-switch {
+  margin-top: calc(var(--space-6) + 6px);
+}
+/* A field stretched to the height of a neighbour that shows an error keeps its label and
+   control at the top: as a grid it spread the extra height between them, and «Кількість
+   кампаній» dropped by half the error beside «Кількість оголошень» (next QA 2026-11-21). */
+.launch-editor-compact .ui-field {
+  align-content: start;
+}
+.launch-editor-compact .launch-editor-counts {
+  align-items: flex-start;
+}
+/* The creative and the ad account are chosen, not typed: their boxes take the error edge too. */
+.launch-editor-compact .ui-field.is-invalid .launch-creative-drop,
+.launch-editor-compact .ui-field.is-invalid > .ui-field-control > .ui-button {
+  border-color: var(--color-error-solid);
+}
+/* «Згенерувати запуск» lands on the first field with an error and flashes it once, so the
+   eye finds it after the scroll (LaunchEditor; next QA 2026-11-21). */
+.launch-editor-compact .is-attention {
+  border-radius: var(--radius-md);
+  animation: launch-field-attention calc(var(--motion-slow) * 5) var(--ease-out-curve);
+}
+@keyframes launch-field-attention {
+  0%,
+  35% {
+    box-shadow: 0 0 0 4px var(--color-error-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 4px transparent;
+  }
 }
