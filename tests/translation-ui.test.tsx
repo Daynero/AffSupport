@@ -12,6 +12,21 @@ import { VideoTextActions } from '../apps/web/src/team/library/VideoTextActions'
 import { allowanceFigures } from '../apps/web/src/translation/format';
 import type { TranslationClient } from '../apps/web/src/translation/api';
 import { TeamApiError } from '../apps/web/src/api/team';
+import { refreshCredits } from '../apps/web/src/credits/store';
+
+// 064: translation pays in credits; the balance comes from one server read the test controls.
+let creditsStatus = {
+  grant: 100,
+  available: 87,
+  day: '2026-11-21',
+  resetsAt: '2026-11-21T22:00:00Z',
+  paidOpen: true,
+  recent: [] as never[]
+};
+vi.mock('../apps/web/src/api/assistant', () => ({
+  creditsApi: { status: vi.fn(async () => creditsStatus) },
+  assistantApi: {}
+}));
 
 /**
  * 063: what a person sees around a space transcript. The cost and remainder agree with the
@@ -79,8 +94,10 @@ const textClient = {
   })
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear();
+  creditsStatus = { ...creditsStatus, available: 87, paidOpen: true };
+  await refreshCredits();
 });
 afterEach(() => cleanup());
 
@@ -105,7 +122,7 @@ describe('allowance figures', () => {
 });
 
 describe('translating a space transcript', () => {
-  it('offers the cost before anything starts, and starts the chosen language', async () => {
+  it('shows the price on the button before anything starts, and starts the chosen language', async () => {
     const user = userEvent.setup();
     const start = vi.fn(async () => ({
       translationId: '06300000-0000-4000-8000-000000000009',
@@ -124,27 +141,20 @@ describe('translating a space transcript', () => {
         onTranscribe={() => {}}
       />
     );
-    await user.click(await screen.findByRole('button', { name: 'Translate' }));
+    // 23 characters are one started minute: one credit, on the button itself.
+    await user.click(await screen.findByRole('button', { name: /Translate · 1/u }));
     const dialog = await screen.findByRole('dialog');
-    await waitFor(() =>
-      expect(within(dialog).getByText(/0 of 10 min left|of 10 min left/u)).toBeTruthy()
-    );
-    await user.click(within(dialog).getByRole('button', { name: 'Translate' }));
-    expect(start).toHaveBeenCalledWith('uk', { scope: 'team_video', teamId: TEAM, videoId: VIDEO });
+    await waitFor(() => expect(within(dialog).getByText('Today 87 of 100')).toBeTruthy());
+    await user.click(within(dialog).getByRole('button', { name: 'Translate · 1' }));
+    expect(start).toHaveBeenCalledWith('uk', { scope: 'team_video', teamId: TEAM, videoId: VIDEO }, 1);
     expect(await screen.findByText(/Translating: Ukrainian/u)).toBeTruthy();
   });
 
-  it('says how much is missing and offers no button when the text does not fit', async () => {
+  it('says how many credits are missing and offers no button when they do not cover it', async () => {
     const user = userEvent.setup();
-    const client = fakeClient({
-      allowance: vi.fn(async () => ({
-        feature: 'transcript_translation',
-        limitUnits: 9000,
-        usedUnits: 8990,
-        day: '2026-11-21',
-        resetsAt: '2026-11-21T22:00:00Z'
-      }))
-    });
+    creditsStatus = { ...creditsStatus, available: 0 };
+    await refreshCredits();
+    const client = fakeClient();
     render(
       <VideoTextActions
         teamId={TEAM}
@@ -154,19 +164,19 @@ describe('translating a space transcript', () => {
         onTranscribe={() => {}}
       />
     );
-    await user.click(await screen.findByRole('button', { name: 'Translate' }));
+    await user.click(await screen.findByRole('button', { name: /Translate · 1/u }));
     const dialog = await screen.findByRole('dialog');
-    expect(
-      await within(dialog).findByText(/Needs ≈ .* min left\. The limit renews at 00:00\./u)
-    ).toBeTruthy();
-    expect(within(dialog).queryByRole('button', { name: 'Translate' })).toBeNull();
+    expect(await within(dialog).findByText(/Short by 1 · renews at/u)).toBeTruthy();
+    expect(within(dialog).queryByRole('button', { name: /Translate · 1/u })).toBeNull();
   });
 
-  it('keeps the numbers when the server refuses for the allowance', async () => {
+  it('re-reads the balance when the server refuses for credits', async () => {
     const user = userEvent.setup();
     const client = fakeClient({
       start: vi.fn(async () => {
-        throw new TeamApiError('TRANSLATION_ALLOWANCE_EXCEEDED', false, { neededUnits: 23 });
+        // Another tab spent the last credits in between.
+        creditsStatus = { ...creditsStatus, available: 0 };
+        throw new TeamApiError('INSUFFICIENT_CREDITS', false, { needed: 1, available: 0 });
       })
     });
     render(
@@ -178,13 +188,10 @@ describe('translating a space transcript', () => {
         onTranscribe={() => {}}
       />
     );
-    await user.click(await screen.findByRole('button', { name: 'Translate' }));
+    await user.click(await screen.findByRole('button', { name: /Translate · 1/u }));
     const dialog = await screen.findByRole('dialog');
-    await waitFor(() =>
-      expect(within(dialog).getByRole('button', { name: 'Translate' })).toBeTruthy()
-    );
-    await user.click(within(dialog).getByRole('button', { name: 'Translate' }));
-    await waitFor(() => expect(client.allowance).toHaveBeenCalledTimes(3));
+    await user.click(await within(dialog).findByRole('button', { name: 'Translate · 1' }));
+    expect(await within(dialog).findByText(/Short by 1 · renews at/u)).toBeTruthy();
   });
 });
 
@@ -287,7 +294,7 @@ describe('several texts', () => {
       await screen.findByText(/declined to translate this text\. Minutes returned\./u)
     ).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(start).toHaveBeenCalledWith('uk', { scope: 'team_video', teamId: TEAM, videoId: VIDEO });
+    expect(start).toHaveBeenCalledWith('uk', { scope: 'team_video', teamId: TEAM, videoId: VIDEO }, 1);
   });
 
   it('keeps the text readable where the space cannot transcribe', async () => {

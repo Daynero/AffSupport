@@ -245,11 +245,17 @@ describe('parseTranslateCommand', () => {
 
 function deps(overrides: Partial<TranslateDeps> & { begin?: unknown; beginError?: unknown } = {}) {
   const service = vi.fn(async (name: string, _parameters: Record<string, unknown>) => {
-    if (name === 'service_transcript_translation_begin') {
+    if (name === 'service_transcript_translation_begin_credits') {
       return overrides.beginError
         ? { data: null, error: overrides.beginError as { message: string } }
         : {
-            data: overrides.begin ?? { id: TRANSLATION, status: 'processing', reused: false },
+            data: overrides.begin ?? {
+              id: TRANSLATION,
+              status: 'processing',
+              reused: false,
+              opKey: 'transcript_translation:abcdef0123456789',
+              credits: { available: 99 }
+            },
             error: null
           };
     }
@@ -307,18 +313,27 @@ function deps(overrides: Partial<TranslateDeps> & { begin?: unknown; beginError?
 const start = {
   action: 'start' as const,
   targetLanguage: 'uk',
-  source: { scope: 'team_video' as const, teamId: TEAM, videoId: VIDEO }
+  source: { scope: 'team_video' as const, teamId: TEAM, videoId: VIDEO },
+  // 064: 23 characters cost one credit, the price the button showed.
+  expectedPrice: 1,
+  priceVersion: 'v1'
 };
 
 describe('startTranslation', () => {
-  it('reads the space text with the caller rights and reserves what it costs', async () => {
+  it('reads the space text with the caller rights and charges exactly the shown price', async () => {
     const harness = deps();
     const result = await startTranslation(start, harness.deps);
-    expect(result).toMatchObject({ translationId: TRANSLATION, reused: false, units: 23 });
+    expect(result).toMatchObject({ translationId: TRANSLATION, reused: false, units: 23, price: 1 });
     const begin = harness.service.mock.calls.find(
-      call => call[0] === 'service_transcript_translation_begin'
+      call => call[0] === 'service_transcript_translation_begin_credits'
     )!;
-    expect(begin[1]).toMatchObject({ p_units: 23, p_total_segments: 2, p_source_language: 'tr' });
+    expect(begin[1]).toMatchObject({
+      p_units: 23,
+      p_total_segments: 2,
+      p_source_language: 'tr',
+      p_price: 1,
+      p_price_version: 'v1'
+    });
     expect(harness.caller).toHaveBeenCalledWith('list_video_text_variants', {
       p_team: TEAM,
       p_video: VIDEO
@@ -329,7 +344,7 @@ describe('startTranslation', () => {
   it('does not run the model for a translation that already exists', async () => {
     const harness = deps({ begin: { id: TRANSLATION, status: 'completed', reused: true } });
     const result = await startTranslation(start, harness.deps);
-    expect(result).toMatchObject({ status: 'completed', reused: true });
+    expect(result).toMatchObject({ status: 'completed', reused: true, price: 0 });
     expect(harness.background).not.toHaveBeenCalled();
   });
 
@@ -350,25 +365,33 @@ describe('startTranslation', () => {
     expect(harness.service).not.toHaveBeenCalled();
   });
 
-  it('turns the database limit into numbers a person can read', async () => {
+  it('turns a refused debit into the numbers a person can read', async () => {
     const harness = deps({
       beginError: {
-        message: 'ALLOWANCE_EXCEEDED',
-        details: JSON.stringify({ neededUnits: 23, usedUnits: 8990, limitUnits: 9000 })
+        message: 'INSUFFICIENT_CREDITS',
+        details: JSON.stringify({ needed: 1, available: 0, resetsAt: '2026-11-21T22:00:00Z' })
       }
     });
     await expect(startTranslation(start, harness.deps)).rejects.toMatchObject({
-      code: 'TRANSLATION_ALLOWANCE_EXCEEDED',
-      details: {
-        neededUnits: 23,
-        usedUnits: 8990,
-        limitUnits: 9000,
-        resetsAt: '2026-11-21T22:00:00Z'
-      }
+      code: 'INSUFFICIENT_CREDITS',
+      details: { price: 1, needed: 1, available: 0, resetsAt: '2026-11-21T22:00:00Z' }
     });
   });
 
-  it('completes in the background, or fails and gives the allowance back', async () => {
+  it('runs nothing for a label priced otherwise or a client older than credits', async () => {
+    const stale = deps();
+    await expect(startTranslation({ ...start, expectedPrice: 2 }, stale.deps)).rejects.toMatchObject({
+      code: 'PRICE_CHANGED'
+    });
+    const old = deps();
+    await expect(startTranslation({ ...start, expectedPrice: null }, old.deps)).rejects.toMatchObject({
+      code: 'CLIENT_UPGRADE'
+    });
+    expect(stale.service).not.toHaveBeenCalled();
+    expect(old.service).not.toHaveBeenCalled();
+  });
+
+  it('completes in the background, or fails and gives the credits back', async () => {
     const harness = deps();
     await startTranslation(start, harness.deps);
     await harness.background.mock.calls[0]![0];

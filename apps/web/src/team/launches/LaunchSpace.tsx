@@ -1,5 +1,6 @@
 import { privateCacheActorEpoch } from '../private-cache-scope.js';
 import type { LaunchBatch } from './LaunchBatch.js';
+import { LaunchAssistant } from './assistant/LaunchAssistant.js';
 import { launchCardState } from './launchPresentation.js';
 import { batchEligible } from './batchModel.js';
 import { durableCardValue, durableItemState } from './durableBatchModel.js';
@@ -567,7 +568,6 @@ function LaunchSpaceContent({
     };
   }, [actorId, t]);
   const startBatch = async () => {
-    if (batchRunning.current || batchSubmissionPending || !can('edit') || !actorId) return;
     if (eligible.length > LAUNCH_BATCH_MAX_ITEMS) {
       setError(t('launchesBulkLimit'));
       return;
@@ -576,7 +576,20 @@ function LaunchSpaceContent({
     const selected = [...eligible].sort((a, b) =>
       (a.sourceMaterialId ?? a.id).localeCompare(b.sourceMaterialId ?? b.id)
     );
-    const id = crypto.randomUUID();
+    await submitBatch(
+      selected.map(row => ({ id: row.id, version: row.version, method: row.method })),
+      crypto.randomUUID()
+    );
+  };
+  /**
+   * The one way a batch starts: the selection's «Згенерувати» and the assistant's «Запустити N»
+   * (064) both hand over exact rows with the versions they showed; the batch refuses a changed one.
+   */
+  const submitBatch = async (
+    selected: Array<{ id: string; version: string; method: 'catalog' | 'other' }>,
+    id: string
+  ) => {
+    if (batchRunning.current || batchSubmissionPending || !can('edit') || !actorId) return;
     const ownerEpoch = privateCacheActorEpoch();
     const current = () =>
       scope.current.mounted && scope.current.canEdit && ownerEpoch === privateCacheActorEpoch();
@@ -642,6 +655,21 @@ function LaunchSpaceContent({
       className="team-panel team-launch-space flex min-w-0 flex-col gap-4"
       aria-label={t('launchesTitle')}
     >
+      <LaunchAssistant
+        teamId={teamId}
+        canEdit={can('edit') && Boolean(actorId)}
+        onOpenLaunch={id => route(id)}
+        onLaunch={async (rows, batchKey) => {
+          const known = new Map(items.map(item => [item.id, item.method]));
+          await submitBatch(
+            rows.map(row => ({ id: row.launchId, version: row.version, method: known.get(row.launchId) ?? 'catalog' })),
+            batchKey
+          );
+        }}
+        onChanged={() => {
+          void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
+        }}
+      />
       <div className="launch-list-toolbar flex flex-wrap items-center gap-2">
         <div className="w-full sm:w-56">
           <Input

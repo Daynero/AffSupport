@@ -8214,6 +8214,28 @@ export type GeneratedDatabase = {
         }[];
       };
       ai_allowance_status: { Args: { p_feature: string }; Returns: Json };
+      ai_credits_status: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_ai_budget_overview: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_ai_set_month_limit: { Args: { p_limit: number }; Returns: Json };
+      admin_ai_set_base_grant: { Args: { p_grant: number }; Returns: Json };
+      admin_ai_set_user_grant: { Args: { p_email: string; p_grant: number | null }; Returns: Json };
+      admin_ai_set_assistant_enabled: { Args: { p_enabled: boolean }; Returns: Json };
+      admin_ai_assistant_spaces: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_ai_set_assistant_space: { Args: { p_team: string; p_enabled: boolean }; Returns: Json };
+      assistant_open: { Args: { p_team: string }; Returns: Json };
+      assistant_launch_marks: { Args: { p_team: string; p_ids: string[] }; Returns: string[] };
+      assistant_review_launched: { Args: { p_card: string; p_batch_key: string }; Returns: Json };
+      save_launch_offer_defaults_masked: {
+        Args: {
+          p_team: string;
+          p_offer: string;
+          p_mask: string[];
+          p_before: Json;
+          p_values: Json;
+          p_key: string;
+        };
+        Returns: Json;
+      };
       ack_space_tariff_toast: { Args: { p_event: string }; Returns: boolean };
       add_team_account_agent: {
         Args: {

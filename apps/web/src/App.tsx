@@ -48,7 +48,7 @@ import { useCompactToolbar } from './components/useCompactToolbar';
 import { useAgent } from './AgentContext';
 import { internalLink, usePageEntrance } from './lib/navigation';
 import { UserMenu } from './components/UserMenu';
-import { SupportButton } from './components/SupportDialog';
+import { CreditsButton } from './credits/CreditsButton';
 import { analytics } from './analytics/service';
 import {
   compressionErrorCategory,
@@ -926,7 +926,7 @@ export function Header({ connection, t }: { connection: ConnectionState; t: Tran
             <SotyLogo name={t('appName')} />
           </a>
         </h1>
-        <SupportButton />
+        <CreditsButton />
       </div>
       <div className="topbar-actions">
         <PowerThrottle />

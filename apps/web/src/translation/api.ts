@@ -15,6 +15,7 @@ import {
   type TranslationAllowance,
   type TranslationStreamEvent
 } from '@video-compressor/shared';
+import { AI_PRICE_VERSION } from '@video-compressor/shared';
 import { invokeTeamFunction, TeamApiError, throwRpc } from '../api/team';
 import { publicConfig } from '../lib/config';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
@@ -34,6 +35,9 @@ export interface StartedTranslation {
   reused: boolean;
   units: number;
   allowance: TranslationAllowance | null;
+  /** 064: credits charged for this press (0 when joining one already started) and the balance. */
+  price?: number;
+  credits?: unknown;
 }
 
 function isStarted(value: unknown): value is StartedTranslation {
@@ -49,7 +53,8 @@ function isStarted(value: unknown): value is StartedTranslation {
 }
 
 export interface TranslationClient {
-  start(targetLanguage: string, source: TranslationSource): Promise<StartedTranslation>;
+  /** `price` is the one the button showed; the server refuses a different one (064). */
+  start(targetLanguage: string, source: TranslationSource, price: number): Promise<StartedTranslation>;
   watch(
     translationId: string,
     onEvent: (event: TranslationStreamEvent) => void,
@@ -96,8 +101,12 @@ async function readLines(
 }
 
 export const translationClient: TranslationClient = {
-  start(targetLanguage, source) {
-    return invokeTeamFunction(FUNCTION, { action: 'start', targetLanguage, source }, isStarted);
+  start(targetLanguage, source, price) {
+    return invokeTeamFunction(
+      FUNCTION,
+      { action: 'start', targetLanguage, source, expectedPrice: price, priceVersion: AI_PRICE_VERSION },
+      isStarted
+    );
   },
 
   async watch(translationId, onEvent, signal) {

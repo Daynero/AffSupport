@@ -1,7 +1,7 @@
 import {
   sameTranslationLanguage,
-  TRANSLATION_TARGET_LANGUAGES,
-  TRANSLATION_DAILY_UNITS_DEFAULT
+  translationPrice,
+  TRANSLATION_TARGET_LANGUAGES
 } from '@video-compressor/shared';
 import { Languages, Plus } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -10,7 +10,7 @@ import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
 import { LanguageCombobox } from '../transcription/LanguageCombobox';
 import { languageDisplayName } from '../transcription/language';
-import { allowanceFigures, formatMinutes, formatResetTime } from './format';
+import { kyivTime, refreshCredits, useCredits } from '../credits/store';
 import { failureText } from './TranslationProgress';
 import { readRecentTargets, type TextVariantsState } from './useTextVariants';
 
@@ -26,8 +26,9 @@ function defaultTarget(
 
 /**
  * Choosing a language and seeing what it costs, in one small surface (063, FR-002/FR-012/FR-013).
- * When the text does not fit, there is no button that would do nothing — only the numbers and
- * when the allowance renews.
+ * 064: the cost is in credits, on the button itself («Перекласти · 3»), and exactly that is
+ * charged. When the credits do not cover it, there is no button that would do nothing — only how
+ * many are missing and when they renew.
  */
 export function TranslateLauncher({
   state,
@@ -67,7 +68,7 @@ export function TranslateLauncher({
         state.translations.map(item => item.language)
       )
     );
-    void state.refreshAllowance();
+    void refreshCredits();
   }, [open]);
 
   const codes = useMemo(
@@ -77,13 +78,11 @@ export function TranslateLauncher({
   const existing = state.translations.find(item => item.language === target);
   const running = state.running.get(target);
   const ready = existing?.status === 'ready' && !existing.stale;
-  const allowance = state.allowance;
-  const figures = allowanceFigures(
-    state.units,
-    allowance?.usedUnits ?? 0,
-    allowance?.limitUnits ?? TRANSLATION_DAILY_UNITS_DEFAULT
-  );
-  const minutes = (value: number) => formatMinutes(value, language);
+  // 064: the price in credits, known before pressing and charged exactly.
+  const credits = useCredits();
+  const price = translationPrice(state.units, target);
+  const balance = credits.status;
+  const short = balance ? Math.max(0, price - balance.available) : 0;
 
   const confirm = async () => {
     if (busy) return;
@@ -96,7 +95,7 @@ export function TranslateLauncher({
       onStarted?.(target);
       return;
     }
-    if (outcome.code !== 'TRANSLATION_ALLOWANCE_EXCEEDED') {
+    if (outcome.code !== 'INSUFFICIENT_CREDITS') {
       setFailure(outcome.code);
     }
   };
@@ -126,31 +125,24 @@ export function TranslateLauncher({
         </Button>
       </div>
     );
-  } else if (failure === 'TRANSLATION_UNAVAILABLE' || (state.allowanceError && !allowance)) {
+  } else if (failure === 'TRANSLATION_UNAVAILABLE' || (credits.error && !balance)) {
     body = (
       <Alert color="neutral" variant="soft" live="status">
         {t('textTranslationUnavailable')}
       </Alert>
     );
-  } else if (!allowance) {
+  } else if (!balance) {
     body = (
       <p className="translate-launcher-line">
         <Spinner />
       </p>
     );
-  } else if (!figures.fits) {
+  } else if (short > 0 || !balance.paidOpen) {
     body = (
       <Alert color="warning" variant="soft" live="status">
-        {figures.overDaily
-          ? t('textTranslationTooLong', {
-              need: minutes(figures.need),
-              limit: minutes(figures.limit)
-            })
-          : t('textTranslationShort', {
-              need: minutes(figures.need),
-              left: minutes(figures.left),
-              time: formatResetTime(allowance.resetsAt, language)
-            })}
+        {!balance.paidOpen
+          ? t('aiMonthExhausted')
+          : t('assistantShort', { missing: short, time: kyivTime(balance.resetsAt, language) })}
       </Alert>
     );
   } else {
@@ -162,13 +154,9 @@ export function TranslateLauncher({
           </Alert>
         )}
         <div className="translate-launcher-row">
-          <Tooltip label={t('textTranslationMinuteHint')}>
+          <Tooltip label={t('creditsPrices')}>
             <span className="translate-launcher-cost" tabIndex={0}>
-              {t('textTranslationCost', {
-                need: minutes(figures.need),
-                left: minutes(figures.left),
-                limit: minutes(figures.limit)
-              })}
+              {t('creditsToday', { available: balance.available, grant: balance.grant })}
             </span>
           </Tooltip>
           <Button
@@ -178,9 +166,7 @@ export function TranslateLauncher({
             loading={busy}
             onClick={() => void confirm()}
           >
-            {stale(existing)
-              ? t('textTranslationRefresh', { need: minutes(figures.need) })
-              : t('textTranslationAction')}
+            {t('textTranslatePrice', { price })}
           </Button>
         </div>
       </>
@@ -210,7 +196,7 @@ export function TranslateLauncher({
         leading={<Languages size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
         onClick={() => setOpen(value => !value)}
       >
-        {t('textTranslationAction')}
+        {state.units > 0 ? t('textTranslatePrice', { price }) : t('textTranslationAction')}
       </Button>
     );
 
@@ -253,6 +239,3 @@ export function TranslateLauncher({
   );
 }
 
-function stale(variant: { status: string; stale: boolean } | undefined): boolean {
-  return variant?.status === 'ready' && variant.stale;
-}

@@ -12,6 +12,8 @@ import {
   type TranslationFailureCode,
   type TranslationStreamEvent
 } from '@video-compressor/shared';
+import { parseAiCreditsStatus, translationPrice } from '@video-compressor/shared';
+import { refreshCredits, setCredits } from '../credits/store';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TeamApiError } from '../api/team';
 import { translationClient, type TranslationClient, type TranslationSource } from './api';
@@ -367,9 +369,12 @@ export function useTextVariants(
             };
       trackTranslation({ action: 'requested', scope: source.scope, targetLanguage, units });
       try {
-        const started = await client.start(targetLanguage, request);
+        const started = await client.start(targetLanguage, request, translationPrice(units, targetLanguage));
         rememberTarget(targetLanguage);
         if (started.allowance) setAllowance(started.allowance);
+        const credits = parseAiCreditsStatus(started.credits);
+        if (credits) setCredits(credits);
+        else void refreshCredits();
         if (started.status === 'completed') {
           upsert(await client.get(started.translationId));
           trackTranslation({
@@ -419,6 +424,8 @@ export function useTextVariants(
         const code = error instanceof TeamApiError ? error.code : 'TEAM_TRANSPORT_UNAVAILABLE';
         trackTranslation({ action: 'blocked', scope: source.scope, targetLanguage, units, code });
         if (code === 'TRANSLATION_ALLOWANCE_EXCEEDED') void refreshAllowance();
+        if (code === 'INSUFFICIENT_CREDITS' || code === 'AI_MONTH_EXHAUSTED' || code === 'PRICE_CHANGED')
+          void refreshCredits();
         return {
           ok: false,
           code,

@@ -24,7 +24,10 @@ import {
   type TranslationAllowance,
   type TranslationStreamEvent
 } from '../../../packages/shared/dist/team/transcript-translation.js';
-import { allowanceExceeded, recordModelUsage, type Rpc } from '../_shared/ai-allowance.ts';
+// @deno-types="../../../packages/shared/dist/team/ai-credits.d.ts"
+import { AI_CREDIT_USD, AI_PRICE_VERSION, translationPrice } from '../../../packages/shared/dist/team/ai-credits.js';
+import { recordModelUsage, type Rpc } from '../_shared/ai-allowance.ts';
+import { creditRefusal, translationUpperUsd } from '../_shared/ai-credits.ts';
 import type { ClaudeClient } from '../_shared/claude.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
@@ -44,7 +47,14 @@ export type TranslateSource =
     };
 
 export type TranslateCommand =
-  | { action: 'start'; targetLanguage: string; source: TranslateSource }
+  | {
+      action: 'start';
+      targetLanguage: string;
+      source: TranslateSource;
+      /** 064: the price the button showed; absent from a client older than credits. */
+      expectedPrice: number | null;
+      priceVersion: string | null;
+    }
   | { action: 'watch'; translationId: string };
 
 function invalid(): never {
@@ -58,6 +68,11 @@ export function parseTranslateCommand(body: unknown): TranslateCommand {
     return { action: 'watch', translationId: body.translationId.toLowerCase() };
   }
   if (body.action !== 'start' || !isTranslationTargetLanguage(body.targetLanguage)) invalid();
+  const expectedPrice =
+    typeof body.expectedPrice === 'number' && Number.isInteger(body.expectedPrice) && body.expectedPrice > 0
+      ? body.expectedPrice
+      : null;
+  const priceVersion = typeof body.priceVersion === 'string' ? body.priceVersion : null;
   const source = body.source;
   if (!isRecord(source)) invalid();
   if (source.scope === 'team_video') {
@@ -72,7 +87,9 @@ export function parseTranslateCommand(body: unknown): TranslateCommand {
     return {
       action: 'start',
       targetLanguage: body.targetLanguage,
-      source: { scope: 'team_video', teamId: source.teamId, videoId: source.videoId }
+      source: { scope: 'team_video', teamId: source.teamId, videoId: source.videoId },
+      expectedPrice,
+      priceVersion
     };
   }
   if (source.scope === 'personal') {
@@ -100,7 +117,9 @@ export function parseTranslateCommand(body: unknown): TranslateCommand {
         documentKey,
         sourceLanguage: (sourceLanguage as string | null) ?? null,
         segments: segments as string[]
-      }
+      },
+      expectedPrice,
+      priceVersion
     };
   }
   invalid();
@@ -200,18 +219,9 @@ export interface StartResult {
   reused: boolean;
   units: number;
   allowance: TranslationAllowance | null;
-}
-
-function allowanceOf(value: unknown): TranslationAllowance | null {
-  if (!isRecord(value)) return null;
-  const { feature, limitUnits, usedUnits, day, resetsAt } = value;
-  return typeof feature === 'string' &&
-    typeof limitUnits === 'number' &&
-    typeof usedUnits === 'number' &&
-    typeof day === 'string' &&
-    typeof resetsAt === 'string'
-    ? { feature, limitUnits, usedUnits, day, resetsAt }
-    : null;
+  /** 064: the credits charged (0 when joining a translation already started) and the balance. */
+  price?: number;
+  credits?: unknown;
 }
 
 export async function startTranslation(
@@ -224,10 +234,18 @@ export async function startTranslation(
   if (units <= 0)
     throw new TeamFunctionError('TRANSLATION_SOURCE_UNAVAILABLE', { retryable: false });
   const fingerprint = await translationFingerprint(source.segments);
-  // Checked before anything is reserved: without a model there is nothing to pay for.
+  // Checked before anything is charged: without a model there is nothing to pay for.
   if (!deps.client) throw new TeamFunctionError('TRANSLATION_UNAVAILABLE', { retryable: true });
-
-  const { data, error } = await deps.serviceRpc('service_transcript_translation_begin', {
+  // 064: the price is the one the button showed, or nothing is charged and nothing runs.
+  const price = translationPrice(units, command.targetLanguage);
+  if (command.expectedPrice === null) throw new TeamFunctionError('CLIENT_UPGRADE', { retryable: false });
+  if (command.expectedPrice !== price || command.priceVersion !== AI_PRICE_VERSION) {
+    throw new TeamFunctionError('PRICE_CHANGED', {
+      retryable: false,
+      details: { price, priceVersion: AI_PRICE_VERSION }
+    });
+  }
+  const credited = await deps.serviceRpc('service_transcript_translation_begin_credits', {
     p_scope: source.scope,
     p_team: source.teamId,
     p_video: source.videoId,
@@ -236,47 +254,50 @@ export async function startTranslation(
     p_fingerprint: fingerprint,
     p_source_language: source.sourceLanguage,
     p_target_language: command.targetLanguage,
-    // One translated string per sentence (groupTranslationUnits), not per recognizer piece.
     p_total_segments: groupTranslationUnits(source.segments).length,
     p_units: units,
-    p_requested_by: deps.userId
+    p_requested_by: deps.userId,
+    p_price: price,
+    p_price_version: AI_PRICE_VERSION,
+    p_usd_upper: Number(translationUpperUsd(price, AI_CREDIT_USD).toFixed(8))
   });
-  if (error) {
-    const exceeded = allowanceExceeded(error);
-    if (exceeded) {
-      const status = await deps.callerRpc('ai_allowance_status', {
-        p_feature: TRANSCRIPT_TRANSLATION_FEATURE
-      });
-      const allowance = allowanceOf(status.data);
-      throw new TeamFunctionError('TRANSLATION_ALLOWANCE_EXCEEDED', {
-        retryable: false,
-        details: {
-          neededUnits: exceeded.neededUnits || units,
-          usedUnits: exceeded.usedUnits || allowance?.usedUnits || 0,
-          limitUnits: exceeded.limitUnits || allowance?.limitUnits || 0,
-          resetsAt: allowance?.resetsAt ?? null
-        }
-      });
+  if (credited.error) {
+    const refusal = creditRefusal(credited.error);
+    if (refusal && refusal.code !== 'KEY_REUSED') {
+      const details: Record<string, string | number | boolean | null> = { price };
+      for (const [key, value] of Object.entries(refusal.details))
+        if (['string', 'number', 'boolean'].includes(typeof value)) details[key] = value as string | number | boolean;
+      throw new TeamFunctionError(refusal.code, { retryable: false, details });
     }
-    failFromRpc(error);
+    failFromRpc(credited.error);
   }
-  if (!isRecord(data) || typeof data.id !== 'string' || !UUID.test(data.id)) {
+  const begun = credited.data;
+  if (!isRecord(begun) || typeof begun.id !== 'string' || !UUID.test(begun.id)) {
     throw new TeamFunctionError('TRANSLATION_UNAVAILABLE', { retryable: true });
   }
-  const translationId = data.id;
-  const status = data.status === 'completed' ? 'completed' : 'processing';
-  const reused = data.reused === true;
-  if (!reused) {
-    deps.background(runTranslation(translationId, source, command.targetLanguage, deps));
+  const reusedCredit = begun.reused === true;
+  if (!reusedCredit) {
+    deps.background(
+      runTranslation(begun.id, source, command.targetLanguage, deps, typeof begun.opKey === 'string' ? begun.opKey : null)
+    );
   }
-  return { translationId, status, reused, units, allowance: allowanceOf(data.allowance) };
+  return {
+    translationId: begun.id,
+    status: begun.status === 'completed' ? 'completed' : 'processing',
+    reused: reusedCredit,
+    units,
+    allowance: null,
+    price: reusedCredit ? 0 : price,
+    credits: begun.credits ?? null
+  };
 }
 
 async function runTranslation(
   translationId: string,
   source: ResolvedSource,
   targetLanguage: string,
-  deps: TranslateDeps
+  deps: TranslateDeps,
+  opKey: string | null = null
 ): Promise<void> {
   try {
     const result = await translateTranscript({
@@ -290,7 +311,8 @@ async function runTranslation(
           feature: TRANSCRIPT_TRANSLATION_FEATURE,
           userId: deps.userId,
           subjectId: translationId,
-          entry
+          entry,
+          opKey
         }),
       onProgress: async completed => {
         await deps.serviceRpc('service_transcript_translation_progress', {
