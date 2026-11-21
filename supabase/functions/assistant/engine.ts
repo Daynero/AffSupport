@@ -261,6 +261,34 @@ export interface Resolution {
   /** «g18*free» → every free ad account of g18, «g18*all», «*free»: expanded by Soty. */
   expansions: Map<string, AgentCandidate[]>;
   missing: Array<{ field: string; written: string; code: string }>;
+  /** Offers this command created, as named. */
+  createdOffers: string[];
+}
+
+/** Answers of the «no such offer» question. */
+export const NEW_OFFER = 'new-offer';
+export const NO_OFFER = 'no-offer';
+
+/** An offer a command needs to exist: one it creates drafts on, saves defaults for, or creates. */
+function offerWanted(plan: AssistantPlan, written: string): boolean {
+  return plan.actions.some(
+    action =>
+      action.offer === written &&
+      (action.type === 'create_drafts' ||
+        action.type === 'save_offer_defaults' ||
+        action.type === 'create_offer')
+  );
+}
+
+async function createOffer(deps: EngineDeps, written: string, n: number): Promise<string> {
+  const data = await call(deps.callerRpc, 'create_launch_dictionary', {
+    p_team: deps.teamId,
+    p_kind: 'offers',
+    p_value: written.trim().replace(/\s+/gu, ' ').slice(0, 160),
+    p_request_key: requestKey(deps, 900, `offer${n}`)
+  });
+  if (!isRecord(data) || typeof data.id !== 'string') throw new EngineRefusal('UNAVAILABLE');
+  return data.id;
 }
 
 /** Resolves every reference, or returns the first ambiguous one as a question. */
@@ -276,7 +304,8 @@ export async function resolvePlan(
     ids: new Map(),
     names: new Map(),
     materials: new Map(),
-    missing: []
+    missing: [],
+    createdOffers: []
   };
   for (const ref of references(plan)) {
     const [kind, ...rest] = ref.split(':') as [RefKind, ...string[]];
@@ -345,8 +374,36 @@ export async function resolvePlan(
       if (picked.kind === 'one') id = picked.candidate.id;
     } else {
       const result = matchAssistantName(written, candidates);
-      if (result.kind === 'many') return { ok: false, ref, options: result.candidates };
-      if (result.kind === 'one') id = result.candidate.id;
+      if (result.kind === 'many' && chosen !== NEW_OFFER)
+        return { ok: false, ref, options: result.candidates };
+      if (result.kind === 'one' && chosen !== NEW_OFFER) id = result.candidate.id;
+      else if (kind === 'offer' && chosen === NO_OFFER) continue;
+      else if (kind === 'offer' && offerWanted(plan, written)) {
+        // A new offer: created when the person asked for it, otherwise asked about once.
+        const asked = plan.actions.some(a => a.type === 'create_offer' && a.offer === written);
+        if (!asked && chosen !== NEW_OFFER)
+          return {
+            ok: false,
+            ref,
+            options: [
+              { id: NEW_OFFER, name: `Створити офер «${written}»` },
+              { id: NO_OFFER, name: 'Без офера' }
+            ]
+          };
+        try {
+          id = await createOffer(deps, written, resolution.createdOffers.length);
+          names.offers.push({ id, name: written });
+          resolution.createdOffers.push(written);
+        } catch (error) {
+          if (!(error instanceof EngineRefusal)) throw error;
+          resolution.missing.push({
+            field: 'offerId',
+            written,
+            code: error.code === 'PERMISSION_DENIED' ? 'OFFER_CREATE_FORBIDDEN' : error.code
+          });
+          continue;
+        }
+      }
     }
     if (!id) {
       resolution.missing.push({
@@ -795,6 +852,50 @@ async function proposeDefaults(
  * Runs a resolved plan. A profile proposal stops the plan: the actions after it wait for the
  * person's «Зберегти» and run then, without a model.
  */
+/**
+ * The drafts an action points at: rows of the shown card when it names them, otherwise the
+ * space's drafts of the named days (today and tomorrow when none) narrowed by offer and account.
+ */
+async function selectRows(
+  action: AssistantAction,
+  deps: EngineDeps,
+  resolution: Resolution,
+  created: string[]
+): Promise<{ rows: AssistantRow[]; truncated: boolean; date: string | null }> {
+  if (action.rows.length > 0) {
+    const ids = action.rows.flatMap(n => (deps.shown[n - 1] ? [deps.shown[n - 1]!.launchId] : []));
+    if (ids.length === 0) throw new EngineRefusal('NO_CONTEXT_CARD');
+    return { ...(await cardRows(deps, ids, null)), date: null };
+  }
+  const accounts = action.accounts.map(a => a.split('*')[0]!).filter(Boolean);
+  const filtered = Boolean(action.offer) || accounts.length > 0 || action.dates !== null;
+  if (!filtered) {
+    const ids = created.length ? created : deps.shown.map(row => row.launchId);
+    if (ids.length) return { ...(await cardRows(deps, ids, null)), date: null };
+  }
+  const days = action.dates
+    ? dateList(action, deps).filter((day): day is string => Boolean(day))
+    : [launchDayInZone(deps.now, deps.timezone, 0), launchDayInZone(deps.now, deps.timezone, 1)];
+  let rows: AssistantRow[] = [];
+  let truncated = false;
+  for (const day of days.slice(0, 7)) {
+    const part = await cardRows(deps, null, day);
+    rows.push(...part.rows);
+    truncated ||= part.truncated;
+  }
+  if (action.offer) {
+    const id = resolution.ids.get(`offer:${action.offer}`);
+    const name = id ? resolution.names.get(id) : null;
+    rows = name ? rows.filter(row => row.offer === name) : [];
+  }
+  if (accounts.length)
+    rows = rows.filter(
+      row => row.account !== null && accounts.some(written => sameAccount(written, row.account!))
+    );
+  rows = rows.slice(0, ASSISTANT_MAX_DRAFTS).map((row, index) => ({ ...row, n: index + 1 }));
+  return { rows, truncated, date: days.length === 1 ? days[0]! : null };
+}
+
 export async function executePlan(
   plan: AssistantPlan,
   deps: EngineDeps,
@@ -837,12 +938,38 @@ export async function executePlan(
         deferred = plan.actions.slice(step + 1);
         break;
       } else if (action.type === 'show_review' || action.type === 'show_status') {
-        cards.push(
-          await reviewCard(
-            deps,
-            action.dates?.kind === 'today' ? 'today' : created.length ? created : 'shown'
-          )
-        );
+        const picked = await selectRows(action, deps, resolution, created);
+        cards.push({
+          kind: 'review',
+          payload: {
+            date: picked.date,
+            timezone: deps.timezone,
+            rows: picked.rows,
+            ready: picked.rows.filter(row => row.blocked.length === 0).length,
+            truncated: picked.truncated
+          }
+        });
+      } else if (action.type === 'archive_drafts') {
+        // Only a card: the drafts go away when the person presses «Видалити N» on it.
+        const picked = await selectRows(action, deps, resolution, created);
+        const launched = picked.rows.filter(row =>
+          row.blocked.some(entry => entry.code === 'LAUNCHED')
+        ).length;
+        const rows = picked.rows
+          .filter(row => !row.blocked.some(entry => entry.code === 'LAUNCHED'))
+          .map((row, index) => ({ ...row, n: index + 1 }));
+        cards.push({
+          kind: 'review',
+          payload: {
+            purpose: 'archive',
+            date: picked.date,
+            timezone: deps.timezone,
+            rows,
+            ready: rows.length,
+            launchedKept: launched,
+            truncated: picked.truncated
+          }
+        });
       } else if (action.type === 'ask' && action.question) {
         cards.push({
           kind: 'question',
@@ -872,9 +999,24 @@ export async function executePlan(
         unresolved: problems,
         profile: null,
         campaigns: rows.reduce((sum, row) => sum + (row.campaignCount ?? 0), 0),
-        date: rows[0]?.launchDate ?? null
+        date: rows[0]?.launchDate ?? null,
+        createdOffers: resolution.createdOffers
       }
     });
+  } else if (resolution.createdOffers.length > 0 && !cards.some(card => card.kind === 'profile')) {
+    cards.unshift({ kind: 'status', payload: { offersCreated: resolution.createdOffers } });
+    if (problems.length > 0)
+      cards.push({
+        kind: 'result',
+        payload: {
+          rows: [],
+          differences,
+          unresolved: problems,
+          profile: null,
+          campaigns: 0,
+          date: null
+        }
+      });
   } else if (problems.length > 0) {
     cards.unshift({
       kind: 'result',

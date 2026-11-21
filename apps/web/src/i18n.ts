@@ -83,6 +83,13 @@ export function assistantDraftsKey(language: Language, count: number): Translati
   return category === 'few' ? 'assistantDraftsFew' : 'assistantDraftsMany';
 }
 
+/** 064 — «98 чарунок»: the AI balance, wherever it is shown. */
+export function creditsCountKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'creditsCountOne';
+  return category === 'few' ? 'creditsCountFew' : 'creditsCountMany';
+}
+
 /** 023 — "12 catalogs" on the updater's chip. */
 export function catalogCountKey(language: Language, count: number): TranslationKey {
   const category = pluralCategory(language, count);

@@ -26,6 +26,7 @@ export function AiBudgetPanel() {
   const [base, setBase] = useState('');
   const [email, setEmail] = useState('');
   const [grant, setGrant] = useState('');
+  const [bonus, setBonus] = useState('');
   const [busy, setBusy] = useState(false);
 
   const apply = useCallback((next: AiBudgetOverview) => {
@@ -186,9 +187,36 @@ export function AiBudgetPanel() {
           </Button>
         </div>
         {overview.grants.length > 0 && (
-          <ul className="credits-panel-recent">
+          <ul className="ai-budget-list">
             {overview.grants.map(row => (
               <li key={row.email}>{`${row.email} · ${row.dailyGrant}`}</li>
+            ))}
+          </ul>
+        )}
+        <div className="ai-budget-grid">
+          <FormField label={t('aiBudgetBonus')} hint={t('aiBudgetBonusHint')}>
+            <Input type="number" value={bonus} onChange={event => setBonus(event.target.value)} />
+          </FormField>
+          <Button
+            size="sm"
+            disabled={busy || !email || !Number(bonus)}
+            onClick={() =>
+              void run(async () => {
+                const next = await aiBudgetApi.grantBonus(email, Math.trunc(Number(bonus)), null);
+                setBonus('');
+                return next;
+              })
+            }
+          >
+            {t('aiBudgetBonusGive')}
+          </Button>
+        </div>
+        {overview.bonuses.length > 0 && (
+          <ul className="ai-budget-list">
+            {overview.bonuses.map(row => (
+              <li key={row.email}>
+                {t('aiBudgetBonusRow', { email: row.email, count: row.balance })}
+              </li>
             ))}
           </ul>
         )}
@@ -200,7 +228,7 @@ export function AiBudgetPanel() {
           label={t('aiBudgetAssistant')}
           onChange={enabled => void run(() => aiBudgetApi.setAssistantEnabled(enabled))}
         />
-        <ul className="credits-panel-recent">
+        <ul className="ai-budget-list">
           {spaces.map(space => (
             <li key={space.teamId}>
               <Switch

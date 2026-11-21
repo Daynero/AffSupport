@@ -192,6 +192,13 @@ export const assistantApi = {
     );
     throwRpc(error);
   },
+  /** The drafts of an «archive» card were removed: the card shows it as done from now on. */
+  async cardConfirmed(cardId: string): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('assistant_card_confirmed', { p_card: cardId })
+    );
+    throwRpc(error);
+  },
   async launchMarks(teamId: string, ids: string[]): Promise<Set<string>> {
     if (ids.length === 0) return new Set();
     const { data, error } = await withFreshSession(() =>

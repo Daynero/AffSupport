@@ -144,7 +144,7 @@ describe('translating a space transcript', () => {
     // 23 characters are one started minute: one credit, on the button itself.
     await user.click(await screen.findByRole('button', { name: /Translate · 1/u }));
     const dialog = await screen.findByRole('dialog');
-    await waitFor(() => expect(within(dialog).getByText('Today 87 of 100')).toBeTruthy());
+    await waitFor(() => expect(within(dialog).getByText('87 credits')).toBeTruthy());
     await user.click(within(dialog).getByRole('button', { name: 'Translate · 1' }));
     expect(start).toHaveBeenCalledWith(
       'uk',

@@ -926,9 +926,9 @@ export function Header({ connection, t }: { connection: ConnectionState; t: Tran
             <SotyLogo name={t('appName')} />
           </a>
         </h1>
-        <CreditsButton />
       </div>
       <div className="topbar-actions">
+        <CreditsButton />
         <PowerThrottle />
         <ThemeToggle />
         {/* A group of two states where one is always chosen, which is what

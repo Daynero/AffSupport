@@ -68,6 +68,7 @@ const api = vi.hoisted(() => ({
   answer: vi.fn(),
   confirmProfile: vi.fn(),
   reviewLaunched: vi.fn(async () => undefined),
+  cardConfirmed: vi.fn(async () => undefined),
   launchMarks: vi.fn(async () => new Set())
 }));
 vi.mock('../apps/web/src/api/assistant', () => ({
@@ -80,6 +81,8 @@ const bridge = vi.hoisted(() => ({
   notifyLaunchesChanged: vi.fn()
 }));
 vi.mock('../apps/web/src/team/assistant/bridge', () => bridge);
+const launches = vi.hoisted(() => ({ archive: vi.fn(async () => ({})) }));
+vi.mock('../apps/web/src/api/launches', () => ({ launchApi: launches }));
 vi.mock('../apps/web/src/auth/AuthContext', () => ({
   useOptionalAuth: () => ({ user: { id: 'u' } })
 }));
@@ -111,6 +114,7 @@ beforeEach(async () => {
   available = 87;
   Object.values(api).forEach(fn => fn.mockClear());
   Object.values(bridge).forEach(fn => fn.mockClear());
+  launches.archive.mockClear();
   api.open.mockImplementation(async () => ({
     enabled: true,
     canSaveDefaults: true,
@@ -277,6 +281,62 @@ describe('the space assistant', () => {
     expect(await screen.findByText('Undone: 2')).toBeTruthy();
   });
 
+  it('removes the drafts of an archive card only when the button is pressed', async () => {
+    const user = userEvent.setup();
+    api.open.mockResolvedValueOnce({
+      enabled: true,
+      canSaveDefaults: true,
+      ...dialog,
+      credits,
+      messages: [
+        message([
+          {
+            id: 'card-archive',
+            kind: 'review',
+            state: 'open',
+            commandId: 'cmd-1',
+            payload: { purpose: 'archive', rows, ready: 2, launchedKept: 1 },
+            createdAt: 'x'
+          }
+        ])
+      ]
+    });
+    assistant();
+    expect(await screen.findByText(/Remove drafts: 2/u)).toBeTruthy();
+    expect(screen.getByText(/Launched ones stay: 1/u)).toBeTruthy();
+    expect(launches.archive).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Remove 2' }));
+    await waitFor(() => expect(launches.archive).toHaveBeenCalledTimes(2));
+    expect(launches.archive.mock.calls.map(call => [call[1], call[2]])).toEqual(
+      rows.map(row => [row.launchId, '1'])
+    );
+    expect(api.cardConfirmed).toHaveBeenCalledWith('card-archive');
+    expect(await screen.findByText('Removed: 2')).toBeTruthy();
+  });
+
+  it('says when it created an offer', async () => {
+    api.open.mockResolvedValueOnce({
+      enabled: true,
+      canSaveDefaults: true,
+      ...dialog,
+      credits,
+      messages: [
+        message([
+          {
+            id: 's',
+            kind: 'status',
+            state: 'open',
+            commandId: null,
+            payload: { offersCreated: ['Flexi TR'] },
+            createdAt: 'x'
+          }
+        ])
+      ]
+    });
+    assistant();
+    expect(await screen.findByText('Offer «Flexi TR» created')).toBeTruthy();
+  });
+
   it('stays hidden where the assistant is not enabled', async () => {
     api.open.mockResolvedValue({ enabled: false, canSaveDefaults: false, messages: [], credits });
     const { container } = render(<AssistantWidget teamId="team" canEdit />);
@@ -286,14 +346,21 @@ describe('the space assistant', () => {
 });
 
 describe('the credits button', () => {
-  it('shows today’s balance and opens the details with the reset time and recent charges', async () => {
+  it('shows the whole balance and splits it into daily and bonus, without a price list', async () => {
     const user = userEvent.setup();
+    available = 97;
+    api.open.mockClear();
+    const status = { ...credits, available: 97, daily: 87, bonus: 10 };
+    const { creditsApi } = await import('../apps/web/src/api/assistant');
+    vi.mocked(creditsApi.status).mockResolvedValueOnce(status);
+    await refreshCredits();
     render(<CreditsButton />);
-    await user.click(await screen.findByRole('button', { name: /Credits · 87/u }));
+    await user.click(await screen.findByRole('button', { name: '97 credits' }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText('Today 87 of 100')).toBeTruthy();
+    expect(within(dialog).getByText('87 of 100')).toBeTruthy();
+    expect(within(dialog).getByText('10')).toBeTruthy();
     expect(within(dialog).getByText(/Renew at .* Kyiv time/u)).toBeTruthy();
-    expect(within(dialog).getByText(/Assistant · −1/u)).toBeTruthy();
+    expect(within(dialog).queryByText(/Assistant · −1/u)).toBeNull();
   });
 });
 
@@ -323,6 +390,7 @@ describe('the AI budget panel', () => {
       baseDailyGrant: 100,
       assistantEnabled: true,
       grants: [],
+      bonuses: [{ email: 'a@example.com', balance: 40 }],
       updatedAt: '2026-11-11T10:00:00Z'
     });
     render(<AiBudgetPanel />);
@@ -330,5 +398,6 @@ describe('the AI budget panel', () => {
     expect(screen.getByText('$120.00')).toBeTruthy();
     expect(screen.getByText(/Full use of grants exceeds the limit/u)).toBeTruthy();
     expect(screen.getByText(/Price coverage: 1.2/u)).toBeTruthy();
+    expect(screen.getByText('a@example.com · bonus 40')).toBeTruthy();
   });
 });

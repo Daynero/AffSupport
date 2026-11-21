@@ -51,6 +51,7 @@ import {
   loadNames,
   resolvePlan,
   reviewCard,
+  NEW_OFFER,
   type Card,
   type EngineDeps
 } from './engine.ts';
@@ -397,7 +398,7 @@ async function runPlan(
         source: 'resolve',
         commandId,
         ref: resolved.ref,
-        about: resolved.ref.split(':').slice(1).join(':'),
+        about: questionAbout(resolved.ref, resolved.options),
         field: resolved.ref.split(':')[0],
         options: resolved.options.map(option => ({ id: option.id, label: option.name }))
       }
@@ -842,6 +843,21 @@ export async function answerQuestion(
     message: await reply(deps, started.commandId, result.text, result.cards),
     credits: await credits(deps)
   };
+}
+
+/** The question Soty asks when a written name is not one thing in the space. */
+function questionAbout(ref: string, options: Array<{ id: string }>): string {
+  const [kind, ...rest] = ref.split(':');
+  const written = rest.join(':');
+  if (kind === 'offer' && options.some(option => option.id === NEW_OFFER))
+    return `Офера «${written}» у просторі ще немає.`;
+  const what: Record<string, string> = {
+    offer: 'Який офер',
+    buyer: 'Який баєр',
+    account: 'Який РК',
+    material: 'Який креатив'
+  };
+  return `${what[kind ?? ''] ?? 'Що саме'} — «${written}»?`;
 }
 
 export async function confirmProfile(

@@ -79,13 +79,14 @@ function space(
     }
   };
   let profileVersion = 3;
+  const offers = [{ id: OFFER, value: 'ProCaps', updatedAt: 'x' }];
   let commands = 0;
   let launchSeq = 0;
   const rowOf = (launch: Launch) => ({
     id: launch.id,
     version: launch.version,
     config: launch.draft,
-    offer: launch.draft.offerId === OFFER ? 'ProCaps' : null,
+    offer: offers.find(offer => offer.id === launch.draft.offerId)?.value ?? null,
     account: AGENTS.find(agent => agent.id === launch.draft.agentRowId)?.agent_id ?? null,
     materials: MATERIALS
   });
@@ -132,7 +133,16 @@ function space(
         return ok({ id: 1, role: 'assistant', text: args.p_text, cards: list });
       }
       case 'list_launch_dictionaries':
-        return ok({ offers: [{ id: OFFER, value: 'ProCaps', updatedAt: 'x' }], buyers: [] });
+        return ok({ offers, buyers: [] });
+      case 'create_launch_dictionary': {
+        const created = {
+          id: id(300 + offers.length),
+          value: args.p_value as string,
+          updatedAt: 'x'
+        };
+        offers.push(created);
+        return ok({ id: created.id, value: created.value });
+      }
       case 'list_team_accounts':
         return ok(options.accounts ?? [{ id: 'acc', agents: AGENTS }]);
       case 'search_materials':
@@ -198,6 +208,12 @@ function space(
         return ok({ id: launch.id });
       }
       case 'service_assistant_rows':
+        if (args.p_date)
+          return ok(
+            [...launches.values()]
+              .filter(launch => !launch.archived && launch.draft.launchDate === args.p_date)
+              .map(rowOf)
+          );
         return ok(((args.p_ids as string[] | null) ?? []).map(key => rowOf(launches.get(key)!)));
       case 'service_assistant_effect':
         effects.push({ ...args, undone: false });
@@ -244,7 +260,18 @@ function space(
       client
     );
   const saves = () => calls.filter(([name]) => name === 'save_launch_draft');
-  return { launches, effects, cards, calls, rpc, run, send, saves, profile: () => profile };
+  return {
+    launches,
+    effects,
+    cards,
+    calls,
+    rpc,
+    run,
+    send,
+    saves,
+    offers,
+    profile: () => profile
+  };
 }
 
 const firstCard = (reply: { message: unknown }) =>
@@ -765,5 +792,129 @@ describe('064 assistant executor', () => {
     );
     expect([...world.launches.values()][0]!.draft.notes).toBeUndefined();
     expect(JSON.stringify(firstCard(reply).payload)).toContain('FIELD_FORM_ONLY');
+  });
+});
+
+describe('064 assistant — offers, removal and selection', () => {
+  const plan = (...actions: unknown[]) => ({ reply: 'Готово.', actions });
+
+  it('asks before creating an offer it does not know, then creates it and its drafts', async () => {
+    const world = space();
+    const client = model(
+      plan(
+        action({
+          offer: 'Flexi TR',
+          accounts: ['G1'],
+          fields: [{ field: 'creatives', op: 'set', value: ['TR 16'] }]
+        })
+      )
+    );
+    const asked = await world.send('на g1 флексі тр16', client);
+    const question = firstCard(asked);
+    expect(question.kind).toBe('question');
+    expect(question.payload.about).toBe('Офера «Flexi TR» у просторі ще немає.');
+    expect(world.saves()).toHaveLength(0);
+    const answered = await world.run(
+      { action: 'answer', cardId: question.id, optionId: 'new-offer', clientKey: 'answer-key-1' },
+      client
+    );
+    expect(world.offers.map(offer => offer.value)).toContain('Flexi TR');
+    const result = firstCard(answered);
+    expect(result.kind).toBe('result');
+    expect(result.payload.createdOffers).toEqual(['Flexi TR']);
+    const [draft] = [...world.launches.values()];
+    expect(draft!.draft.offerId).toBe(world.offers.find(o => o.value === 'Flexi TR')!.id);
+    expect(client.calls).toBe(1);
+  });
+
+  it('creates an offer the person asked to create without asking', async () => {
+    const world = space();
+    const reply = await world.send(
+      'створи офер Gastro BG',
+      model(plan(action({ type: 'create_offer', offer: 'Gastro BG' })))
+    );
+    expect(firstCard(reply)).toMatchObject({
+      kind: 'status',
+      payload: { offersCreated: ['Gastro BG'] }
+    });
+  });
+
+  it('does not create an offer from a filter', async () => {
+    const world = space();
+    const reply = await world.send(
+      'покажи нові офери',
+      model(
+        plan(
+          action({
+            type: 'show_review',
+            offer: 'Nope',
+            dates: { kind: 'today', date: null, days: null }
+          })
+        )
+      )
+    );
+    expect(world.offers).toHaveLength(1);
+    expect(firstCard(reply).kind).not.toBe('question');
+  });
+
+  it('shows removable drafts by filter and removes nothing by itself', async () => {
+    const world = space();
+    await world.send(
+      'три запуски',
+      model(
+        plan(
+          action({
+            offer: 'ProCaps',
+            accounts: ['G1', 'G2'],
+            dates: { kind: 'tomorrow', date: null, days: null }
+          }),
+          action({ accounts: ['G3'], dates: { kind: 'tomorrow', date: null, days: null } })
+        )
+      )
+    );
+    expect(world.launches.size).toBe(3);
+    const reply = await world.send(
+      'видали прокапс на завтра',
+      model(
+        plan(
+          action({
+            type: 'archive_drafts',
+            offer: 'ProCaps',
+            dates: { kind: 'tomorrow', date: null, days: null }
+          })
+        )
+      )
+    );
+    const card = firstCard(reply);
+    expect(card).toMatchObject({ kind: 'review', payload: { purpose: 'archive' } });
+    expect((card.payload.rows as unknown[]).length).toBe(2);
+    expect([...world.launches.values()].every(launch => !launch.archived)).toBe(true);
+    expect(world.calls.some(([name]) => name === 'archive_launch')).toBe(false);
+  });
+
+  it('narrows a review to an ad account', async () => {
+    const world = space();
+    await world.send(
+      'запуски',
+      model(
+        plan(
+          action({ accounts: ['G1', 'G2', 'G3'], dates: { kind: 'today', date: null, days: null } })
+        )
+      )
+    );
+    const reply = await world.send(
+      'що на g2 сьогодні',
+      model(
+        plan(
+          action({
+            type: 'show_review',
+            accounts: ['G2'],
+            dates: { kind: 'today', date: null, days: null }
+          })
+        )
+      )
+    );
+    const rows = firstCard(reply).payload.rows as Array<{ account: string }>;
+    expect(rows.map(row => row.account)).toEqual(['G2']);
   });
 });

@@ -5,9 +5,9 @@ import {
 } from '@video-compressor/shared';
 import { Languages, Plus } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Alert, Button, IconButton, Popover, Spinner, Tooltip } from '../components/ui/index';
+import { Alert, Button, IconButton, Popover, Spinner } from '../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
-import { useI18n } from '../i18n';
+import { creditsCountKey, useI18n } from '../i18n';
 import { LanguageCombobox } from '../transcription/LanguageCombobox';
 import { languageDisplayName } from '../transcription/language';
 import { kyivTime, refreshCredits, useCredits } from '../credits/store';
@@ -154,11 +154,9 @@ export function TranslateLauncher({
           </Alert>
         )}
         <div className="translate-launcher-row">
-          <Tooltip label={t('creditsPrices')}>
-            <span className="translate-launcher-cost" tabIndex={0}>
-              {t('creditsToday', { available: balance.available, grant: balance.grant })}
-            </span>
-          </Tooltip>
+          <span className="translate-launcher-cost">
+            {t(creditsCountKey(language, balance.available), { count: balance.available })}
+          </span>
           <Button
             color="primary"
             variant="solid"

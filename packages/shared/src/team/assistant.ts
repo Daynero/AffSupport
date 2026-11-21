@@ -12,6 +12,8 @@ import { assistantFieldPaths } from './launches/fields.js';
 export const ASSISTANT_ACTIONS = [
   'create_drafts',
   'update_fields',
+  'create_offer',
+  'archive_drafts',
   'save_offer_defaults',
   'show_review',
   'show_status',
@@ -67,7 +69,7 @@ export interface AssistantPlan {
 }
 
 /** Bounds of one plan, checked before anything is written. */
-export const ASSISTANT_MAX_ACTIONS = 8;
+export const ASSISTANT_MAX_ACTIONS = 16;
 export const ASSISTANT_MAX_FIELDS = 30;
 export const ASSISTANT_MAX_DRAFTS = 100;
 export const ASSISTANT_MAX_CAMPAIGNS = 1_000;

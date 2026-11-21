@@ -29,6 +29,8 @@ export interface AiBudgetOverview {
   baseDailyGrant: number;
   assistantEnabled: boolean;
   grants: Array<{ email: string; dailyGrant: number }>;
+  /** Bonus credits people still hold, largest first. */
+  bonuses: Array<{ email: string; balance: number }>;
   updatedAt: string;
 }
 
@@ -89,6 +91,9 @@ export function parseAiBudgetOverview(value: unknown): AiBudgetOverview | null {
       email: String(g.email),
       dailyGrant: num(g.dailyGrant)
     })),
+    bonuses: (Array.isArray(v.bonuses) ? (v.bonuses as Array<Record<string, unknown>>) : []).map(
+      b => ({ email: String(b.email), balance: num(b.balance) })
+    ),
     updatedAt: v.updatedAt
   };
 }
@@ -98,6 +103,7 @@ type AdminAiFunction =
   | 'admin_ai_set_month_limit'
   | 'admin_ai_set_base_grant'
   | 'admin_ai_set_user_grant'
+  | 'admin_ai_grant_bonus'
   | 'admin_ai_set_assistant_enabled'
   | 'admin_ai_assistant_spaces'
   | 'admin_ai_set_assistant_space';
@@ -134,6 +140,12 @@ export const aiBudgetApi = {
   },
   async setUserGrant(email: string, grant: number | null) {
     return overview(await call('admin_ai_set_user_grant', { p_email: email, p_grant: grant }));
+  },
+  /** Gives bonus credits; a negative amount takes back what is still unspent. */
+  async grantBonus(email: string, amount: number, note: string | null) {
+    return overview(
+      await call('admin_ai_grant_bonus', { p_email: email, p_amount: amount, p_note: note })
+    );
   },
   async setAssistantEnabled(enabled: boolean) {
     return overview(await call('admin_ai_set_assistant_enabled', { p_enabled: enabled }));

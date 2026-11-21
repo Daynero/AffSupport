@@ -32,8 +32,8 @@ describe('064 credit prices', () => {
   });
 
   it('keeps the worst assistant call within the two credits it can be charged', () => {
-    // Haiku 5.5: 8 000 input tokens at $0.10/MTok + 2 048 output tokens at $0.50/MTok.
-    const worst = 8_000 * 0.1e-6 + 2_048 * 0.5e-6;
+    // Haiku 5.5: 8 000 input tokens at $0.10/MTok + 2 400 output tokens at $0.50/MTok.
+    const worst = 8_000 * 0.1e-6 + 2_400 * 0.5e-6;
     expect(worst).toBeLessThanOrEqual(2 * AI_CREDIT_USD);
   });
 
@@ -48,7 +48,13 @@ describe('064 credit prices', () => {
         { feature: 'launch_assistant', kind: 'debit', amount: 1, at: '2026-11-21T10:00:00Z' }
       ]
     };
-    expect(parseAiCreditsStatus(status)).toEqual(status);
+    // A server before bonus credits: everything available was daily.
+    expect(parseAiCreditsStatus(status)).toEqual({ ...status, daily: 87, bonus: 0 });
+    expect(parseAiCreditsStatus({ ...status, available: 97, daily: 87, bonus: 10 })).toMatchObject({
+      daily: 87,
+      bonus: 10
+    });
+    expect(parseAiCreditsStatus({ ...status, bonus: -1 })).toBeNull();
     expect(parseAiCreditsStatus({ ...status, available: -1 })).toBeNull();
     expect(
       parseAiCreditsStatus({ ...status, recent: [{ ...status.recent[0], feature: 'wallet' }] })

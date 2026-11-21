@@ -56,7 +56,7 @@ describe('064 assistant contract', () => {
     ).toBeNull();
     // ask without a question
     expect(parseAssistantPlan({ reply: 'x', actions: [{ ...action, type: 'ask' }] })).toBeNull();
-    expect(parseAssistantPlan({ reply: 'x', actions: Array(9).fill(action) })).toBeNull();
+    expect(parseAssistantPlan({ reply: 'x', actions: Array(17).fill(action) })).toBeNull();
   });
 
   it('offers the model only fields the assistant may change and no way to start generation', () => {

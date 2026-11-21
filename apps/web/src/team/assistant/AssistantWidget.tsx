@@ -20,6 +20,7 @@ import {
   Play,
   Sparkles,
   SquarePen,
+  Trash2,
   Undo2
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
@@ -37,6 +38,8 @@ import {
   type AssistantConversation,
   type AssistantDialog
 } from '../../api/assistant';
+import { launchApi } from '../../api/launches';
+import { CreditsButton } from '../../credits/CreditsButton';
 import { Button, DropdownMenu, IconButton, Spinner, Tooltip } from '../../components/ui/index.js';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
 import { kyivTime, setCredits, useCredits } from '../../credits/store';
@@ -62,6 +65,7 @@ const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
   MATERIAL_NOT_FOUND: 'assistantNotFoundQuoted',
   NOT_FOUND: 'assistantNotFoundQuoted',
   NO_FREE_ACCOUNTS: 'assistantNoFreeAccounts',
+  OFFER_CREATE_FORBIDDEN: 'assistantOfferForbidden',
   FIELD_FORM_ONLY: 'assistantFieldFormOnly',
   FIELD_NOT_SUPPORTED: 'assistantFieldFormOnly',
   INVALID_VALUE: 'assistantInvalidValue',
@@ -370,6 +374,34 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     }
   };
 
+  // «Видалити N»: the person's own archive of each draft, with the version the card showed.
+  const archive = async (card: AssistantCard) => {
+    const rows = (card.payload.rows as AssistantRow[]) ?? [];
+    if (!rows.length || busy) return;
+    setBusy(true);
+    setError(null);
+    let failed = 0;
+    for (const item of rows) {
+      try {
+        await launchApi.archive(teamId, item.launchId, item.version, key(), false);
+      } catch {
+        failed++;
+      }
+    }
+    try {
+      if (failed < rows.length) await assistantApi.cardConfirmed(card.id);
+    } catch {
+      /* the drafts are gone either way; the card only remembers it */
+    }
+    markCard(card.id, {
+      state: failed < rows.length ? 'confirmed' : card.state,
+      payload: { ...card.payload, archived: rows.length - failed, failed }
+    });
+    if (failed) setError(t('assistantArchiveFailed', { count: failed }));
+    notifyLaunchesChanged(teamId);
+    setBusy(false);
+  };
+
   const answer = (card: AssistantCard, optionId: string) => {
     markCard(card.id, { state: 'answered', payload: { ...card.payload, answer: optionId } });
     void take(() => assistantApi.answer(teamId, dialogId, card.id, optionId, key()));
@@ -441,6 +473,10 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
       typeof payload.date === 'string' ? payload.date : (rows[0]?.launchDate ?? null)
     );
     const launched = card.state === 'launched';
+    const removing = payload.purpose === 'archive';
+    const removed = removing && card.state === 'confirmed';
+    const kept = typeof payload.launchedKept === 'number' ? payload.launchedKept : 0;
+    const created = Array.isArray(payload.createdOffers) ? (payload.createdOffers as string[]) : [];
     return (
       <section
         key={card.id}
@@ -450,13 +486,29 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         {rows.length > 0 && (
           <p className="assistant-card-title">
             <CheckCircle2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {[t(assistantDraftsKey(language, rows.length), { count: rows.length }), date]
+            {[
+              removing
+                ? t('assistantArchiveTitle', { count: rows.length })
+                : t(assistantDraftsKey(language, rows.length), { count: rows.length }),
+              date
+            ]
               .filter(Boolean)
               .join(' · ')}
           </p>
         )}
+        {created.length > 0 && (
+          <p className="assistant-note is-success">
+            <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t('assistantOfferCreated', { name: created.join(', ') })}
+          </p>
+        )}
         {rows.length === 0 && card.kind === 'review' && (
-          <p className="assistant-note">{t('assistantReviewEmpty')}</p>
+          <p className="assistant-note">
+            {t(removing ? 'assistantArchiveEmpty' : 'assistantReviewEmpty')}
+          </p>
+        )}
+        {kept > 0 && (
+          <p className="assistant-note">{t('assistantArchiveKeptLaunched', { count: kept })}</p>
         )}
         {rows.length > 0 && <ul className="assistant-rows">{rows.map(row)}</ul>}
         {unresolved.length > 0 && (
@@ -472,7 +524,30 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         {payload.truncated === true && (
           <p className="assistant-note">{t('assistantReviewTruncated')}</p>
         )}
-        {rows.length > 0 && (
+        {rows.length > 0 && removing && (
+          <div className="assistant-card-actions">
+            {removed ? (
+              <span className="assistant-note is-success">
+                <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {t('assistantArchived', {
+                  count: typeof payload.archived === 'number' ? payload.archived : rows.length
+                })}
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                color="error"
+                variant="soft"
+                loading={busy}
+                leading={<Trash2 size={16} strokeWidth={ICON_STROKE} />}
+                onClick={() => void archive(card)}
+              >
+                {t('assistantArchive', { count: rows.length })}
+              </Button>
+            )}
+          </div>
+        )}
+        {rows.length > 0 && !removing && (
           <div className="assistant-card-actions">
             {launched ? (
               <span className="assistant-note is-success">
@@ -573,6 +648,13 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         );
       }
       case 'status': {
+        if (Array.isArray(payload.offersCreated))
+          return (
+            <p key={card.id} className="assistant-note is-success">
+              <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {t('assistantOfferCreated', { name: (payload.offersCreated as string[]).join(', ') })}
+            </p>
+          );
         if (typeof payload.profileSaved === 'string')
           return (
             <p key={card.id} className="assistant-note is-success">
@@ -610,8 +692,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
   const sendLabel = price
     ? t(price === 1 ? 'assistantSendPrice' : 'assistantSendPriceFew', { price })
     : t('assistantSendFree');
-  const currentTitle =
-    dialogs.find(dialog => dialog.id === dialogId)?.title ?? t('assistantTitle');
+  const currentTitle = dialogs.find(dialog => dialog.id === dialogId)?.title ?? t('assistantTitle');
 
   if (!panel) {
     return (
@@ -668,6 +749,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
               }))
             ]}
           />
+          <CreditsButton compact offerAssistant={false} />
           <IconButton
             size="sm"
             label={t('assistantNewDialog')}

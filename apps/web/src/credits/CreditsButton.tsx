@@ -1,19 +1,27 @@
 /**
- * 064: «Чарунки · N» in the main header — today's credits, when they renew, what costs what, the
- * last charges, and the way to the launch assistant of the open space. The number is the same
- * one the assistant and translation show (credits/store).
+ * 064: чарунки — the AI balance, where a person can see it. One chip with the number, in the
+ * header and in the assistant's window; it opens the same short card: how many there are, which
+ * part renews tonight, which part is bonus and stays. No price list: the price of every paid
+ * action is on its own button, before it is pressed.
  */
-import { Coins } from 'lucide-react';
+import { Sparkle } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useOptionalAuth } from '../auth/AuthContext';
 import { Button, Popover, Progress } from '../components/ui/index.js';
-import { ICON_SIZE, ICON_STROKE } from '../components/icons.js';
-import { useI18n } from '../i18n';
-import { navigateTo, useBrowserRoute } from '../lib/navigation';
-import { buildTeamRoute, parseTeamRoute } from '../team/routes';
+import { ICON_STROKE } from '../components/icons.js';
+import { creditsCountKey, useI18n } from '../i18n';
+import { useBrowserRoute } from '../lib/navigation';
+import { parseTeamRoute } from '../team/routes';
 import { kyivTime, useCredits } from './store';
 
-export function CreditsButton() {
+export interface CreditsButtonProps {
+  /** `compact` is the assistant window's chip: the number only. */
+  compact?: boolean;
+  /** Where the card offers to open the assistant; false inside the assistant itself. */
+  offerAssistant?: boolean;
+}
+
+export function CreditsButton({ compact = false, offerAssistant = true }: CreditsButtonProps) {
   const { t, language } = useI18n();
   const signedIn = Boolean(useOptionalAuth()?.user);
   const credits = useCredits(signedIn);
@@ -23,76 +31,80 @@ export function CreditsButton() {
   if (!signedIn) return null;
   const status = credits.status;
   const here = parseTeamRoute(route);
-  const spaceId = here?.kind === 'space' ? here.spaceId : null;
-  const percent =
-    status && status.grant > 0 ? Math.round((status.available / status.grant) * 100) : 0;
+  const inSpace = here?.kind === 'space';
+  const available = status?.available ?? null;
+  const label =
+    available === null
+      ? t('creditsTitle')
+      : t(creditsCountKey(language, available), { count: available });
+  const percent = status && status.grant > 0 ? Math.round((status.daily / status.grant) * 100) : 0;
   return (
     <>
       <Button
         ref={trigger}
         size="sm"
         variant="soft"
+        color="primary"
+        className={compact ? 'credits-chip is-compact' : 'credits-chip'}
         aria-haspopup="dialog"
         aria-expanded={open}
-        leading={<Coins size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+        aria-label={label}
+        leading={<Sparkle size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
         onClick={() => setOpen(value => !value)}
       >
-        {t('creditsButton', { count: status ? status.available : '—' })}
+        {compact ? (available ?? '—') : label}
       </Button>
       <Popover
         open={open}
         onClose={() => setOpen(false)}
         anchor={trigger}
-        placement="bottom-start"
+        placement="bottom-end"
         label={t('creditsTitle')}
       >
         <div className="credits-panel">
-          <p className="credits-panel-line">{t('creditsIntro')}</p>
           {status ? (
             <>
-              <div>
-                <strong>
-                  {t('creditsToday', { available: status.available, grant: status.grant })}
-                </strong>
-                <Progress value={percent} size="sm" color="success" decorative />
+              <p className="credits-panel-total">{label}</p>
+              <div className="credits-panel-part">
+                <div className="credits-panel-row">
+                  <span>{t('creditsDaily')}</span>
+                  <strong>{t('creditsOf', { value: status.daily, grant: status.grant })}</strong>
+                </div>
+                <Progress value={percent} size="xs" color="primary" decorative />
                 <p className="credits-panel-line">
                   {t('creditsResets', { time: kyivTime(status.resetsAt, language) })}
                 </p>
               </div>
-              {!status.paidOpen && <p className="credits-panel-line">{t('creditsMonthClosed')}</p>}
-              <p className="credits-panel-line">{t('creditsPrices')}</p>
-              {status.recent.length > 0 && (
-                <div>
-                  <p className="credits-panel-line">{t('creditsRecent')}</p>
-                  <ul className="credits-panel-recent">
-                    {status.recent.map((entry, index) => (
-                      <li key={index}>
-                        {`${t(entry.feature === 'launch_assistant' ? 'creditsFeatureAssistant' : 'creditsFeatureTranslation')} · ${entry.kind === 'refund' ? `+${entry.amount} ${t('creditsRefund')}` : `−${entry.amount}`} · ${new Date(entry.at).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}`}
-                      </li>
-                    ))}
-                  </ul>
+              <div className="credits-panel-part">
+                <div className="credits-panel-row">
+                  <span>{t('creditsBonus')}</span>
+                  <strong>{status.bonus}</strong>
                 </div>
+                <p className="credits-panel-line">{t('creditsBonusNote')}</p>
+              </div>
+              {!status.paidOpen && (
+                <p className="credits-panel-line is-warning">{t('creditsMonthClosed')}</p>
               )}
+              <p className="credits-panel-line">{t('creditsWhere')}</p>
             </>
           ) : (
             <p className="credits-panel-line">{t('creditsUnavailable')}</p>
           )}
-          {spaceId ? (
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => {
-                setOpen(false);
-                navigateTo(buildTeamRoute({ spaceId, section: 'launches' }));
-                // The panel mounts with the section; focus the field once it is there.
-                setTimeout(() => window.dispatchEvent(new Event('soty:open-assistant')), 0);
-              }}
-            >
-              {t('creditsOpenAssistant')}
-            </Button>
-          ) : (
-            <p className="credits-panel-line">{t('creditsPickSpace')}</p>
-          )}
+          {offerAssistant &&
+            (inSpace ? (
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(new Event('soty:open-assistant'));
+                }}
+              >
+                {t('creditsOpenAssistant')}
+              </Button>
+            ) : (
+              <p className="credits-panel-line">{t('creditsPickSpace')}</p>
+            ))}
         </div>
       </Popover>
     </>

@@ -52,8 +52,12 @@ export function translationPrice(units: number, language: string): number {
 export interface AiCreditsStatus {
   /** Today's grant (base or personal). */
   grant: number;
-  /** Credits left today. */
+  /** Everything that can be spent now: what is left of today's grant plus bonus credits. */
   available: number;
+  /** What is left of today's grant; renews at Kyiv midnight. */
+  daily: number;
+  /** Bonus credits: given by Soty, do not expire, spent after the day's grant. */
+  bonus: number;
   /** Kyiv business day, YYYY-MM-DD. */
   day: string;
   /** The next Kyiv midnight as an ISO instant. */
@@ -82,6 +86,10 @@ function nonNegativeInteger(value: unknown): value is number {
 export function parseAiCreditsStatus(value: unknown): AiCreditsStatus | null {
   if (!isRecord(value)) return null;
   const { grant, available, day, resetsAt, paidOpen, recent } = value;
+  // A server before bonus credits sends only `available`, which was then all daily.
+  const daily = value.daily === undefined ? available : value.daily;
+  const bonus = value.bonus === undefined ? 0 : value.bonus;
+  if (!nonNegativeInteger(daily) || !nonNegativeInteger(bonus)) return null;
   if (
     !nonNegativeInteger(grant) ||
     !nonNegativeInteger(available) ||
@@ -113,7 +121,16 @@ export function parseAiCreditsStatus(value: unknown): AiCreditsStatus | null {
       at: row.at
     });
   }
-  return { grant, available, day, resetsAt, paidOpen, recent: entries };
+  return {
+    grant,
+    available,
+    daily: daily as number,
+    bonus: bonus as number,
+    day,
+    resetsAt,
+    paidOpen,
+    recent: entries
+  };
 }
 
 /** Machine codes a paid action can be refused with, before anything is charged or called. */

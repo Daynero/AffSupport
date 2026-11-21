@@ -8225,6 +8225,11 @@ export type GeneratedDatabase = {
       assistant_open: { Args: { p_team: string }; Returns: Json };
       assistant_open_dialog: { Args: { p_team: string; p_dialog: string | null }; Returns: Json };
       assistant_new_dialog: { Args: { p_team: string }; Returns: Json };
+      assistant_card_confirmed: { Args: { p_card: string }; Returns: Json };
+      admin_ai_grant_bonus: {
+        Args: { p_email: string; p_amount: number; p_note: string | null };
+        Returns: Json;
+      };
       assistant_launch_marks: { Args: { p_team: string; p_ids: string[] }; Returns: string[] };
       assistant_review_launched: { Args: { p_card: string; p_batch_key: string }; Returns: Json };
       save_launch_offer_defaults_masked: {
