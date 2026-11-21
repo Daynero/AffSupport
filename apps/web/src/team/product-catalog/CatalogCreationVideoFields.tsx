@@ -56,7 +56,6 @@ export function CatalogCreationVideoFields({
                 ? t('catalogVideoVariationLimit', { count: productCount })
                 : undefined
           }
-          hint={split ? t('launchDistributionVariationHint', { split }) : undefined}
         >
           <Input
             id={countId}
@@ -65,10 +64,18 @@ export function CatalogCreationVideoFields({
             value={value.variationCount}
             disabled={disabled}
             aria-invalid={invalid}
+            aria-describedby={split ? `${countId}-split` : undefined}
             onChange={event =>
               change({ variationCount: event.target.value.replace(/[^\d]/gu, '').slice(0, 3) })
             }
           />
+          {/* Under the field, where its error would be: inside the label it ran on into the
+              field's name — «Варіації відео Варіації роздаються…» (next, 2026-11-21). */}
+          {split && (
+            <p id={`${countId}-split`} className="field-hint m-0">
+              {t('launchDistributionVariationHint', { split })}
+            </p>
+          )}
         </FormField>
       )}
       {part !== 'variations' && (

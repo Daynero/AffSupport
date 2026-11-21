@@ -208,3 +208,20 @@ it('offers to schedule the images, not a video link, in a launch of images', asy
   expect(screen.queryByRole('switch', { name: 'Schedule the video link' })).toBeNull();
   expect(screen.queryByRole('switch', { name: 'Restitch video' })).toBeNull();
 });
+
+/** Found on next 2026-11-21: the split ran on into the field's name inside its label. */
+it('says how variations go round the videos under the field, apart from its name', async () => {
+  const draft = threeVideos();
+  draft.catalog = {
+    ...draft.catalog!,
+    restitchEnabled: true,
+    catalogVideoProtocolVersion: 1,
+    videoVariationCount: 4
+  };
+  render(<LaunchEditor {...editorProps(vi.fn())} config={draft} />);
+  const field = await screen.findByRole('textbox', { name: 'Video variations' });
+  expect(field.getAttribute('aria-describedby')).toBeTruthy();
+  expect(document.getElementById(field.getAttribute('aria-describedby')!)?.textContent).toBe(
+    'Variations go to videos in turn: 2 · 1 · 1'
+  );
+});

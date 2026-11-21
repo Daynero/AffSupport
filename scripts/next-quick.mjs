@@ -82,6 +82,14 @@ function lastPublishedSha() {
 }
 
 /** The newest quick app build, if no full release has superseded it. */
+/** The release line's build, as the badge prints it: «1.5.9+101». */
+function releaseBuild() {
+  const source = readFileSync(path.join(root, 'packages/shared/src/release.ts'), 'utf8');
+  const version = /PRODUCT_VERSION = '([^']+)'/u.exec(source)?.[1];
+  const build = /BUILD_NUMBER = '([^']+)'/u.exec(source)?.[1];
+  return version && build ? `${version}+${build}` : 'site';
+}
+
 function quickAppOnNext() {
   if (!existsSync(LOG)) return null;
   const app = readFileSync(LOG, 'utf8')
@@ -264,7 +272,8 @@ try {
       process.stdout.write(`  keeping the app build ${app.version} offered on next\n`);
     }
     // The badge on next says what is served: the offered app build and this site's commit.
-    const label = `${app ? app.version : 'site'} · web ${head.slice(0, 7)}`;
+    // Without a quick app build, next offers the release line's own build: name it, not «site».
+    const label = `${app ? app.version : releaseBuild()} · web ${head.slice(0, 7)}`;
     try {
       step('build site', 'npm', ['run', '--silent', 'build:web'], {
         env: { ...process.env, VITE_NEXT_BUILD_LABEL: label }
