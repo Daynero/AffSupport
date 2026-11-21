@@ -418,6 +418,10 @@ function LaunchSpaceContent({
     if (!open || open === 'new') {
       detailRead.current = null;
       setDetail(null);
+      // A read still in flight for the Launch just closed is now someone else's sequence
+      // and never clears this: «Готуємо запуск…» stayed over the list for good (next,
+      // 2026-11-21, closing a Launch right after its generation).
+      setPending(false);
       return;
     }
     setPending(true);

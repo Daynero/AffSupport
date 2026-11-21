@@ -120,7 +120,9 @@
 .launch-editor-compact .launch-editor-restitch {
   min-width: 0;
   flex: 0 0 auto;
-  min-height: var(--control-height-md);
+  /* As tall as the R2 switch beside it, whose help mark is a full touch target: the row
+     aligns their bottoms, and two heights put the switches a few pixels apart. */
+  min-height: var(--control-height-lg);
   justify-content: center;
 }
 .launch-editor-catalog-advanced {

@@ -6,6 +6,8 @@ import { Button, IconButton, Input, Slider, Tooltip } from '../../components/ui/
 import { useI18n } from '../../i18n.js';
 
 const PAGE_STEP = 10;
+/** Characters of a long creative name always shown at its end. */
+const NAME_TAIL = 4;
 
 function Thumbnail({
   thumbnailUrl,
@@ -90,10 +92,19 @@ export function LaunchCreativeShareRow({
         disabled={disabled}
         onPreview={onPreview}
       />
-      <div className="flex w-14 shrink-0 items-center self-stretch">
+      {/* The free width of the row is the name's. Creatives of one batch share a beginning
+          ("qa-multi-1", "qa-multi-2"), so a cut name keeps its end: "qa-mu…ti-1". */}
+      <div className="flex min-w-14 flex-1 items-center self-stretch">
         <Tooltip label={alias} asChild>
           <span tabIndex={0} className="flex min-w-0 items-center text-caption text-ink-muted">
-            <span className="min-w-0 truncate">{alias}</span>
+            {alias.length > NAME_TAIL * 2 ? (
+              <>
+                <span className="min-w-0 truncate">{alias.slice(0, -NAME_TAIL)}</span>
+                <span className="shrink-0">{alias.slice(-NAME_TAIL)}</span>
+              </>
+            ) : (
+              <span className="min-w-0 truncate">{alias}</span>
+            )}
           </span>
         </Tooltip>
       </div>

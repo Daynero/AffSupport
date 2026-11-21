@@ -23,7 +23,7 @@ import { TaskAttachmentPicker } from '../tasks/TaskAttachmentPicker.js';
 import { teamApi } from '../../api/team.js';
 import { uploadTeamFile } from '../catalog/material-actions-client.js';
 import { Button, DropdownMenu, FormField } from '../../components/ui/index.js';
-import { useI18n } from '../../i18n.js';
+import { creativeSelectKey, useI18n } from '../../i18n.js';
 import { useThumbnailSession } from '../explorer/useThumbnailSession.js';
 import { privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope.js';
 import { teamErrorMessageFor } from '../errors.js';
@@ -70,7 +70,7 @@ export function LaunchCreativePicker({
   onBusyChange?: (busy: boolean) => void;
   submitted?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const id = useId();
   const fileInput = useRef<HTMLInputElement>(null);
   const menuAnchor = useRef<HTMLButtonElement>(null);
@@ -328,7 +328,10 @@ export function LaunchCreativePicker({
   // One compact drop strip: it says it takes dropped files and opens the source menu.
   const compactDrop = catalogMode || creatives.length === 0;
   return (
-    <FormField label={t('launchesCreative')} error={selectionError}>
+    <FormField
+      label={t(creatives.length > 1 ? 'launchesCreatives' : 'launchesCreative')}
+      error={selectionError}
+    >
       <div
         className="flex min-w-0 max-w-xl flex-col gap-2"
         onDragOver={event => {
@@ -423,8 +426,12 @@ export function LaunchCreativePicker({
           <TaskAttachmentPicker
             key={`${epoch}:${teamId}:${catalogMode}`}
             teamId={teamId}
-            title={t('launchesSelectCreative')}
-            confirmLabel={() => t('launchesSelectCreative')}
+            title={t(catalogMode ? 'launchesSelectCreatives' : 'launchesSelectCreative')}
+            confirmLabel={count =>
+              catalogMode && count > 0
+                ? t(creativeSelectKey(language, count), { count })
+                : t('launchesSelectCreative')
+            }
             single={!catalogMode}
             attachedMaterialIds={new Set(catalogMode ? creatives.map(c => c.materialId) : [])}
             accept={material => {

@@ -2382,6 +2382,19 @@
 .ui-slider-track[data-fill-start='true'] {
   border-inline-start-color: var(--color-secondary-solid);
 }
+.ui-slider-track[data-fill-end='true'] {
+  border-inline-end-color: var(--color-secondary-solid);
+}
+/* The fill begins where that reserved space ends; rounded there, the two read as a
+   short pill and a bar with a notch between them. The track's own radius rounds the end. */
+.ui-slider-track[data-fill-start='true'] .ui-slider-fill {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+.ui-slider-track[data-fill-end='true'] .ui-slider-fill {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
 .ui-slider--lg .ui-slider-thumb {
   width: var(--space-5);
   height: var(--space-5);

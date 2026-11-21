@@ -2575,3 +2575,23 @@ it('does not carry a pending batch import across sign-out and sign-in of the sam
     setPrivateCacheScope(null, '');
   }
 });
+
+/**
+ * Found on next 2026-11-21: a Launch closed while its detail was still being read left
+ * «Preparing launch…» over the list for good — the late reply belonged to a closed session
+ * and nothing else cleared the flag.
+ */
+it('does not keep saying it is preparing a Launch that was closed before its read came back', async () => {
+  let reply: (value: unknown) => void = () => undefined;
+  seams.detail.mockReturnValue(new Promise(resolve => (reply = resolve)));
+  const view = render(<LaunchSpace teamId={TEAM} query={query} />);
+  await waitFor(() => expect(seams.detail).toHaveBeenCalled());
+  view.rerender(<LaunchSpace teamId={TEAM} query={{ ...emptyTeamRouteQuery(), launchId: null }} />);
+  await act(async () => reply(detail('https://example.test/closed')));
+  await waitFor(() => expect(seams.list).toHaveBeenCalled());
+  const busyLine = () =>
+    [...document.querySelectorAll('p[role="status"]')].filter(
+      node => node.textContent === 'Preparing launch…'
+    );
+  await waitFor(() => expect(busyLine()).toHaveLength(0));
+});

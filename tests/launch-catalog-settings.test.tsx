@@ -144,3 +144,51 @@ it('reveals the duration editor automatically when its hidden value is invalid o
   ).toBe('true');
   expect(screen.getByRole('slider', { name: 'Duration, minutes' })).toBeTruthy();
 });
+
+/**
+ * Found on next 2026-11-21: turning restitch on in a launch with three videos set one
+ * variation and showed «at least 3 — one per video» at once, an error the user had not made.
+ */
+const threeVideos = () => ({
+  ...newLaunchDraft(),
+  method: 'catalog' as const,
+  creativeKind: 'video' as const,
+  materialId: 'video-a',
+  creativeAlias: 'A',
+  creatives: ['a', 'b', 'c'].map(id => ({
+    materialId: `video-${id}`,
+    alias: id.toUpperCase(),
+    copies: id === 'a' ? 34 : 33,
+    pinned: null
+  }))
+});
+const editorProps = (change: ReturnType<typeof vi.fn>) => ({
+  teamId: 'team',
+  sources: null,
+  accounts: [],
+  offers: [],
+  buyers: [],
+  onChange: change,
+  disabled: false,
+  onRefreshSources: vi.fn()
+});
+
+it('starts restitch at one variation per video when a launch has several', () => {
+  const change = vi.fn();
+  render(<LaunchEditor {...editorProps(change)} config={threeVideos()} />);
+  fireEvent.click(screen.getByRole('switch', { name: 'Restitch video' }));
+  expect(change).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      catalog: expect.objectContaining({ restitchEnabled: true, videoVariationCount: 3 })
+    })
+  );
+});
+
+it('keeps a variation count that already covers every video when restitch is turned on', () => {
+  const change = vi.fn();
+  const draft = threeVideos();
+  draft.catalog = { ...draft.catalog!, videoVariationCount: 12 };
+  render(<LaunchEditor {...editorProps(change)} config={draft} />);
+  fireEvent.click(screen.getByRole('switch', { name: 'Restitch video' }));
+  expect(change.mock.lastCall![0].catalog.videoVariationCount).toBe(12);
+});

@@ -34,12 +34,31 @@ export function creativesPatch(
       creativeKind: undefined,
       ...catalog
     };
+  // A video added while restitch is on needs a variation of its own: one per video is the
+  // least the launch accepts, so the count follows instead of turning into an error.
+  const variations = config.catalog?.videoVariationCount ?? 1;
+  const followCount =
+    kind !== 'image' &&
+    config.catalog?.restitchEnabled === true &&
+    creatives.length > 1 &&
+    variations < creatives.length
+      ? Math.min(creatives.length, productCount ?? creatives.length)
+      : undefined;
   return {
     materialId: first.materialId,
     creativeAlias: first.alias,
     creatives,
     creativeKind: kind ?? undefined,
     ...catalog,
+    ...(followCount !== undefined && config.catalog
+      ? {
+          catalog: {
+            ...config.catalog,
+            ...(productCount !== undefined ? { productCount } : {}),
+            videoVariationCount: followCount
+          }
+        }
+      : {}),
     ...(kind === 'image' && config.catalog?.restitchEnabled
       ? {
           catalog: {

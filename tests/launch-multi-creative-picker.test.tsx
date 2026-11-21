@@ -4,7 +4,12 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest';
 import type { LaunchCreative, LaunchDraft } from '../packages/shared/src/team/launches';
 vi.mock('../apps/web/src/team/preview/MaterialPreview', () => ({ MaterialPreview: () => null }));
-const seams = vi.hoisted(() => ({ folder: vi.fn(), upload: vi.fn(), picked: vi.fn() }));
+const seams = vi.hoisted(() => ({
+  folder: vi.fn(),
+  upload: vi.fn(),
+  picked: vi.fn(),
+  dialog: { title: '', confirm: (_count: number) => '' }
+}));
 vi.mock('../apps/web/src/team/explorer/useThumbnailSession', () => ({
   useThumbnailSession: () => null
 }));
@@ -15,12 +20,17 @@ vi.mock('../apps/web/src/team/catalog/material-actions-client', () => ({
 vi.mock('../apps/web/src/team/tasks/TaskAttachmentPicker', () => ({
   TaskAttachmentPicker: ({
     trigger,
-    onAdd
+    onAdd,
+    title,
+    confirmLabel
   }: {
     trigger: (open: () => void) => React.ReactNode;
     onAdd: (items: Array<{ id: string; name: string; category: string }>) => void;
+    title: string;
+    confirmLabel: (count: number) => string;
   }) => {
     seams.picked.mockImplementation(onAdd);
+    seams.dialog = { title, confirm: confirmLabel };
     return trigger(() => undefined);
   }
 }));
@@ -167,4 +177,27 @@ it('gives one creative every product without a slider', () => {
   });
   expect(screen.queryByRole('slider')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Even' })).toBeNull();
+});
+
+/** Found on next 2026-11-21: three ticked files, and the dialog still said «Choose creative». */
+it('names the picked count in a catalog launch, and stays singular for one creative', () => {
+  picker({ method: 'catalog', catalog: catalog() } as LaunchDraft);
+  expect(seams.dialog.title).toBe('Choose creatives');
+  expect(seams.dialog.confirm(0)).toBe('Choose creative');
+  expect(seams.dialog.confirm(1)).toBe('Choose 1 creative');
+  expect(seams.dialog.confirm(3)).toBe('Choose 3 creatives');
+  cleanup();
+  picker({ method: 'other' } as LaunchDraft);
+  expect(seams.dialog.title).toBe('Choose creative');
+  expect(seams.dialog.confirm(1)).toBe('Choose creative');
+});
+
+it('heads the list «Creatives» once there is more than one', () => {
+  picker({
+    method: 'catalog',
+    catalog: catalog(),
+    creativeKind: 'video',
+    creatives: [creative(1, 50), creative(2, 50)]
+  } as LaunchDraft);
+  expect(screen.getByText('Creatives')).toBeTruthy();
 });

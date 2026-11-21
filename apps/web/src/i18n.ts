@@ -97,6 +97,13 @@ export function launchCountKey(language: Language, count: number): TranslationKe
   return category === 'few' ? 'creativeRankLaunchesFew' : 'creativeRankLaunchesMany';
 }
 
+/** 1.5.9 — the picker of a catalog launch takes several: "Обрати 3 креативи". */
+export function creativeSelectKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'launchesSelectCreativesOne';
+  return category === 'few' ? 'launchesSelectCreativesFew' : 'launchesSelectCreativesMany';
+}
+
 export function selectedCountKey(language: Language, count: number): TranslationKey {
   const category = pluralCategory(language, count);
   if (category === 'one') return 'selectedOne';

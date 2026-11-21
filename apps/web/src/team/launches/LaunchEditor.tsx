@@ -818,21 +818,27 @@ export function LaunchEditor({
                         label={t('launchesRestitch')}
                         checked={config.catalog.restitchEnabled}
                         disabled={disabled}
-                        onChange={restitchEnabled =>
+                        onChange={restitchEnabled => {
+                          const current = config.catalog!;
+                          // Turning restitch on with several videos starts at one variation per
+                          // video, the least the launch accepts — not at an error the user did
+                          // not make. Turning it off returns a v1 catalog to its one original.
+                          const videoVariationCount =
+                            restitchEnabled &&
+                            creativeCount > 1 &&
+                            (current.videoVariationCount ?? 1) < creativeCount
+                              ? creativeCount
+                              : !restitchEnabled && current.catalogVideoProtocolVersion === 1
+                                ? 1
+                                : undefined;
                           changed({
                             catalog: {
-                              ...config.catalog!,
+                              ...current,
                               restitchEnabled,
-                              ...(config.catalog!.catalogVideoProtocolVersion === 1 &&
-                              !restitchEnabled
-                                ? {
-                                    videoVariationCount:
-                                      restitchEnabled && creativeCount > 1 ? creativeCount : 1
-                                  }
-                                : {})
+                              ...(videoVariationCount === undefined ? {} : { videoVariationCount })
                             }
-                          })
-                        }
+                          });
+                        }}
                       />
                     </div>
                   )}

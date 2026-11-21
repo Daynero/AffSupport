@@ -1412,7 +1412,10 @@ function CatalogUpdaterDialogScope({
                 const requiresReview = row.lastUpdateError === 'CATALOG_ATTEMPT_STATE_INCONSISTENT';
                 const lastLabel = successfulAt
                   ? shortWhen(successfulAt)
-                  : row.profile?.lastSuccessfulAt === null && row.profile?.lastResult
+                  : row.profile?.lastSuccessfulAt === null &&
+                      row.profile?.lastResult &&
+                      // The first update still running has not failed: it reads as never updated.
+                      row.profile.lastResult !== 'running'
                     ? t('catalogUpdaterNoSuccessfulUpdate')
                     : row.updateCount > 0
                       ? t('catalogUpdaterUnknownTime')
