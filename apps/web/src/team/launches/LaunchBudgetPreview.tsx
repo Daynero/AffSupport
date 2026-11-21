@@ -49,10 +49,22 @@ export function LaunchBudgetPreview({
       setShown(count);
     };
     fit();
-    if (typeof ResizeObserver !== 'function') return;
+    // A web font that lands after the first measure changes every width: measure again.
+    let live = true;
+    void document.fonts?.ready.then(() => {
+      if (live) fit();
+    });
+    if (typeof ResizeObserver !== 'function')
+      return () => {
+        live = false;
+      };
     const observer = new ResizeObserver(fit);
     observer.observe(node);
-    return () => observer.disconnect();
+    observer.observe(measure);
+    return () => {
+      live = false;
+      observer.disconnect();
+    };
   }, [signature]);
 
   const visible = Math.min(shown, budgets.length);

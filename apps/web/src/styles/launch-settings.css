@@ -172,7 +172,12 @@
   min-width: 0;
   flex-wrap: nowrap;
 }
+/* The measuring copy sits beside the output, not in it, so it takes the output's type
+   explicitly: in the larger type of the row around it every budget measured wider than it
+   is drawn, and three that fitted went into «+3» (next QA 2026-11-21). */
 .launch-editor-budget-ruler {
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
   position: absolute;
   inset-block-start: 0;
   inset-inline-start: 0;

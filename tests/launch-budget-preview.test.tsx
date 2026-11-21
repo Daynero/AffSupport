@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { LaunchBudgetPreview } from '../apps/web/src/team/launches/LaunchBudgetPreview';
 
@@ -67,4 +68,12 @@ it('keeps the measuring copy out of reach of assistive technology', () => {
   expect(document.querySelector('.launch-editor-budget-ruler')?.getAttribute('aria-hidden')).toBe(
     'true'
   );
+});
+
+it('measures in the type the budgets are drawn in (next QA 2026-11-21)', () => {
+  // Outside the output, the copy took the row's larger type and three budgets that fitted
+  // went into «+3».
+  const css = readFileSync('apps/web/src/styles/launch-settings.css', 'utf8');
+  const rule = css.slice(css.indexOf('.launch-editor-budget-ruler {'));
+  expect(rule.slice(0, rule.indexOf('}'))).toMatch(/font-size: var\(--text-caption\)/u);
 });
