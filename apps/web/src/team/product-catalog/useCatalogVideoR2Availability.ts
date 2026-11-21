@@ -37,6 +37,9 @@ export function prefetchCatalogVideoR2Availability(
   teamId: string,
   client: CatalogVideoR2Client
 ): void {
+  // Only a head start: a host without the R2 client (a preview, a partial test seam) asks
+  // nothing, and the switch reads for itself when it mounts.
+  if (typeof client?.availability !== 'function') return;
   if (knownAvailability(client, teamId)) return;
   const pending = inFlight.get(client) ?? new Set<string>();
   if (pending.has(teamId)) return;

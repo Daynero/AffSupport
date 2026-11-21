@@ -130,3 +130,11 @@ describe('launch editor rows', () => {
       expect(readFileSync(file, 'utf8')).not.toMatch(/className="field-hint/u);
   });
 });
+
+describe('R2 prefetch without a client', () => {
+  it('asks nothing and throws nothing when the host has no R2 client', () => {
+    expect(() =>
+      prefetchCatalogVideoR2Availability(TEAM, undefined as unknown as CatalogVideoR2Client)
+    ).not.toThrow();
+  });
+});
