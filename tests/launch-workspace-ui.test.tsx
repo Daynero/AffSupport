@@ -1786,7 +1786,7 @@ it('saves an offer with its own version, clears the old proposal, and preserves 
   expect(seams.setDefaults.mock.calls[1]).toEqual(seams.setDefaults.mock.calls[0]);
   expect(seams.setDefaults.mock.calls[0][1]).toBe('17');
   expect(seams.setDefaults.mock.calls[0][4]).toBe(current.draft.offerId);
-  expect(screen.queryByRole('dialog', { name: /^Apply the .*settings\?$/ })).toBeNull();
+  expect(screen.queryByRole('status', { name: /^Apply the .*settings\?$/ })).toBeNull();
 });
 
 it('saves the newly selected offer after an uncertain save of the previous one (1.4.3)', async () => {

@@ -68,6 +68,7 @@ export function LaunchEditor({
   disabled,
   onRefreshSources,
   onUploadBusyChange,
+  sourceNotice,
   submitted = false
 }: {
   teamId: string;
@@ -88,6 +89,8 @@ export function LaunchEditor({
   disabled: boolean;
   onRefreshSources: () => void;
   onUploadBusyChange?: (busy: boolean) => void;
+  /** A question the sources raised — the offer's saved settings — asked right under them. */
+  sourceNotice?: ReactNode;
   submitted?: boolean;
 }) {
   const { t } = useI18n();
@@ -422,6 +425,7 @@ export function LaunchEditor({
                 <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               </IconButton>
             </div>
+            {sourceNotice}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <SegmentedControl
                 label={t('launchesMethod')}

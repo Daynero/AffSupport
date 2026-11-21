@@ -42,7 +42,7 @@ import { LaunchChangeReview } from './LaunchChangeReview';
 import { resolvedLaunchDefaults, useOfferDefaults } from './useOfferDefaults';
 import { observeLaunchDefaults } from '../../analytics/launch-defaults';
 import { LaunchDefaultsReview } from './LaunchDefaultsReview';
-import { LaunchDefaultsActions } from './LaunchDefaultsActions';
+import { LaunchDefaultsActions, LaunchDefaultsProposal } from './LaunchDefaultsActions';
 import { LaunchConflictReview } from './LaunchConflictReview';
 import { prepareOriginalVideo } from './originalVideo';
 import { restitchSettingsError } from './recovery';
@@ -1921,6 +1921,19 @@ export function LaunchSession({
           <DeferredLaunchEditor
             teamId={teamId}
             config={draft.config}
+            sourceNotice={
+              editable ? (
+                <LaunchDefaultsProposal
+                  offerName={offers.find(row => row.id === draft.config.offerId)?.value}
+                  proposalSource={offerDefaults.proposal?.source}
+                  loading={offerDefaults.loading}
+                  loadError={Boolean(offerDefaults.error)}
+                  disabled={inputLocked || historical || Boolean(defaultsConflict)}
+                  onApply={offerDefaults.apply}
+                  onKeep={offerDefaults.keep}
+                />
+              ) : undefined
+            }
             onUploadBusyChange={setUploading}
             submitted={submitted}
             sources={draft.sources}
@@ -2024,7 +2037,6 @@ export function LaunchSession({
               loading={offerDefaults.loading}
               loadError={Boolean(offerDefaults.error)}
               buyerMissing={offerDefaults.buyerMissing}
-              proposalSource={offerDefaults.proposal?.source}
               disabled={inputLocked || historical || Boolean(defaultsConflict)}
               saveDisabled={{
                 offer: saveDefaultsDisabled('offer'),
@@ -2055,8 +2067,6 @@ export function LaunchSession({
                 </Button>
               }
               onSave={saveDefaults}
-              onApply={offerDefaults.apply}
-              onKeep={offerDefaults.keep}
               onRetry={offerDefaults.retry}
               feedback={
                 defaultsFeedback && (
