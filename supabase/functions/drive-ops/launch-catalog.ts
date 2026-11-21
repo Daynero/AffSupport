@@ -13,6 +13,7 @@ import {
   parseLaunchRevision,
   parseLaunchSources,
   launchPreview,
+  launchCreativeSourceLinks,
   launchRevisionImpact,
   type LaunchRevision,
   type LaunchConfig
@@ -439,10 +440,24 @@ export async function executeLaunchCatalog(
             }
           }
         : deps.catalog;
+    /* 062: with several creatives each block's products carry SUB «Креатив» of their own
+       creative, so the tracker credits the video a buyer actually saw (owner, 2026-11-21).
+       The catalog name a SUB may carry is the final one, known only at the write. */
+    const usesCatalogName = Object.values(config.subConfig).some(
+      value => Array.isArray(value) && value.includes('catalogName')
+    );
     const created = await createDurableProductCatalog(
       {
         ...catalog,
         ...(initialVideoAuthority ? { initialVideoAuthority } : {}),
+        resolveCreativeSourceLinks: async (name: string) => {
+          if (!sources) throw new TeamFunctionError('SOURCE_CHANGED');
+          try {
+            return launchCreativeSourceLinks(config, sources, usesCatalogName ? name : undefined);
+          } catch {
+            throw new TeamFunctionError('LAUNCH_SUB_INVALID');
+          }
+        },
         ...(Object.values(config.subConfig).some(
           value => Array.isArray(value) && value.includes('catalogName')
         )

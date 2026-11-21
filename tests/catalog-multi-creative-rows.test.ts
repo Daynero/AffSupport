@@ -335,6 +335,35 @@ describe('createProductCatalog with several videos', () => {
     ]);
   });
 
+  it('links each block with its own SUB «Креатив» and keeps it for later updates (owner, 2026-11-21)', async () => {
+    const { deps, captured } = setup();
+    const blockLinks = ['IN40', 'IN41', 'IN42', 'IN43'].map(
+      alias => `https://offer.example.test/?sub3=${alias}`
+    );
+    deps.resolveCreativeSourceLinks = vi.fn(async () => blockLinks);
+    await createProductCatalog(deps, request(), ACTOR);
+    const LINK = PRODUCT_CATALOG_TEMPLATE.findIndex(c => c.source.kind === 'sourceLink');
+    expect(cells(captured.rows!, LINK)).toEqual([
+      blockLinks[0],
+      blockLinks[0],
+      blockLinks[0],
+      blockLinks[1],
+      blockLinks[1],
+      blockLinks[2],
+      blockLinks[3]
+    ]);
+    const record = deps.link.mock.calls[0][0].record;
+    expect(record.settingsSnapshot._catalogCreatives.map(c => c.sourceLink)).toEqual(blockLinks);
+  });
+
+  it('refuses block links that do not match the creatives', async () => {
+    const { deps } = setup();
+    deps.resolveCreativeSourceLinks = vi.fn(async () => ['https://offer.example.test/?sub3=IN40']);
+    await expect(createProductCatalog(deps, request(), ACTOR)).rejects.toMatchObject({
+      code: 'LAUNCH_SUB_INVALID'
+    });
+  });
+
   it('refuses a mixed set before anything is written', async () => {
     const { deps, drive } = setup({ categories: { [M(3)]: 'image' } });
     await expect(createProductCatalog(deps, request(), ACTOR)).rejects.toMatchObject({

@@ -39,10 +39,39 @@ function launchCreativeKindMismatch(
   }
   return null;
 }
-export function launchPreview(
+/**
+ * 062: one product link per creative block, each with SUB «Креатив» naming that block's
+ * creative. Null when there is nothing to tell apart — one creative, or no SUB slot that
+ * carries the creative — so a catalog keeps its single link. Throws on a link that cannot be
+ * made: a catalog is never written with the first creative's SUB passed off as another's.
+ */
+export function launchCreativeSourceLinks(
   config: LaunchConfig,
   sources: LaunchSources,
   catalogName?: string
+): string[] | null {
+  const creatives = config.creatives ?? [];
+  const carriesCreative = (['sub1', 'sub2', 'sub3'] as const).some(slot =>
+    config.subConfig[slot].includes('creative')
+  );
+  if (creatives.length < 2 || !carriesCreative) return null;
+  return creatives.map(creative => {
+    const preview = launchPreview(config, sources, catalogName, creative.alias);
+    if (!preview.ok) throw new Error('LAUNCH_SUB_INVALID');
+    return preview.value.advertisingUrl;
+  });
+}
+
+export function launchPreview(
+  config: LaunchConfig,
+  sources: LaunchSources,
+  catalogName?: string,
+  /**
+   * 062: the creative whose block the link is for. A catalog of several creatives gives each
+   * block its own product link, so SUB «Креатив» names the creative that block shows and the
+   * tracker credits it — not the first creative for every block (owner, 2026-11-21).
+   */
+  creativeAlias?: string
 ): LaunchParseResult<LaunchPreview> {
   const parsed = parseLaunchConfig(config);
   if (!parsed.ok) return parsed;
@@ -63,7 +92,7 @@ export function launchPreview(
     social: normalizeLaunchSub(sources.social),
     adAccountSuffix: sources.agentId.slice(-3),
     catalogName: catalogName ?? null,
-    creative: config.creativeAlias
+    creative: creativeAlias ?? config.creativeAlias
   };
   const subValues: Record<LaunchSubSlot, string | null> = { sub1: null, sub2: null, sub3: null };
   for (const slot of ['sub1', 'sub2', 'sub3'] as const) {
