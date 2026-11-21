@@ -9,12 +9,14 @@ import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { Alert, Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import { useOptionalToasts } from '../../components/toast';
 import { translationClient, type TranslationClient } from '../../translation/api';
 import { allowanceFigures, formatMinutes } from '../../translation/format';
 import { TranslateLauncher } from '../../translation/TranslateLauncher';
 import { TranslationProgress } from '../../translation/TranslationProgress';
 import {
   CopyVariantButton,
+  DeleteTranslationButton,
   TextVariantReader,
   TextVariantTabs,
   variantName
@@ -70,6 +72,8 @@ export function VideoTextActions({
   compact?: boolean;
 }) {
   const { t, language } = useI18n();
+  const toasts = useOptionalToasts();
+  const push = (input: { tone: 'success' | 'error'; text: string }) => toasts?.push(input);
   const [payload, setPayload] = useState<LibraryVideoTextVariants | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -244,9 +248,11 @@ export function VideoTextActions({
                 color="neutral"
                 variant="soft"
                 title={item.stale ? t('textTranslationStale') : undefined}
-                leading={
+                trailing={
                   item.stale ? (
-                    <span className="text-variant-stale-dot" aria-hidden="true" />
+                    <span className="text-variant-stale-badge">
+                      {t('textTranslationStaleBadge')}
+                    </span>
                   ) : undefined
                 }
                 onClick={() => setViewing(item.key)}
@@ -337,6 +343,20 @@ export function VideoTextActions({
               <TextVariantReader variant={shownVariant} />
             </div>
             <div className="video-text-viewer-actions">
+              {shownVariant.kind === 'translation' && shownVariant.status !== 'processing' && (
+                <DeleteTranslationButton
+                  state={state}
+                  variant={shownVariant}
+                  onDeleted={name => {
+                    setViewing('original');
+                    push({
+                      tone: 'success',
+                      text: t('textTranslationDeleted', { language: name })
+                    });
+                  }}
+                  onFailed={() => push({ tone: 'error', text: t('textTranslationDeleteFailed') })}
+                />
+              )}
               <CopyVariantButton
                 state={state}
                 only={shownVariant}

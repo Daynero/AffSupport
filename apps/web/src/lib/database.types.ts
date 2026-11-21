@@ -9211,6 +9211,7 @@ export type GeneratedDatabase = {
       get_team_vocab_and_facets: { Args: { p_team: string }; Returns: Json };
       get_transcript_delete_pref: { Args: Record<PropertyKey, never>; Returns: string };
       get_transcript_translation: { Args: { p_id: string }; Returns: Json };
+      delete_transcript_translation: { Args: { p_id: string }; Returns: Json };
       get_upload_batch: { Args: { p_batch: string; p_team: string }; Returns: Json };
       heartbeat_library_job: {
         Args: {

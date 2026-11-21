@@ -15,7 +15,11 @@ const translations = readFileSync(
   'utf8'
 );
 const analytics = readFileSync('supabase/migrations/20261222113000_ai_usage_analytics.sql', 'utf8');
-const all = [allowance, translations, analytics].join('\n');
+const deletion = readFileSync(
+  'supabase/migrations/20261222114000_delete_transcript_translation.sql',
+  'utf8'
+);
+const all = [allowance, translations, analytics, deletion].join('\n');
 
 function functions(sql: string): string[] {
   return [...sql.matchAll(/create function ([a-z_.]+)\(/gu)].map(match => match[1]!);
@@ -37,7 +41,7 @@ describe('063 migrations', () => {
   });
 
   it('pins search_path on every function', () => {
-    for (const sql of [allowance, translations]) {
+    for (const sql of [allowance, translations, deletion]) {
       const bodies = sql.split(/create function /u).slice(1);
       expect(bodies.length).toBeGreaterThan(0);
       for (const body of bodies) expect(body.slice(0, 600)).toContain("set search_path = ''");
@@ -54,7 +58,8 @@ describe('063 migrations', () => {
           'public.ai_allowance_status',
           'public.list_video_translations',
           'public.list_personal_translations',
-          'public.get_transcript_translation'
+          'public.get_transcript_translation',
+          'public.delete_transcript_translation'
         ]).toContain(name);
       }
       if (name!.startsWith('public.service_')) expect(roles!.trim()).toBe('service_role');

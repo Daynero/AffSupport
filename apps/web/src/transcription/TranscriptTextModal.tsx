@@ -38,7 +38,12 @@ import {
 } from './export';
 import { useTextVariants, type TextVariant } from '../translation/useTextVariants';
 import { groupTranslationUnits } from '@video-compressor/shared';
-import { TextVariantReader, TextVariantTabs, variantName } from '../translation/TextVariantViews';
+import {
+  DeleteTranslationButton,
+  TextVariantReader,
+  TextVariantTabs,
+  variantName
+} from '../translation/TextVariantViews';
 import { TranslationProgress } from '../translation/TranslationProgress';
 import {
   Alert,
@@ -856,6 +861,17 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
           />
         )}
 
+        {shownVariant.kind === 'translation' && shownVariant.status !== 'processing' && (
+          <DeleteTranslationButton
+            state={variants}
+            variant={shownVariant}
+            onDeleted={name => {
+              setVariantKey('original');
+              onToast?.(t('textTranslationDeleted', { language: name }), 'success');
+            }}
+            onFailed={() => onToast?.(t('textTranslationDeleteFailed'), 'error')}
+          />
+        )}
         <Button
           color="neutral"
           variant="ghost"

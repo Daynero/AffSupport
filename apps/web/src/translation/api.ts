@@ -59,6 +59,8 @@ export interface TranslationClient {
   listPersonal(documentKey: string, fingerprint: string): Promise<TranscriptTranslation[]>;
   get(translationId: string): Promise<TranscriptTranslation>;
   allowance(): Promise<TranslationAllowance>;
+  /** Removes every finished or failed translation of that language for the same text. */
+  remove(translationId: string): Promise<void>;
 }
 
 const FUNCTION = 'transcript-translate';
@@ -180,6 +182,13 @@ export const translationClient: TranslationClient = {
     const parsed = parseTranscriptTranslation(data);
     if (!parsed) throw new TeamApiError('INVALID_RESPONSE', false);
     return parsed;
+  },
+
+  async remove(translationId) {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('delete_transcript_translation', { p_id: translationId })
+    );
+    throwRpc(error);
   },
 
   async allowance() {

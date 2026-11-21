@@ -5103,5 +5103,12 @@ export const en = {
   textTranslationTitle: 'Video text',
   textTranslationDone: 'Done',
   textTranslationMore: '+{count}',
-  textTranslationList: 'Translations'
+  textTranslationList: 'Translations',
+  textTranslationStaleBadge: 'outdated',
+  textTranslationDelete: 'Delete translation',
+  textTranslationDeleteTitle: 'Delete the {language} translation?',
+  textTranslationDeleteBody: 'It disappears for everyone who sees this text. Getting it back means translating again, which uses minutes again.',
+  textTranslationDeleted: 'Translation deleted: {language}',
+  textTranslationDeleteFailed: 'Could not delete the translation. Try again.',
+  textTranslationCancel: 'Cancel'
 } as const;

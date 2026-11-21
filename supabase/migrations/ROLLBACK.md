@@ -3429,3 +3429,8 @@ TR 84_v1 did on 2026-11-20. Attempts this branch closed stay closed; nothing to 
 - `20261222112000_translation_error_codes` — additive seed; codes stay (rows reference them).
 - `20261222113000_ai_usage_analytics` — views only; dropping them makes `ai-usage` report the
   feature as unsupported, nothing else.
+
+## 20261222114000 — delete a translation (063)
+
+Additive: one RPC. Dropping it removes the "Delete translation" action (the web then answers
+the delete with an error toast); rows already deleted stay deleted — there is nothing to restore.

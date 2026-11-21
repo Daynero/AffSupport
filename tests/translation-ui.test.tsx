@@ -49,6 +49,7 @@ function fakeClient(overrides: Partial<TranslationClient> = {}): TranslationClie
     listForVideo: vi.fn(async () => []),
     listPersonal: vi.fn(async () => []),
     get: vi.fn(async () => translation()),
+    remove: vi.fn(async () => undefined),
     allowance: vi.fn(async () => ({
       feature: 'transcript_translation',
       limitUnits: 9000,
@@ -300,6 +301,32 @@ describe('several texts', () => {
     );
     expect(await screen.findByRole('button', { name: 'View text' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Redo/u })).toBeNull();
+  });
+
+  it('says "outdated" in words and deletes a translation after confirming', async () => {
+    const user = userEvent.setup();
+    const client = fakeClient({ listForVideo: vi.fn(async () => [translation()]) });
+    render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
+    );
+    expect(await screen.findByText('outdated')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'View text' }));
+    await user.click(within(screen.getByRole('tablist')).getByRole('tab', { name: /Ukrainian/u }));
+    await user.click(screen.getByRole('button', { name: 'Delete translation' }));
+    const confirm = await screen.findByRole('dialog', {
+      name: /Delete the Ukrainian translation/u
+    });
+    await user.click(within(confirm).getByRole('button', { name: 'Delete translation' }));
+    await waitFor(() =>
+      expect(client.remove).toHaveBeenCalledWith('06300000-0000-4000-8000-000000000001')
+    );
+    await waitFor(() => expect(screen.queryByRole('tab', { name: /Ukrainian/u })).toBeNull());
   });
 
   it('follows a running translation to its result', async () => {

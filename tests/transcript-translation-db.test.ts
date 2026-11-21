@@ -148,6 +148,27 @@ describe('readers', () => {
   });
 });
 
+describe('deleting', () => {
+  it('lets only the owner delete a transcriber translation, and removes the language', async () => {
+    const [row] = await db.root<{ id: string }>(
+      `select id from private.transcript_translations where document_key = 'doc-2' and status = 'completed'`
+    );
+    await expect(
+      db.asUser(OTHER, `select public.delete_transcript_translation($1)`, [row!.id])
+    ).rejects.toThrow(/NOT_FOUND/u);
+    const done = await db.asUser<{ value: { deleted: number } }>(
+      OWNER,
+      `select public.delete_transcript_translation($1) as value`,
+      [row!.id]
+    );
+    expect(done[0]!.value.deleted).toBeGreaterThan(0);
+    const left = await db.root<{ n: number }>(
+      `select count(*)::int as n from private.transcript_translations where document_key = 'doc-2' and target_language = 'uk'`
+    );
+    expect(left[0]!.n).toBe(0);
+  });
+});
+
 describe('cleanup fence', () => {
   it('keeps attachment cleanup coverage verified with the new table', async () => {
     const rows = await db.root<{ verified: boolean }>(

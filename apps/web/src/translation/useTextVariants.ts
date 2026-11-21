@@ -151,6 +151,8 @@ export interface TextVariantsState {
   units: number;
   loading: boolean;
   start(targetLanguage: string): Promise<StartOutcome>;
+  /** Deletes the translation of that language; false when the server refused. */
+  remove(language: string): Promise<boolean>;
   refreshAllowance(): Promise<void>;
 }
 
@@ -428,6 +430,29 @@ export function useTextVariants(
   );
 
   // Staleness follows the current text: a translation of another text is marked, not hidden.
+  const remove = useCallback(
+    async (language: string): Promise<boolean> => {
+      const target = items.find(item => item.language === language && item.status !== 'processing');
+      if (!target || !source) return false;
+      try {
+        await client.remove(target.translationId);
+      } catch {
+        return false;
+      }
+      setItems(previous =>
+        previous.filter(item => item.language !== language || item.status === 'processing')
+      );
+      trackTranslation({
+        action: 'deleted',
+        scope: source.scope,
+        targetLanguage: language,
+        translationId: target.translationId
+      });
+      return true;
+    },
+    [client, items, source]
+  );
+
   const merged = useMemo(
     () =>
       mergeByLanguage(
@@ -464,6 +489,7 @@ export function useTextVariants(
     units,
     loading,
     start,
+    remove,
     refreshAllowance
   };
 }

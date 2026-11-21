@@ -226,3 +226,25 @@
   color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
+
+/* An outdated translation says so in a word, quietly (063). */
+.text-variant-stale-badge {
+  margin-inline-start: var(--space-1);
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-full);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+  font-size: var(--text-micro);
+  font-weight: 400;
+  line-height: var(--leading-caption);
+}
+.text-variant-tabs .ui-tab-badge:has(.text-variant-stale-badge) {
+  padding: 0;
+  background: none;
+  min-width: 0;
+}
+/* Deleting is quieter than copying and sits apart from the actions that keep the text. */
+.video-text-viewer-actions .text-variant-delete {
+  margin-inline-end: auto;
+  color: var(--color-text-muted);
+}

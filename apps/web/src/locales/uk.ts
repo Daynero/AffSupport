@@ -5079,5 +5079,12 @@ export const uk: Record<keyof typeof en, string> = {
   textTranslationTitle: 'Текст відео',
   textTranslationDone: 'Готово',
   textTranslationMore: '+{count}',
-  textTranslationList: 'Переклади'
+  textTranslationList: 'Переклади',
+  textTranslationStaleBadge: 'застарів',
+  textTranslationDelete: 'Видалити переклад',
+  textTranslationDeleteTitle: 'Видалити переклад: {language}?',
+  textTranslationDeleteBody: 'Він зникне для всіх, хто бачить цей текст. Щоб повернути його, доведеться перекласти знову — це знову витратить хвилини.',
+  textTranslationDeleted: 'Переклад видалено: {language}',
+  textTranslationDeleteFailed: 'Не вдалося видалити переклад. Спробуйте ще раз.',
+  textTranslationCancel: 'Скасувати'
 };

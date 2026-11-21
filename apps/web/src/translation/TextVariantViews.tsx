@@ -1,11 +1,11 @@
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, Trash2 } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import {
   Button,
+  ConfirmDialog,
   DropdownMenu,
   Progress,
   Tabs,
-  Tooltip,
   type TabItem
 } from '../components/ui/index';
 import { ICON_STROKE } from '../components/icons';
@@ -78,13 +78,10 @@ export function TextVariantTabs({
           label={t('textTranslationInProgress', { language: name })}
         />
       ) : stale ? (
-        <Tooltip label={t('textTranslationStale')}>
-          <span
-            className="text-variant-stale-dot"
-            role="img"
-            aria-label={t('textTranslationStale')}
-          />
-        </Tooltip>
+        // Words, not a dot (owner 2026-11-21: the dot read as nothing in particular).
+        <span className="text-variant-stale-badge" title={t('textTranslationStale')}>
+          {t('textTranslationStaleBadge')}
+        </span>
       ) : undefined
     };
   });
@@ -261,4 +258,59 @@ export function CopyVariantButton({
 
 export function isTranslation(variant: TextVariant | undefined): variant is TranslationVariant {
   return variant?.kind === 'translation';
+}
+
+/**
+ * Deleting a translation (owner 2026-11-21). Quieter than the actions beside it, and the
+ * confirmation names the consequence: it is gone for everyone and costs minutes to redo.
+ */
+export function DeleteTranslationButton({
+  state,
+  variant,
+  onDeleted,
+  onFailed
+}: {
+  state: TextVariantsState;
+  variant: TranslationVariant;
+  onDeleted?: (language: string) => void;
+  onFailed?: () => void;
+}) {
+  const { t, language } = useI18n();
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const name = languageDisplayName(variant.language, language);
+  return (
+    <>
+      <Button
+        color="neutral"
+        variant="ghost"
+        size="md"
+        className="text-variant-delete"
+        leading={<Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+        onClick={() => setAsking(true)}
+      >
+        {t('textTranslationDelete')}
+      </Button>
+      {asking && (
+        <ConfirmDialog
+          nested
+          title={t('textTranslationDeleteTitle', { language: name })}
+          body={t('textTranslationDeleteBody')}
+          confirmLabel={t('textTranslationDelete')}
+          cancelLabel={t('textTranslationCancel')}
+          busy={busy}
+          onCancel={() => setAsking(false)}
+          onConfirm={() => {
+            setBusy(true);
+            void state.remove(variant.language).then(ok => {
+              setBusy(false);
+              setAsking(false);
+              if (ok) onDeleted?.(name);
+              else onFailed?.();
+            });
+          }}
+        />
+      )}
+    </>
+  );
 }
