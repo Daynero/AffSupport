@@ -313,3 +313,36 @@ it('diagnoses a destination outage through the real file lifecycle and read-only
     await db.close();
   }
 }, 30_000);
+it('opens «Choose» from anywhere on the drop zone, and a second press closes it (next QA 2026-11-21)', async () => {
+  render(
+    <LaunchCreativePicker
+      teamId="team"
+      config={{ creativeAlias: 'video_5' }}
+      onChange={vi.fn()}
+      disabled={false}
+    />
+  );
+  const button = screen.getByRole('button', { name: 'Choose a creative or drop it here' });
+  expect(button.getAttribute('aria-expanded')).toBe('false');
+  const hint = screen.getByText('Drop videos or images here');
+  fireEvent.pointerDown(hint);
+  fireEvent.click(hint);
+  await waitFor(() => expect(button.getAttribute('aria-expanded')).toBe('true'));
+  expect(screen.getByRole('menuitem', { name: 'From computer' })).toBeTruthy();
+  fireEvent.pointerDown(hint);
+  fireEvent.click(hint);
+  // Whatever the menu's own outside press did, the zone does not reopen it.
+  expect(button.getAttribute('aria-expanded')).not.toBe('true');
+});
+it('a disabled drop zone opens nothing', () => {
+  render(
+    <LaunchCreativePicker
+      teamId="team"
+      config={{ creativeAlias: 'video_5' }}
+      onChange={vi.fn()}
+      disabled
+    />
+  );
+  fireEvent.click(screen.getByText('Drop videos or images here'));
+  expect(screen.queryByRole('menuitem', { name: 'From computer' })).toBeNull();
+});

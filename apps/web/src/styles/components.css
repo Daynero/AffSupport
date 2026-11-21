@@ -935,8 +935,11 @@
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
-.launch-editor-budget-preview > span {
+.launch-editor-budget-preview > span,
+.launch-editor-budget-ruler > span {
   display: inline-flex;
+  flex: 0 0 auto;
+  white-space: nowrap;
   align-items: center;
   height: var(--control-height-md);
   padding: 0 var(--space-2);
@@ -1116,14 +1119,10 @@
   color: var(--color-warning-text);
   font-size: var(--text-caption);
 }
-/* Reserve the longest localized notice at the current width, including zoom/wrapping. */
-.launch-editor-url-warning::before {
-  content: attr(data-reserve);
-  visibility: hidden;
-  grid-area: 1 / 1;
-}
-.launch-editor-url-warning > span {
-  grid-area: 1 / 1;
+/* No notice, no room: a line reserved for it stood empty under every link (next QA
+   2026-11-21). The live region stays in the document, so the notice is still announced. */
+.launch-editor-url-warning:has(> span:empty) {
+  margin-top: calc(var(--space-3) * -1);
 }
 .launch-editor-sub-content {
   display: flex;
@@ -1968,8 +1967,20 @@
 .ui-select-trigger :focus-visible {
   outline: none;
 }
+/* One red for every control with an error: a select drew the pale border token while the
+   inputs beside it drew the solid one, and «Офер» looked less wrong than «РК» (next QA
+   2026-11-21). */
 .ui-select.is-invalid .ui-select-trigger {
-  border-color: var(--color-error-border);
+  border-color: var(--color-error-solid);
+}
+/* A field that shows an error shows it on the control too, not only in the line under it:
+   the line alone did not say which box to fix (next QA 2026-11-21). */
+.ui-field.is-invalid > .ui-field-control .ui-input,
+.ui-field.is-invalid > .ui-field-control .ui-textarea {
+  border-color: var(--color-error-solid);
+}
+.ui-field.is-invalid > .ui-field-control .ui-select-trigger {
+  border-color: var(--color-error-solid);
 }
 .ui-select.is-disabled .ui-select-trigger {
   cursor: not-allowed;
@@ -3840,7 +3851,7 @@
   outline-offset: 2px;
 }
 .ui-input-number.is-invalid .ui-input-number-group {
-  border-color: var(--color-error-border);
+  border-color: var(--color-error-solid);
 }
 
 /* The wrapper a slider grows only when its keyboard step differs from its drag
@@ -4784,6 +4795,19 @@
 
 .ui-button.launch-account-trigger {
   white-space: nowrap;
+}
+/* РК is chosen like «Офер» and «Баєр» beside it, so it is drawn like them: the field's
+   edge, surface and weight, and a muted «Обрати РК» until one is chosen — it stood out as a
+   bold bright button between two quiet selects (next QA 2026-11-21). */
+.launch-editor-compact .ui-button.launch-account-trigger {
+  border-color: var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text);
+  font-weight: var(--weight-body);
+}
+.launch-account-trigger .launch-account-placeholder {
+  color: var(--color-neutral-text-muted);
 }
 .launch-account-trigger .ui-button-label {
   flex: 1;

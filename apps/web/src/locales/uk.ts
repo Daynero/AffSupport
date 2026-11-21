@@ -613,6 +613,10 @@ export const uk: Record<keyof typeof en, string> = {
   launchesSubInvalid: 'Для SUB використовуйте латиницю, цифри, підкреслення або дефіси.',
   launchesBudgetRangeInvalid:
     'Бюджети мають бути додатними; мінімальний не може перевищувати максимальний.',
+  launchesBudgetRangeTooNarrow:
+    'Для {count} кампаній «До» має бути більшим за «Від» щонайменше на {gap} $: кожна кампанія отримує свій бюджет.',
+  launchesBudgetMaxBelowCampaigns:
+    'Для {count} кампаній «До» має бути щонайменше {count} $: кожна кампанія отримує свій бюджет.',
   launchesBudgetInvalid:
     'Бюджети мають бути додатними, різними й зростати; останній дорівнює максимальному.',
   launchesUrlInvalid: 'Введіть коректний HTTP(S) URL без пробілів і керівних символів.',

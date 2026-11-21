@@ -40,6 +40,7 @@ import { teamErrorMessageFor } from '../errors';
 import { LaunchRestitchDurationField } from './LaunchRestitchDurationField.js';
 import { SubBuilder } from './SubBuilder';
 import { LaunchPreview } from './LaunchPreview';
+import { LaunchBudgetPreview } from './LaunchBudgetPreview';
 import { LaunchDateField } from './LaunchDateField';
 import { launchPixel } from './launchPixel';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
@@ -47,6 +48,8 @@ import { CatalogVideoR2Toggle } from '../product-catalog/CatalogVideoR2Toggle';
 import { prefetchCatalogVideoR2Availability } from '../product-catalog/useCatalogVideoR2Availability';
 import { teamApi } from '../../api/team';
 
+/** As long as the flash on a field with an error (launch-settings.css). */
+const ATTENTION_MS = 1_600;
 const loadCatalogVideoFields = () => import('./LaunchCatalogVideoFields');
 const LaunchCatalogVideoFields = lazy(() =>
   loadCatalogVideoFields().then(module => ({
@@ -69,7 +72,8 @@ export function LaunchEditor({
   onRefreshSources,
   onUploadBusyChange,
   sourceNotice,
-  submitted = false
+  submitted = false,
+  submitAttempt = 0
 }: {
   teamId: string;
   config: LaunchDraft;
@@ -92,6 +96,8 @@ export function LaunchEditor({
   /** A question the sources raised — the offer's saved settings — asked right under them. */
   sourceNotice?: ReactNode;
   submitted?: boolean;
+  /** Counts presses of «Згенерувати запуск», so every press, not only the first, finds the error. */
+  submitAttempt?: number;
 }) {
   const { t } = useI18n();
   const prefix = useId();
@@ -116,12 +122,30 @@ export function LaunchEditor({
   }, [config.budgetMode, config.budgets]);
   useEffect(() => {
     if (!submitted) return;
-    const firstError = [
-      ...(editorRef.current?.querySelectorAll<HTMLElement>('.ui-field-error') ?? [])
-    ].find(error => !error.closest('[hidden]'));
-    const target = firstError?.closest('.ui-field');
-    target?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-  }, [submitted]);
+    // Every press of «Згенерувати запуск» lands on the first error that can be seen — not one
+    // inside a folded or hidden part of the form, which scrolled to «a field that is not
+    // there» — puts the cursor in its field and flashes it (next QA 2026-11-21).
+    const frame = requestAnimationFrame(() => {
+      const firstError = [
+        ...(editorRef.current?.querySelectorAll<HTMLElement>('.ui-field-error') ?? [])
+      ].find(error => !error.closest('[hidden], [inert], [aria-hidden="true"]'));
+      if (!firstError) return;
+      // Errors set beside their fields (budgets, products) have no field around them.
+      const target = firstError.closest<HTMLElement>('.ui-field') ?? firstError.parentElement;
+      if (!target) return;
+      target.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+      target
+        .querySelector<HTMLElement>(
+          '[aria-invalid="true"], input:not([type="hidden"]):not(:disabled), textarea, button:not(:disabled)'
+        )
+        ?.focus({ preventScroll: true });
+      target.classList.remove('is-attention');
+      void target.offsetWidth;
+      target.classList.add('is-attention');
+      window.setTimeout(() => target.classList.remove('is-attention'), ATTENTION_MS);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [submitted, submitAttempt]);
   const changed = (patch: LaunchDraft) => {
     setTouched(previous => new Set([...previous, ...Object.keys(patch)]));
     onChange(patch);
@@ -189,11 +213,53 @@ export function LaunchEditor({
     age: 'launchSettingsAge',
     productCount: 'launchSettingsProducts'
   };
+  // Before the error below is decided: budgets that are each valid but cannot all differ
+  // (30 campaigns between 5 $ and 30 $) were caught only after it, so the preview went
+  // blank with no word why (next QA 2026-11-21).
+  let budgets: number[] = config.budgetMode === 'manual' ? [...(config.budgets ?? [])] : [];
+  try {
+    budgets = launchBudgets(
+      config.campaignCount ?? 0,
+      config.maxBudget ?? 0,
+      config.budgetMode === 'manual' ? config.budgets : null,
+      config.minBudget,
+      config.budgetMode
+    );
+  } catch {
+    errors.budgets = 'LAUNCH_BUDGET_INVALID';
+    if (config.budgetMode !== 'manual') {
+      errors.minBudget = 'LAUNCH_BUDGET_INVALID';
+      errors.maxBudget = 'LAUNCH_BUDGET_INVALID';
+    }
+  }
+  // An automatic range too narrow for one budget per campaign is said as such: «the minimum
+  // cannot exceed the maximum» was the only message, and here it is not the reason.
+  const campaignCount = config.campaignCount ?? 0;
+  const narrowRange =
+    (config.budgetMode ?? 'auto') === 'auto' &&
+    Number.isSafeInteger(campaignCount) &&
+    campaignCount > 1 &&
+    Number.isSafeInteger(config.maxBudget) &&
+    (config.minBudget === undefined
+      ? config.maxBudget! < campaignCount
+      : Number.isSafeInteger(config.minBudget) &&
+        config.minBudget >= 1 &&
+        config.minBudget <= config.maxBudget! &&
+        config.maxBudget! - config.minBudget < campaignCount - 1);
   const budgetKeys = ['minBudget', 'maxBudget', 'budgets'];
+  const productCountError =
+    config.method === 'catalog' &&
+    productText === null &&
+    Boolean(errors.productCount) &&
+    (submitted || touched.has('catalog'));
   const budgetError =
     !editingBudget &&
     budgetKeys.some(key => Boolean(errors[key])) &&
     (submitted || budgetKeys.some(key => touched.has(key)));
+  const emptyValue = (key: string) => {
+    const value = (config as Record<string, unknown>)[key];
+    return value === undefined || value === null || value === '';
+  };
   const field = (
     key: string,
     label: TranslationKey,
@@ -217,7 +283,10 @@ export function LaunchEditor({
             ? t(
                 key === 'originalUrl'
                   ? 'launchesUrlInvalid'
-                  : submitted
+                  : // «Потрібно заповнити» for an empty field and only for it: 101 campaigns,
+                    // typed, was called missing, and an unchosen РК «Перевірте значення»
+                    // (next QA 2026-11-21).
+                    !emptyValue(key)
                     ? key === 'campaignCount'
                       ? 'launchesCampaignCountInvalid'
                       : key === 'adsCount'
@@ -365,22 +434,6 @@ export function LaunchEditor({
       help
     );
   };
-  let budgets: number[] = config.budgetMode === 'manual' ? [...(config.budgets ?? [])] : [];
-  try {
-    budgets = launchBudgets(
-      config.campaignCount ?? 0,
-      config.maxBudget ?? 0,
-      config.budgetMode === 'manual' ? config.budgets : null,
-      config.minBudget,
-      config.budgetMode
-    );
-  } catch {
-    errors.budgets = 'LAUNCH_BUDGET_INVALID';
-    if (config.budgetMode !== 'manual') {
-      errors.minBudget = 'LAUNCH_BUDGET_INVALID';
-      errors.maxBudget = 'LAUNCH_BUDGET_INVALID';
-    }
-  }
   const previewRows = launchNamingPreview(config, localSources);
   const missingSubSlots = isLaunchUrl(config.originalUrl)
     ? missingLaunchSubSlots(config.originalUrl)
@@ -459,6 +512,10 @@ export function LaunchEditor({
                     <Input
                       id={`${prefix}-productCount`}
                       aria-label={t('launchesCatalogProductCount')}
+                      invalid={productCountError}
+                      aria-describedby={
+                        productCountError ? `${prefix}-productCount-error` : undefined
+                      }
                       type="number"
                       width="narrow"
                       value={productText ?? config.catalog.productCount}
@@ -514,10 +571,22 @@ export function LaunchEditor({
                       }}
                     />
                   </label>
-                  {productsBelowCreatives && (
+                  {productsBelowCreatives ? (
                     <p className="ui-field-error basis-full" role="alert">
                       {t('launchProductsBelowCreatives')}
                     </p>
+                  ) : (
+                    // The count sits beside the method, outside the shared field: 0 or 401
+                    // products said nothing until generation refused them (next QA 2026-11-21).
+                    productCountError && (
+                      <p
+                        id={`${prefix}-productCount-error`}
+                        className="ui-field-error basis-full"
+                        role="alert"
+                      >
+                        {t('launchesProductCountInvalid')}
+                      </p>
+                    )
                   )}
                 </>
               )}
@@ -586,12 +655,7 @@ export function LaunchEditor({
                   true,
                   'launchesUrlHelp'
                 )}
-                <p
-                  className="launch-editor-url-warning"
-                  role="status"
-                  aria-live="polite"
-                  data-reserve={t('launchesSubNotFound', { slots: 'SUB1, SUB2, SUB3' })}
-                >
+                <p className="launch-editor-url-warning" role="status" aria-live="polite">
                   <span>
                     {missingSubSlots.length > 0
                       ? t('launchesSubNotFound', {
@@ -740,25 +804,11 @@ export function LaunchEditor({
                         '$',
                         undefined,
                         budgets.length > 0 ? (
-                          <output
-                            className="launch-editor-budget-preview"
-                            aria-label={t('launchesBudget')}
-                          >
-                            {budgets.slice(0, 4).map((budget, index) => (
-                              <span key={index}>
-                                {budget} <span className="launch-editor-budget-currency">$</span>
-                              </span>
-                            ))}
-                            {budgets.length > 4 && (
-                              <span
-                                aria-label={t('launchSettingsMoreBudgets', {
-                                  count: budgets.length - 4
-                                })}
-                              >
-                                +{budgets.length - 4}
-                              </span>
-                            )}
-                          </output>
+                          <LaunchBudgetPreview
+                            budgets={budgets}
+                            label={t('launchesBudget')}
+                            moreLabel={count => t('launchSettingsMoreBudgets', { count })}
+                          />
                         ) : undefined
                       )}
                     </>
@@ -801,13 +851,20 @@ export function LaunchEditor({
                     className="ui-field-error launch-editor-budget-error"
                     role="alert"
                   >
-                    {t(
-                      config.budgetMode === 'single'
-                        ? 'launchesMaxBudgetInvalid'
-                        : config.budgetMode === 'manual'
-                          ? 'launchesBudgetInvalid'
-                          : 'launchesBudgetRangeInvalid'
-                    )}
+                    {narrowRange
+                      ? config.minBudget === undefined
+                        ? t('launchesBudgetMaxBelowCampaigns', { count: campaignCount })
+                        : t('launchesBudgetRangeTooNarrow', {
+                            count: campaignCount,
+                            gap: campaignCount - 1
+                          })
+                      : t(
+                          config.budgetMode === 'single'
+                            ? 'launchesMaxBudgetInvalid'
+                            : config.budgetMode === 'manual'
+                              ? 'launchesBudgetInvalid'
+                              : 'launchesBudgetRangeInvalid'
+                        )}
                   </p>
                 )}
               </div>
@@ -830,89 +887,110 @@ export function LaunchEditor({
                 </div>
                 {config.catalog && (
                   <div className="launch-editor-catalog-options">
-                    {creativeKind !== 'image' && (
-                      <div className="launch-editor-restitch">
-                        <Switch
-                          label={t('launchesRestitch')}
-                          checked={config.catalog.restitchEnabled}
+                    <div className="launch-editor-catalog-switches">
+                      {/* One row per option, each as tall as its tallest control from the start, so
+                          a switch never moves under the pointer: turning re-stitch on used to add a
+                          labelled field above the row and drop the switch a line down (next QA
+                          2026-11-21). What an option adds appears beside it, in its row or in the column
+                          to the right. */}
+                      {creativeKind !== 'image' && (
+                        <div className="launch-editor-catalog-row">
+                          <div className="launch-editor-restitch">
+                            <Switch
+                              label={t('launchesRestitch')}
+                              checked={config.catalog.restitchEnabled}
+                              disabled={disabled}
+                              onChange={restitchEnabled => {
+                                const current = config.catalog!;
+                                // Turning restitch on with several videos starts at one variation per
+                                // video, the least the launch accepts — not at an error the user did
+                                // not make. Turning it off returns a v1 catalog to its one original.
+                                const next = { ...current, restitchEnabled };
+                                changed({
+                                  catalog:
+                                    restitchEnabled &&
+                                    creativeCount > 1 &&
+                                    (current.videoVariationCount ?? 1) < creativeCount
+                                      ? withVariationCount(
+                                          next,
+                                          Math.min(creativeCount, current.productCount)
+                                        )
+                                      : !restitchEnabled &&
+                                          current.catalogVideoProtocolVersion === 1
+                                        ? { ...next, videoVariationCount: 1 }
+                                        : next
+                                });
+                              }}
+                            />
+                          </div>
+                          {config.catalog.restitchEnabled && (
+                            <div className="launch-editor-variations launch-editor-appear">
+                              <Suspense fallback={null}>
+                                <LaunchCatalogVideoFields
+                                  part="variations"
+                                  value={config.catalog}
+                                  disabled={disabled}
+                                  creativeCopies={
+                                    creativeCount > 1
+                                      ? draftCreatives(config).map(c => c.copies)
+                                      : undefined
+                                  }
+                                  onChange={catalog => changed({ catalog })}
+                                />
+                              </Suspense>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="launch-editor-catalog-row">
+                        <CatalogVideoR2Toggle
+                          mode="create"
+                          teamId={teamId}
+                          control="switch"
+                          media={creativeKind === 'image' ? 'image' : 'video'}
+                          checked={config.catalog!.copyVideoToR2 === true}
                           disabled={disabled}
-                          onChange={restitchEnabled => {
-                            const current = config.catalog!;
-                            // Turning restitch on with several videos starts at one variation per
-                            // video, the least the launch accepts — not at an error the user did
-                            // not make. Turning it off returns a v1 catalog to its one original.
-                            const next = { ...current, restitchEnabled };
-                            changed({
-                              catalog:
-                                restitchEnabled &&
-                                creativeCount > 1 &&
-                                (current.videoVariationCount ?? 1) < creativeCount
-                                  ? withVariationCount(
-                                      next,
-                                      Math.min(creativeCount, current.productCount)
-                                    )
-                                  : !restitchEnabled && current.catalogVideoProtocolVersion === 1
-                                    ? { ...next, videoVariationCount: 1 }
-                                    : next
-                            });
-                          }}
+                          onChange={copyVideoToR2 =>
+                            changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
+                          }
                         />
                       </div>
-                    )}
+                      <div className="launch-editor-catalog-publication flex basis-full flex-col gap-2">
+                        <Suspense fallback={null}>
+                          <LaunchCatalogVideoFields
+                            part="publication"
+                            media={creativeKind === 'image' ? 'image' : 'video'}
+                            value={config.catalog!}
+                            disabled={disabled}
+                            onChange={catalog => changed({ catalog })}
+                          />
+                        </Suspense>
+                        {creativeKind === 'image' && scheduledPublication && (
+                          <p className="ui-field-help">{t('launchImagesScheduleHint')}</p>
+                        )}
+                      </div>
+                    </div>
+                    {/* The duration takes the half of the shelf the switches leave empty. */}
                     {creativeKind !== 'image' && (
-                      <Suspense fallback={null}>
-                        <LaunchCatalogVideoFields
-                          part="variations"
+                      <Collapse
+                        open={config.catalog.restitchEnabled}
+                        className="launch-editor-catalog-fold"
+                      >
+                        <LaunchRestitchDurationField
                           value={config.catalog}
                           disabled={disabled}
-                          creativeCopies={
-                            creativeCount > 1
-                              ? draftCreatives(config).map(c => c.copies)
+                          error={
+                            errors.customFinalDurationSeconds &&
+                            (submitted || touched.has('catalog'))
+                              ? t('launchesDurationInvalid')
                               : undefined
                           }
-                          onChange={catalog => changed({ catalog })}
+                          onChange={duration =>
+                            changed({ catalog: { ...config.catalog!, ...duration } })
+                          }
                         />
-                      </Suspense>
+                      </Collapse>
                     )}
-                    <CatalogVideoR2Toggle
-                      mode="create"
-                      teamId={teamId}
-                      control="switch"
-                      media={creativeKind === 'image' ? 'image' : 'video'}
-                      checked={config.catalog!.copyVideoToR2 === true}
-                      disabled={disabled}
-                      onChange={copyVideoToR2 =>
-                        changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
-                      }
-                    />
-                    {config.catalog.restitchEnabled && creativeKind !== 'image' && (
-                      <LaunchRestitchDurationField
-                        value={config.catalog}
-                        disabled={disabled}
-                        error={
-                          errors.customFinalDurationSeconds && (submitted || touched.has('catalog'))
-                            ? t('launchesDurationInvalid')
-                            : undefined
-                        }
-                        onChange={duration =>
-                          changed({ catalog: { ...config.catalog!, ...duration } })
-                        }
-                      />
-                    )}
-                    <div className="flex basis-full flex-col gap-2">
-                      <Suspense fallback={null}>
-                        <LaunchCatalogVideoFields
-                          part="publication"
-                          media={creativeKind === 'image' ? 'image' : 'video'}
-                          value={config.catalog!}
-                          disabled={disabled}
-                          onChange={catalog => changed({ catalog })}
-                        />
-                      </Suspense>
-                      {creativeKind === 'image' && scheduledPublication && (
-                        <p className="ui-field-help">{t('launchImagesScheduleHint')}</p>
-                      )}
-                    </div>
                   </div>
                 )}
               </section>

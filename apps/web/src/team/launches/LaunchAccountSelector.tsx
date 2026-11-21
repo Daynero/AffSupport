@@ -49,7 +49,10 @@ export function LaunchAccountSelector({
         disabled={disabled}
         onClick={() => setBrowsing(true)}
       >
-        <span className="min-w-0 flex-1 truncate text-left">
+        {/* Unchosen, it reads as the selects' «Обрати» beside it, not as a bold action. */}
+        <span
+          className={`min-w-0 flex-1 truncate text-left${selected ? '' : ' launch-account-placeholder'}`}
+        >
           {selected?.label ?? t('launchesAccountBrowse')}
         </span>
       </Button>

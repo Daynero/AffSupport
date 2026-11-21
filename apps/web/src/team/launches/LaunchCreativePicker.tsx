@@ -75,6 +75,7 @@ export function LaunchCreativePicker({
   const fileInput = useRef<HTMLInputElement>(null);
   const menuAnchor = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuWasOpen = useRef(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -381,14 +382,27 @@ export function LaunchCreativePicker({
         <div
           className={
             compactDrop
-              ? `flex min-h-10 min-w-0 items-center gap-2 rounded-control border border-dashed px-3 text-caption text-ink-muted ${
+              ? `launch-creative-drop flex min-h-10 min-w-0 items-center gap-2 rounded-control border border-dashed px-3 text-caption text-ink-muted ${
                   dragging ? 'border-secondary-border bg-secondary-soft' : 'border-neutral-border'
                 }`
               : 'launch-creative-field'
           }
           data-dragging={dragging || undefined}
           data-busy={busy || undefined}
+          data-disabled={(compactDrop && unavailable) || undefined}
           aria-busy={busy}
+          // The whole drop zone opens «Обрати», not only its button (next QA 2026-11-21).
+          // A pointer convenience: the button inside stays the one control for the
+          // keyboard and for assistive technology, so the zone takes no role of its own.
+          onPointerDownCapture={() => {
+            menuWasOpen.current = menuOpen;
+          }}
+          onClick={event => {
+            if (!compactDrop || unavailable || busy) return;
+            if (event.target instanceof Element && event.target.closest('button, input, a')) return;
+            // A press on the zone while the menu is up closes it, as the button does.
+            if (!menuWasOpen.current) setMenuOpen(true);
+          }}
         >
           {!compactDrop && creatives[0] && (
             <LaunchCreativeRow

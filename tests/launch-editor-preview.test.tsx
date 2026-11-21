@@ -141,7 +141,9 @@ it('keeps incomplete URL neutral until edited, then explains validation errors',
   fireEvent.change(url, { target: { value: 'https://example.invalid/?sub1=a&sub2=b&sub3=c' } });
   expect(document.querySelector('.launch-editor-url-warning')).toBe(notice);
   expect(notice?.textContent).toBe('');
-  expect(notice?.getAttribute('data-reserve')).toContain('SUB1, SUB2, SUB3');
+  // No line is held for a notice that is not there (next QA 2026-11-21): the empty live
+  // region stays in place, so the next notice is still announced.
+  expect(notice?.hasAttribute('data-reserve')).toBe(false);
 });
 
 it('names the pixel the launch link carries above the field, and nothing when it has none', () => {
@@ -193,7 +195,8 @@ it('explains an empty required Buyer after submit without tinting the field back
   expect(
     screen.queryByLabelText('Required values are checked when you generate the launch.')
   ).toBeNull();
-  expect(screen.getByRole('alert').textContent).toBe('Check the value');
+  // An empty choice says it is missing, not «check the value» (next QA 2026-11-21).
+  expect(screen.getByRole('alert').textContent).toBe('Required');
 });
 
 it('keeps the campaign count and ads count adjacent and switches compact budget modes', () => {
@@ -298,20 +301,20 @@ it('switches restitch time between a point and an independently editable interva
     );
   }
   render(<Host />);
-  fireEvent.click(screen.getByRole('button', { name: 'Stitch duration · 30 min' }));
+  // The duration is open in the launch editor: no disclosure to press first.
   expect(screen.getAllByRole('slider')).toHaveLength(1);
   fireEvent.click(screen.getByRole('button', { name: 'Random range' }));
   expect(screen.getAllByRole('slider')).toHaveLength(2);
-  expect(screen.getByRole('button', { name: 'Stitch duration · 25–35 min' })).toBeTruthy();
+  expect(screen.getByText('Stitch duration · 25–35 min')).toBeTruthy();
   fireEvent.keyDown(screen.getAllByRole('slider')[1], { key: 'ArrowRight' });
   fireEvent.keyUp(screen.getAllByRole('slider')[1], { key: 'ArrowRight' });
-  expect(screen.getByRole('button', { name: 'Stitch duration · 25–36 min' })).toBeTruthy();
+  expect(screen.getByText('Stitch duration · 25–36 min')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Exact' }));
   expect(screen.getAllByRole('slider')).toHaveLength(1);
-  expect(screen.getByRole('button', { name: 'Stitch duration · 31 min' })).toBeTruthy();
+  expect(screen.getByText('Stitch duration · 31 min')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Random range' }));
   expect(screen.getAllByRole('slider')).toHaveLength(2);
-  expect(screen.getByRole('button', { name: 'Stitch duration · 26–36 min' })).toBeTruthy();
+  expect(screen.getByText('Stitch duration · 26–36 min')).toBeTruthy();
 });
 
 it('keeps a centered random interval inside the 1–60 minute scale at the upper edge', () => {
@@ -342,14 +345,14 @@ it('keeps a centered random interval inside the 1–60 minute scale at the upper
     );
   }
   render(<Host />);
-  fireEvent.click(screen.getByRole('button', { name: 'Stitch duration · 55–60 min' }));
+  expect(screen.getByText('Stitch duration · 55–60 min')).toBeTruthy();
   fireEvent.keyDown(screen.getAllByRole('slider')[1], { key: 'ArrowLeft' });
   fireEvent.keyUp(screen.getAllByRole('slider')[1], { key: 'ArrowLeft' });
-  expect(screen.getByRole('button', { name: 'Stitch duration · 55–59 min' })).toBeTruthy();
+  expect(screen.getByText('Stitch duration · 55–59 min')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Exact' }));
-  expect(screen.getByRole('button', { name: 'Stitch duration · 57 min' })).toBeTruthy();
+  expect(screen.getByText('Stitch duration · 57 min')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Random range' }));
-  expect(screen.getByRole('button', { name: 'Stitch duration · 52–60 min' })).toBeTruthy();
+  expect(screen.getByText('Stitch duration · 52–60 min')).toBeTruthy();
 });
 
 it('updates automatic budgets from both bounds and changes the heading for one campaign', () => {

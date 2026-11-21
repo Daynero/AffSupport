@@ -1,13 +1,17 @@
-import { useEffect, useId, useState } from 'react';
 import {
-  Accordion,
   FormField,
   RestitchDurationControl,
   type RestitchDurationValue
 } from '../../components/ui/index.js';
 import { useI18n } from '../../i18n.js';
 
-/** Keep the chosen duration visible; the full shared editor opens at its value. */
+/**
+ * The stitch duration, open, with the chosen value in its name.
+ *
+ * It used to sit behind a disclosure, squeezed under the re-stitch switch. The launch
+ * editor now gives it the half of the catalog shelf the switches leave empty, so it is
+ * shown open and wide enough to set by hand (next QA 2026-11-21).
+ */
 export function LaunchRestitchDurationField({
   value,
   onChange,
@@ -20,11 +24,6 @@ export function LaunchRestitchDurationField({
   error?: string;
 }) {
   const { t } = useI18n();
-  const id = useId();
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (error && !disabled) setOpen(true);
-  }, [error, disabled]);
   const minutes = Math.round((value.customFinalDurationSeconds ?? 1800) / 60);
   const range = value.finalDurationRangeSeconds;
   const summary =
@@ -38,29 +37,21 @@ export function LaunchRestitchDurationField({
             ? '40–50'
             : '30–40';
   return (
-    <FormField className="launch-duration-disclosure" error={error}>
-      <Accordion
-        openIds={open ? new Set([id]) : new Set()}
-        onToggle={() => setOpen(current => !current)}
-        items={[
-          {
-            id,
-            title: `${t('launchSettingsDuration')} · ${summary} ${t('launchesMinutesShort')}`,
-            content: (
-              <RestitchDurationControl
-                value={value}
-                disabled={disabled}
-                labels={{
-                  duration: t('launchesDuration'),
-                  range: t('launchesDurationRange'),
-                  exact: t('launchesDurationExact'),
-                  unit: t('launchesMinutesShort')
-                }}
-                onChange={onChange}
-              />
-            )
-          }
-        ]}
+    <FormField
+      className="launch-duration-open"
+      label={`${t('launchSettingsDuration')} · ${summary} ${t('launchesMinutesShort')}`}
+      error={error}
+    >
+      <RestitchDurationControl
+        value={value}
+        disabled={disabled}
+        labels={{
+          duration: t('launchesDuration'),
+          range: t('launchesDurationRange'),
+          exact: t('launchesDurationExact'),
+          unit: t('launchesMinutesShort')
+        }}
+        onChange={onChange}
       />
     </FormField>
   );
