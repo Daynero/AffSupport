@@ -20,6 +20,13 @@ import { incompatibleMigrations } from './migration-compat.mjs';
 
 const SHARED_PREFIX = 'supabase/functions/_shared/';
 const FUNCTIONS_PREFIX = 'supabase/functions/';
+/**
+ * The functions bundle `packages/shared/dist` at deploy time, through `_shared` (errors.ts
+ * alone reaches nearly every function). A change to the shared package's source is a change
+ * to them all, though no file under `supabase/functions` moved — 1.5.9's creatives target
+ * reached next only because a comment was added to two functions to force their redeploy.
+ */
+const SHARED_PACKAGE_PATHS = ['packages/shared/src/', 'packages/shared/package.json'];
 
 /**
  * Which Edge Functions this release must redeploy.
@@ -32,7 +39,14 @@ const FUNCTIONS_PREFIX = 'supabase/functions/';
  * @param {{changedPaths: readonly string[], functions: readonly string[]}} input
  */
 export function functionsNeedingDeploy({ changedPaths, functions }) {
-  if (changedPaths.some(entry => entry.startsWith(SHARED_PREFIX))) return [...functions].sort();
+  if (
+    changedPaths.some(
+      entry =>
+        entry.startsWith(SHARED_PREFIX) ||
+        SHARED_PACKAGE_PATHS.some(prefix => entry === prefix || entry.startsWith(prefix))
+    )
+  )
+    return [...functions].sort();
   const touched = new Set();
   for (const entry of changedPaths) {
     if (!entry.startsWith(FUNCTIONS_PREFIX)) continue;
