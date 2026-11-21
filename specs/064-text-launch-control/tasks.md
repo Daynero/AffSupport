@@ -8,7 +8,7 @@
 - [ ] T002 [P] Реєстр полів `packages/shared/src/team/launches/fields.ts`: рівні 1 і 2, типи, межі, умови доступності, маска дефолтів, операції, синоніми. Генератор JSON Schema для `plan_launch_actions`. `tests/launch-field-registry.test.ts`: інвентар контролів `LaunchEditor` і дочірніх компонентів червоніє на незареєстрованому полі. FR-008 SC-007
 - [ ] T003 [P] `packages/shared/src/team/launches/defaults-merge.ts`: чисте злиття «офер → простір → вбудоване» з явним часом і поясом, маска полів, legacy-бюджет без мінімуму. Тести на нову й існуючу чернетку, відсутній профіль і помилку читання. FR-004 FR-010
 - [ ] T004 [P] `packages/shared/src/ai/pricing.ts`: `translationPrice(units, language, version)`, `assistantPrice(text, version)`, округлення вгору, мінімум 1, версії. `tests/ai-pricing.test.ts`. FR-023 FR-024 FR-025
-- [ ] T005 Міграція чарунок: `ai_settings`, `ai_credit_grants`, `ai_credit_ledger`, `ai_budget_months`, `ai_admin_events`, нові колонки `ai_usage_events`. RPC `ai_credits_status()`, `service_ai_credit_debit/refund` з advisory lock і місячним стопом. `supabase/tests/database/ai-credits.test.sql`: паралельні debit на останні чарунки, refund у ту саму добу, північ і перехід часу, підвищення гранту, ліміт нижче витраченого. FR-022 FR-026 FR-028 FR-030 SC-010 SC-011
+- [ ] T005 Міграція чарунок: `ai_settings`, `ai_credit_grants`, `ai_credit_ledger`, `ai_budget_months`, `ai_admin_events`, нові колонки `ai_usage_events`. RPC `ai_credits_status()`, `service_ai_credit_debit/refund` з блокуванням користувача, `ai_month_holds` під спільним блокуванням місяця. `supabase/tests/database/ai-credits.test.sql`: паралельні debit на останні чарунки, refund у ту саму добу, північ і перехід часу, підвищення гранту, двоє користувачів біля межі місячного бюджету (лише один hold), ліміт нижче витраченого. FR-022 FR-026 FR-028 FR-030 SC-010 SC-011
 - [ ] T006 `supabase/functions/_shared/ai-credits.ts`, правки `_shared/claude.ts` і `claude-sdk.ts`: без прихованих повторів, usage «невідомо» замість нуля, точні USD, кешований префікс, звірення невизначених спроб (≤ 15 хв, потім refund). `tests/ai-credits.test.ts`. FR-021 FR-026
 - [ ] T007 Міграція помічника за [моделлю даних](data-model.md): розмови, повідомлення, команди, ефекти, питання, URL-слоти, перегляди, `team_launches.created_via` / `assistant_command_id`, пілот. RLS, cleanup fence, cron TTL 7 днів. `supabase/tests/database/assistant-access.test.sql`: два простори, автор/учасник/чужий/service, прямий виклик без UI. FR-002 FR-018 FR-032
 - [ ] T008 RPC `save_launch_offer_defaults_masked` + pgTAP: паралельна правка іншого поля зберігається, того самого — `EDIT_CONFLICT`, повтор ключа — один ефект. FR-010 SC-008
@@ -23,11 +23,11 @@
 
 ## Фаза 3 · Історії 2, 3, 5 — щоденна користь
 
-- [ ] T014 `question.answer`, `update_fields` з expected version і `EDIT_CONFLICT`. `tests/assistant-context.test.ts`: три формулювання історії 2, рівно 2 змінені поля, відповідь кнопкою без Claude. FR-007 FR-009 SC-002 SC-003
+- [ ] T014 `question.answer`, `update_fields` з expected version і `EDIT_CONFLICT`. Порядкові посилання за `contextCardId`. `tests/assistant-context.test.ts`: три формулювання історії 2, рівно 2 змінені поля, відповідь кнопкою без Claude, дві вкладки з наборами А і Б («у другому» змінює рядок набору А). FR-007 FR-009 SC-002 SC-003
 - [ ] T015 `supabase/functions/assistant/review.ts`: «мої на сьогодні» за `created_by` і датою в поясі запуску, `limit 101`, версії, неготові з причиною. FR-012 FR-014
 - [ ] T016 `review.launch` → приймання пакета 053 (`drive-ops/launch-batch.ts`) з версіями рядків і ключем; `REVIEW_CHANGED`; повтор → той самий `batchId`. `tests/assistant-launch.test.ts` + pgTAP. FR-013 FR-015 SC-004 SC-009 (0 викликів Claude на перегляд, запуск, повтор)
 - [ ] T017 Веб: картка перегляду з «Запустити N», картка стану з доменних квитанцій. `tests/assistant-launch-ui.test.tsx`: зміна в іншій вкладці, північ між показом і натисканням, обрив, 4 з 5 готових. FR-016 SC-004
-- [ ] T018 `supabase/functions/assistant/undo.ts` + транзакційна RPC відкату ефектів. `tests/assistant-undo.test.ts`: 70 → 70; 3 змінено й 2 запущено → 65 + звіт; повтор — один ефект. FR-017 SC-006
+- [ ] T018 `supabase/functions/assistant/undo.ts` + транзакційна RPC відкату ефектів. Відкат правок по полях. `tests/assistant-undo.test.ts`: 70 → 70; 3 змінено й 2 запущено → 65 + звіт; помічник змінив бюджет, людина — нотатку → бюджет повернуто, нотатку збережено; повтор — один ефект. FR-017 SC-006
 - [ ] T019 Веб: «Скасувати» на картці результату, звіт «скасовано / лишилось з причиною». FR-017
 - [ ] T020 Чекпоінт: історії 1, 2, 3, 5 на локальній beta з підміною провайдера через браузер.
 
@@ -35,20 +35,20 @@
 
 - [ ] T021 `apps/web/src/components/CreditsButton.tsx` у хедері `App.tsx` замість тригера `SupportButton` (компонент і меню зберегти). Панель: смуга доби, час поновлення, ціни, 10 останніх списань, «Помічник запусків». Таймер до київської півночі, перечитування при поверненні у вкладку. `tests/credits-button.test.tsx`: 0, 72%, DST, вузький екран, клавіатура, зміна користувача. FR-027 SC-011
 - [ ] T022 «Надіслати · N» у `AssistantComposer`: лічильник символів, «Бракує N · поновиться о 00:00», `PRICE_CHANGED`, ціна 0 для детермінованих реплік. FR-023 FR-025
-- [ ] T023 Переклад 063 на чарунках: «Перекласти · N» у `TranslateLauncher` в обох місцях, `transcript-translate` через `ai-credits`, приєднання до запущеного перекладу без списання, приватність платника, прапорець `translation_billing`, `CLIENT_UPGRADE` для старого клієнта. `tests/translation-credits.test.ts` + pgTAP. FR-024 SC-010
+- [ ] T023 Переклад 063 на чарунках: «Перекласти · N» у `TranslateLauncher` в обох місцях, `transcript-translate` через `ai-credits`, робота й платник закріплюються в одній транзакції під блокуванням ключа роботи (тест: двоє одночасно → один переклад, один виклик Claude, одне списання), приєднання без списання, приватність платника, прапорець `translation_billing`, `CLIENT_UPGRADE` для старого клієнта. `tests/translation-credits.test.ts` + pgTAP. FR-024 SC-010
 
 ## Фаза 5 · Історії 4 і 6
 
 - [ ] T024 `create_drafts` з `perAccount`, `overrides`, `dates` (`each_day:N`), межі 100/1000 до першого запису, недоступна опція з причиною. `tests/assistant-multi-account.test.ts`: G1–G5 × 5 кампаній, винятки G1/G3, R2 недоступний, 14 днів. FR-005 FR-006 SC-005
 - [ ] T025 `tests/assistant-launch-parity.test.ts`: для кожного поля рівня 1 створення й правка текстом проти ручного введення дають ту саму збережену чернетку. Поля рівня 2 вмикаються в реєстрі по одному разом зі своїм тестом. FR-008 SC-007
-- [ ] T026 `save_offer_defaults` з маскою через T008, `source: quoted` → `profile.confirm`, ланцюжки `step:n` / `copy_of`. `tests/assistant-default-chain.test.ts`: одна репліка і три, «це» з двох джерел, без `manage_metadata`, збій після двох із трьох чернеток. FR-010 FR-011 SC-008
+- [ ] T026 `save_offer_defaults` завжди як пропозиція → `profile.confirm` → запис через T008, залежні кроки чекають підтвердження, ланцюжки `step:n` / `copy_of`. `tests/assistant-default-chain.test.ts`: одна репліка і три, «це» з двох джерел, без `manage_metadata`, збій після двох із трьох чернеток. FR-010 FR-011 SC-008
 - [ ] T027 Веб: картка підтвердження профілю «офер · поле · було → буде». FR-010
 
 ## Фаза 6 · Історії 8 і 9, модель
 
-- [ ] T028 `apps/web/src/pages/admin/AiBudgetPanel.tsx` + RPC з `is_admin()`: ліміт, витрачено, функції, прогноз, найгірший випадок, покриття ціною, невідомий usage, базовий і персональний грант, пілот, вимикачі, журнал. `tests/ai-budget-panel.test.tsx`: 100 → 150 при 40, $40/$100 за 10 із 30 днів, без даних, досягнутий ліміт. FR-028 FR-029 FR-030 FR-031 SC-011 SC-012
+- [ ] T028 `apps/web/src/pages/admin/AiBudgetPanel.tsx` + RPC з `is_admin()`: ліміт, витрачено, функції, прогноз, доступно USD для нових викликів, сценарій повного використання грантів активними, покриття ціною, невідомий usage, базовий і персональний грант, пілот, вимикачі, журнал. `tests/ai-budget-panel.test.tsx`: 100 → 150 при 40, $40/$100 за 10 із 30 днів, без даних, досягнутий ліміт. FR-028 FR-029 FR-030 FR-031 SC-011 SC-012
 - [ ] T029 `tests/assistant-security.test.ts`: уся матриця [контракту доступу](contracts/security.md) з підміною провайдера, звірка БД, черги, мережевих звернень і журналів. FR-032 FR-033 FR-034 FR-035 SC-013
-- [ ] T030 Корпус `tests/fixtures/assistant/uk-commands.json` (налаштування + закритий контроль, ≥ 3 формулювання на клас) і `scripts/acceptance/assistant-model-benchmark.mjs`. Спершу перевірити на підміні з відомими сумами, потім обмежений платний прогін (стеля $3) Haiku 5.5 low/medium і Sonnet 5.5 low. Звіт `model-results.md`: пороги, вартість на 100 реплік, таблиця `assistant_price_v1`, ставка перекладу. FR-036 SC-014
+- [ ] T030 Корпус `tests/fixtures/assistant/uk-commands.json` (налаштування + закритий контроль, ≥ 20 різних команд на клас у контролі) і `scripts/acceptance/assistant-model-benchmark.mjs`. Спершу перевірити на підміні з відомими сумами, потім платний прогін Haiku 5.5 low/medium (стеля $3). Sonnet 5.5 low — лише якщо Haiku не пройшла (стеля $20). Звіт `model-results.md`: пороги, вартість на 100 реплік, таблиця `assistant_price_v1` (FR-025), ставка перекладу. FR-036 SC-014
 
 ## Фаза 7 · Діагностика та приймання
 
