@@ -10,7 +10,7 @@ import type {
 } from '../launches.js';
 import { normalizeLaunchSub, normalizeLaunchOffer, parseLaunchConfig } from './validation.js';
 import { launchBudgets, launchAdRange, launchPreviewRows } from './budgets.js';
-import { launchCampaignName, isLaunchDate } from './naming.js';
+import { launchCampaignName, launchCreativeLabel, isLaunchDate } from './naming.js';
 import { patchLaunchUrl } from './url.js';
 /**
  * 062: a catalog Launch without a creative list stays video-only, as before.
@@ -39,39 +39,10 @@ function launchCreativeKindMismatch(
   }
   return null;
 }
-/**
- * 062: one product link per creative block, each with SUB «Креатив» naming that block's
- * creative. Null when there is nothing to tell apart — one creative, or no SUB slot that
- * carries the creative — so a catalog keeps its single link. Throws on a link that cannot be
- * made: a catalog is never written with the first creative's SUB passed off as another's.
- */
-export function launchCreativeSourceLinks(
-  config: LaunchConfig,
-  sources: LaunchSources,
-  catalogName?: string
-): string[] | null {
-  const creatives = config.creatives ?? [];
-  const carriesCreative = (['sub1', 'sub2', 'sub3'] as const).some(slot =>
-    config.subConfig[slot].includes('creative')
-  );
-  if (creatives.length < 2 || !carriesCreative) return null;
-  return creatives.map(creative => {
-    const preview = launchPreview(config, sources, catalogName, creative.alias);
-    if (!preview.ok) throw new Error('LAUNCH_SUB_INVALID');
-    return preview.value.advertisingUrl;
-  });
-}
-
 export function launchPreview(
   config: LaunchConfig,
   sources: LaunchSources,
-  catalogName?: string,
-  /**
-   * 062: the creative whose block the link is for. A catalog of several creatives gives each
-   * block its own product link, so SUB «Креатив» names the creative that block shows and the
-   * tracker credits it — not the first creative for every block (owner, 2026-11-21).
-   */
-  creativeAlias?: string
+  catalogName?: string
 ): LaunchParseResult<LaunchPreview> {
   const parsed = parseLaunchConfig(config);
   if (!parsed.ok) return parsed;
@@ -92,7 +63,10 @@ export function launchPreview(
     social: normalizeLaunchSub(sources.social),
     adAccountSuffix: sources.agentId.slice(-3),
     catalogName: catalogName ?? null,
-    creative: creativeAlias ?? config.creativeAlias
+    // 062: one value for the whole Launch — the first creative with «+N» for the others, as
+    // its card names it — so a tracker keeps one row per Launch however many creatives it has
+    // (owner, 2026-11-21: one value per block, or per creative, would swamp the analytics).
+    creative: launchCreativeLabel(config)
   };
   const subValues: Record<LaunchSubSlot, string | null> = { sub1: null, sub2: null, sub3: null };
   for (const slot of ['sub1', 'sub2', 'sub3'] as const) {
@@ -149,6 +123,14 @@ export function launchPreview(
 }
 
 /** A SUB preview does not depend on age, budgets or the validity of the rest of the form. */
+/** A creative's SUB value: an alias, or a Launch label with «+N» for the other creatives. */
+function normalizeLaunchCreativeSub(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const label = /^(.+)\+(\d{1,3})$/u.exec(value);
+  const alias = normalizeLaunchSub(label ? label[1] : value);
+  return alias === null ? null : label ? `${alias}+${label[2]}` : alias;
+}
+
 export function launchSubPreview(
   config: import('../launches.js').LaunchSubConfig,
   alias: unknown,
@@ -161,7 +143,7 @@ export function launchSubPreview(
       ? (sources.agentId ?? '').slice(-3)
       : null,
     catalogName: null,
-    creative: normalizeLaunchSub(alias)
+    creative: normalizeLaunchCreativeSub(alias)
   };
   const result: Record<LaunchSubSlot, string | null> = { sub1: null, sub2: null, sub3: null };
   for (const slot of ['sub1', 'sub2', 'sub3'] as const) {

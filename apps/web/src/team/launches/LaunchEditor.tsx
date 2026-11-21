@@ -9,6 +9,7 @@ import {
   launchPreview,
   parseLaunchConfig,
   launchSubPreview,
+  launchCreativeLabel,
   isLaunchUrl,
   missingLaunchSubSlots,
   rescaleCopies,
@@ -173,30 +174,18 @@ export function LaunchEditor({
     offer: offers.find(offer => offer.id === config.offerId)?.value,
     buyer: buyers.find(buyer => buyer.id === config.buyerId)?.value
   };
-  // A catalog of several creatives gives each block its own SUB «Креатив», so the preview
-  // names every creative's value, not the first one's for all (owner, 2026-11-21).
-  const subAliases =
-    config.method === 'catalog' && draftCreatives(config).length > 1
-      ? draftCreatives(config).map(creative => creative.alias)
-      : [config.creativeAlias];
+  // One SUB «Креатив» for the whole Launch: the first creative with «+N» for the others.
   const subPreview = config.subConfig
-    ? (() => {
-        const previews = subAliases.map(alias =>
-          launchSubPreview(config.subConfig!, alias, localSources)
-        );
-        const merged: Record<'sub1' | 'sub2' | 'sub3', string | null> = {
-          sub1: null,
-          sub2: null,
-          sub3: null
-        };
-        for (const slot of ['sub1', 'sub2', 'sub3'] as const) {
-          const values = previews.map(preview => preview[slot]);
-          merged[slot] = values.some(value => value === null)
-            ? null
-            : [...new Set(values)].join(' · ');
-        }
-        return merged;
-      })()
+    ? launchSubPreview(
+        config.subConfig,
+        config.creativeAlias
+          ? launchCreativeLabel({
+              creativeAlias: config.creativeAlias,
+              creatives: config.method === 'catalog' ? config.creatives : undefined
+            })
+          : config.creativeAlias,
+        localSources
+      )
     : null;
   const subValues = Object.entries(subPreview ?? {}).filter(([, value]) => value !== null);
   const subSummary = subValues

@@ -2,7 +2,8 @@
 // @ts-nocheck
 import { describe, expect, it } from 'vitest';
 import {
-  launchCreativeSourceLinks,
+  launchPreview,
+  launchSubPreview,
   type LaunchConfig,
   type LaunchCreative
 } from '../packages/shared/src/team/launches';
@@ -16,9 +17,9 @@ import { rebuildCatalogRows } from '../supabase/functions/_shared/catalog-update
 import { launchConfig, launchSources } from './fixtures/launches';
 
 /*
- * Owner, 2026-11-21: «кожен блок — свій креатив». In a catalog of several creatives every
- * block's product link carries SUB «Креатив» of the creative that block shows, so the tracker
- * credits the video a buyer actually saw — and every later update keeps it so.
+ * Owner, 2026-11-21: SUB «Креатив» of a Launch of several creatives is one value — the first
+ * creative with «+N» for the others, as its card names it — so a tracker keeps one row per
+ * Launch. The catalog layer can still carry a link per block (kept, unused by Launches).
  */
 
 const video = (n: number) => `44444444-4444-4444-8444-${String(n).padStart(12, '0')}`;
@@ -51,22 +52,28 @@ const multi = (creatives: LaunchCreative[], sub3: string[] = ['creative']): Laun
   });
 const sub3 = (link: string) => new URL(link).searchParams.get('sub3');
 
-describe('launchCreativeSourceLinks', () => {
-  it('gives every creative a link whose SUB «Креатив» is its own', () => {
-    const links = launchCreativeSourceLinks(
-      multi([creative(1, 2), creative(2, 2), creative(3, 1)]),
-      sources
-    );
-    expect(links?.map(sub3)).toEqual(['creo_1', 'creo_2', 'creo_3']);
-    // Everything else in the link is the same for every block.
-    expect(new Set(links!.map(link => new URL(link).searchParams.get('sub1'))).size).toBe(1);
+describe('SUB «Креатив» of a Launch', () => {
+  it('is the first creative with «+N» for the others, the same for every product', () => {
+    const preview = launchPreview(multi([creative(1, 2), creative(2, 2), creative(3, 1)]), sources);
+    if (!preview.ok) throw new Error('Expected a valid preview');
+    expect(preview.value.subValues.sub3).toBe('creo_1+2');
+    // Written as %2B: a raw «+» reads as a space in a tracker.
+    expect(preview.value.advertisingUrl).toContain('sub3=creo_1%2B2');
+    expect(sub3(preview.value.advertisingUrl)).toBe('creo_1+2');
   });
 
-  it('keeps the single link when nothing tells the blocks apart', () => {
-    expect(launchCreativeSourceLinks(multi([creative(1, 5)]), sources)).toBeNull();
-    expect(
-      launchCreativeSourceLinks(multi([creative(1, 2), creative(2, 3)], []), sources)
-    ).toBeNull();
+  it('stays the alias for a single creative', () => {
+    const preview = launchPreview(multi([creative(1, 5)]), {
+      ...sources,
+      materials: sources.materials.slice(0, 1)
+    });
+    expect(preview.ok && preview.value.subValues.sub3).toBe('creo_1');
+  });
+
+  it('shows the same label in the editor preview', () => {
+    const config = multi([creative(1, 2), creative(2, 2)]);
+    expect(launchSubPreview(config.subConfig, 'creo_1+1', sources).sub3).toBe('creo_1+1');
+    expect(launchSubPreview(config.subConfig, 'bad label+x', sources).sub3).toBeNull();
   });
 });
 
