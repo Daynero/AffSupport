@@ -27,7 +27,8 @@ import {
   Input,
   Textarea,
   Switch,
-  SegmentedControl
+  SegmentedControl,
+  Collapse
 } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { LaunchDictionaryManager } from './LaunchDictionaryManager';
@@ -43,9 +44,12 @@ import { LaunchDateField } from './LaunchDateField';
 import { launchPixel } from './launchPixel';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
 import { CatalogVideoR2Toggle } from '../product-catalog/CatalogVideoR2Toggle';
+import { prefetchCatalogVideoR2Availability } from '../product-catalog/useCatalogVideoR2Availability';
+import { teamApi } from '../../api/team';
 
+const loadCatalogVideoFields = () => import('./LaunchCatalogVideoFields');
 const LaunchCatalogVideoFields = lazy(() =>
-  import('./LaunchCatalogVideoFields').then(module => ({
+  loadCatalogVideoFields().then(module => ({
     default: module.LaunchCatalogVideoFields
   }))
 );
@@ -98,6 +102,12 @@ export function LaunchEditor({
   const [editingBudget, setEditingBudget] = useState(false);
   const [manualBudgetDraft, setManualBudgetDraft] = useState<number[]>(config.budgets ?? []);
   const editorRef = useRef<HTMLDivElement>(null);
+  // The catalog shelf's lazy part is fetched with the editor, not when the shelf opens: it
+  // popped in a beat after the rest of the shelf (next QA 2026-11-21).
+  useEffect(() => {
+    void loadCatalogVideoFields();
+    prefetchCatalogVideoR2Availability(teamId, teamApi.catalogVideoR2);
+  }, [teamId]);
   useEffect(() => {
     if (config.budgetMode === 'manual' && config.budgets) setManualBudgetDraft([...config.budgets]);
   }, [config.budgetMode, config.budgets]);
@@ -440,7 +450,7 @@ export function LaunchEditor({
               />
               {config.method === 'catalog' && config.catalog && (
                 <>
-                  <label className="flex items-center gap-2 text-label text-ink-muted">
+                  <label className="launch-editor-appear flex items-center gap-2 text-label text-ink-muted">
                     {t('launchSettingsProducts')}
                     <Input
                       id={`${prefix}-productCount`}
@@ -800,103 +810,110 @@ export function LaunchEditor({
             </div>
           </section>
 
-          {config.method === 'catalog' && config.catalog && (
-            <section
-              className="launch-editor-section launch-editor-method"
-              aria-labelledby={`${prefix}-method-heading`}
-            >
-              <div className="launch-editor-section-heading">
-                <div>
-                  <h3 id={`${prefix}-method-heading`}>{t('launchesCatalog')}</h3>
-                </div>
-              </div>
-              {config.method === 'catalog' && config.catalog && (
-                <div className="launch-editor-catalog-options">
-                  {creativeKind !== 'image' && (
-                    <div className="launch-editor-restitch">
-                      <Switch
-                        label={t('launchesRestitch')}
-                        checked={config.catalog.restitchEnabled}
-                        disabled={disabled}
-                        onChange={restitchEnabled => {
-                          const current = config.catalog!;
-                          // Turning restitch on with several videos starts at one variation per
-                          // video, the least the launch accepts — not at an error the user did
-                          // not make. Turning it off returns a v1 catalog to its one original.
-                          const next = { ...current, restitchEnabled };
-                          changed({
-                            catalog:
-                              restitchEnabled &&
-                              creativeCount > 1 &&
-                              (current.videoVariationCount ?? 1) < creativeCount
-                                ? withVariationCount(
-                                    next,
-                                    Math.min(creativeCount, current.productCount)
-                                  )
-                                : !restitchEnabled && current.catalogVideoProtocolVersion === 1
-                                  ? { ...next, videoVariationCount: 1 }
-                                  : next
-                          });
-                        }}
-                      />
-                    </div>
-                  )}
-                  {creativeKind !== 'image' && (
-                    <Suspense fallback={null}>
-                      <LaunchCatalogVideoFields
-                        part="variations"
-                        value={config.catalog}
-                        disabled={disabled}
-                        creativeCopies={
-                          creativeCount > 1 ? draftCreatives(config).map(c => c.copies) : undefined
-                        }
-                        onChange={catalog => changed({ catalog })}
-                      />
-                    </Suspense>
-                  )}
-                  <CatalogVideoR2Toggle
-                    mode="create"
-                    teamId={teamId}
-                    control="switch"
-                    media={creativeKind === 'image' ? 'image' : 'video'}
-                    checked={config.catalog!.copyVideoToR2 === true}
-                    disabled={disabled}
-                    onChange={copyVideoToR2 =>
-                      changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
-                    }
-                  />
-                  {config.catalog.restitchEnabled && creativeKind !== 'image' && (
-                    <LaunchRestitchDurationField
-                      value={config.catalog}
-                      disabled={disabled}
-                      error={
-                        errors.customFinalDurationSeconds && (submitted || touched.has('catalog'))
-                          ? t('launchesDurationInvalid')
-                          : undefined
-                      }
-                      onChange={duration =>
-                        changed({ catalog: { ...config.catalog!, ...duration } })
-                      }
-                    />
-                  )}
-                  <div className="flex basis-full flex-col gap-2">
-                    <Suspense fallback={null}>
-                      <LaunchCatalogVideoFields
-                        part="publication"
-                        media={creativeKind === 'image' ? 'image' : 'video'}
-                        value={config.catalog!}
-                        disabled={disabled}
-                        onChange={catalog => changed({ catalog })}
-                      />
-                    </Suspense>
-                    {creativeKind === 'image' && scheduledPublication && (
-                      <p className="field-hint">{t('launchImagesScheduleHint')}</p>
-                    )}
+          {/* Always mounted, so «Каталог» opens the shelf from nothing and «Без каталогу» folds
+              it away instead of cutting it (next QA 2026-11-21). The catalog settings stay in
+              the draft under «Без каталогу», which is what is shown while it closes. */}
+          <Collapse open={config.method === 'catalog'} className="launch-editor-collapse">
+            {config.catalog && (
+              <section
+                className="launch-editor-section launch-editor-method"
+                aria-labelledby={`${prefix}-method-heading`}
+              >
+                <div className="launch-editor-section-heading">
+                  <div>
+                    <h3 id={`${prefix}-method-heading`}>{t('launchesCatalog')}</h3>
                   </div>
                 </div>
-              )}
-            </section>
-          )}
+                {config.catalog && (
+                  <div className="launch-editor-catalog-options">
+                    {creativeKind !== 'image' && (
+                      <div className="launch-editor-restitch">
+                        <Switch
+                          label={t('launchesRestitch')}
+                          checked={config.catalog.restitchEnabled}
+                          disabled={disabled}
+                          onChange={restitchEnabled => {
+                            const current = config.catalog!;
+                            // Turning restitch on with several videos starts at one variation per
+                            // video, the least the launch accepts — not at an error the user did
+                            // not make. Turning it off returns a v1 catalog to its one original.
+                            const next = { ...current, restitchEnabled };
+                            changed({
+                              catalog:
+                                restitchEnabled &&
+                                creativeCount > 1 &&
+                                (current.videoVariationCount ?? 1) < creativeCount
+                                  ? withVariationCount(
+                                      next,
+                                      Math.min(creativeCount, current.productCount)
+                                    )
+                                  : !restitchEnabled && current.catalogVideoProtocolVersion === 1
+                                    ? { ...next, videoVariationCount: 1 }
+                                    : next
+                            });
+                          }}
+                        />
+                      </div>
+                    )}
+                    {creativeKind !== 'image' && (
+                      <Suspense fallback={null}>
+                        <LaunchCatalogVideoFields
+                          part="variations"
+                          value={config.catalog}
+                          disabled={disabled}
+                          creativeCopies={
+                            creativeCount > 1
+                              ? draftCreatives(config).map(c => c.copies)
+                              : undefined
+                          }
+                          onChange={catalog => changed({ catalog })}
+                        />
+                      </Suspense>
+                    )}
+                    <CatalogVideoR2Toggle
+                      mode="create"
+                      teamId={teamId}
+                      control="switch"
+                      media={creativeKind === 'image' ? 'image' : 'video'}
+                      checked={config.catalog!.copyVideoToR2 === true}
+                      disabled={disabled}
+                      onChange={copyVideoToR2 =>
+                        changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
+                      }
+                    />
+                    {config.catalog.restitchEnabled && creativeKind !== 'image' && (
+                      <LaunchRestitchDurationField
+                        value={config.catalog}
+                        disabled={disabled}
+                        error={
+                          errors.customFinalDurationSeconds && (submitted || touched.has('catalog'))
+                            ? t('launchesDurationInvalid')
+                            : undefined
+                        }
+                        onChange={duration =>
+                          changed({ catalog: { ...config.catalog!, ...duration } })
+                        }
+                      />
+                    )}
+                    <div className="flex basis-full flex-col gap-2">
+                      <Suspense fallback={null}>
+                        <LaunchCatalogVideoFields
+                          part="publication"
+                          media={creativeKind === 'image' ? 'image' : 'video'}
+                          value={config.catalog!}
+                          disabled={disabled}
+                          onChange={catalog => changed({ catalog })}
+                        />
+                      </Suspense>
+                      {creativeKind === 'image' && scheduledPublication && (
+                        <p className="field-hint">{t('launchImagesScheduleHint')}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+          </Collapse>
 
           <section className="launch-editor-section" aria-labelledby={`${prefix}-audience-heading`}>
             <div className="launch-editor-section-heading">

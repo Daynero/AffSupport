@@ -48,6 +48,7 @@ import { useOptionalAuth } from '../../auth/AuthContext';
 import { LaunchListFilter } from './LaunchListFilter';
 
 import { DeferredLaunchSession, preloadLaunchSession } from './DeferredLaunchSession';
+import { prefetchCatalogVideoR2Availability } from '../product-catalog/useCatalogVideoR2Availability';
 import { searchWithLayoutFallback } from '../../lib/layoutFallback';
 
 function isOlderLaunchDetail(next: LaunchDetail, current: LaunchDetail | null): boolean {
@@ -289,11 +290,16 @@ function LaunchSpaceContent({
       ? (target.closest<HTMLElement>('[data-launch-id]')?.dataset.launchId ?? null)
       : null;
   const usedSearch = useRef('');
-  // The editor's code arrives while the board is read, not when a card is opened.
+  // The editor's code arrives while the board is read, not when a card is opened — and so
+  // does the answer the catalog shelf's R2 switch waits for, which otherwise appeared a beat
+  // after the shelf (next QA 2026-11-21).
   useEffect(() => {
-    const timer = window.setTimeout(preloadLaunchSession, 1_500);
+    const timer = window.setTimeout(() => {
+      preloadLaunchSession();
+      prefetchCatalogVideoR2Availability(teamId, teamApi.catalogVideoR2);
+    }, 1_500);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [teamId]);
   const readList = useCallback(
     async (next: { id: string; date: string | null; createdAt?: string } | null = null) => {
       const f: {

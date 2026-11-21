@@ -1766,7 +1766,11 @@
   display: inline-flex;
   color: var(--color-neutral-text-muted);
 }
-.ui-field-help {
+/* `field-hint` is what the catalog and launch forms have always written for a hint under a
+   field; nothing drew it, so those hints came out in body size with a paragraph's margins
+   (next QA 2026-11-21). It is the field help, under its older name. */
+.ui-field-help,
+.field-hint {
   margin: 0;
   color: var(--color-neutral-text-muted);
   font-size: var(--text-caption);
@@ -2527,6 +2531,30 @@
    in its final place from the first frame. */
 .ui-reveal.is-arriving {
   animation: ui-fade-in var(--motion-base) var(--ease-fade) both;
+}
+
+/* Collapse: a form part that opens to its own height. Rows 0fr→1fr is the one layout
+   transition allowed, and only for disclosures; the content fades with it. */
+.ui-collapse {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--dur-section) var(--ease-standard),
+    opacity var(--dur-section) var(--ease-fade);
+}
+.ui-collapse.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.ui-collapse-body {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.ui-collapse.is-settled > .ui-collapse-body {
+  overflow: visible;
 }
 
 .ui-route-skeleton {

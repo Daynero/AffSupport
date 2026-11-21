@@ -5,6 +5,35 @@
 .launch-editor-compact .launch-editor-section + .launch-editor-section {
   padding-top: var(--space-3);
 }
+/* The catalog shelf folds away whole: it carries its own gap and rule inside the collapse,
+   so a closed shelf leaves no double gap behind, and the section after it keeps its rule. */
+.launch-editor-compact .launch-editor-collapse {
+  margin-top: calc(var(--space-4) * -1);
+}
+.launch-editor-compact .launch-editor-collapse > .ui-collapse-body > .launch-editor-section {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--color-neutral-border);
+  padding-top: var(--space-3);
+}
+.launch-editor-compact .launch-editor-collapse + .launch-editor-section {
+  border-top: 1px solid var(--color-neutral-border);
+  padding-top: var(--space-3);
+}
+/* What appears beside a choice fades in rather than cutting in. */
+.launch-editor-compact .launch-editor-appear {
+  animation: ui-fade-in var(--dur-section) var(--ease-fade) both;
+}
+/* Every choice row is as tall as the fields beside it: «Каталог / Без каталогу» stood 46px
+   among 38px fields, the budget 40px, and «Чоловіки / Жінки / Усі» drew its segments
+   shorter than the date buttons next to it (next QA 2026-11-21). */
+.launch-editor-compact .ui-segmented {
+  box-sizing: border-box;
+  height: var(--control-height-md);
+}
+.launch-editor-compact .ui-segmented button {
+  min-height: 0;
+  height: 100%;
+}
 .launch-editor-compact .launch-editor-section-heading h3 {
   font-size: var(--text-label);
   color: var(--color-neutral-text-muted);
