@@ -78,6 +78,7 @@ export interface CapabilitySignal {
     | 'launch_detail_session'
     | 'launch_batch_admission'
     | 'transcript_translation'
+    | `launch_assistant_${'send' | 'launch' | 'open'}`
     | 'launch_batch_loading'
     | `background_setup_${'ownership' | 'enroll' | 'delegate' | 'confirm' | 'ready'}`
     | 'members_list'
@@ -1284,6 +1285,34 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     producerStatus: 'emitted',
     source: 'events',
     note: 'attempt_id is the translation id. requested/blocked/reused are operation_stage_completed with action_identifier; blocked carries error_code (TRANSLATION_ALLOWANCE_EXCEEDED and the rest). The server rows (analytics_transcript_translations) and the model-call ledger (analytics_ai_usage_daily) are authoritative for completion, failure codes and cost: `npm run analytics -- ai-usage`.'
+  },
+  {
+    id: 'assistant.launch',
+    tool: 'team',
+    title: 'Launch assistant: a message to drafts, review and «Запустити N» (064)',
+    stages: ['started', 'terminal'],
+    stageEvents: {
+      started: ['operation_started'],
+      terminal: ['operation_completed', 'operation_failed', 'operation_cancelled']
+    },
+    start: [
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'launch_assistant_send' },
+      { event: 'operation_started', correlate: 'attempt_id', flowStep: 'launch_assistant_launch' }
+    ],
+    terminal: [
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'launch_assistant_send' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'launch_assistant_send' },
+      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'launch_assistant_launch' },
+      { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'launch_assistant_launch' }
+    ],
+    platforms: BOTH,
+    unobservable: [
+      'message text, plans, card contents and links (never collected)',
+      'whether a card was read on screen (only the browser trail exists)'
+    ],
+    producerStatus: 'emitted',
+    source: 'events',
+    note: 'The server command row is the authority: `npm run analytics -- assistant <command-id> --json` gives status, reason code, model calls with tokens and cost, the credit debit/refund and the month hold; `assistant --period 7d` gives refusals by code and credits by feature. Generation after «Запустити N» is the 053 batch keyed by the card\'s batch key.'
   },
   {
     id: 'landing_optimizer.run',

@@ -7,6 +7,7 @@ import { getCatalogImageDiagnosis, getCatalogImageUserDiagnosis } from './catalo
 import { getCatalogVideoR2Diagnosis } from './catalog-video-r2.js';
 import { getCreativeRankDiagnosis } from './creative-ranks.js';
 import { getAiUsage } from './ai-usage.js';
+import { getAssistantCommand, getAssistantSummary } from './assistant.js';
 /**
  * Soty analytics CLI — argument parsing and command dispatch, kept apart from
  * the process entry (`index.ts`) so tests can run a command end to end against
@@ -149,6 +150,7 @@ Commands:
   catalog-video-r2 <team-id|catalog-id|copy-id>  Catalog video copies to R2: stages, proof limits, reasons, cleanup
   creative-rank <material-id|launch-id|catalog-id|team-id>  Why a creative has its launch count and league (059)
   ai-usage            What calling Claude costs, and how transcript translation goes (063)
+  assistant [command-id]  Launch assistant (064): one command's trail, or commands, refusals and credits for the period
   catalog <catalog-id|attempt-id>  Catalog update history and delivery proof
   catalog team <team-id>  Recent catalog attempts and video preparation in one space
   catalog-trends [user] Schedule popularity, transitions and user timelines (--html report.html)
@@ -559,6 +561,11 @@ export async function executeCommand(
     }
     case 'ai-usage': {
       const data = await getAiUsage(period);
+      return done(data, JSON.stringify(data, null, 2));
+    }
+    case 'assistant': {
+      const id = args.positional?.[0];
+      const data = id ? await getAssistantCommand(id) : await getAssistantSummary(period);
       return done(data, JSON.stringify(data, null, 2));
     }
     case 'creative-rank': {

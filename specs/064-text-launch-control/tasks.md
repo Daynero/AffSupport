@@ -52,7 +52,7 @@
 
 ## Фаза 7 · Діагностика та приймання
 
-- [ ] T031 `apps/web/src/analytics/events.ts`, `scripts/analytics/coverage-registry.ts`, `investigate.ts`, `code-map.ts`: стадії й коди FR-037 для помічника, чарунок і перекладу. `tests/assistant-analytics.test.ts`: успіх, частковий, відмова, обрив, повернення, невідомий usage, відсутність приватного вмісту. FR-037 SC-016
+- [X] T031 `apps/web/src/analytics/events.ts`, `scripts/analytics/coverage-registry.ts`, `investigate.ts`, `code-map.ts`: стадії й коди FR-037 для помічника, чарунок і перекладу. `tests/assistant-analytics.test.ts`: успіх, частковий, відмова, обрив, повернення, невідомий usage, відсутність приватного вмісту. FR-037 SC-016
 - [ ] T032 Локальна beta: увесь [quickstart](quickstart.md) у браузері з реальною локальною авторизацією.
 - [ ] T033 Перед релізом: format, lint, typecheck, пов'язані тести й міграції на beta до старту раннера.
 - [ ] T034 Реліз на next повним раннером. Пілот Goor, перемикання `translation_billing`, нагадування власнику про spend limit у Console.

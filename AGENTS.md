@@ -112,6 +112,8 @@ Use `npm run analytics -- global-images --json` for confirmed catalog+image uses
 
 ### Claude usage and transcript translation (063)
 
+For the launch assistant and credits (064), use `npm run analytics -- assistant <command-id> --json` for one command (status, reason code, model calls with tokens and cost, the credit debit/refund, the month hold) or `assistant --period 7d --json` for refusals by code and credits by feature. Messages, plans, cards and links are never read. The AI budget itself (limit, grants, pilot spaces, the assistant switch) is the admin tab «AI-бюджет», backed by `public.admin_ai_*` functions that check `is_admin()`.
+
 For what calling Claude costs, how many translations ran, refusals, failures and who spends the daily allowance, use `npm run analytics -- ai-usage --period 7d --json`. Cost is computed by the function from token counts and the published price list (the Claude Console invoice is the authority). Users are opaque ids; no transcript, translation or fingerprint is read. A refusal (`TRANSLATION_REFUSED`) is a content decision of both models, not a code fault; check that the prompt in `supabase/functions/transcript-translate/translate.ts` still describes the job truthfully before changing anything. The daily limit is a row in `private.ai_feature_allowances` (units are characters; 900 = one minute), changed by SQL, never by a release.
 
 ### Catalog schedule trends
