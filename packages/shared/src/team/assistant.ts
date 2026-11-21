@@ -125,7 +125,9 @@ export function assistantPlanSchema(): Record<string, unknown> {
                 { type: 'null' }
               ]
             },
-            base: { anyOf: [{ type: 'string', enum: ['offer_defaults', 'copy_of_row'] }, { type: 'null' }] },
+            base: {
+              anyOf: [{ type: 'string', enum: ['offer_defaults', 'copy_of_row'] }, { type: 'null' }]
+            },
             baseRow: nullableInteger,
             rows: { type: 'array', items: { type: 'integer' } },
             fields: { type: 'array', items: change },
@@ -133,7 +135,10 @@ export function assistantPlanSchema(): Record<string, unknown> {
               type: 'array',
               items: {
                 type: 'object',
-                properties: { account: { type: 'string' }, fields: { type: 'array', items: change } },
+                properties: {
+                  account: { type: 'string' },
+                  fields: { type: 'array', items: change }
+                },
                 required: ['account', 'fields'],
                 additionalProperties: false
               }
@@ -142,7 +147,10 @@ export function assistantPlanSchema(): Record<string, unknown> {
               anyOf: [
                 {
                   type: 'object',
-                  properties: { about: { type: 'string' }, options: { type: 'array', items: { type: 'string' } } },
+                  properties: {
+                    about: { type: 'string' },
+                    options: { type: 'array', items: { type: 'string' } }
+                  },
                   required: ['about', 'options'],
                   additionalProperties: false
                 },
@@ -151,8 +159,17 @@ export function assistantPlanSchema(): Record<string, unknown> {
             }
           },
           required: [
-            'type', 'offer', 'accounts', 'count', 'dates', 'base', 'baseRow', 'rows', 'fields',
-            'overrides', 'question'
+            'type',
+            'offer',
+            'accounts',
+            'count',
+            'dates',
+            'base',
+            'baseRow',
+            'rows',
+            'fields',
+            'overrides',
+            'question'
           ],
           additionalProperties: false
         }
@@ -183,11 +200,15 @@ function stringList(value: unknown, max: number, length = 200): value is string[
 function parseChange(value: unknown): AssistantFieldChange | null {
   if (!isRecord(value) || !exactKeys(value, ['field', 'op', 'value'])) return null;
   const { field, op, value: raw } = value;
-  if (typeof field !== 'string' || !(ASSISTANT_FIELD_OPS as readonly unknown[]).includes(op)) return null;
+  if (typeof field !== 'string' || !(ASSISTANT_FIELD_OPS as readonly unknown[]).includes(op))
+    return null;
   const scalar = (item: unknown) =>
     item === null || ['string', 'number', 'boolean'].includes(typeof item);
   if (Array.isArray(raw)) {
-    if (raw.length > 100 || !raw.every(item => typeof item === 'string' || typeof item === 'number'))
+    if (
+      raw.length > 100 ||
+      !raw.every(item => typeof item === 'string' || typeof item === 'number')
+    )
       return null;
   } else if (!scalar(raw)) return null;
   if (typeof raw === 'string' && raw.length > 8_192) return null;
@@ -195,7 +216,16 @@ function parseChange(value: unknown): AssistantFieldChange | null {
 }
 
 const ACTION_KEYS = [
-  'type', 'offer', 'accounts', 'count', 'dates', 'base', 'baseRow', 'rows', 'fields', 'overrides',
+  'type',
+  'offer',
+  'accounts',
+  'count',
+  'dates',
+  'base',
+  'baseRow',
+  'rows',
+  'fields',
+  'overrides',
   'question'
 ] as const;
 
@@ -212,11 +242,15 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
   for (const item of actions) {
     if (!isRecord(item) || !exactKeys(item, ACTION_KEYS)) return null;
     if (!(ASSISTANT_ACTIONS as readonly unknown[]).includes(item.type)) return null;
-    if (item.offer !== null && (typeof item.offer !== 'string' || item.offer.length > 200)) return null;
+    if (item.offer !== null && (typeof item.offer !== 'string' || item.offer.length > 200))
+      return null;
     if (!stringList(item.accounts, ASSISTANT_MAX_DRAFTS, 60)) return null;
     if (
       item.count !== null &&
-      (typeof item.count !== 'number' || !Number.isInteger(item.count) || item.count < 1 || item.count > ASSISTANT_MAX_DRAFTS)
+      (typeof item.count !== 'number' ||
+        !Number.isInteger(item.count) ||
+        item.count < 1 ||
+        item.count > ASSISTANT_MAX_DRAFTS)
     )
       return null;
     let dates: AssistantDates | null = null;
@@ -224,22 +258,40 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
       const d = item.dates;
       if (!isRecord(d) || !exactKeys(d, ['kind', 'date', 'days'])) return null;
       if (!['today', 'tomorrow', 'date', 'each_day'].includes(d.kind as string)) return null;
-      if (d.date !== null && (typeof d.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(d.date))) return null;
+      if (d.date !== null && (typeof d.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(d.date)))
+        return null;
       if (
         d.days !== null &&
-        (typeof d.days !== 'number' || !Number.isInteger(d.days) || d.days < 1 || d.days > ASSISTANT_MAX_DAYS)
+        (typeof d.days !== 'number' ||
+          !Number.isInteger(d.days) ||
+          d.days < 1 ||
+          d.days > ASSISTANT_MAX_DAYS)
       )
         return null;
       if (d.kind === 'date' && d.date === null) return null;
-      dates = { kind: d.kind as AssistantDates['kind'], date: d.date as string | null, days: d.days as number | null };
+      dates = {
+        kind: d.kind as AssistantDates['kind'],
+        date: d.date as string | null,
+        days: d.days as number | null
+      };
     }
-    if (item.base !== null && item.base !== 'offer_defaults' && item.base !== 'copy_of_row') return null;
-    if (item.baseRow !== null && (typeof item.baseRow !== 'number' || !Number.isInteger(item.baseRow) || item.baseRow < 1))
+    if (item.base !== null && item.base !== 'offer_defaults' && item.base !== 'copy_of_row')
+      return null;
+    if (
+      item.baseRow !== null &&
+      (typeof item.baseRow !== 'number' || !Number.isInteger(item.baseRow) || item.baseRow < 1)
+    )
       return null;
     if (
       !Array.isArray(item.rows) ||
       item.rows.length > ASSISTANT_MAX_DRAFTS ||
-      !item.rows.every(row => typeof row === 'number' && Number.isInteger(row) && row >= 1 && row <= ASSISTANT_MAX_DRAFTS)
+      !item.rows.every(
+        row =>
+          typeof row === 'number' &&
+          Number.isInteger(row) &&
+          row >= 1 &&
+          row <= ASSISTANT_MAX_DRAFTS
+      )
     )
       return null;
     if (!Array.isArray(item.fields) || item.fields.length > ASSISTANT_MAX_FIELDS) return null;
@@ -249,9 +301,14 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
     const overrides: AssistantAction['overrides'] = [];
     for (const override of item.overrides) {
       if (!isRecord(override) || !exactKeys(override, ['account', 'fields'])) return null;
-      if (typeof override.account !== 'string' || override.account.length === 0 || override.account.length > 60)
+      if (
+        typeof override.account !== 'string' ||
+        override.account.length === 0 ||
+        override.account.length > 60
+      )
         return null;
-      if (!Array.isArray(override.fields) || override.fields.length > ASSISTANT_MAX_FIELDS) return null;
+      if (!Array.isArray(override.fields) || override.fields.length > ASSISTANT_MAX_FIELDS)
+        return null;
       const changes = override.fields.map(parseChange);
       if (changes.some(change => change === null)) return null;
       overrides.push({ account: override.account, fields: changes as AssistantFieldChange[] });
@@ -289,7 +346,10 @@ export type AssistantQuickIntent = 'review_today' | 'review' | 'undo' | 'yes' | 
 
 const QUICK: ReadonlyArray<[AssistantQuickIntent, RegExp]> = [
   ['review_today', /^(запуск(ай|ати)|запусти)\s+(всі|усі|все)\s+(на\s+)?сьогодні[.!]*$/iu],
-  ['review', /^(запускай|запускаємо|запусти(\s+(їх|всі|усі|все))?|покажи(\s+(їх|всі|усі|все))?|переглянути)[.!]*$/iu],
+  [
+    'review',
+    /^(запускай|запускаємо|запусти(\s+(їх|всі|усі|все))?|покажи(\s+(їх|всі|усі|все))?|переглянути)[.!]*$/iu
+  ],
   ['undo', /^(скасуй|скасувати|відміни|відмінити)(\s+(це|останнє|останню))?[.!]*$/iu],
   ['yes', /^(так|да|ок|окей|ага|yes)[.!]*$/iu],
   ['no', /^(ні|нет|no|не треба)[.!]*$/iu]
@@ -310,10 +370,43 @@ export function quickAssistantIntent(text: string): AssistantQuickIntent | null 
 // Resolving what people write
 
 const LATIN: Readonly<Record<string, string>> = {
-  а: 'a', б: 'b', в: 'v', г: 'h', ґ: 'g', д: 'd', е: 'e', є: 'ie', ж: 'zh', з: 'z', и: 'y', і: 'i',
-  ї: 'i', й: 'i', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u',
-  ф: 'f', х: 'kh', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'shch', ь: '', ю: 'iu', я: 'ia', ы: 'y', э: 'e',
-  ё: 'io', ъ: ''
+  а: 'a',
+  б: 'b',
+  в: 'v',
+  г: 'h',
+  ґ: 'g',
+  д: 'd',
+  е: 'e',
+  є: 'ie',
+  ж: 'zh',
+  з: 'z',
+  и: 'y',
+  і: 'i',
+  ї: 'i',
+  й: 'i',
+  к: 'k',
+  л: 'l',
+  м: 'm',
+  н: 'n',
+  о: 'o',
+  п: 'p',
+  р: 'r',
+  с: 's',
+  т: 't',
+  у: 'u',
+  ф: 'f',
+  х: 'kh',
+  ц: 'ts',
+  ч: 'ch',
+  ш: 'sh',
+  щ: 'shch',
+  ь: '',
+  ю: 'iu',
+  я: 'ia',
+  ы: 'y',
+  э: 'e',
+  ё: 'io',
+  ъ: ''
 };
 
 /** Lower-case, Cyrillic transliterated, only letters and digits: «Про Капс» → «prokaps». */
@@ -328,11 +421,34 @@ export function assistantKey(text: string): string {
 }
 
 const ORDINALS: Readonly<Record<string, number>> = {
-  перш: 1, друг: 2, трет: 3, четверт: 4, "п'ят": 5, пʼят: 5, пят: 5, шост: 6, сьом: 7, восьм: 8,
-  дев: 9, десят: 10, одинадцят: 11, дванадцят: 12, тринадцят: 13, чотирнадцят: 14,
-  "п'ятнадцят": 15, пʼятнадцят: 15, пятнадцят: 15, шістнадцят: 16, сімнадцят: 17,
-  вісімнадцят: 18, "дев'ятнадцят": 19, девʼятнадцят: 19, девятнадцят: 19, двадцят: 20,
-  "двадцять п'ят": 25, двадцятьпят: 25
+  перш: 1,
+  друг: 2,
+  трет: 3,
+  четверт: 4,
+  "п'ят": 5,
+  пʼят: 5,
+  пят: 5,
+  шост: 6,
+  сьом: 7,
+  восьм: 8,
+  дев: 9,
+  десят: 10,
+  одинадцят: 11,
+  дванадцят: 12,
+  тринадцят: 13,
+  чотирнадцят: 14,
+  "п'ятнадцят": 15,
+  пʼятнадцят: 15,
+  пятнадцят: 15,
+  шістнадцят: 16,
+  сімнадцят: 17,
+  вісімнадцят: 18,
+  "дев'ятнадцят": 19,
+  девʼятнадцят: 19,
+  девятнадцят: 19,
+  двадцят: 20,
+  "двадцять п'ят": 25,
+  двадцятьпят: 25
 };
 
 /** A number written as digits or a Ukrainian ordinal («шістнадцяте» → 16), else null. */
@@ -364,27 +480,38 @@ function stem(name: string): string {
  * by its number («TR 16», «16», «шістнадцяте» against «TR_16.mp4»), then a unique prefix.
  * Ambiguity is returned, never guessed.
  */
-export function matchAssistantName(written: string, candidates: readonly AssistantCandidate[]): AssistantMatch {
+export function matchAssistantName(
+  written: string,
+  candidates: readonly AssistantCandidate[]
+): AssistantMatch {
   const key = assistantKey(written);
   if (!key) return { kind: 'none' };
-  const keyed = candidates.map(candidate => ({ candidate, key: assistantKey(stem(candidate.name)) }));
+  const keyed = candidates.map(candidate => ({
+    candidate,
+    key: assistantKey(stem(candidate.name))
+  }));
   const exact = keyed.filter(item => item.key === key);
   if (exact.length === 1) return { kind: 'one', candidate: exact[0]!.candidate };
-  if (exact.length > 1) return { kind: 'many', candidates: exact.map(item => item.candidate).slice(0, 5) };
+  if (exact.length > 1)
+    return { kind: 'many', candidates: exact.map(item => item.candidate).slice(0, 5) };
   const number = assistantNumber(written);
   if (number !== null) {
     // «шістнадцяте» names only the number; «TR 16» also names the prefix.
     const letters = /\d/u.test(written) ? key.replace(/[0-9]+/gu, '') : '';
     const byNumber = keyed.filter(item => {
       const match = /^([a-z]*)0*([0-9]+)$/u.exec(item.key);
-      return match !== null && Number(match[2]) === number && (letters === '' || match[1] === letters);
+      return (
+        match !== null && Number(match[2]) === number && (letters === '' || match[1] === letters)
+      );
     });
     if (byNumber.length === 1) return { kind: 'one', candidate: byNumber[0]!.candidate };
-    if (byNumber.length > 1) return { kind: 'many', candidates: byNumber.map(item => item.candidate).slice(0, 5) };
+    if (byNumber.length > 1)
+      return { kind: 'many', candidates: byNumber.map(item => item.candidate).slice(0, 5) };
   }
   const prefixed = keyed.filter(item => key.length >= 3 && item.key.startsWith(key));
   if (prefixed.length === 1) return { kind: 'one', candidate: prefixed[0]!.candidate };
-  if (prefixed.length > 1) return { kind: 'many', candidates: prefixed.map(item => item.candidate).slice(0, 5) };
+  if (prefixed.length > 1)
+    return { kind: 'many', candidates: prefixed.map(item => item.candidate).slice(0, 5) };
   return { kind: 'none' };
 }
 
@@ -439,7 +566,10 @@ export interface AssistantResultPayload {
   /** Explicit values that differ from the offer profile, as «field: profile → value». */
   differences: Array<{ field: string; from: string | null; to: string }>;
   unresolved: Array<{ field: string; written: string; code: string }>;
-  profile: { offer: string; changes: Array<{ field: string; from: string | null; to: string }> } | null;
+  profile: {
+    offer: string;
+    changes: Array<{ field: string; from: string | null; to: string }>;
+  } | null;
   campaigns: number;
   date: string | null;
 }
@@ -490,7 +620,14 @@ export interface AssistantMessage {
   cards: AssistantCard[];
 }
 
-const CARD_KINDS: readonly AssistantCardKind[] = ['result', 'question', 'review', 'status', 'profile', 'refusal'];
+const CARD_KINDS: readonly AssistantCardKind[] = [
+  'result',
+  'question',
+  'review',
+  'status',
+  'profile',
+  'refusal'
+];
 const CARD_STATES = ['open', 'answered', 'confirmed', 'launched', 'stale', 'undone'];
 
 export function parseAssistantMessage(value: unknown): AssistantMessage | null {

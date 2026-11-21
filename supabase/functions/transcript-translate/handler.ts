@@ -25,7 +25,11 @@ import {
   type TranslationStreamEvent
 } from '../../../packages/shared/dist/team/transcript-translation.js';
 // @deno-types="../../../packages/shared/dist/team/ai-credits.d.ts"
-import { AI_CREDIT_USD, AI_PRICE_VERSION, translationPrice } from '../../../packages/shared/dist/team/ai-credits.js';
+import {
+  AI_CREDIT_USD,
+  AI_PRICE_VERSION,
+  translationPrice
+} from '../../../packages/shared/dist/team/ai-credits.js';
 import { recordModelUsage, type Rpc } from '../_shared/ai-allowance.ts';
 import { creditRefusal, translationUpperUsd } from '../_shared/ai-credits.ts';
 import type { ClaudeClient } from '../_shared/claude.ts';
@@ -69,7 +73,9 @@ export function parseTranslateCommand(body: unknown): TranslateCommand {
   }
   if (body.action !== 'start' || !isTranslationTargetLanguage(body.targetLanguage)) invalid();
   const expectedPrice =
-    typeof body.expectedPrice === 'number' && Number.isInteger(body.expectedPrice) && body.expectedPrice > 0
+    typeof body.expectedPrice === 'number' &&
+    Number.isInteger(body.expectedPrice) &&
+    body.expectedPrice > 0
       ? body.expectedPrice
       : null;
   const priceVersion = typeof body.priceVersion === 'string' ? body.priceVersion : null;
@@ -238,7 +244,8 @@ export async function startTranslation(
   if (!deps.client) throw new TeamFunctionError('TRANSLATION_UNAVAILABLE', { retryable: true });
   // 064: the price is the one the button showed, or nothing is charged and nothing runs.
   const price = translationPrice(units, command.targetLanguage);
-  if (command.expectedPrice === null) throw new TeamFunctionError('CLIENT_UPGRADE', { retryable: false });
+  if (command.expectedPrice === null)
+    throw new TeamFunctionError('CLIENT_UPGRADE', { retryable: false });
   if (command.expectedPrice !== price || command.priceVersion !== AI_PRICE_VERSION) {
     throw new TeamFunctionError('PRICE_CHANGED', {
       retryable: false,
@@ -266,7 +273,8 @@ export async function startTranslation(
     if (refusal && refusal.code !== 'KEY_REUSED') {
       const details: Record<string, string | number | boolean | null> = { price };
       for (const [key, value] of Object.entries(refusal.details))
-        if (['string', 'number', 'boolean'].includes(typeof value)) details[key] = value as string | number | boolean;
+        if (['string', 'number', 'boolean'].includes(typeof value))
+          details[key] = value as string | number | boolean;
       throw new TeamFunctionError(refusal.code, { retryable: false, details });
     }
     failFromRpc(credited.error);
@@ -278,7 +286,13 @@ export async function startTranslation(
   const reusedCredit = begun.reused === true;
   if (!reusedCredit) {
     deps.background(
-      runTranslation(begun.id, source, command.targetLanguage, deps, typeof begun.opKey === 'string' ? begun.opKey : null)
+      runTranslation(
+        begun.id,
+        source,
+        command.targetLanguage,
+        deps,
+        typeof begun.opKey === 'string' ? begun.opKey : null
+      )
     );
   }
   return {

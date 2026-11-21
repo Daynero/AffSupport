@@ -30,8 +30,16 @@ export function observeAssistant(step: AssistantStep, _context: Record<string, u
       finished = true;
       const code = error && typeof error === 'object' && 'code' in error ? error.code : 'UNKNOWN';
       emit(
-        outcome === 'success' ? 'operation_completed' : outcome === 'cancelled' ? 'operation_cancelled' : 'operation_failed',
-        { ...properties, outcome, ...(outcome === 'failure' ? { error_code: safeLaunchAnalyticsCode(code) } : {}) }
+        outcome === 'success'
+          ? 'operation_completed'
+          : outcome === 'cancelled'
+            ? 'operation_cancelled'
+            : 'operation_failed',
+        {
+          ...properties,
+          outcome,
+          ...(outcome === 'failure' ? { error_code: safeLaunchAnalyticsCode(code) } : {})
+        }
       );
     }
   };

@@ -38,13 +38,21 @@ describe('064 assistant contract', () => {
     expect(parseAssistantPlan({ reply: 'x', actions: [{ ...action, launch: true }] })).toBeNull();
     expect(parseAssistantPlan({ reply: 'x', actions: [action], extra: 1 })).toBeNull();
     // an action outside the closed list
-    expect(parseAssistantPlan({ reply: 'x', actions: [{ ...action, type: 'start_generation' }] })).toBeNull();
+    expect(
+      parseAssistantPlan({ reply: 'x', actions: [{ ...action, type: 'start_generation' }] })
+    ).toBeNull();
     // a field change with an unknown op or a nested object value
     expect(
-      parseAssistantPlan({ reply: 'x', actions: [{ ...action, fields: [{ field: 'campaignCount', op: 'run', value: 1 }] }] })
+      parseAssistantPlan({
+        reply: 'x',
+        actions: [{ ...action, fields: [{ field: 'campaignCount', op: 'run', value: 1 }] }]
+      })
     ).toBeNull();
     expect(
-      parseAssistantPlan({ reply: 'x', actions: [{ ...action, fields: [{ field: 'a', op: 'set', value: { url: 'x' } }] }] })
+      parseAssistantPlan({
+        reply: 'x',
+        actions: [{ ...action, fields: [{ field: 'a', op: 'set', value: { url: 'x' } }] }]
+      })
     ).toBeNull();
     // ask without a question
     expect(parseAssistantPlan({ reply: 'x', actions: [{ ...action, type: 'ask' }] })).toBeNull();
@@ -80,15 +88,22 @@ describe('064 assistant contract', () => {
       { id: 'b', name: 'TR_18.mp4' },
       { id: 'c', name: 'DE_16.mp4' }
     ];
-    expect(matchAssistantName('TR 16', materials)).toEqual({ kind: 'one', candidate: materials[0] });
+    expect(matchAssistantName('TR 16', materials)).toEqual({
+      kind: 'one',
+      candidate: materials[0]
+    });
     expect(matchAssistantName('tr16', materials)).toEqual({ kind: 'one', candidate: materials[0] });
     expect(matchAssistantName('шістнадцяте', materials)).toMatchObject({ kind: 'many' });
     expect(matchAssistantName('TR 25', materials)).toEqual({ kind: 'none' });
-    expect(matchAssistantName('прокапс', [{ id: 'o', name: 'ProCaps' }])).toMatchObject({ kind: 'one' });
+    expect(matchAssistantName('прокапс', [{ id: 'o', name: 'ProCaps' }])).toMatchObject({
+      kind: 'one'
+    });
   });
 
   it('keeps pasted links out of the model text and puts them back only by marker', () => {
-    const { text, urls } = extractAssistantUrls('ось посилання https://ex.com/a?b=1, і ще https://ex.com/a?b=1.');
+    const { text, urls } = extractAssistantUrls(
+      'ось посилання https://ex.com/a?b=1, і ще https://ex.com/a?b=1.'
+    );
     expect(text).toBe('ось посилання ⟦url:1⟧, і ще ⟦url:1⟧.');
     expect(urls).toEqual(['https://ex.com/a?b=1']);
     expect(assistantUrlSlot('⟦url:1⟧', urls)).toBe('https://ex.com/a?b=1');
@@ -104,9 +119,13 @@ describe('064 assistant contract', () => {
       price: 0,
       commandId: null,
       createdAt: '2026-11-21T10:00:00Z',
-      cards: [{ id: 'c', kind: 'review', state: 'open', commandId: null, payload: {}, createdAt: 'x' }]
+      cards: [
+        { id: 'c', kind: 'review', state: 'open', commandId: null, payload: {}, createdAt: 'x' }
+      ]
     };
     expect(parseAssistantMessage(message)?.cards[0]?.kind).toBe('review');
-    expect(parseAssistantMessage({ ...message, cards: [{ ...message.cards[0], kind: 'html' }] })).toBeNull();
+    expect(
+      parseAssistantMessage({ ...message, cards: [{ ...message.cards[0], kind: 'html' }] })
+    ).toBeNull();
   });
 });

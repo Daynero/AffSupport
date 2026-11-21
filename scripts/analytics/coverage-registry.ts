@@ -1302,7 +1302,11 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     terminal: [
       { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'launch_assistant_send' },
       { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'launch_assistant_send' },
-      { event: 'operation_completed', correlate: 'attempt_id', flowStep: 'launch_assistant_launch' },
+      {
+        event: 'operation_completed',
+        correlate: 'attempt_id',
+        flowStep: 'launch_assistant_launch'
+      },
       { event: 'operation_failed', correlate: 'attempt_id', flowStep: 'launch_assistant_launch' }
     ],
     platforms: BOTH,
@@ -1312,7 +1316,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     ],
     producerStatus: 'emitted',
     source: 'events',
-    note: 'The server command row is the authority: `npm run analytics -- assistant <command-id> --json` gives status, reason code, model calls with tokens and cost, the credit debit/refund and the month hold; `assistant --period 7d` gives refusals by code and credits by feature. Generation after «Запустити N» is the 053 batch keyed by the card\'s batch key.'
+    note: "The server command row is the authority: `npm run analytics -- assistant <command-id> --json` gives status, reason code, model calls with tokens and cost, the credit debit/refund and the month hold; `assistant --period 7d` gives refusals by code and credits by feature. Generation after «Запустити N» is the 053 batch keyed by the card's batch key."
   },
   {
     id: 'landing_optimizer.run',

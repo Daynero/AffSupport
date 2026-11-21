@@ -15,7 +15,10 @@ import {
 } from './claude.ts';
 
 /** 064: the assistant passes maxRetries 0 so every billed call is one recorded attempt. */
-export function createClaudeClient(apiKey: string, options: { maxRetries?: number } = {}): ClaudeClient {
+export function createClaudeClient(
+  apiKey: string,
+  options: { maxRetries?: number } = {}
+): ClaudeClient {
   const anthropic = new Anthropic({ apiKey, maxRetries: options.maxRetries ?? 2, timeout: 90_000 });
   return {
     async create(request: ClaudeRequest, signal: AbortSignal): Promise<ClaudeRawResult> {

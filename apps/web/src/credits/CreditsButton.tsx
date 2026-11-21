@@ -24,7 +24,8 @@ export function CreditsButton() {
   const status = credits.status;
   const here = parseTeamRoute(route);
   const spaceId = here?.kind === 'space' ? here.spaceId : null;
-  const percent = status && status.grant > 0 ? Math.round((status.available / status.grant) * 100) : 0;
+  const percent =
+    status && status.grant > 0 ? Math.round((status.available / status.grant) * 100) : 0;
   return (
     <>
       <Button
@@ -38,15 +39,25 @@ export function CreditsButton() {
       >
         {t('creditsButton', { count: status ? status.available : '—' })}
       </Button>
-      <Popover open={open} onClose={() => setOpen(false)} anchor={trigger} placement="bottom-start" label={t('creditsTitle')}>
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={trigger}
+        placement="bottom-start"
+        label={t('creditsTitle')}
+      >
         <div className="credits-panel">
           <p className="credits-panel-line">{t('creditsIntro')}</p>
           {status ? (
             <>
               <div>
-                <strong>{t('creditsToday', { available: status.available, grant: status.grant })}</strong>
+                <strong>
+                  {t('creditsToday', { available: status.available, grant: status.grant })}
+                </strong>
                 <Progress value={percent} size="sm" color="success" decorative />
-                <p className="credits-panel-line">{t('creditsResets', { time: kyivTime(status.resetsAt, language) })}</p>
+                <p className="credits-panel-line">
+                  {t('creditsResets', { time: kyivTime(status.resetsAt, language) })}
+                </p>
               </div>
               {!status.paidOpen && <p className="credits-panel-line">{t('creditsMonthClosed')}</p>}
               <p className="credits-panel-line">{t('creditsPrices')}</p>

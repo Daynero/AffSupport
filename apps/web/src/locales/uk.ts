@@ -5083,7 +5083,8 @@ export const uk: Record<keyof typeof en, string> = {
   textTranslationStaleBadge: 'застарів',
   textTranslationDelete: 'Видалити переклад',
   textTranslationDeleteTitle: 'Видалити переклад: {language}?',
-  textTranslationDeleteBody: 'Він зникне для всіх, хто бачить цей текст. Щоб повернути його, доведеться перекласти знову — це знову витратить хвилини.',
+  textTranslationDeleteBody:
+    'Він зникне для всіх, хто бачить цей текст. Щоб повернути його, доведеться перекласти знову — це знову витратить хвилини.',
   textTranslationDeleted: 'Переклад видалено: {language}',
   textTranslationDeleteFailed: 'Не вдалося видалити переклад. Спробуйте ще раз.',
   textTranslationCancel: 'Скасувати',
@@ -5095,7 +5096,8 @@ export const uk: Record<keyof typeof en, string> = {
   assistantForbidden: 'Немає права редагувати запуски в цьому просторі.',
   assistantTooLong: 'Повідомлення задовге: до 4000 символів.',
   assistantModelUnavailable: 'Помічник зараз недоступний. Чарунки повернуто, продовж у формі.',
-  assistantOutputRejected: 'Не вдалося розібрати повідомлення. Чарунки повернуто, сформулюй інакше.',
+  assistantOutputRejected:
+    'Не вдалося розібрати повідомлення. Чарунки повернуто, сформулюй інакше.',
   assistantPlanTooLarge: 'Забагато за раз: до 100 запусків і 1000 кампаній.',
   assistantReviewChanged: 'Добірка змінилася. Ось актуальна.',
   assistantEditConflict: 'Це поле вже змінили у формі. Перевір його.',
@@ -5117,7 +5119,8 @@ export const uk: Record<keyof typeof en, string> = {
   creditsIntro: 'Чарунки — спільні AI-кредити Soty для перекладу й помічника запусків.',
   creditsToday: 'Сьогодні {available} з {grant}',
   creditsResets: 'Поновляться о {time} за Києвом',
-  creditsPrices: 'Переклад — 1 за хвилину тексту. Повідомлення помічнику — 1–2. Запуск, скасування й вибір варіанта безкоштовні.',
+  creditsPrices:
+    'Переклад — 1 за хвилину тексту. Повідомлення помічнику — 1–2. Запуск, скасування й вибір варіанта безкоштовні.',
   creditsRecent: 'Останні списання',
   creditsFeatureTranslation: 'Переклад',
   creditsFeatureAssistant: 'Помічник',
@@ -5127,12 +5130,14 @@ export const uk: Record<keyof typeof en, string> = {
   creditsMonthClosed: 'Загальний ліміт місяця вичерпано.',
   creditsUnavailable: 'Баланс зараз недоступний.',
   assistantTitle: 'Помічник запусків',
-  assistantPlaceholder: 'Опиши запуски: «На сьогодні 5 запусків ProCaps на G2, TR_16, по 2 кампанії, по 100 товарів»',
+  assistantPlaceholder:
+    'Опиши запуски: «На сьогодні 5 запусків ProCaps на G2, TR_16, по 2 кампанії, по 100 товарів»',
   assistantSend: 'Надіслати · {price}',
   assistantSendFree: 'Надіслати',
   assistantShort: 'Бракує {missing} · поновиться о {time}',
   assistantCounter: '{count} / 4000',
-  assistantEmpty: 'Напиши, які запуски підготувати. Я збережу звичайні чернетки, а запустиш ти кнопкою.',
+  assistantEmpty:
+    'Напиши, які запуски підготувати. Я збережу звичайні чернетки, а запустиш ти кнопкою.',
   assistantExample1: 'На сьогодні 5 запусків ProCaps на G2, TR_16, по 2 кампанії',
   assistantExample2: 'У другому заміни на TR_18',
   assistantExample3: 'Запусти всі на сьогодні',
@@ -5164,7 +5169,8 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetForecast: 'Прогноз на кінець місяця',
   aiBudgetForecastUnknown: 'Недостатньо даних',
   aiBudgetFullGrant: 'Повне використання грантів активними',
-  aiBudgetFullGrantHint: 'За номіналом чарунок. Нові люди й собівартість понад ціну можуть дати більше.',
+  aiBudgetFullGrantHint:
+    'За номіналом чарунок. Нові люди й собівартість понад ціну можуть дати більше.',
   aiBudgetCoverage: 'Покриття ціною',
   aiBudgetUnknown: 'Виклики без usage',
   aiBudgetBaseGrant: 'Базовий денний грант',
@@ -5175,7 +5181,8 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetAssistant: 'Помічник запусків увімкнено',
   aiBudgetPilot: 'Простори пілоту',
   aiBudgetEstimate: 'оцінка за тарифом',
-  aiBudgetOverWarning: 'Повне використання грантів перевищує ліміт. Платні дії зупиняться на ліміті.',
+  aiBudgetOverWarning:
+    'Повне використання грантів перевищує ліміт. Платні дії зупиняться на ліміті.',
   aiBudgetConsoleReminder: 'Звір spend limit окремого workspace у Claude Console.',
   aiBudgetUpdated: 'Дані на {time}',
   textTranslatePrice: 'Перекласти · {price}'

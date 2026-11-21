@@ -146,7 +146,11 @@ describe('translating a space transcript', () => {
     const dialog = await screen.findByRole('dialog');
     await waitFor(() => expect(within(dialog).getByText('Today 87 of 100')).toBeTruthy());
     await user.click(within(dialog).getByRole('button', { name: 'Translate · 1' }));
-    expect(start).toHaveBeenCalledWith('uk', { scope: 'team_video', teamId: TEAM, videoId: VIDEO }, 1);
+    expect(start).toHaveBeenCalledWith(
+      'uk',
+      { scope: 'team_video', teamId: TEAM, videoId: VIDEO },
+      1
+    );
     expect(await screen.findByText(/Translating: Ukrainian/u)).toBeTruthy();
   });
 
@@ -294,7 +298,11 @@ describe('several texts', () => {
       await screen.findByText(/declined to translate this text\. Minutes returned\./u)
     ).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(start).toHaveBeenCalledWith('uk', { scope: 'team_video', teamId: TEAM, videoId: VIDEO }, 1);
+    expect(start).toHaveBeenCalledWith(
+      'uk',
+      { scope: 'team_video', teamId: TEAM, videoId: VIDEO },
+      1
+    );
   });
 
   it('keeps the text readable where the space cannot transcribe', async () => {

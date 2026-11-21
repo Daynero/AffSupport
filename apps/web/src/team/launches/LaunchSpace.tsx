@@ -662,7 +662,11 @@ function LaunchSpaceContent({
         onLaunch={async (rows, batchKey) => {
           const known = new Map(items.map(item => [item.id, item.method]));
           await submitBatch(
-            rows.map(row => ({ id: row.launchId, version: row.version, method: known.get(row.launchId) ?? 'catalog' })),
+            rows.map(row => ({
+              id: row.launchId,
+              version: row.version,
+              method: known.get(row.launchId) ?? 'catalog'
+            })),
             batchKey
           );
         }}

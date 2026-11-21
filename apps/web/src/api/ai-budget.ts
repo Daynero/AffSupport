@@ -38,15 +38,32 @@ export interface AiPilotSpace {
   pilot: boolean;
 }
 
-const num = (value: unknown) => (typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN);
+const num = (value: unknown) =>
+  typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
 
 export function parseAiBudgetOverview(value: unknown): AiBudgetOverview | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const v = value as Record<string, unknown>;
-  const numbers = ['daysInMonth', 'fullDays', 'limitUsd', 'spentUsd', 'heldUsd', 'freeUsd', 'fullGrantUseUsd', 'creditUsd', 'baseDailyGrant'];
+  const numbers = [
+    'daysInMonth',
+    'fullDays',
+    'limitUsd',
+    'spentUsd',
+    'heldUsd',
+    'freeUsd',
+    'fullGrantUseUsd',
+    'creditUsd',
+    'baseDailyGrant'
+  ];
   if (numbers.some(key => !Number.isFinite(num(v[key])))) return null;
-  if (typeof v.month !== 'string' || typeof v.day !== 'string' || typeof v.updatedAt !== 'string') return null;
-  if (!Array.isArray(v.byFeature) || !Array.isArray(v.grants) || typeof v.assistantEnabled !== 'boolean') return null;
+  if (typeof v.month !== 'string' || typeof v.day !== 'string' || typeof v.updatedAt !== 'string')
+    return null;
+  if (
+    !Array.isArray(v.byFeature) ||
+    !Array.isArray(v.grants) ||
+    typeof v.assistantEnabled !== 'boolean'
+  )
+    return null;
   return {
     month: v.month,
     day: v.day,
@@ -68,7 +85,10 @@ export function parseAiBudgetOverview(value: unknown): AiBudgetOverview | null {
     creditUsd: num(v.creditUsd),
     baseDailyGrant: num(v.baseDailyGrant),
     assistantEnabled: v.assistantEnabled,
-    grants: (v.grants as Array<Record<string, unknown>>).map(g => ({ email: String(g.email), dailyGrant: num(g.dailyGrant) })),
+    grants: (v.grants as Array<Record<string, unknown>>).map(g => ({
+      email: String(g.email),
+      dailyGrant: num(g.dailyGrant)
+    })),
     updatedAt: v.updatedAt
   };
 }

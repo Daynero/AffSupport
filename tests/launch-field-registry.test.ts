@@ -46,7 +46,8 @@ function editedKeys(): Set<string> {
     for (const match of source.matchAll(/changed\(\{\s*[a-zA-Z]+:[^}]*?,\s*([a-zA-Z]+)\s*[:,}]/gu))
       keys.add(match[1]!);
     // The generic number and dictionary fields take their key as a literal argument.
-    for (const match of source.matchAll(/\b(?:number|dictionary)\(\s*'([a-zA-Z]+)'/gu)) keys.add(match[1]!);
+    for (const match of source.matchAll(/\b(?:number|dictionary)\(\s*'([a-zA-Z]+)'/gu))
+      keys.add(match[1]!);
     for (const match of source.matchAll(/catalog!?\s*,\s*([a-zA-Z]+)\s*[:}]/gu))
       keys.add(`catalog.${match[1]}`);
     for (const match of source.matchAll(/\.\.\.(?:value|catalog)\s*,\s*([a-zA-Z]+)\s*:/gu))
@@ -89,23 +90,59 @@ describe('064 launch field registry', () => {
 
   it('checks a proposed value against the field it targets', () => {
     expect(checkLaunchFieldValue('campaignCount', 'set', 5)).toEqual({ ok: true, value: 5 });
-    expect(checkLaunchFieldValue('campaignCount', 'set', 0)).toEqual({ ok: false, code: 'INVALID_VALUE' });
-    expect(checkLaunchFieldValue('campaignCount', 'set', '5')).toEqual({ ok: false, code: 'INVALID_VALUE' });
-    expect(checkLaunchFieldValue('catalog.productCount', 'set', 401)).toEqual({ ok: false, code: 'INVALID_VALUE' });
+    expect(checkLaunchFieldValue('campaignCount', 'set', 0)).toEqual({
+      ok: false,
+      code: 'INVALID_VALUE'
+    });
+    expect(checkLaunchFieldValue('campaignCount', 'set', '5')).toEqual({
+      ok: false,
+      code: 'INVALID_VALUE'
+    });
+    expect(checkLaunchFieldValue('catalog.productCount', 'set', 401)).toEqual({
+      ok: false,
+      code: 'INVALID_VALUE'
+    });
     expect(checkLaunchFieldValue('maxBudget', 'set', 20.5)).toEqual({ ok: true, value: 20.5 });
-    expect(checkLaunchFieldValue('maxBudget', 'set', 20.555)).toEqual({ ok: false, code: 'INVALID_VALUE' });
-    expect(checkLaunchFieldValue('budgetMode', 'set', 'single')).toEqual({ ok: true, value: 'single' });
-    expect(checkLaunchFieldValue('budgetMode', 'set', 'smart')).toEqual({ ok: false, code: 'INVALID_VALUE' });
-    expect(checkLaunchFieldValue('catalog.copyVideoToR2', 'set', false)).toEqual({ ok: true, value: false });
-    expect(checkLaunchFieldValue('originalUrl', 'clear', null)).toEqual({ ok: true, value: undefined });
-    expect(checkLaunchFieldValue('campaignCount', 'clear', null)).toEqual({ ok: false, code: 'OP_NOT_ALLOWED' });
-    expect(checkLaunchFieldValue('notes', 'set', [])).toEqual({ ok: false, code: 'FIELD_FORM_ONLY' });
-    expect(checkLaunchFieldValue('materialId', 'set', 'x')).toEqual({ ok: false, code: 'FIELD_NOT_SUPPORTED' });
+    expect(checkLaunchFieldValue('maxBudget', 'set', 20.555)).toEqual({
+      ok: false,
+      code: 'INVALID_VALUE'
+    });
+    expect(checkLaunchFieldValue('budgetMode', 'set', 'single')).toEqual({
+      ok: true,
+      value: 'single'
+    });
+    expect(checkLaunchFieldValue('budgetMode', 'set', 'smart')).toEqual({
+      ok: false,
+      code: 'INVALID_VALUE'
+    });
+    expect(checkLaunchFieldValue('catalog.copyVideoToR2', 'set', false)).toEqual({
+      ok: true,
+      value: false
+    });
+    expect(checkLaunchFieldValue('originalUrl', 'clear', null)).toEqual({
+      ok: true,
+      value: undefined
+    });
+    expect(checkLaunchFieldValue('campaignCount', 'clear', null)).toEqual({
+      ok: false,
+      code: 'OP_NOT_ALLOWED'
+    });
+    expect(checkLaunchFieldValue('notes', 'set', [])).toEqual({
+      ok: false,
+      code: 'FIELD_FORM_ONLY'
+    });
+    expect(checkLaunchFieldValue('materialId', 'set', 'x')).toEqual({
+      ok: false,
+      code: 'FIELD_NOT_SUPPORTED'
+    });
     expect(checkLaunchFieldValue('subConfig.sub2', 'set', ['social', 'creative'])).toEqual({
       ok: true,
       value: ['social', 'creative']
     });
-    expect(checkLaunchFieldValue('subConfig.sub2', 'set', ['email'])).toEqual({ ok: false, code: 'INVALID_VALUE' });
+    expect(checkLaunchFieldValue('subConfig.sub2', 'set', ['email'])).toEqual({
+      ok: false,
+      code: 'INVALID_VALUE'
+    });
     expect(checkLaunchFieldValue('creatives', 'set', ['TR_16', ' TR_18 '])).toEqual({
       ok: true,
       value: ['TR_16', 'TR_18']

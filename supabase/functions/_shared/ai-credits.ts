@@ -13,10 +13,7 @@ import type { Rpc, RpcFailure } from './ai-allowance.ts';
 export type CreditFeature = 'transcript_translation' | 'launch_assistant';
 
 export type CreditRefusalCode =
-  | 'INSUFFICIENT_CREDITS'
-  | 'AI_MONTH_EXHAUSTED'
-  | 'PRICE_CHANGED'
-  | 'KEY_REUSED';
+  'INSUFFICIENT_CREDITS' | 'AI_MONTH_EXHAUSTED' | 'PRICE_CHANGED' | 'KEY_REUSED';
 
 export class CreditRefusal extends Error {
   readonly code: CreditRefusalCode;
@@ -107,7 +104,10 @@ export async function settleCredits(rpc: Rpc, opKey: string): Promise<void> {
 
 /** Gives the debit back. Returns the fresh status, or null when the ledger was unreachable. */
 export async function refundCredits(rpc: Rpc, userId: string, opKey: string): Promise<unknown> {
-  const { data, error } = await rpc('service_ai_credit_refund', { p_user: userId, p_op_key: opKey });
+  const { data, error } = await rpc('service_ai_credit_refund', {
+    p_user: userId,
+    p_op_key: opKey
+  });
   if (error) {
     console.error('ai_credit_refund failed', error.code ?? 'unknown');
     return null;

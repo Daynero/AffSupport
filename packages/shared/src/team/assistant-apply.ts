@@ -7,7 +7,12 @@
  * as it was — never silently replaced by a default.
  */
 import type { LaunchCreativeKind, LaunchDraft, LaunchSubVariable } from './launches.js';
-import { addCreatives, fitCatalogToCreatives, removeCreative, rescaleCopies } from './launches/creative-distribution.js';
+import {
+  addCreatives,
+  fitCatalogToCreatives,
+  removeCreative,
+  rescaleCopies
+} from './launches/creative-distribution.js';
 import { creativesPatch, draftCreatives } from './launches/creative-patch.js';
 import { launchDayInZone } from './launches/defaults-merge.js';
 import { launchCreativeAlias, parseLaunchConfig } from './launches/validation.js';
@@ -34,7 +39,16 @@ export interface AssistantApplyContext {
 
 export type AssistantApplyResult =
   | { ok: true; draft: LaunchDraft }
-  | { ok: false; code: 'FIELD_FORM_ONLY' | 'FIELD_NOT_SUPPORTED' | 'INVALID_VALUE' | 'OP_NOT_ALLOWED' | 'NOT_CATALOG' | 'UNRESOLVED' };
+  | {
+      ok: false;
+      code:
+        | 'FIELD_FORM_ONLY'
+        | 'FIELD_NOT_SUPPORTED'
+        | 'INVALID_VALUE'
+        | 'OP_NOT_ALLOWED'
+        | 'NOT_CATALOG'
+        | 'UNRESOLVED';
+    };
 
 function clone<T>(value: T): T {
   return structuredClone(value);
@@ -58,7 +72,11 @@ function currentMaterials(draft: LaunchDraft, known: ResolvedMaterial[]): Resolv
  * the single-creative shape; in the catalog method the list goes through addCreatives and
  * creativesPatch (copies, the product count, variations under re-stitch, images without it).
  */
-function withCreatives(draft: LaunchDraft, change: 'set' | 'add' | 'remove', resolved: ResolvedMaterial[]): LaunchDraft {
+function withCreatives(
+  draft: LaunchDraft,
+  change: 'set' | 'add' | 'remove',
+  resolved: ResolvedMaterial[]
+): LaunchDraft {
   if (draft.method === 'other') {
     const one = change === 'remove' ? undefined : resolved[0];
     return {
@@ -79,12 +97,23 @@ function withCreatives(draft: LaunchDraft, change: 'set' | 'add' | 'remove', res
       list = removeCreative(list, index, productCount);
       productCount = list.reduce((sum, creative) => sum + creative.copies, 0) || productCount;
     }
-    return { ...draft, ...creativesPatch(draft, list, list.length ? (draft.creativeKind ?? null) : null, productCount) };
+    return {
+      ...draft,
+      ...creativesPatch(
+        draft,
+        list,
+        list.length ? (draft.creativeKind ?? null) : null,
+        productCount
+      )
+    };
   }
   const base = change === 'set' ? [] : draftCreatives(draft);
   const next = addCreatives(
     base,
-    resolved.map(material => ({ materialId: material.materialId, alias: launchCreativeAlias(material.name) })),
+    resolved.map(material => ({
+      materialId: material.materialId,
+      alias: launchCreativeAlias(material.name)
+    })),
     n
   );
   const kind = resolved[0]?.kind ?? draft.creativeKind ?? null;
@@ -126,7 +155,9 @@ export function applyAssistantChange(
       const resolved = context.refs.materials;
       if (!resolved || resolved.length === 0) return { ok: false, code: 'UNRESOLVED' };
       const current = currentMaterials(next, resolved);
-      const kinds = new Set([...(change.op === 'add' ? current : []), ...resolved].map(item => item.kind));
+      const kinds = new Set(
+        [...(change.op === 'add' ? current : []), ...resolved].map(item => item.kind)
+      );
       if (kinds.size > 1) return { ok: false, code: 'INVALID_VALUE' };
       const mode = change.op === 'add' ? 'add' : change.op === 'remove' ? 'remove' : 'set';
       return { ok: true, draft: withCreatives(next, mode, resolved) };
@@ -171,13 +202,18 @@ export function applyAssistantChange(
     default: {
       const [head, key] = field.path.split('.') as [keyof LaunchDraft, string | undefined];
       if (key === undefined) {
-        if (head === 'campaignCount' && draft.budgetMode === 'manual' && typeof value === 'number') {
+        if (
+          head === 'campaignCount' &&
+          draft.budgetMode === 'manual' &&
+          typeof value === 'number'
+        ) {
           // As the form: the manual sums follow the count, padded with zeros; a shorter list keeps
           // its largest sum as the maximum.
           const resized = Array.from({ length: value }, (_, index) => draft.budgets?.[index] ?? 0);
           next.campaignCount = value;
           next.budgets = resized;
-          if (value < (draft.campaignCount ?? 0) && resized.some(sum => sum > 0)) next.maxBudget = Math.max(...resized);
+          if (value < (draft.campaignCount ?? 0) && resized.some(sum => sum > 0))
+            next.maxBudget = Math.max(...resized);
           return { ok: true, draft: next };
         }
         if (value === undefined) delete next[head];
@@ -194,7 +230,15 @@ export function applyAssistantChange(
         if ((value as number) < list.length) return { ok: false, code: 'INVALID_VALUE' };
         return {
           ok: true,
-          draft: { ...next, ...creativesPatch(next, rescaleCopies(list, value as number), next.creativeKind ?? null, value as number) }
+          draft: {
+            ...next,
+            ...creativesPatch(
+              next,
+              rescaleCopies(list, value as number),
+              next.creativeKind ?? null,
+              value as number
+            )
+          }
         };
       }
       const catalog = { ...next.catalog } as Record<string, unknown>;

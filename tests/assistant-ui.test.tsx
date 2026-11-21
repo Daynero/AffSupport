@@ -17,7 +17,14 @@ const credits = {
   day: '2026-11-21',
   resetsAt: '2026-11-21T22:00:00Z',
   paidOpen: true,
-  recent: [{ feature: 'launch_assistant' as const, kind: 'debit' as const, amount: 1, at: '2026-11-21T10:00:00Z' }]
+  recent: [
+    {
+      feature: 'launch_assistant' as const,
+      kind: 'debit' as const,
+      amount: 1,
+      at: '2026-11-21T10:00:00Z'
+    }
+  ]
 };
 let available = 87;
 
@@ -37,8 +44,19 @@ const rows = [1, 2].map(n => ({
   blocked: []
 }));
 
-function message(cards: AssistantMessage['cards'], commandId: string | null = 'cmd-1'): AssistantMessage {
-  return { id: Math.random(), role: 'assistant', text: 'Готово.', price: 0, commandId, createdAt: '2026-11-21T10:00:00Z', cards };
+function message(
+  cards: AssistantMessage['cards'],
+  commandId: string | null = 'cmd-1'
+): AssistantMessage {
+  return {
+    id: Math.random(),
+    role: 'assistant',
+    text: 'Готово.',
+    price: 0,
+    commandId,
+    createdAt: '2026-11-21T10:00:00Z',
+    cards
+  };
 }
 
 const api = vi.hoisted(() => ({
@@ -55,7 +73,9 @@ vi.mock('../apps/web/src/api/assistant', () => ({
   assistantApi: api,
   creditsApi: { status: vi.fn(async () => ({ ...credits, available })) }
 }));
-vi.mock('../apps/web/src/auth/AuthContext', () => ({ useOptionalAuth: () => ({ user: { id: 'u' } }) }));
+vi.mock('../apps/web/src/auth/AuthContext', () => ({
+  useOptionalAuth: () => ({ user: { id: 'u' } })
+}));
 const budget = vi.hoisted(() => ({
   overview: vi.fn(),
   spaces: vi.fn(async () => [{ teamId: 't1', name: 'Goor', pilot: true }]),
@@ -76,14 +96,25 @@ beforeEach(async () => {
   localStorage.clear();
   available = 87;
   Object.values(api).forEach(fn => fn.mockClear());
-  api.open.mockImplementation(async () => ({ enabled: true, canSaveDefaults: true, messages: [], credits: { ...credits, available } }));
+  api.open.mockImplementation(async () => ({
+    enabled: true,
+    canSaveDefaults: true,
+    messages: [],
+    credits: { ...credits, available }
+  }));
   await refreshCredits();
 });
 afterEach(() => cleanup());
 
 function assistant(onLaunch = vi.fn(async () => undefined)) {
   render(
-    <LaunchAssistant teamId="team" canEdit onOpenLaunch={() => {}} onLaunch={onLaunch} onChanged={() => {}} />
+    <LaunchAssistant
+      teamId="team"
+      canEdit
+      onOpenLaunch={() => {}}
+      onLaunch={onLaunch}
+      onChanged={() => {}}
+    />
   );
   return onLaunch;
 }
@@ -91,14 +122,22 @@ function assistant(onLaunch = vi.fn(async () => undefined)) {
 describe('the assistant in Launches', () => {
   it('shows the price on the send button and sends with Ctrl+Enter', async () => {
     const user = userEvent.setup();
-    api.send.mockResolvedValue({ commandId: 'c', replayed: false, message: message([]), credits: { ...credits, available: 86 } });
+    api.send.mockResolvedValue({
+      commandId: 'c',
+      replayed: false,
+      message: message([]),
+      credits: { ...credits, available: 86 }
+    });
     assistant();
     const field = await screen.findByRole('textbox');
     await user.type(field, '5 запусків ProCaps на G2');
     expect(screen.getByRole('button', { name: /Send · 1/u })).toBeTruthy();
     await user.keyboard('{Control>}{Enter}{/Control}');
     await waitFor(() => expect(api.send).toHaveBeenCalledTimes(1));
-    expect(api.send.mock.calls[0]![0]).toMatchObject({ text: '5 запусків ProCaps на G2', price: 1 });
+    expect(api.send.mock.calls[0]![0]).toMatchObject({
+      text: '5 запусків ProCaps на G2',
+      price: 1
+    });
   });
 
   it('sends a short reply for free', async () => {
@@ -115,7 +154,9 @@ describe('the assistant in Launches', () => {
     assistant();
     await user.type(await screen.findByRole('textbox'), '5 запусків ProCaps на G2');
     expect(screen.getByText(/Short by 1 · renews at/u)).toBeTruthy();
-    expect((screen.getByRole('button', { name: /Send · 1/u }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /Send · 1/u }) as HTMLButtonElement).disabled).toBe(
+      true
+    );
   });
 
   it('launches exactly the reviewed rows through the batch, with their versions, once', async () => {
@@ -125,13 +166,25 @@ describe('the assistant in Launches', () => {
       canSaveDefaults: true,
       credits,
       messages: [
-        message([{ id: 'card-review', kind: 'review', state: 'open', commandId: 'cmd-1', payload: { date: '2026-11-21', rows, ready: 2 }, createdAt: 'x' }])
+        message([
+          {
+            id: 'card-review',
+            kind: 'review',
+            state: 'open',
+            commandId: 'cmd-1',
+            payload: { date: '2026-11-21', rows, ready: 2 },
+            createdAt: 'x'
+          }
+        ])
       ]
     });
     const onLaunch = assistant();
     await user.click(await screen.findByRole('button', { name: 'Launch 2' }));
     await waitFor(() => expect(onLaunch).toHaveBeenCalledTimes(1));
-    const [handed, key] = onLaunch.mock.calls[0]! as unknown as [Array<{ launchId: string; version: string }>, string];
+    const [handed, key] = onLaunch.mock.calls[0]! as unknown as [
+      Array<{ launchId: string; version: string }>,
+      string
+    ];
     expect(handed).toEqual(rows.map(row => ({ launchId: row.launchId, version: '1' })));
     expect(api.reviewLaunched).toHaveBeenCalledWith('card-review', key);
     expect(await screen.findByText('Sent to generation')).toBeTruthy();
@@ -143,9 +196,34 @@ describe('the assistant in Launches', () => {
       enabled: true,
       canSaveDefaults: true,
       credits,
-      messages: [message([{ id: 'card-result', kind: 'result', state: 'open', commandId: 'cmd-1', payload: { rows, campaigns: 4, date: '2026-11-21', differences: [], unresolved: [] }, createdAt: 'x' }])]
+      messages: [
+        message([
+          {
+            id: 'card-result',
+            kind: 'result',
+            state: 'open',
+            commandId: 'cmd-1',
+            payload: { rows, campaigns: 4, date: '2026-11-21', differences: [], unresolved: [] },
+            createdAt: 'x'
+          }
+        ])
+      ]
     });
-    api.undo.mockResolvedValue({ commandId: 'u', replayed: false, message: message([{ id: 's', kind: 'status', state: 'open', commandId: null, payload: { undone: 2, kept: [] }, createdAt: 'x' }]), credits });
+    api.undo.mockResolvedValue({
+      commandId: 'u',
+      replayed: false,
+      message: message([
+        {
+          id: 's',
+          kind: 'status',
+          state: 'open',
+          commandId: null,
+          payload: { undone: 2, kept: [] },
+          createdAt: 'x'
+        }
+      ]),
+      credits
+    });
     assistant();
     expect(await screen.findByText(/Drafts: 2 · campaigns: 4/u)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
@@ -156,7 +234,13 @@ describe('the assistant in Launches', () => {
   it('stays hidden where the assistant is not enabled', async () => {
     api.open.mockResolvedValue({ enabled: false, canSaveDefaults: false, messages: [], credits });
     const { container } = render(
-      <LaunchAssistant teamId="team" canEdit onOpenLaunch={() => {}} onLaunch={async () => {}} onChanged={() => {}} />
+      <LaunchAssistant
+        teamId="team"
+        canEdit
+        onOpenLaunch={() => {}}
+        onLaunch={async () => {}}
+        onChanged={() => {}}
+      />
     );
     await waitFor(() => expect(api.open).toHaveBeenCalled());
     expect(container.querySelector('.launch-assistant')).toBeNull();
@@ -188,7 +272,15 @@ describe('the AI budget panel', () => {
       freeUsd: 60,
       forecastUsd: 120,
       fullGrantUseUsd: 130,
-      byFeature: [{ feature: 'launch_assistant', spentUsd: 10, chargedCredits: 12000, coverage: 1.2, unknownCalls: 0 }],
+      byFeature: [
+        {
+          feature: 'launch_assistant',
+          spentUsd: 10,
+          chargedCredits: 12000,
+          coverage: 1.2,
+          unknownCalls: 0
+        }
+      ],
       creditUsd: 0.001,
       baseDailyGrant: 100,
       assistantEnabled: true,

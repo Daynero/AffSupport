@@ -72,11 +72,29 @@ function Row({ row, onOpen }: { row: AssistantRow; onOpen: (id: string) => void 
     <li className="assistant-row">
       <span className="assistant-row-n">{row.n}</span>
       <span className="assistant-row-facts">
-        {[row.account, row.offer, row.creatives.join(', '), row.launchDate, row.campaignCount !== null ? `${row.campaignCount}×` : null, row.productCount !== null ? `${row.productCount}` : null, row.budget, row.url ? t('assistantRowUrl') : null, row.r2 ? 'R2' : null]
+        {[
+          row.account,
+          row.offer,
+          row.creatives.join(', '),
+          row.launchDate,
+          row.campaignCount !== null ? `${row.campaignCount}×` : null,
+          row.productCount !== null ? `${row.productCount}` : null,
+          row.budget,
+          row.url ? t('assistantRowUrl') : null,
+          row.r2 ? 'R2' : null
+        ]
           .filter(Boolean)
           .join(' · ')}
       </span>
-      {row.blocked.length > 0 && <Badge color="warning" variant="soft" size="sm">{t(row.blocked.some(b => b.code === 'LAUNCHED') ? 'assistantLaunchedRow' : 'assistantBlocked')}</Badge>}
+      {row.blocked.length > 0 && (
+        <Badge color="warning" variant="soft" size="sm">
+          {t(
+            row.blocked.some(b => b.code === 'LAUNCHED')
+              ? 'assistantLaunchedRow'
+              : 'assistantBlocked'
+          )}
+        </Badge>
+      )}
       <Button size="xs" variant="ghost" onClick={() => onOpen(row.launchId)}>
         {t('assistantOpen')}
       </Button>
@@ -90,7 +108,13 @@ function reasonText(t: ReturnType<typeof useI18n>['t'], code: string, written?: 
   return t(copy, { written: written ?? '', text: written ?? '' });
 }
 
-export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onChanged }: LaunchAssistantProps) {
+export function LaunchAssistant({
+  teamId,
+  canEdit,
+  onOpenLaunch,
+  onLaunch,
+  onChanged
+}: LaunchAssistantProps) {
   const { t, language } = useI18n();
   const credits = useCredits(canEdit);
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -125,14 +149,20 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
 
   useEffect(() => {
     const last = list.current?.lastElementChild as HTMLElement | null | undefined;
-    if (last && typeof last.scrollIntoView === 'function') last.scrollIntoView({ block: 'nearest' });
+    if (last && typeof last.scrollIntoView === 'function')
+      last.scrollIntoView({ block: 'nearest' });
   }, [messages.length]);
 
   // The card the person is looking at: the one they pressed, else the newest card with rows.
   const contextCard = useMemo(() => {
     if (focusedCard) return focusedCard;
     for (let i = messages.length - 1; i >= 0; i--) {
-      const card = messages[i]!.cards.find(c => (c.kind === 'result' || c.kind === 'review') && Array.isArray(c.payload.rows) && (c.payload.rows as unknown[]).length > 0);
+      const card = messages[i]!.cards.find(
+        c =>
+          (c.kind === 'result' || c.kind === 'review') &&
+          Array.isArray(c.payload.rows) &&
+          (c.payload.rows as unknown[]).length > 0
+      );
       if (card) return card.id;
     }
     return null;
@@ -145,9 +175,13 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
   const price = trimmed ? (free ? 0 : assistantMessagePrice(trimmed)) : null;
   const count = characterCount(text);
   const available = credits.status?.available ?? null;
-  const short = price !== null && price > 0 && available !== null && available < price ? price - available : 0;
+  const short =
+    price !== null && price > 0 && available !== null && available < price ? price - available : 0;
 
-  const take = async (run: () => Promise<{ message: AssistantMessage | null; credits: unknown }>, optimistic?: AssistantMessage) => {
+  const take = async (
+    run: () => Promise<{ message: AssistantMessage | null; credits: unknown }>,
+    optimistic?: AssistantMessage
+  ) => {
     setBusy(true);
     setError(null);
     if (optimistic) setMessages(current => [...current, optimistic]);
@@ -166,13 +200,23 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
   };
 
   const send = async () => {
-    if (busy || !trimmed || price === null || short > 0 || count > ASSISTANT_MESSAGE_MAX_CHARACTERS) return;
+    if (busy || !trimmed || price === null || short > 0 || count > ASSISTANT_MESSAGE_MAX_CHARACTERS)
+      return;
     const clientKey = pendingKey.current?.text === trimmed ? pendingKey.current.key : key();
     pendingKey.current = { text: trimmed, key: clientKey };
     const flow = observeAssistant('send', { price, free });
     const ok = await take(
-      () => assistantApi.send({ teamId, text: trimmed, clientKey, price, contextCardId: contextCard }),
-      { id: -Date.now(), role: 'user', text: trimmed, price, commandId: null, createdAt: new Date().toISOString(), cards: [] }
+      () =>
+        assistantApi.send({ teamId, text: trimmed, clientKey, price, contextCardId: contextCard }),
+      {
+        id: -Date.now(),
+        role: 'user',
+        text: trimmed,
+        price,
+        commandId: null,
+        createdAt: new Date().toISOString(),
+        cards: []
+      }
     );
     flow.finish(ok ? 'success' : 'failure');
     if (ok) {
@@ -190,19 +234,27 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
   };
 
   const launch = async (card: AssistantCard) => {
-    const rows = ((card.payload.rows as AssistantRow[]) ?? []).filter(row => row.blocked.length === 0);
+    const rows = ((card.payload.rows as AssistantRow[]) ?? []).filter(
+      row => row.blocked.length === 0
+    );
     if (!rows.length || busy) return;
-    const batchKey = typeof card.payload.batchKey === 'string' ? card.payload.batchKey : crypto.randomUUID();
+    const batchKey =
+      typeof card.payload.batchKey === 'string' ? card.payload.batchKey : crypto.randomUUID();
     const flow = observeAssistant('launch', { rows: rows.length });
     setBusy(true);
     setError(null);
     try {
       await assistantApi.reviewLaunched(card.id, batchKey);
-      await onLaunch(rows.map(row => ({ launchId: row.launchId, version: row.version })), batchKey);
+      await onLaunch(
+        rows.map(row => ({ launchId: row.launchId, version: row.version })),
+        batchKey
+      );
       setMessages(current =>
         current.map(message => ({
           ...message,
-          cards: message.cards.map(c => (c.id === card.id ? { ...c, state: 'launched', payload: { ...c.payload, batchKey } } : c))
+          cards: message.cards.map(c =>
+            c.id === card.id ? { ...c, state: 'launched', payload: { ...c.payload, batchKey } } : c
+          )
         }))
       );
       flow.finish('success');
@@ -222,20 +274,38 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
     const select = () => setFocusedCard(card.id);
     switch (card.kind) {
       case 'result': {
-        const unresolved = (payload.unresolved as Array<{ field: string; written: string; code: string }>) ?? [];
-        const differences = (payload.differences as Array<{ field: string; from: string | null; to: string }>) ?? [];
+        const unresolved =
+          (payload.unresolved as Array<{ field: string; written: string; code: string }>) ?? [];
+        const differences =
+          (payload.differences as Array<{ field: string; from: string | null; to: string }>) ?? [];
         return (
-          <section key={card.id} className={`assistant-card${contextCard === card.id ? ' is-context' : ''}`} onFocus={select} onClick={select}>
+          <section
+            key={card.id}
+            className={`assistant-card${contextCard === card.id ? ' is-context' : ''}`}
+            onFocus={select}
+            onClick={select}
+          >
             {rows.length > 0 && (
               <p className="assistant-card-title">
-                {t('assistantResultTitle', { count: rows.length, campaigns: Number(payload.campaigns ?? 0) })}
-                {typeof payload.date === 'string' && ` · ${t('assistantDate', { date: payload.date })}`}
+                {t('assistantResultTitle', {
+                  count: rows.length,
+                  campaigns: Number(payload.campaigns ?? 0)
+                })}
+                {typeof payload.date === 'string' &&
+                  ` · ${t('assistantDate', { date: payload.date })}`}
               </p>
             )}
-            {rows.length > 0 && <ol className="assistant-rows">{rows.map(row => <Row key={row.launchId} row={row} onOpen={onOpenLaunch} />)}</ol>}
+            {rows.length > 0 && (
+              <ol className="assistant-rows">
+                {rows.map(row => (
+                  <Row key={row.launchId} row={row} onOpen={onOpenLaunch} />
+                ))}
+              </ol>
+            )}
             {differences.length > 0 && (
               <p className="assistant-card-note">
-                {t('assistantDifferences')}: {differences.map(d => `${d.field} ${d.from ?? '—'} → ${d.to}`).join('; ')}
+                {t('assistantDifferences')}:{' '}
+                {differences.map(d => `${d.field} ${d.from ?? '—'} → ${d.to}`).join('; ')}
               </p>
             )}
             {unresolved.length > 0 && (
@@ -247,11 +317,24 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
             )}
             {rows.length > 0 && (
               <div className="assistant-card-actions">
-                <Button size="sm" variant="soft" disabled={busy} onClick={() => void take(() => assistantApi.review(teamId, card.id, key()))}>
+                <Button
+                  size="sm"
+                  variant="soft"
+                  disabled={busy}
+                  onClick={() => void take(() => assistantApi.review(teamId, card.id, key()))}
+                >
                   {t('assistantReviewAndLaunch')}
                 </Button>
                 {message.commandId && (
-                  <Button size="sm" variant="ghost" disabled={busy} leading={<Undo2 size={ICON_SIZE} strokeWidth={ICON_STROKE} />} onClick={() => void take(() => assistantApi.undo(teamId, message.commandId!, key()))}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    leading={<Undo2 size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+                    onClick={() =>
+                      void take(() => assistantApi.undo(teamId, message.commandId!, key()))
+                    }
+                  >
                     {t('assistantUndo')}
                   </Button>
                 )}
@@ -263,17 +346,41 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
       case 'review': {
         const ready = rows.filter(row => row.blocked.length === 0).length;
         return (
-          <section key={card.id} className={`assistant-card${contextCard === card.id ? ' is-context' : ''}`} onFocus={select} onClick={select}>
-            {typeof payload.date === 'string' && <p className="assistant-card-title">{t('assistantDate', { date: payload.date })}</p>}
-            {rows.length === 0 && <p className="assistant-card-note">{t('assistantReviewEmpty')}</p>}
-            {rows.length > 0 && <ol className="assistant-rows">{rows.map(row => <Row key={row.launchId} row={row} onOpen={onOpenLaunch} />)}</ol>}
-            {payload.truncated === true && <p className="assistant-card-note">{t('assistantReviewTruncated')}</p>}
+          <section
+            key={card.id}
+            className={`assistant-card${contextCard === card.id ? ' is-context' : ''}`}
+            onFocus={select}
+            onClick={select}
+          >
+            {typeof payload.date === 'string' && (
+              <p className="assistant-card-title">{t('assistantDate', { date: payload.date })}</p>
+            )}
+            {rows.length === 0 && (
+              <p className="assistant-card-note">{t('assistantReviewEmpty')}</p>
+            )}
+            {rows.length > 0 && (
+              <ol className="assistant-rows">
+                {rows.map(row => (
+                  <Row key={row.launchId} row={row} onOpen={onOpenLaunch} />
+                ))}
+              </ol>
+            )}
+            {payload.truncated === true && (
+              <p className="assistant-card-note">{t('assistantReviewTruncated')}</p>
+            )}
             {card.state === 'launched' ? (
-              <Badge color="success" variant="soft">{t('assistantLaunched')}</Badge>
+              <Badge color="success" variant="soft">
+                {t('assistantLaunched')}
+              </Badge>
             ) : (
               ready > 0 && (
                 <div className="assistant-card-actions">
-                  <Button size="sm" variant="primary" loading={busy} onClick={() => void launch(card)}>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    loading={busy}
+                    onClick={() => void launch(card)}
+                  >
                     {t('assistantLaunch', { count: ready })}
                   </Button>
                 </div>
@@ -289,7 +396,15 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
             <p className="assistant-card-title">{String(payload.about ?? '')}</p>
             <div className="assistant-card-actions">
               {options.map(option => (
-                <Button key={option.id} size="sm" variant="soft" disabled={busy || card.state !== 'open'} onClick={() => void take(() => assistantApi.answer(teamId, card.id, option.id, key()))}>
+                <Button
+                  key={option.id}
+                  size="sm"
+                  variant="soft"
+                  disabled={busy || card.state !== 'open'}
+                  onClick={() =>
+                    void take(() => assistantApi.answer(teamId, card.id, option.id, key()))
+                  }
+                >
                   {option.label}
                 </Button>
               ))}
@@ -298,10 +413,13 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
         );
       }
       case 'profile': {
-        const changes = (payload.changes as Array<{ field: string; from: string | null; to: string }>) ?? [];
+        const changes =
+          (payload.changes as Array<{ field: string; from: string | null; to: string }>) ?? [];
         return (
           <section key={card.id} className="assistant-card">
-            <p className="assistant-card-title">{t('assistantProfileTitle', { offer: String(payload.offer ?? '') })}</p>
+            <p className="assistant-card-title">
+              {t('assistantProfileTitle', { offer: String(payload.offer ?? '') })}
+            </p>
             <ul className="assistant-card-note">
               {changes.map((change, index) => (
                 <li key={index}>{`${change.field}: ${change.from ?? '—'} → ${change.to}`}</li>
@@ -309,7 +427,14 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
             </ul>
             {card.state === 'open' && (
               <div className="assistant-card-actions">
-                <Button size="sm" variant="primary" disabled={busy} onClick={() => void take(() => assistantApi.confirmProfile(teamId, card.id, key()))}>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={busy}
+                  onClick={() =>
+                    void take(() => assistantApi.confirmProfile(teamId, card.id, key()))
+                  }
+                >
                   {t('assistantProfileSave')}
                 </Button>
               </div>
@@ -319,12 +444,17 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
       }
       case 'status': {
         if (typeof payload.profileSaved === 'string')
-          return <p key={card.id} className="assistant-card-note">{t('assistantProfileSaved', { offer: payload.profileSaved })}</p>;
+          return (
+            <p key={card.id} className="assistant-card-note">
+              {t('assistantProfileSaved', { offer: payload.profileSaved })}
+            </p>
+          );
         const kept = (payload.kept as Array<{ code: string }>) ?? [];
         return (
           <p key={card.id} className="assistant-card-note">
             {t('assistantUndone', { count: Number(payload.undone ?? 0) })}
-            {kept.length > 0 && ` · ${t('assistantKept', { count: kept.length })}: ${[...new Set(kept.map(k => reasonText(t, k.code)))].join('; ')}`}
+            {kept.length > 0 &&
+              ` · ${t('assistantKept', { count: kept.length })}: ${[...new Set(kept.map(k => reasonText(t, k.code)))].join('; ')}`}
           </p>
         );
       }
@@ -332,7 +462,11 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
         const details = (payload.details as Record<string, unknown> | undefined) ?? {};
         return (
           <Alert key={card.id} color="warning" variant="soft">
-            {reasonText(t, String(payload.code), typeof details.text === 'string' ? details.text : undefined)}
+            {reasonText(
+              t,
+              String(payload.code),
+              typeof details.text === 'string' ? details.text : undefined
+            )}
           </Alert>
         );
       }
@@ -362,14 +496,20 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
         <div className="assistant-examples">
           <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           <span className="assistant-card-note">{t('assistantEmpty')}</span>
-          {(['assistantExample1', 'assistantExample2', 'assistantExample3'] as const).map(example => (
-            <Button key={example} size="xs" variant="soft" onClick={() => setText(t(example))}>
-              {t(example)}
-            </Button>
-          ))}
+          {(['assistantExample1', 'assistantExample2', 'assistantExample3'] as const).map(
+            example => (
+              <Button key={example} size="xs" variant="soft" onClick={() => setText(t(example))}>
+                {t(example)}
+              </Button>
+            )
+          )}
         </div>
       )}
-      {error && <Alert color="error" variant="soft">{error}</Alert>}
+      {error && (
+        <Alert color="error" variant="soft">
+          {error}
+        </Alert>
+      )}
       <div className="assistant-composer">
         <Textarea
           ref={input}
@@ -384,13 +524,20 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
         <div className="assistant-composer-row">
           <span className="assistant-card-note">{t('assistantCounter', { count })}</span>
           {short > 0 && credits.status && (
-            <span className="assistant-card-note">{t('assistantShort', { missing: short, time: kyivTime(credits.status.resetsAt, language) })}</span>
+            <span className="assistant-card-note">
+              {t('assistantShort', {
+                missing: short,
+                time: kyivTime(credits.status.resetsAt, language)
+              })}
+            </span>
           )}
           <Button
             size="sm"
             variant="primary"
             loading={busy}
-            disabled={!trimmed || price === null || short > 0 || count > ASSISTANT_MESSAGE_MAX_CHARACTERS}
+            disabled={
+              !trimmed || price === null || short > 0 || count > ASSISTANT_MESSAGE_MAX_CHARACTERS
+            }
             trailing={<Send size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
             onClick={() => void send()}
           >

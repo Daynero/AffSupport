@@ -4,7 +4,12 @@ import { authorizeCaller } from '../_shared/auth.ts';
 import type { ClaudeClient } from '../_shared/claude.ts';
 import { createClaudeClient } from '../_shared/claude-sdk.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
-import { errorResponse, mapUnknownError, successResponse, TeamFunctionError } from '../_shared/errors.ts';
+import {
+  errorResponse,
+  mapUnknownError,
+  successResponse,
+  TeamFunctionError
+} from '../_shared/errors.ts';
 import { parseJsonBody } from '../_shared/validation.ts';
 import { createAssistantFakeClient, isAssistantFakeMode } from './fake-provider.ts';
 import { handleAssistant, parseAssistantCommand } from './handler.ts';
@@ -17,13 +22,16 @@ function clients(request: Request) {
   const url = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!url || !anonKey || !serviceKey) throw new TeamFunctionError('MODEL_UNAVAILABLE', { retryable: true });
+  if (!url || !anonKey || !serviceKey)
+    throw new TeamFunctionError('MODEL_UNAVAILABLE', { retryable: true });
   const authorization = request.headers.get('authorization') ?? '';
   const caller = createClient(url, anonKey, {
     global: { headers: { authorization } },
     auth: { persistSession: false, autoRefreshToken: false }
   });
-  const service = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const service = createClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
   return { caller, service };
 }
 
@@ -35,7 +43,8 @@ function modelClient(): ClaudeClient | null {
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
   if (apiKey) return createClaudeClient(apiKey, { maxRetries: 0 });
   const fake = Deno.env.get('SOTY_ASSISTANT_PROVIDER');
-  if (Deno.env.get('SOTY_ENVIRONMENT') === 'beta' && isAssistantFakeMode(fake)) return createAssistantFakeClient(fake);
+  if (Deno.env.get('SOTY_ENVIRONMENT') === 'beta' && isAssistantFakeMode(fake))
+    return createAssistantFakeClient(fake);
   return null;
 }
 

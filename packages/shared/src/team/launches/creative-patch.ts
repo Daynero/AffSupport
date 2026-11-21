@@ -1,7 +1,12 @@
 /**
  * Moved from apps/web (064): the form and the launch assistant store creatives the same way.
  */
-import type { LaunchCatalogConfig, LaunchCreative, LaunchCreativeKind, LaunchDraft } from '../launches.js';
+import type {
+  LaunchCatalogConfig,
+  LaunchCreative,
+  LaunchCreativeKind,
+  LaunchDraft
+} from '../launches.js';
 
 /**
  * A catalog that carries a variation count. The count belongs to the v1 catalog video protocol

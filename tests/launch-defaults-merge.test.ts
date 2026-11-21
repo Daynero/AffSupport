@@ -42,7 +42,9 @@ describe('064 launch defaults without a browser', () => {
   });
 
   it('prefers the offer profile, then the space profile, then built-in values', () => {
-    const offer = profile({ catalog: { ...builtinLaunchDraft(now, kyiv).catalog!, productCount: 60 } });
+    const offer = profile({
+      catalog: { ...builtinLaunchDraft(now, kyiv).catalog!, productCount: 60 }
+    });
     const workspace = profile({ campaignCount: 7 });
     expect(newDraftFromDefaults({ offer, workspace, now, timezone: kyiv })).toMatchObject({
       source: 'offer',
@@ -86,9 +88,9 @@ describe('064 launch defaults without a browser', () => {
       catalog: { ...(stored.config as { catalog: object }).catalog, productCount: 100 }
     });
     expect(next.subConfig).toEqual(sub);
-    expect(changedDefaultPaths(stored.config, next.config, ['catalog.productCount', 'maxBudget'])).toEqual([
-      'catalog.productCount'
-    ]);
+    expect(
+      changedDefaultPaths(stored.config, next.config, ['catalog.productCount', 'maxBudget'])
+    ).toEqual(['catalog.productCount']);
   });
 
   it('accepts only default fields and known catalog/SUB keys as mask paths', () => {

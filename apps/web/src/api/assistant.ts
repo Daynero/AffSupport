@@ -67,9 +67,11 @@ export const assistantApi = {
       requireSupabaseClient().rpc('assistant_open', { p_team: teamId })
     );
     throwRpc(error);
-    if (!isRecord(data) || typeof data.enabled !== 'boolean') throw new TeamApiError('INVALID_RESPONSE', false);
+    if (!isRecord(data) || typeof data.enabled !== 'boolean')
+      throw new TeamApiError('INVALID_RESPONSE', false);
     const messages = Array.isArray(data.messages) ? data.messages.map(parseAssistantMessage) : [];
-    if (messages.some(message => message === null)) throw new TeamApiError('INVALID_RESPONSE', false);
+    if (messages.some(message => message === null))
+      throw new TeamApiError('INVALID_RESPONSE', false);
     return {
       enabled: data.enabled,
       canSaveDefaults: data.canSaveDefaults === true,
@@ -77,7 +79,16 @@ export const assistantApi = {
       credits: parseAiCreditsStatus(data.credits)
     };
   },
-  send(input: { teamId: string; text: string; clientKey: string; price: number; contextCardId: string | null }, signal?: AbortSignal) {
+  send(
+    input: {
+      teamId: string;
+      text: string;
+      clientKey: string;
+      price: number;
+      contextCardId: string | null;
+    },
+    signal?: AbortSignal
+  ) {
     return act(
       {
         action: 'send',
@@ -93,10 +104,23 @@ export const assistantApi = {
     );
   },
   answer(teamId: string, cardId: string, optionId: string, clientKey: string) {
-    return act({ action: 'answer', teamId, cardId, optionId, clientKey, timezone: browserTimezone() });
+    return act({
+      action: 'answer',
+      teamId,
+      cardId,
+      optionId,
+      clientKey,
+      timezone: browserTimezone()
+    });
   },
   confirmProfile(teamId: string, cardId: string, clientKey: string) {
-    return act({ action: 'confirm_profile', teamId, cardId, clientKey, timezone: browserTimezone() });
+    return act({
+      action: 'confirm_profile',
+      teamId,
+      cardId,
+      clientKey,
+      timezone: browserTimezone()
+    });
   },
   review(teamId: string, cardId: string | null, clientKey: string) {
     return act({ action: 'review', teamId, cardId, clientKey, timezone: browserTimezone() });
@@ -107,17 +131,27 @@ export const assistantApi = {
   /** Ties a review card to the batch key the browser submits next; replays for the same key. */
   async reviewLaunched(cardId: string, batchKey: string): Promise<void> {
     const { error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('assistant_review_launched', { p_card: cardId, p_batch_key: batchKey })
+      requireSupabaseClient().rpc('assistant_review_launched', {
+        p_card: cardId,
+        p_batch_key: batchKey
+      })
     );
     throwRpc(error);
   },
   async launchMarks(teamId: string, ids: string[]): Promise<Set<string>> {
     if (ids.length === 0) return new Set();
     const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('assistant_launch_marks', { p_team: teamId, p_ids: ids.slice(0, 500) })
+      requireSupabaseClient().rpc('assistant_launch_marks', {
+        p_team: teamId,
+        p_ids: ids.slice(0, 500)
+      })
     );
     throwRpc(error);
-    return new Set(Array.isArray(data) ? (data as unknown[]).filter((id): id is string => typeof id === 'string') : []);
+    return new Set(
+      Array.isArray(data)
+        ? (data as unknown[]).filter((id): id is string => typeof id === 'string')
+        : []
+    );
   }
 };
 

@@ -54,7 +54,11 @@ function isStarted(value: unknown): value is StartedTranslation {
 
 export interface TranslationClient {
   /** `price` is the one the button showed; the server refuses a different one (064). */
-  start(targetLanguage: string, source: TranslationSource, price: number): Promise<StartedTranslation>;
+  start(
+    targetLanguage: string,
+    source: TranslationSource,
+    price: number
+  ): Promise<StartedTranslation>;
   watch(
     translationId: string,
     onEvent: (event: TranslationStreamEvent) => void,
@@ -104,7 +108,13 @@ export const translationClient: TranslationClient = {
   start(targetLanguage, source, price) {
     return invokeTeamFunction(
       FUNCTION,
-      { action: 'start', targetLanguage, source, expectedPrice: price, priceVersion: AI_PRICE_VERSION },
+      {
+        action: 'start',
+        targetLanguage,
+        source,
+        expectedPrice: price,
+        priceVersion: AI_PRICE_VERSION
+      },
       isStarted
     );
   },

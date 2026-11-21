@@ -44,7 +44,9 @@ describe('064 credit prices', () => {
       day: '2026-11-21',
       resetsAt: '2026-11-21T22:00:00Z',
       paidOpen: true,
-      recent: [{ feature: 'launch_assistant', kind: 'debit', amount: 1, at: '2026-11-21T10:00:00Z' }]
+      recent: [
+        { feature: 'launch_assistant', kind: 'debit', amount: 1, at: '2026-11-21T10:00:00Z' }
+      ]
     };
     expect(parseAiCreditsStatus(status)).toEqual(status);
     expect(parseAiCreditsStatus({ ...status, available: -1 })).toBeNull();

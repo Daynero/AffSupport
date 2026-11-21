@@ -35,11 +35,15 @@ export function fakePlan(text: string): unknown {
     overrides: [],
     question: null
   };
-  const materials = [...text.matchAll(/\b([A-Z]{2,3})[ _]?(\d{1,3})\b/gu)].map(m => `${m[1]}_${m[2]}`);
+  const materials = [...text.matchAll(/\b([A-Z]{2,3})[ _]?(\d{1,3})\b/gu)].map(
+    m => `${m[1]}_${m[2]}`
+  );
   const url = /⟦url:\d+⟧/u.exec(text)?.[0];
   const row = /у\s+(\d+|друг|трет|перш)/iu.exec(text);
   if (row) {
-    const n = /^\d+$/u.test(row[1]!) ? Number(row[1]) : { перш: 1, друг: 2, трет: 3 }[row[1]!.toLowerCase()] ?? 1;
+    const n = /^\d+$/u.test(row[1]!)
+      ? Number(row[1])
+      : ({ перш: 1, друг: 2, трет: 3 }[row[1]!.toLowerCase()] ?? 1);
     action.type = 'update_fields';
     action.rows = [n];
   } else if (/запуск/iu.test(text)) {
@@ -53,12 +57,17 @@ export function fakePlan(text: string): unknown {
   if (action.type !== 'out_of_scope') {
     if (materials.length) action.fields.push({ field: 'creatives', op: 'set', value: materials });
     const campaigns = /(\d+)\s+кампан/iu.exec(text)?.[1];
-    if (campaigns) action.fields.push({ field: 'campaignCount', op: 'set', value: Number(campaigns) });
+    if (campaigns)
+      action.fields.push({ field: 'campaignCount', op: 'set', value: Number(campaigns) });
     const products = /(\d+)\s+товар/iu.exec(text)?.[1];
-    if (products) action.fields.push({ field: 'catalog.productCount', op: 'set', value: Number(products) });
+    if (products)
+      action.fields.push({ field: 'catalog.productCount', op: 'set', value: Number(products) });
     if (url) action.fields.push({ field: 'originalUrl', op: 'set', value: url });
   }
-  return { reply: action.type === 'out_of_scope' ? 'Я допомагаю лише з чернетками запусків.' : 'Готово.', actions: [action] };
+  return {
+    reply: action.type === 'out_of_scope' ? 'Я допомагаю лише з чернетками запусків.' : 'Готово.',
+    actions: [action]
+  };
 }
 
 export function createAssistantFakeClient(mode: AssistantFakeMode): ClaudeClient {
@@ -66,7 +75,16 @@ export function createAssistantFakeClient(mode: AssistantFakeMode): ClaudeClient
     async create(request: ClaudeRequest) {
       if (mode === 'fake-down') throw new ClaudeTransportError(529);
       const text = JSON.stringify(fakePlan(message(request.user)));
-      return { stopReason: 'end_turn', text, usage: { input: Math.ceil(request.user.length / 3), output: 300, cacheRead: 0, cacheWrite: 0 } };
+      return {
+        stopReason: 'end_turn',
+        text,
+        usage: {
+          input: Math.ceil(request.user.length / 3),
+          output: 300,
+          cacheRead: 0,
+          cacheWrite: 0
+        }
+      };
     }
   };
 }

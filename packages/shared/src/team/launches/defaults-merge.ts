@@ -9,7 +9,11 @@
  * of the stored profile, including legacy fields, is carried over untouched.
  */
 import type { LaunchDraft, LaunchSubConfig } from '../launches.js';
-import { applyLaunchDefaultValues, LAUNCH_DEFAULT_FIELDS, launchDefaultValues } from './defaults.js';
+import {
+  applyLaunchDefaultValues,
+  LAUNCH_DEFAULT_FIELDS,
+  launchDefaultValues
+} from './defaults.js';
 import { isLaunchTimezone } from './naming.js';
 
 export interface LaunchDefaultsProfile {
@@ -100,10 +104,17 @@ export function newDraftFromDefaults(input: {
   timezone: string;
 }): { draft: LaunchDraft; source: LaunchDefaultsSource } {
   const profile = input.offer ?? input.workspace;
-  const source: LaunchDefaultsSource = input.offer ? 'offer' : input.workspace ? 'workspace' : 'builtin';
+  const source: LaunchDefaultsSource = input.offer
+    ? 'offer'
+    : input.workspace
+      ? 'workspace'
+      : 'builtin';
   const base = builtinLaunchDraft(input.now, input.timezone);
   return {
-    draft: applyLaunchDefaultValues(base, resolveLaunchDefaults(profile, input.now, input.timezone)),
+    draft: applyLaunchDefaultValues(
+      base,
+      resolveLaunchDefaults(profile, input.now, input.timezone)
+    ),
     source
   };
 }
@@ -151,7 +162,10 @@ export function applyDefaultsMask(
   mask: readonly LaunchDefaultPath[],
   values: LaunchDraft
 ): { config: LaunchDraft; subConfig: LaunchSubConfig | null } {
-  const config: Record<string, unknown> = structuredClone(current.config) as Record<string, unknown>;
+  const config: Record<string, unknown> = structuredClone(current.config) as Record<
+    string,
+    unknown
+  >;
   let subConfig = current.subConfig ? structuredClone(current.subConfig) : null;
   for (const path of mask) {
     const value = readLaunchPath(values, path);
@@ -190,6 +204,7 @@ export function changedDefaultPaths(
   mask: readonly LaunchDefaultPath[]
 ): LaunchDefaultPath[] {
   return mask.filter(
-    path => JSON.stringify(readLaunchPath(before, path)) !== JSON.stringify(readLaunchPath(after, path))
+    path =>
+      JSON.stringify(readLaunchPath(before, path)) !== JSON.stringify(readLaunchPath(after, path))
   );
 }

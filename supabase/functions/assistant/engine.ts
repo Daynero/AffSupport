@@ -93,11 +93,17 @@ async function call(rpc: Rpc, name: string, args: Record<string, unknown>): Prom
 }
 
 export async function loadNames(deps: Pick<EngineDeps, 'callerRpc' | 'teamId'>): Promise<Names> {
-  const dictionaries = await call(deps.callerRpc, 'list_launch_dictionaries', { p_team: deps.teamId });
+  const dictionaries = await call(deps.callerRpc, 'list_launch_dictionaries', {
+    p_team: deps.teamId
+  });
   const rows = (value: unknown): AssistantCandidate[] =>
     Array.isArray(value)
       ? value.flatMap(item =>
-          isRecord(item) && typeof item.id === 'string' && typeof item.value === 'string' && !item.archivedAt && !item.archived_at
+          isRecord(item) &&
+          typeof item.id === 'string' &&
+          typeof item.value === 'string' &&
+          !item.archivedAt &&
+          !item.archived_at
             ? [{ id: item.id, name: item.value }]
             : []
         )
@@ -108,7 +114,12 @@ export async function loadNames(deps: Pick<EngineDeps, 'callerRpc' | 'teamId'>):
     for (const account of accounts) {
       if (!isRecord(account) || !Array.isArray(account.agents)) continue;
       for (const agent of account.agents) {
-        if (isRecord(agent) && typeof agent.id === 'string' && typeof agent.agent_id === 'string' && !agent.archived_at)
+        if (
+          isRecord(agent) &&
+          typeof agent.id === 'string' &&
+          typeof agent.agent_id === 'string' &&
+          !agent.archived_at
+        )
           agents.push({ id: agent.id, name: agent.agent_id });
       }
     }
@@ -131,7 +142,12 @@ async function searchMaterials(deps: EngineDeps, written: string): Promise<Assis
     const items = isRecord(data) && Array.isArray(data.items) ? data.items : [];
     for (const item of items) {
       if (!isRecord(item) || typeof item.id !== 'string' || typeof item.name !== 'string') continue;
-      const mime = typeof item.mime_type === 'string' ? item.mime_type : typeof item.mimeType === 'string' ? item.mimeType : '';
+      const mime =
+        typeof item.mime_type === 'string'
+          ? item.mime_type
+          : typeof item.mimeType === 'string'
+            ? item.mimeType
+            : '';
       const kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : null;
       if (kind) found.set(item.id, { id: item.id, name: item.name, kind });
     }
@@ -147,9 +163,12 @@ function references(plan: AssistantPlan): RefKey[] {
   };
   const fields = (changes: AssistantFieldChange[]) => {
     for (const change of changes) {
-      if (change.field === 'buyerId' && typeof change.value === 'string') add(`buyer:${change.value}`);
-      if (change.field === 'agentRowId' && typeof change.value === 'string') add(`account:${change.value}`);
-      if (change.field === 'offerId' && typeof change.value === 'string') add(`offer:${change.value}`);
+      if (change.field === 'buyerId' && typeof change.value === 'string')
+        add(`buyer:${change.value}`);
+      if (change.field === 'agentRowId' && typeof change.value === 'string')
+        add(`account:${change.value}`);
+      if (change.field === 'offerId' && typeof change.value === 'string')
+        add(`offer:${change.value}`);
       if (change.field === 'creatives') {
         const list = Array.isArray(change.value) ? change.value : [change.value];
         for (const item of list) if (typeof item === 'string') add(`material:${item}`);
@@ -180,14 +199,27 @@ export async function resolvePlan(
   plan: AssistantPlan,
   deps: EngineDeps,
   names: Names
-): Promise<{ ok: true; resolution: Resolution } | { ok: false; ref: RefKey; options: AssistantCandidate[] }> {
-  const resolution: Resolution = { ids: new Map(), names: new Map(), materials: new Map(), missing: [] };
+): Promise<
+  { ok: true; resolution: Resolution } | { ok: false; ref: RefKey; options: AssistantCandidate[] }
+> {
+  const resolution: Resolution = {
+    ids: new Map(),
+    names: new Map(),
+    materials: new Map(),
+    missing: []
+  };
   for (const ref of references(plan)) {
     const [kind, ...rest] = ref.split(':') as [RefKind, ...string[]];
     const written = rest.join(':');
     const chosen = deps.choices[ref];
     const pool =
-      kind === 'offer' ? names.offers : kind === 'buyer' ? names.buyers : kind === 'account' ? names.accounts : null;
+      kind === 'offer'
+        ? names.offers
+        : kind === 'buyer'
+          ? names.buyers
+          : kind === 'account'
+            ? names.accounts
+            : null;
     if (kind === 'material') {
       const candidates = await searchMaterials(deps, written);
       const match = chosen
@@ -220,7 +252,12 @@ export async function resolvePlan(
       resolution.missing.push({
         field: kind === 'offer' ? 'offerId' : kind === 'buyer' ? 'buyerId' : 'agentRowId',
         written,
-        code: kind === 'offer' ? 'OFFER_NOT_FOUND' : kind === 'account' ? 'ACCOUNT_NOT_FOUND' : 'NOT_FOUND'
+        code:
+          kind === 'offer'
+            ? 'OFFER_NOT_FOUND'
+            : kind === 'account'
+              ? 'ACCOUNT_NOT_FOUND'
+              : 'NOT_FOUND'
       });
       continue;
     }
@@ -245,23 +282,38 @@ function dateList(action: AssistantAction, deps: EngineDeps): Array<string | nul
   });
 }
 
-async function profiles(deps: EngineDeps, offerId: string | null): Promise<{
+async function profiles(
+  deps: EngineDeps,
+  offerId: string | null
+): Promise<{
   offer: LaunchDefaultsProfile | null;
   workspace: LaunchDefaultsProfile | null;
 }> {
   const read = async (name: string, args: Record<string, unknown>) => {
     const data = await call(deps.callerRpc, name, args);
     if (data === null) return null;
-    if (!isRecord(data) || !isRecord(data.config) || !isRecord(data.subConfig) || typeof data.version !== 'string')
+    if (
+      !isRecord(data) ||
+      !isRecord(data.config) ||
+      !isRecord(data.subConfig) ||
+      typeof data.version !== 'string'
+    )
       throw new EngineRefusal('UNAVAILABLE');
     return data as unknown as LaunchDefaultsProfile;
   };
-  const offer = offerId ? await read('get_launch_offer_defaults', { p_team: deps.teamId, p_offer: offerId }) : null;
+  const offer = offerId
+    ? await read('get_launch_offer_defaults', { p_team: deps.teamId, p_offer: offerId })
+    : null;
   const workspace = offer ? null : await read('get_launch_defaults', { p_team: deps.teamId });
   return { offer, workspace };
 }
 
-function refsFor(resolution: Resolution, change: AssistantFieldChange, deps: EngineDeps, offerId?: string) {
+function refsFor(
+  resolution: Resolution,
+  change: AssistantFieldChange,
+  deps: EngineDeps,
+  offerId?: string
+) {
   const id = (kind: RefKind, value: unknown) =>
     typeof value === 'string' ? resolution.ids.get(`${kind}:${value}`) : undefined;
   const list = Array.isArray(change.value) ? change.value : [change.value];
@@ -299,7 +351,11 @@ function applyChanges(
     });
     if (result.ok) next = result.draft as Draft;
     else if (result.code !== 'UNRESOLVED')
-      problems.push({ field: change.field, written: String(change.value ?? ''), code: result.code });
+      problems.push({
+        field: change.field,
+        written: String(change.value ?? ''),
+        code: result.code
+      });
   }
   return next;
 }
@@ -337,14 +393,21 @@ async function recordEffect(
 function budgetText(config: Draft): string | null {
   const mode = config.budgetMode;
   if (mode === 'single' && typeof config.maxBudget === 'number') return `${config.maxBudget}`;
-  if (mode === 'manual' && Array.isArray(config.budgets)) return (config.budgets as number[]).join(' / ');
+  if (mode === 'manual' && Array.isArray(config.budgets))
+    return (config.budgets as number[]).join(' / ');
   if (typeof config.maxBudget === 'number')
-    return typeof config.minBudget === 'number' ? `${config.minBudget}–${config.maxBudget}` : `≤${config.maxBudget}`;
+    return typeof config.minBudget === 'number'
+      ? `${config.minBudget}–${config.maxBudget}`
+      : `≤${config.maxBudget}`;
   return null;
 }
 
 /** Card rows from stored launches, in the order given. */
-export async function cardRows(deps: Pick<EngineDeps, 'serviceRpc' | 'userId' | 'teamId'>, ids: string[] | null, date: string | null): Promise<{ rows: AssistantRow[]; truncated: boolean }> {
+export async function cardRows(
+  deps: Pick<EngineDeps, 'serviceRpc' | 'userId' | 'teamId'>,
+  ids: string[] | null,
+  date: string | null
+): Promise<{ rows: AssistantRow[]; truncated: boolean }> {
   const data = await call(deps.serviceRpc, 'service_assistant_rows', {
     p_user: deps.userId,
     p_team: deps.teamId,
@@ -354,13 +417,20 @@ export async function cardRows(deps: Pick<EngineDeps, 'serviceRpc' | 'userId' | 
   const list = Array.isArray(data) ? data : [];
   const truncated = list.length > ASSISTANT_MAX_DRAFTS;
   const rows = list.slice(0, ASSISTANT_MAX_DRAFTS).flatMap((item, index): AssistantRow[] => {
-    if (!isRecord(item) || typeof item.id !== 'string' || typeof item.version !== 'string') return [];
+    if (!isRecord(item) || typeof item.id !== 'string' || typeof item.version !== 'string')
+      return [];
     const config = isRecord(item.config) ? item.config : {};
     const names = new Map<string, string>();
     if (Array.isArray(item.materials))
-      for (const m of item.materials) if (isRecord(m) && typeof m.id === 'string' && typeof m.name === 'string') names.set(m.id, m.name);
+      for (const m of item.materials)
+        if (isRecord(m) && typeof m.id === 'string' && typeof m.name === 'string')
+          names.set(m.id, m.name);
     const creatives = Array.isArray(config.creatives)
-      ? (config.creatives as unknown[]).flatMap(c => (isRecord(c) && typeof c.materialId === 'string' ? [names.get(c.materialId) ?? String(c.alias ?? '')] : []))
+      ? (config.creatives as unknown[]).flatMap(c =>
+          isRecord(c) && typeof c.materialId === 'string'
+            ? [names.get(c.materialId) ?? String(c.alias ?? '')]
+            : []
+        )
       : typeof config.materialId === 'string'
         ? [names.get(config.materialId) ?? String(config.creativeAlias ?? '')]
         : [];
@@ -376,12 +446,15 @@ export async function cardRows(deps: Pick<EngineDeps, 'serviceRpc' | 'userId' | 
         creatives,
         launchDate: typeof config.launchDate === 'string' ? config.launchDate : null,
         campaignCount: typeof config.campaignCount === 'number' ? config.campaignCount : null,
-        productCount: catalog && typeof catalog.productCount === 'number' ? catalog.productCount : null,
+        productCount:
+          catalog && typeof catalog.productCount === 'number' ? catalog.productCount : null,
         budget: budgetText(config),
         url: typeof config.originalUrl === 'string' && config.originalUrl.length > 0,
         r2: catalog ? catalog.copyVideoToR2 === true : null,
         blocked: [
-          ...(generation && !['failed', 'canceled'].includes(generation) ? [{ field: 'generation', code: 'LAUNCHED' }] : []),
+          ...(generation && !['failed', 'canceled'].includes(generation)
+            ? [{ field: 'generation', code: 'LAUNCHED' }]
+            : []),
           ...assistantBlockedFields(config as never)
         ]
       }
@@ -399,9 +472,12 @@ async function createDrafts(
   differences: Array<{ field: string; from: string | null; to: string }>,
   created: string[]
 ): Promise<void> {
-  const offerId = action.offer ? resolution.ids.get(`offer:${action.offer}`) ?? null : null;
+  const offerId = action.offer ? (resolution.ids.get(`offer:${action.offer}`) ?? null) : null;
   const accounts = action.accounts.length
-    ? action.accounts.map(written => ({ written, id: resolution.ids.get(`account:${written}`) ?? null }))
+    ? action.accounts.map(written => ({
+        written,
+        id: resolution.ids.get(`account:${written}`) ?? null
+      }))
     : [{ written: null as string | null, id: null as string | null }];
   const dates = dateList(action, deps);
   const count = action.count ?? 1;
@@ -411,18 +487,32 @@ async function createDrafts(
   if (action.base === 'copy_of_row' && action.baseRow) {
     const row = deps.shown[action.baseRow - 1];
     if (!row) throw new EngineRefusal('NO_CONTEXT_CARD');
-    const detail = await call(deps.callerRpc, 'get_launch', { p_team: deps.teamId, p_launch: row.launchId, p_revision: null });
+    const detail = await call(deps.callerRpc, 'get_launch', {
+      p_team: deps.teamId,
+      p_launch: row.launchId,
+      p_revision: null
+    });
     base = isRecord(detail) && isRecord(detail.draft) ? structuredClone(detail.draft) : {};
   } else {
     const profile = await profiles(deps, offerId);
-    base = newDraftFromDefaults({ ...profile, now: deps.now, timezone: deps.timezone }).draft as Draft;
+    base = newDraftFromDefaults({ ...profile, now: deps.now, timezone: deps.timezone })
+      .draft as Draft;
     const profileConfig = (profile.offer ?? profile.workspace)?.config ?? {};
     for (const change of action.fields) {
       const field = launchField(change.field);
       if (!field || !field.profile || !isLaunchDefaultPath(change.field)) continue;
       const before = readLaunchPath(profileConfig as never, change.field as LaunchDefaultPath);
-      if (before !== undefined && JSON.stringify(before) !== JSON.stringify(change.value) && change.op === 'set' && !String(change.value).startsWith('⟦url'))
-        differences.push({ field: change.field, from: JSON.stringify(before), to: JSON.stringify(change.value) });
+      if (
+        before !== undefined &&
+        JSON.stringify(before) !== JSON.stringify(change.value) &&
+        change.op === 'set' &&
+        !String(change.value).startsWith('⟦url')
+      )
+        differences.push({
+          field: change.field,
+          from: JSON.stringify(before),
+          to: JSON.stringify(change.value)
+        });
     }
   }
   if (offerId) base.offerId = offerId;
@@ -439,7 +529,11 @@ async function createDrafts(
         }
         draft = applyChanges(draft, action.fields, resolution, deps, problems);
         for (const override of action.overrides) {
-          if (account.written && matchAssistantName(override.account, [{ id: 'x', name: account.written }]).kind === 'one')
+          if (
+            account.written &&
+            matchAssistantName(override.account, [{ id: 'x', name: account.written }]).kind ===
+              'one'
+          )
             draft = applyChanges(draft, override.fields, resolution, deps, problems);
         }
         campaigns += typeof draft.campaignCount === 'number' ? draft.campaignCount : 0;
@@ -453,7 +547,8 @@ async function createDrafts(
           p_config: { schemaVersion: 1, ...draft },
           p_expected_sources: null
         });
-        if (!isRecord(saved) || typeof saved.id !== 'string') throw new EngineRefusal('UNAVAILABLE');
+        if (!isRecord(saved) || typeof saved.id !== 'string')
+          throw new EngineRefusal('UNAVAILABLE');
         await recordEffect(deps, {
           step,
           row: `r${row}`,
@@ -477,12 +572,23 @@ async function updateRows(
   touched: string[]
 ): Promise<void> {
   if (deps.shown.length === 0) throw new EngineRefusal('NO_CONTEXT_CARD');
-  let targets = action.rows.length ? action.rows.map(n => deps.shown[n - 1]).filter(Boolean) as AssistantRow[] : deps.shown;
+  let targets = action.rows.length
+    ? (action.rows.map(n => deps.shown[n - 1]).filter(Boolean) as AssistantRow[])
+    : deps.shown;
   if (action.accounts.length)
-    targets = targets.filter(row => action.accounts.some(a => row.account && matchAssistantName(a, [{ id: 'x', name: row.account }]).kind === 'one'));
+    targets = targets.filter(row =>
+      action.accounts.some(
+        a => row.account && matchAssistantName(a, [{ id: 'x', name: row.account }]).kind === 'one'
+      )
+    );
   for (const target of targets) {
-    const detail = await call(deps.callerRpc, 'get_launch', { p_team: deps.teamId, p_launch: target.launchId, p_revision: null });
-    if (!isRecord(detail) || !isRecord(detail.draft) || typeof detail.version !== 'string') throw new EngineRefusal('UNAVAILABLE');
+    const detail = await call(deps.callerRpc, 'get_launch', {
+      p_team: deps.teamId,
+      p_launch: target.launchId,
+      p_revision: null
+    });
+    if (!isRecord(detail) || !isRecord(detail.draft) || typeof detail.version !== 'string')
+      throw new EngineRefusal('UNAVAILABLE');
     if (detail.version !== target.version) {
       problems.push({ field: 'row', written: String(target.n), code: 'EDIT_CONFLICT' });
       continue;
@@ -490,7 +596,10 @@ async function updateRows(
     const before = detail.draft as Draft;
     let next = applyChanges(before, action.fields, resolution, deps, problems);
     for (const override of action.overrides) {
-      if (target.account && matchAssistantName(override.account, [{ id: 'x', name: target.account }]).kind === 'one')
+      if (
+        target.account &&
+        matchAssistantName(override.account, [{ id: 'x', name: target.account }]).kind === 'one'
+      )
         next = applyChanges(next, override.fields, resolution, deps, problems);
     }
     if (JSON.stringify(next) === JSON.stringify(before)) continue;
@@ -503,9 +612,12 @@ async function updateRows(
       p_expected_version: target.version,
       p_request_key: requestKey(deps, step, `u${target.n}`),
       p_config: next,
-      p_expected_sources: isRecord(detail.expectedSourceSnapshot) ? detail.expectedSourceSnapshot : null
+      p_expected_sources: isRecord(detail.expectedSourceSnapshot)
+        ? detail.expectedSourceSnapshot
+        : null
     });
-    if (!isRecord(saved) || typeof saved.version !== 'string') throw new EngineRefusal('UNAVAILABLE');
+    if (!isRecord(saved) || typeof saved.version !== 'string')
+      throw new EngineRefusal('UNAVAILABLE');
     await recordEffect(deps, {
       step,
       row: `u${target.n}`,
@@ -519,11 +631,19 @@ async function updateRows(
   }
 }
 
-async function proposeDefaults(action: AssistantAction, deps: EngineDeps, resolution: Resolution, canSave: boolean): Promise<Card> {
+async function proposeDefaults(
+  action: AssistantAction,
+  deps: EngineDeps,
+  resolution: Resolution,
+  canSave: boolean
+): Promise<Card> {
   const offerId = action.offer ? resolution.ids.get(`offer:${action.offer}`) : undefined;
   if (!offerId) throw new EngineRefusal('OFFER_NOT_FOUND');
   if (!canSave) throw new EngineRefusal('DEFAULTS_FORBIDDEN');
-  const profile = await call(deps.callerRpc, 'get_launch_offer_defaults', { p_team: deps.teamId, p_offer: offerId });
+  const profile = await call(deps.callerRpc, 'get_launch_offer_defaults', {
+    p_team: deps.teamId,
+    p_offer: offerId
+  });
   const stored = isRecord(profile) && isRecord(profile.config) ? (profile.config as Draft) : {};
   const sub = isRecord(profile) && isRecord(profile.subConfig) ? (profile.subConfig as Draft) : {};
   const mask: string[] = [];
@@ -537,15 +657,29 @@ async function proposeDefaults(action: AssistantAction, deps: EngineDeps, resolu
     // A profile without a catalog stores the whole object: the profile writer requires its core.
     if (path.startsWith('catalog.') && !isRecord(stored.catalog)) {
       const key = path.slice('catalog.'.length);
-      const fresh = newDraftFromDefaults({ offer: null, workspace: null, now: deps.now, timezone: deps.timezone }).draft as Draft;
+      const fresh = newDraftFromDefaults({
+        offer: null,
+        workspace: null,
+        now: deps.now,
+        timezone: deps.timezone
+      }).draft as Draft;
       path = 'catalog';
-      value = { ...(isRecord(values.catalog) ? values.catalog : (fresh.catalog as Draft)), [key]: change.value };
+      value = {
+        ...(isRecord(values.catalog) ? values.catalog : (fresh.catalog as Draft)),
+        [key]: change.value
+      };
     }
-    const current = path.startsWith('subConfig.') ? sub[path.slice('subConfig.'.length)] : readLaunchPath(stored as never, path as LaunchDefaultPath);
+    const current = path.startsWith('subConfig.')
+      ? sub[path.slice('subConfig.'.length)]
+      : readLaunchPath(stored as never, path as LaunchDefaultPath);
     if (!mask.includes(path)) mask.push(path);
     if (current !== undefined) before[path] = current;
     values[path] = value;
-    changes.push({ field: change.field, from: current === undefined ? null : JSON.stringify(current), to: JSON.stringify(change.value) });
+    changes.push({
+      field: change.field,
+      from: current === undefined ? null : JSON.stringify(current),
+      to: JSON.stringify(change.value)
+    });
   }
   if (!mask.length) throw new EngineRefusal('FIELD_NOT_SUPPORTED');
   return {
@@ -580,14 +714,21 @@ export async function executePlan(
   try {
     for (let step = 0; step < plan.actions.length; step++) {
       const action = plan.actions[step]!;
-      if (action.type === 'create_drafts') await createDrafts(action, step, deps, resolution, problems, differences, created);
-      else if (action.type === 'update_fields') await updateRows(action, step, deps, resolution, problems, touched);
+      if (action.type === 'create_drafts')
+        await createDrafts(action, step, deps, resolution, problems, differences, created);
+      else if (action.type === 'update_fields')
+        await updateRows(action, step, deps, resolution, problems, touched);
       else if (action.type === 'save_offer_defaults') {
         cards.push(await proposeDefaults(action, deps, resolution, options.canSaveDefaults));
         deferred = plan.actions.slice(step + 1);
         break;
       } else if (action.type === 'show_review' || action.type === 'show_status') {
-        cards.push(await reviewCard(deps, action.dates?.kind === 'today' ? 'today' : created.length ? created : 'shown'));
+        cards.push(
+          await reviewCard(
+            deps,
+            action.dates?.kind === 'today' ? 'today' : created.length ? created : 'shown'
+          )
+        );
       } else if (action.type === 'ask' && action.question) {
         cards.push({
           kind: 'question',
@@ -621,7 +762,17 @@ export async function executePlan(
       }
     });
   } else if (problems.length > 0) {
-    cards.unshift({ kind: 'result', payload: { rows: [], differences, unresolved: problems, profile: null, campaigns: 0, date: null } });
+    cards.unshift({
+      kind: 'result',
+      payload: {
+        rows: [],
+        differences,
+        unresolved: problems,
+        profile: null,
+        campaigns: 0,
+        date: null
+      }
+    });
   }
   return { kind: 'done', cards, status: problems.length ? 'partial' : 'done', deferred };
 }
@@ -632,9 +783,17 @@ export async function reviewCard(
   selector: 'today' | 'shown' | string[]
 ): Promise<Card> {
   const date = selector === 'today' ? launchDayInZone(deps.now, deps.timezone, 0) : null;
-  const ids = selector === 'today' ? null : selector === 'shown' ? deps.shown.map(row => row.launchId) : selector;
+  const ids =
+    selector === 'today'
+      ? null
+      : selector === 'shown'
+        ? deps.shown.map(row => row.launchId)
+        : selector;
   if (ids !== null && ids.length === 0) {
-    return { kind: 'review', payload: { date, timezone: deps.timezone, rows: [], ready: 0, truncated: false } };
+    return {
+      kind: 'review',
+      payload: { date, timezone: deps.timezone, rows: [], ready: 0, truncated: false }
+    };
   }
   const { rows, truncated } = await cardRows(deps, ids, date);
   return {

@@ -13,7 +13,12 @@
  * of 053 from the browser, with the versions this card showed.
  */
 // @deno-types="../../../packages/shared/dist/team/ai-credits.d.ts"
-import { AI_PRICE_VERSION, assistantMessagePrice, ASSISTANT_MESSAGE_MAX_CHARACTERS, characterCount } from '../../../packages/shared/dist/team/ai-credits.js';
+import {
+  AI_PRICE_VERSION,
+  assistantMessagePrice,
+  ASSISTANT_MESSAGE_MAX_CHARACTERS,
+  characterCount
+} from '../../../packages/shared/dist/team/ai-credits.js';
 // @deno-types="../../../packages/shared/dist/team/assistant.d.ts"
 import {
   extractAssistantUrls,
@@ -71,8 +76,21 @@ export type AssistantCommand =
       contextCardId: string | null;
       timezone: string;
     }
-  | { action: 'answer'; teamId: string; cardId: string; optionId: string; clientKey: string; timezone: string }
-  | { action: 'confirm_profile'; teamId: string; cardId: string; clientKey: string; timezone: string }
+  | {
+      action: 'answer';
+      teamId: string;
+      cardId: string;
+      optionId: string;
+      clientKey: string;
+      timezone: string;
+    }
+  | {
+      action: 'confirm_profile';
+      teamId: string;
+      cardId: string;
+      clientKey: string;
+      timezone: string;
+    }
   | { action: 'review'; teamId: string; cardId: string | null; clientKey: string; timezone: string }
   | { action: 'undo'; teamId: string; commandId: string; clientKey: string };
 
@@ -87,13 +105,30 @@ function only(body: Record<string, unknown>, keys: string[]): void {
 export function parseAssistantCommand(body: unknown): AssistantCommand {
   if (!isRecord(body) || typeof body.teamId !== 'string' || !UUID.test(body.teamId)) invalid();
   if (typeof body.clientKey !== 'string' || !CLIENT_KEY.test(body.clientKey)) invalid();
-  const timezone = typeof body.timezone === 'string' && isLaunchTimezone(body.timezone) ? body.timezone : 'Europe/Kyiv';
+  const timezone =
+    typeof body.timezone === 'string' && isLaunchTimezone(body.timezone)
+      ? body.timezone
+      : 'Europe/Kyiv';
   const teamId = body.teamId.toLowerCase();
-  const id = (value: unknown) => (typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : invalid());
+  const id = (value: unknown) =>
+    typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : invalid();
   switch (body.action) {
     case 'send': {
-      only(body, ['action', 'teamId', 'text', 'clientKey', 'expectedPrice', 'priceVersion', 'contextCardId', 'timezone']);
-      if (typeof body.text !== 'string' || typeof body.expectedPrice !== 'number' || typeof body.priceVersion !== 'string')
+      only(body, [
+        'action',
+        'teamId',
+        'text',
+        'clientKey',
+        'expectedPrice',
+        'priceVersion',
+        'contextCardId',
+        'timezone'
+      ]);
+      if (
+        typeof body.text !== 'string' ||
+        typeof body.expectedPrice !== 'number' ||
+        typeof body.priceVersion !== 'string'
+      )
         invalid();
       if (characterCount(body.text) > ASSISTANT_MESSAGE_MAX_CHARACTERS)
         throw new TeamFunctionError('MESSAGE_TOO_LONG', { retryable: false });
@@ -111,13 +146,32 @@ export function parseAssistantCommand(body: unknown): AssistantCommand {
     case 'answer':
       only(body, ['action', 'teamId', 'cardId', 'optionId', 'clientKey', 'timezone']);
       if (typeof body.optionId !== 'string' || body.optionId.length > 64) invalid();
-      return { action: 'answer', teamId, cardId: id(body.cardId), optionId: body.optionId, clientKey: body.clientKey, timezone };
+      return {
+        action: 'answer',
+        teamId,
+        cardId: id(body.cardId),
+        optionId: body.optionId,
+        clientKey: body.clientKey,
+        timezone
+      };
     case 'confirm_profile':
       only(body, ['action', 'teamId', 'cardId', 'clientKey', 'timezone']);
-      return { action: 'confirm_profile', teamId, cardId: id(body.cardId), clientKey: body.clientKey, timezone };
+      return {
+        action: 'confirm_profile',
+        teamId,
+        cardId: id(body.cardId),
+        clientKey: body.clientKey,
+        timezone
+      };
     case 'review':
       only(body, ['action', 'teamId', 'cardId', 'clientKey', 'timezone']);
-      return { action: 'review', teamId, cardId: body.cardId == null ? null : id(body.cardId), clientKey: body.clientKey, timezone };
+      return {
+        action: 'review',
+        teamId,
+        cardId: body.cardId == null ? null : id(body.cardId),
+        clientKey: body.clientKey,
+        timezone
+      };
     case 'undo':
       only(body, ['action', 'teamId', 'commandId', 'clientKey', 'timezone']);
       return { action: 'undo', teamId, commandId: id(body.commandId), clientKey: body.clientKey };
@@ -146,12 +200,18 @@ function rpcCode(error: { message?: string; code?: string } | null): string {
   return text.match(/[A-Z][A-Z0-9_]{3,}/u)?.[0] ?? 'UNAVAILABLE';
 }
 
-async function service(deps: AssistantDeps, name: string, args: Record<string, unknown>): Promise<unknown> {
+async function service(
+  deps: AssistantDeps,
+  name: string,
+  args: Record<string, unknown>
+): Promise<unknown> {
   const { data, error } = await deps.serviceRpc(name, args);
   if (!error) return data;
   const code = rpcCode(error);
-  if (code === 'PERMISSION_DENIED') throw new TeamFunctionError('ASSISTANT_FORBIDDEN', { retryable: false });
-  if (code === 'ASSISTANT_DISABLED') throw new TeamFunctionError('ASSISTANT_DISABLED', { retryable: false });
+  if (code === 'PERMISSION_DENIED')
+    throw new TeamFunctionError('ASSISTANT_FORBIDDEN', { retryable: false });
+  if (code === 'ASSISTANT_DISABLED')
+    throw new TeamFunctionError('ASSISTANT_DISABLED', { retryable: false });
   if (code === 'KEY_REUSED') throw new TeamFunctionError('KEY_REUSED', { retryable: false });
   if (code === 'NOT_FOUND') throw new TeamFunctionError('NOT_FOUND', { retryable: false });
   throw new TeamFunctionError('TEAM_TRANSPORT_UNAVAILABLE', { retryable: true });
@@ -186,11 +246,17 @@ async function begin(
     p_text: text,
     p_price: price
   });
-  if (!isRecord(data) || typeof data.commandId !== 'string') throw new TeamFunctionError('TEAM_TRANSPORT_UNAVAILABLE', { retryable: true });
+  if (!isRecord(data) || typeof data.commandId !== 'string')
+    throw new TeamFunctionError('TEAM_TRANSPORT_UNAVAILABLE', { retryable: true });
   return { commandId: data.commandId, replayed: data.replayed === true, reply: data.reply ?? null };
 }
 
-async function reply(deps: AssistantDeps, commandId: string, text: string, cards: Card[]): Promise<unknown> {
+async function reply(
+  deps: AssistantDeps,
+  commandId: string,
+  text: string,
+  cards: Card[]
+): Promise<unknown> {
   return service(deps, 'service_assistant_reply', {
     p_command: commandId,
     p_text: text.slice(0, 600),
@@ -198,7 +264,14 @@ async function reply(deps: AssistantDeps, commandId: string, text: string, cards
   });
 }
 
-async function status(deps: AssistantDeps, commandId: string, value: string, reason: string | null, model: string | null, plan: unknown): Promise<void> {
+async function status(
+  deps: AssistantDeps,
+  commandId: string,
+  value: string,
+  reason: string | null,
+  model: string | null,
+  plan: unknown
+): Promise<void> {
   await service(deps, 'service_assistant_status', {
     p_command: commandId,
     p_status: value,
@@ -213,15 +286,29 @@ async function credits(deps: AssistantDeps): Promise<unknown> {
   return data ?? null;
 }
 
-async function shownRows(deps: AssistantDeps, teamId: string, cardId: string | null): Promise<{ rows: AssistantRow[]; card: Record<string, unknown> | null }> {
+async function shownRows(
+  deps: AssistantDeps,
+  teamId: string,
+  cardId: string | null
+): Promise<{ rows: AssistantRow[]; card: Record<string, unknown> | null }> {
   if (!cardId) return { rows: [], card: null };
-  const card = await service(deps, 'service_assistant_card', { p_user: deps.userId, p_team: teamId, p_card: cardId });
+  const card = await service(deps, 'service_assistant_card', {
+    p_user: deps.userId,
+    p_team: teamId,
+    p_card: cardId
+  });
   if (!isRecord(card) || !isRecord(card.payload)) return { rows: [], card: null };
   const rows = Array.isArray(card.payload.rows) ? (card.payload.rows as AssistantRow[]) : [];
   return { rows, card };
 }
 
-function engineDeps(deps: AssistantDeps, teamId: string, commandId: string, timezone: string, extra: Partial<EngineDeps>): EngineDeps {
+function engineDeps(
+  deps: AssistantDeps,
+  teamId: string,
+  commandId: string,
+  timezone: string,
+  extra: Partial<EngineDeps>
+): EngineDeps {
   return {
     userId: deps.userId,
     teamId,
@@ -260,9 +347,14 @@ async function runPlan(
   canSaveDefaults: boolean,
   model: string | null
 ): Promise<{ text: string; cards: Card[]; status: string }> {
-  const urls = (await service(deps, 'service_assistant_urls', { p_command: stored.urlsFrom })) as string[] | null;
+  const urls = (await service(deps, 'service_assistant_urls', { p_command: stored.urlsFrom })) as
+    string[] | null;
   const shown = await shownRows(deps, teamId, stored.contextCardId);
-  const engine = engineDeps(deps, teamId, commandId, stored.timezone, { urls: urls ?? [], choices: stored.choices, shown: shown.rows });
+  const engine = engineDeps(deps, teamId, commandId, stored.timezone, {
+    urls: urls ?? [],
+    choices: stored.choices,
+    shown: shown.rows
+  });
   const names = await loadNames(engine);
   const resolved = await resolvePlan(stored.plan, engine, names);
   if (!resolved.ok) {
@@ -301,28 +393,42 @@ async function quick(
   commandId: string
 ): Promise<{ text: string; cards: Card[] }> {
   const shown = await shownRows(deps, command.teamId, command.contextCardId);
-  const engine = engineDeps(deps, command.teamId, commandId, command.timezone, { shown: shown.rows });
+  const engine = engineDeps(deps, command.teamId, commandId, command.timezone, {
+    shown: shown.rows
+  });
   if (intent === 'review_today' || (intent === 'review' && shown.rows.length === 0)) {
     return { text: '', cards: [await reviewCard(engine, 'today')] };
   }
   if (intent === 'review') return { text: '', cards: [await reviewCard(engine, 'shown')] };
   if (intent === 'undo') {
-    const target = isRecord(shown.card) && typeof shown.card.commandId === 'string' ? shown.card.commandId : null;
+    const target =
+      isRecord(shown.card) && typeof shown.card.commandId === 'string'
+        ? shown.card.commandId
+        : null;
     if (!target) return { text: '', cards: [refusal('NO_CONTEXT_CARD')] };
     return { text: '', cards: [await undoCommand(deps, command.teamId, target, commandId)] };
   }
   return { text: '', cards: [refusal('USE_BUTTONS')] };
 }
 
-export async function sendMessage(command: Extract<AssistantCommand, { action: 'send' }>, deps: AssistantDeps): Promise<AssistantResponse> {
+export async function sendMessage(
+  command: Extract<AssistantCommand, { action: 'send' }>,
+  deps: AssistantDeps
+): Promise<AssistantResponse> {
   const text = command.text.trim();
   const intent = quickAssistantIntent(text);
   const price = intent ? 0 : assistantMessagePrice(text);
   if (price === null) throw new TeamFunctionError('MESSAGE_TOO_LONG', { retryable: false });
   if (command.expectedPrice !== price || command.priceVersion !== AI_PRICE_VERSION) {
-    throw new TeamFunctionError('PRICE_CHANGED', { retryable: false, details: { price, priceVersion: AI_PRICE_VERSION } });
+    throw new TeamFunctionError('PRICE_CHANGED', {
+      retryable: false,
+      details: { price, priceVersion: AI_PRICE_VERSION }
+    });
   }
-  const context = await service(deps, 'service_assistant_context', { p_user: deps.userId, p_team: command.teamId });
+  const context = await service(deps, 'service_assistant_context', {
+    p_user: deps.userId,
+    p_team: command.teamId
+  });
   const canSaveDefaults = isRecord(context) && context.canSaveDefaults === true;
   const started = await begin(
     deps,
@@ -334,13 +440,23 @@ export async function sendMessage(command: Extract<AssistantCommand, { action: '
     price
   );
   if (started.replayed) {
-    return { commandId: started.commandId, replayed: true, message: started.reply, credits: await credits(deps) };
+    return {
+      commandId: started.commandId,
+      replayed: true,
+      message: started.reply,
+      credits: await credits(deps)
+    };
   }
   const commandId = started.commandId;
   if (intent) {
     const answer = await quick(deps, command, intent, commandId);
     await status(deps, commandId, 'done', null, null, null);
-    return { commandId, replayed: false, message: await reply(deps, commandId, answer.text, answer.cards), credits: await credits(deps) };
+    return {
+      commandId,
+      replayed: false,
+      message: await reply(deps, commandId, answer.text, answer.cards),
+      credits: await credits(deps)
+    };
   }
   const opKey = `${FEATURE}:${commandId}`;
   try {
@@ -351,10 +467,19 @@ export async function sendMessage(command: Extract<AssistantCommand, { action: '
       amount: price,
       priceVersion: command.priceVersion,
       subjectId: commandId,
-      usdUpper: callUpperUsd(ASSISTANT_MODEL.model, ASSISTANT_MAX_INPUT_TOKENS, ASSISTANT_MAX_OUTPUT_TOKENS)
+      usdUpper: callUpperUsd(
+        ASSISTANT_MODEL.model,
+        ASSISTANT_MAX_INPUT_TOKENS,
+        ASSISTANT_MAX_OUTPUT_TOKENS
+      )
     });
   } catch (error) {
-    const code = error instanceof CreditRefusal ? error.code : error instanceof CreditsUnavailable ? 'TEAM_TRANSPORT_UNAVAILABLE' : null;
+    const code =
+      error instanceof CreditRefusal
+        ? error.code
+        : error instanceof CreditsUnavailable
+          ? 'TEAM_TRANSPORT_UNAVAILABLE'
+          : null;
     if (!code) throw error;
     await status(deps, commandId, 'rejected', code, null, null);
     const details = error instanceof CreditRefusal ? error.details : undefined;
@@ -376,11 +501,20 @@ export async function sendMessage(command: Extract<AssistantCommand, { action: '
     if (!deps.client) {
       await giveBack();
       await status(deps, commandId, 'rejected', 'MODEL_UNAVAILABLE', null, null);
-      return { commandId, replayed: false, message: await reply(deps, commandId, '', [refusal('MODEL_UNAVAILABLE')]), credits: await credits(deps) };
+      return {
+        commandId,
+        replayed: false,
+        message: await reply(deps, commandId, '', [refusal('MODEL_UNAVAILABLE')]),
+        credits: await credits(deps)
+      };
     }
     await status(deps, commandId, 'parsing', null, null, null);
     const masked = extractAssistantUrls(text);
-    if (masked.urls.length) await service(deps, 'service_assistant_put_urls', { p_command: commandId, p_urls: masked.urls });
+    if (masked.urls.length)
+      await service(deps, 'service_assistant_put_urls', {
+        p_command: commandId,
+        p_urls: masked.urls
+      });
     const shown = await shownRows(deps, command.teamId, command.contextCardId);
     const names = await loadNames({ callerRpc: deps.callerRpc, teamId: command.teamId });
     const now = deps.now?.() ?? new Date();
@@ -398,14 +532,23 @@ export async function sendMessage(command: Extract<AssistantCommand, { action: '
           accounts: names.accounts.map(item => item.name).slice(0, 120),
           shownRows: shown.rows
             .slice(0, 40)
-            .map(row => `${row.n}. ${row.account ?? '—'} · ${row.offer ?? '—'} · ${row.creatives.join(', ') || '—'} · ${row.launchDate ?? '—'}`),
+            .map(
+              row =>
+                `${row.n}. ${row.account ?? '—'} · ${row.offer ?? '—'} · ${row.creatives.join(', ') || '—'} · ${row.launchDate ?? '—'}`
+            ),
           lastOffer: shown.rows[0]?.offer ?? null,
           message: masked.text
         },
         {
           signal: controller.signal,
           record: entry =>
-            recordModelUsage(deps.serviceRpc, { feature: FEATURE, userId: deps.userId, subjectId: commandId, entry, opKey })
+            recordModelUsage(deps.serviceRpc, {
+              feature: FEATURE,
+              userId: deps.userId,
+              subjectId: commandId,
+              entry,
+              opKey
+            })
         }
       );
     } finally {
@@ -414,7 +557,12 @@ export async function sendMessage(command: Extract<AssistantCommand, { action: '
     if (!interpreted.ok) {
       await giveBack();
       await status(deps, commandId, 'rejected', interpreted.code, ASSISTANT_MODEL.model, null);
-      return { commandId, replayed: false, message: await reply(deps, commandId, '', [refusal(interpreted.code)]), credits: await credits(deps) };
+      return {
+        commandId,
+        replayed: false,
+        message: await reply(deps, commandId, '', [refusal(interpreted.code)]),
+        credits: await credits(deps)
+      };
     }
     const stored: StoredPlan = {
       plan: interpreted.plan,
@@ -424,31 +572,65 @@ export async function sendMessage(command: Extract<AssistantCommand, { action: '
       urlsFrom: commandId
     };
     await status(deps, commandId, 'executing', null, interpreted.model, stored);
-    const result = await runPlan(deps, command.teamId, commandId, stored, canSaveDefaults, interpreted.model);
+    const result = await runPlan(
+      deps,
+      command.teamId,
+      commandId,
+      stored,
+      canSaveDefaults,
+      interpreted.model
+    );
     // A plan refused before any write (too large, nothing resolvable) costs nothing.
     if (result.status === 'rejected') await giveBack();
     else await settleCredits(deps.serviceRpc, opKey);
-    return { commandId, replayed: false, message: await reply(deps, commandId, result.text, result.cards), credits: await credits(deps) };
+    return {
+      commandId,
+      replayed: false,
+      message: await reply(deps, commandId, result.text, result.cards),
+      credits: await credits(deps)
+    };
   } catch (error) {
     // Nothing reached the person: give the credits back. A write that did land is kept and keyed.
     await giveBack();
-    await status(deps, commandId, 'unknown', error instanceof EngineRefusal ? error.code : 'UNAVAILABLE', null, null).catch(() => {});
+    await status(
+      deps,
+      commandId,
+      'unknown',
+      error instanceof EngineRefusal ? error.code : 'UNAVAILABLE',
+      null,
+      null
+    ).catch(() => {});
     throw error;
   }
 }
 
-async function loadCard(deps: AssistantDeps, teamId: string, cardId: string, kind: string): Promise<Record<string, unknown>> {
-  const card = await service(deps, 'service_assistant_card', { p_user: deps.userId, p_team: teamId, p_card: cardId });
-  if (!isRecord(card) || card.kind !== kind || !isRecord(card.payload)) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+async function loadCard(
+  deps: AssistantDeps,
+  teamId: string,
+  cardId: string,
+  kind: string
+): Promise<Record<string, unknown>> {
+  const card = await service(deps, 'service_assistant_card', {
+    p_user: deps.userId,
+    p_team: teamId,
+    p_card: cardId
+  });
+  if (!isRecord(card) || card.kind !== kind || !isRecord(card.payload))
+    throw new TeamFunctionError('NOT_FOUND', { retryable: false });
   return card;
 }
 
 async function storedPlanOf(deps: AssistantDeps, commandId: string): Promise<StoredPlan> {
-  const command = await service(deps, 'service_assistant_command', { p_user: deps.userId, p_command: commandId });
+  const command = await service(deps, 'service_assistant_command', {
+    p_user: deps.userId,
+    p_command: commandId
+  });
   const stored = isRecord(command) && isRecord(command.plan) ? command.plan : null;
   const plan = stored ? parseAssistantPlan(stored.plan) : null;
   if (!stored || !plan) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
-  const deferred = Array.isArray(stored.deferred) ? parseAssistantPlan({ reply: '', actions: stored.deferred })?.actions ?? [] : [];
+  const deferred = Array.isArray(stored.deferred)
+    ? (parseAssistantPlan({ reply: '', actions: stored.deferred })?.actions ?? [])
+    : [];
   return {
     plan,
     choices: isRecord(stored.choices) ? (stored.choices as Record<string, string>) : {},
@@ -459,37 +641,109 @@ async function storedPlanOf(deps: AssistantDeps, commandId: string): Promise<Sto
   };
 }
 
-export async function answerQuestion(command: Extract<AssistantCommand, { action: 'answer' }>, deps: AssistantDeps): Promise<AssistantResponse> {
+export async function answerQuestion(
+  command: Extract<AssistantCommand, { action: 'answer' }>,
+  deps: AssistantDeps
+): Promise<AssistantResponse> {
   const card = await loadCard(deps, command.teamId, command.cardId, 'question');
   const payload = card.payload as Record<string, unknown>;
-  const options = Array.isArray(payload.options) ? (payload.options as Array<{ id: string; label: string }>) : [];
+  const options = Array.isArray(payload.options)
+    ? (payload.options as Array<{ id: string; label: string }>)
+    : [];
   const option = options.find(item => item.id === command.optionId);
   if (!option) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
-  const started = await begin(deps, command.teamId, command.clientKey, 'answer', { cardId: command.cardId, optionId: command.optionId }, option.label, 0);
-  if (started.replayed) return { commandId: started.commandId, replayed: true, message: started.reply, credits: await credits(deps) };
-  const moved = await service(deps, 'service_assistant_card_state', { p_card: command.cardId, p_from: 'open', p_to: 'answered', p_patch: { answer: option.id } });
+  const started = await begin(
+    deps,
+    command.teamId,
+    command.clientKey,
+    'answer',
+    { cardId: command.cardId, optionId: command.optionId },
+    option.label,
+    0
+  );
+  if (started.replayed)
+    return {
+      commandId: started.commandId,
+      replayed: true,
+      message: started.reply,
+      credits: await credits(deps)
+    };
+  const moved = await service(deps, 'service_assistant_card_state', {
+    p_card: command.cardId,
+    p_from: 'open',
+    p_to: 'answered',
+    p_patch: { answer: option.id }
+  });
   if (moved !== true) {
     await status(deps, started.commandId, 'rejected', 'REVIEW_CHANGED', null, null);
-    return { commandId: started.commandId, replayed: false, message: await reply(deps, started.commandId, '', [refusal('REVIEW_CHANGED')]), credits: await credits(deps) };
+    return {
+      commandId: started.commandId,
+      replayed: false,
+      message: await reply(deps, started.commandId, '', [refusal('REVIEW_CHANGED')]),
+      credits: await credits(deps)
+    };
   }
-  if (payload.source !== 'resolve' || typeof payload.commandId !== 'string' || typeof payload.ref !== 'string') {
+  if (
+    payload.source !== 'resolve' ||
+    typeof payload.commandId !== 'string' ||
+    typeof payload.ref !== 'string'
+  ) {
     // A model's own question: the chosen option is the person's next instruction.
     await status(deps, started.commandId, 'done', null, null, null);
-    return { commandId: started.commandId, replayed: false, message: await reply(deps, started.commandId, '', [refusal('ANSWER_AS_MESSAGE', { text: option.label })]), credits: await credits(deps) };
+    return {
+      commandId: started.commandId,
+      replayed: false,
+      message: await reply(deps, started.commandId, '', [
+        refusal('ANSWER_AS_MESSAGE', { text: option.label })
+      ]),
+      credits: await credits(deps)
+    };
   }
   const stored = await storedPlanOf(deps, payload.commandId);
   stored.choices = { ...stored.choices, [payload.ref]: option.id };
-  const context = await service(deps, 'service_assistant_context', { p_user: deps.userId, p_team: command.teamId });
+  const context = await service(deps, 'service_assistant_context', {
+    p_user: deps.userId,
+    p_team: command.teamId
+  });
   const canSaveDefaults = isRecord(context) && context.canSaveDefaults === true;
-  const result = await runPlan(deps, command.teamId, started.commandId, { ...stored, timezone: command.timezone }, canSaveDefaults, null);
-  return { commandId: started.commandId, replayed: false, message: await reply(deps, started.commandId, result.text, result.cards), credits: await credits(deps) };
+  const result = await runPlan(
+    deps,
+    command.teamId,
+    started.commandId,
+    { ...stored, timezone: command.timezone },
+    canSaveDefaults,
+    null
+  );
+  return {
+    commandId: started.commandId,
+    replayed: false,
+    message: await reply(deps, started.commandId, result.text, result.cards),
+    credits: await credits(deps)
+  };
 }
 
-export async function confirmProfile(command: Extract<AssistantCommand, { action: 'confirm_profile' }>, deps: AssistantDeps): Promise<AssistantResponse> {
+export async function confirmProfile(
+  command: Extract<AssistantCommand, { action: 'confirm_profile' }>,
+  deps: AssistantDeps
+): Promise<AssistantResponse> {
   const card = await loadCard(deps, command.teamId, command.cardId, 'profile');
   const payload = card.payload as Record<string, unknown>;
-  const started = await begin(deps, command.teamId, command.clientKey, 'confirm', { cardId: command.cardId }, null, 0);
-  if (started.replayed) return { commandId: started.commandId, replayed: true, message: started.reply, credits: await credits(deps) };
+  const started = await begin(
+    deps,
+    command.teamId,
+    command.clientKey,
+    'confirm',
+    { cardId: command.cardId },
+    null,
+    0
+  );
+  if (started.replayed)
+    return {
+      commandId: started.commandId,
+      replayed: true,
+      message: started.reply,
+      credits: await credits(deps)
+    };
   const commandId = started.commandId;
   const { data, error } = await deps.callerRpc('save_launch_offer_defaults_masked', {
     p_team: command.teamId,
@@ -501,9 +755,19 @@ export async function confirmProfile(command: Extract<AssistantCommand, { action
   });
   if (error) {
     const code = rpcCode(error);
-    const reason = code === 'EDIT_CONFLICT' ? 'EDIT_CONFLICT' : code === 'PERMISSION_DENIED' ? 'DEFAULTS_FORBIDDEN' : 'UNAVAILABLE';
+    const reason =
+      code === 'EDIT_CONFLICT'
+        ? 'EDIT_CONFLICT'
+        : code === 'PERMISSION_DENIED'
+          ? 'DEFAULTS_FORBIDDEN'
+          : 'UNAVAILABLE';
     await status(deps, commandId, 'rejected', reason === 'UNAVAILABLE' ? null : reason, null, null);
-    return { commandId, replayed: false, message: await reply(deps, commandId, '', [refusal(reason)]), credits: await credits(deps) };
+    return {
+      commandId,
+      replayed: false,
+      message: await reply(deps, commandId, '', [refusal(reason)]),
+      credits: await credits(deps)
+    };
   }
   await service(deps, 'service_assistant_effect', {
     p_command: commandId,
@@ -516,12 +780,19 @@ export async function confirmProfile(command: Extract<AssistantCommand, { action
     p_version_after: isRecord(data) && typeof data.version === 'string' ? data.version : null,
     p_fields: (Array.isArray(payload.mask) ? payload.mask : []).map((path: string) => ({
       path,
-      before: isRecord(payload.before) ? payload.before[path] ?? null : null,
-      after: isRecord(payload.values) ? payload.values[path] ?? null : null
+      before: isRecord(payload.before) ? (payload.before[path] ?? null) : null,
+      after: isRecord(payload.values) ? (payload.values[path] ?? null) : null
     }))
   });
-  await service(deps, 'service_assistant_card_state', { p_card: command.cardId, p_from: 'open', p_to: 'confirmed', p_patch: {} });
-  const cards: Card[] = [{ kind: 'status', payload: { profileSaved: payload.offer, changes: payload.changes } }];
+  await service(deps, 'service_assistant_card_state', {
+    p_card: command.cardId,
+    p_from: 'open',
+    p_to: 'confirmed',
+    p_patch: {}
+  });
+  const cards: Card[] = [
+    { kind: 'status', payload: { profileSaved: payload.offer, changes: payload.changes } }
+  ];
   const source = typeof card.commandId === 'string' ? card.commandId : null;
   if (source) {
     const stored = await storedPlanOf(deps, source).catch(() => null);
@@ -530,7 +801,12 @@ export async function confirmProfile(command: Extract<AssistantCommand, { action
         deps,
         command.teamId,
         commandId,
-        { ...stored, plan: { reply: '', actions: stored.deferred }, deferred: [], timezone: command.timezone },
+        {
+          ...stored,
+          plan: { reply: '', actions: stored.deferred },
+          deferred: [],
+          timezone: command.timezone
+        },
         true,
         null
       );
@@ -538,29 +814,77 @@ export async function confirmProfile(command: Extract<AssistantCommand, { action
     }
   }
   await status(deps, commandId, 'done', null, null, null);
-  return { commandId, replayed: false, message: await reply(deps, commandId, '', cards), credits: await credits(deps) };
+  return {
+    commandId,
+    replayed: false,
+    message: await reply(deps, commandId, '', cards),
+    credits: await credits(deps)
+  };
 }
 
-export async function showReview(command: Extract<AssistantCommand, { action: 'review' }>, deps: AssistantDeps): Promise<AssistantResponse> {
+export async function showReview(
+  command: Extract<AssistantCommand, { action: 'review' }>,
+  deps: AssistantDeps
+): Promise<AssistantResponse> {
   await service(deps, 'service_assistant_context', { p_user: deps.userId, p_team: command.teamId });
-  const started = await begin(deps, command.teamId, command.clientKey, 'message', { review: command.cardId }, null, 0);
-  if (started.replayed) return { commandId: started.commandId, replayed: true, message: started.reply, credits: await credits(deps) };
+  const started = await begin(
+    deps,
+    command.teamId,
+    command.clientKey,
+    'message',
+    { review: command.cardId },
+    null,
+    0
+  );
+  if (started.replayed)
+    return {
+      commandId: started.commandId,
+      replayed: true,
+      message: started.reply,
+      credits: await credits(deps)
+    };
   const shown = await shownRows(deps, command.teamId, command.cardId);
-  const engine = engineDeps(deps, command.teamId, started.commandId, command.timezone, { shown: shown.rows });
+  const engine = engineDeps(deps, command.teamId, started.commandId, command.timezone, {
+    shown: shown.rows
+  });
   const card = await reviewCard(engine, command.cardId && shown.rows.length ? 'shown' : 'today');
   await status(deps, started.commandId, 'done', null, null, null);
-  return { commandId: started.commandId, replayed: false, message: await reply(deps, started.commandId, '', [card]), credits: await credits(deps) };
+  return {
+    commandId: started.commandId,
+    replayed: false,
+    message: await reply(deps, started.commandId, '', [card]),
+    credits: await credits(deps)
+  };
 }
 
 /** Reverses what a command did and nothing that changed after it. */
-export async function undoCommand(deps: AssistantDeps, teamId: string, target: string, commandId: string): Promise<Card> {
-  const data = await service(deps, 'service_assistant_effects', { p_user: deps.userId, p_command: target });
-  if (!isRecord(data) || !Array.isArray(data.effects)) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+export async function undoCommand(
+  deps: AssistantDeps,
+  teamId: string,
+  target: string,
+  commandId: string
+): Promise<Card> {
+  const data = await service(deps, 'service_assistant_effects', {
+    p_user: deps.userId,
+    p_command: target
+  });
+  if (!isRecord(data) || !Array.isArray(data.effects))
+    throw new TeamFunctionError('NOT_FOUND', { retryable: false });
   const effects = [...(data.effects as Array<Record<string, unknown>>)].reverse();
   let undone = 0;
   const kept: Array<{ launchId: string | null; code: string }> = [];
-  const launchIds = effects.flatMap(effect => (typeof effect.launchId === 'string' ? [effect.launchId] : []));
-  const current = launchIds.length ? (await cardRows({ serviceRpc: deps.serviceRpc, userId: deps.userId, teamId }, launchIds, null)).rows : [];
+  const launchIds = effects.flatMap(effect =>
+    typeof effect.launchId === 'string' ? [effect.launchId] : []
+  );
+  const current = launchIds.length
+    ? (
+        await cardRows(
+          { serviceRpc: deps.serviceRpc, userId: deps.userId, teamId },
+          launchIds,
+          null
+        )
+      ).rows
+    : [];
   for (const effect of effects) {
     if (effect.undone === true) continue;
     const launchId = typeof effect.launchId === 'string' ? effect.launchId : null;
@@ -576,7 +900,13 @@ export async function undoCommand(deps: AssistantDeps, teamId: string, target: s
         kept.push({ launchId, code: 'CHANGED_AFTER' });
         continue;
       }
-      const { error } = await deps.callerRpc('archive_launch', { p_team: teamId, p_launch: launchId, p_expected_version: row.version, p_key: key, p_suppress: true });
+      const { error } = await deps.callerRpc('archive_launch', {
+        p_team: teamId,
+        p_launch: launchId,
+        p_expected_version: row.version,
+        p_key: key,
+        p_suppress: true
+      });
       if (error) {
         kept.push({ launchId, code: rpcCode(error) });
         continue;
@@ -587,14 +917,27 @@ export async function undoCommand(deps: AssistantDeps, teamId: string, target: s
         kept.push({ launchId, code: 'LAUNCHED' });
         continue;
       }
-      const detail = await deps.callerRpc('get_launch', { p_team: teamId, p_launch: launchId, p_revision: null });
-      if (detail.error || !isRecord(detail.data) || !isRecord(detail.data.draft) || typeof detail.data.version !== 'string') {
+      const detail = await deps.callerRpc('get_launch', {
+        p_team: teamId,
+        p_launch: launchId,
+        p_revision: null
+      });
+      if (
+        detail.error ||
+        !isRecord(detail.data) ||
+        !isRecord(detail.data.draft) ||
+        typeof detail.data.version !== 'string'
+      ) {
         kept.push({ launchId, code: 'UNAVAILABLE' });
         continue;
       }
       const draft = structuredClone(detail.data.draft) as Record<string, unknown>;
       let reverted = 0;
-      for (const field of (Array.isArray(effect.fields) ? effect.fields : []) as Array<{ path: string; before: unknown; after: unknown }>) {
+      for (const field of (Array.isArray(effect.fields) ? effect.fields : []) as Array<{
+        path: string;
+        before: unknown;
+        after: unknown;
+      }>) {
         if (JSON.stringify(draft[field.path] ?? null) !== JSON.stringify(field.after ?? null)) {
           kept.push({ launchId, code: 'FIELD_CHANGED' });
           continue;
@@ -610,16 +953,24 @@ export async function undoCommand(deps: AssistantDeps, teamId: string, target: s
         p_expected_version: detail.data.version,
         p_request_key: key,
         p_config: draft,
-        p_expected_sources: isRecord(detail.data.expectedSourceSnapshot) ? detail.data.expectedSourceSnapshot : null
+        p_expected_sources: isRecord(detail.data.expectedSourceSnapshot)
+          ? detail.data.expectedSourceSnapshot
+          : null
       });
       if (error) {
         kept.push({ launchId, code: rpcCode(error) });
         continue;
       }
     } else if (effect.kind === 'defaults_saved') {
-      const fields = (Array.isArray(effect.fields) ? effect.fields : []) as Array<{ path: string; before: unknown; after: unknown }>;
+      const fields = (Array.isArray(effect.fields) ? effect.fields : []) as Array<{
+        path: string;
+        before: unknown;
+        after: unknown;
+      }>;
       const before = Object.fromEntries(fields.map(field => [field.path, field.after]));
-      const values = Object.fromEntries(fields.filter(field => field.before !== null).map(field => [field.path, field.before]));
+      const values = Object.fromEntries(
+        fields.filter(field => field.before !== null).map(field => [field.path, field.before])
+      );
       const { error } = await deps.callerRpc('save_launch_offer_defaults_masked', {
         p_team: teamId,
         p_offer: effect.offerId,
@@ -629,27 +980,59 @@ export async function undoCommand(deps: AssistantDeps, teamId: string, target: s
         p_key: key
       });
       if (error) {
-        kept.push({ launchId: null, code: rpcCode(error) === 'EDIT_CONFLICT' ? 'FIELD_CHANGED' : rpcCode(error) });
+        kept.push({
+          launchId: null,
+          code: rpcCode(error) === 'EDIT_CONFLICT' ? 'FIELD_CHANGED' : rpcCode(error)
+        });
         continue;
       }
     }
-    await service(deps, 'service_assistant_effect_undone', { p_command: target, p_step: effect.step, p_row_key: effect.rowKey });
+    await service(deps, 'service_assistant_effect_undone', {
+      p_command: target,
+      p_step: effect.step,
+      p_row_key: effect.rowKey
+    });
     undone++;
   }
   if (kept.length === 0) await status(deps, target, 'undone', null, null, null);
   return { kind: 'status', payload: { undone, kept } };
 }
 
-export async function undo(command: Extract<AssistantCommand, { action: 'undo' }>, deps: AssistantDeps): Promise<AssistantResponse> {
+export async function undo(
+  command: Extract<AssistantCommand, { action: 'undo' }>,
+  deps: AssistantDeps
+): Promise<AssistantResponse> {
   await service(deps, 'service_assistant_context', { p_user: deps.userId, p_team: command.teamId });
-  const started = await begin(deps, command.teamId, command.clientKey, 'undo', { commandId: command.commandId }, null, 0);
-  if (started.replayed) return { commandId: started.commandId, replayed: true, message: started.reply, credits: await credits(deps) };
+  const started = await begin(
+    deps,
+    command.teamId,
+    command.clientKey,
+    'undo',
+    { commandId: command.commandId },
+    null,
+    0
+  );
+  if (started.replayed)
+    return {
+      commandId: started.commandId,
+      replayed: true,
+      message: started.reply,
+      credits: await credits(deps)
+    };
   const card = await undoCommand(deps, command.teamId, command.commandId, started.commandId);
   await status(deps, started.commandId, 'done', null, null, null);
-  return { commandId: started.commandId, replayed: false, message: await reply(deps, started.commandId, '', [card]), credits: await credits(deps) };
+  return {
+    commandId: started.commandId,
+    replayed: false,
+    message: await reply(deps, started.commandId, '', [card]),
+    credits: await credits(deps)
+  };
 }
 
-export async function handleAssistant(command: AssistantCommand, deps: AssistantDeps): Promise<AssistantResponse> {
+export async function handleAssistant(
+  command: AssistantCommand,
+  deps: AssistantDeps
+): Promise<AssistantResponse> {
   switch (command.action) {
     case 'send':
       return sendMessage(command, deps);

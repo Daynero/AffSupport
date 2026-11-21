@@ -63,7 +63,11 @@ function subscribe(listener: () => void) {
 
 /** The shared balance; the first reader starts the reads, the last one stops the timer. */
 export function useCredits(enabled = true): State {
-  const snapshot = useSyncExternalStore(subscribe, () => state, () => state);
+  const snapshot = useSyncExternalStore(
+    subscribe,
+    () => state,
+    () => state
+  );
   useEffect(() => {
     if (!enabled) return;
     watchers++;
@@ -88,9 +92,11 @@ export function useCredits(enabled = true): State {
 /** «00:00» in Kyiv for the reported reset instant. */
 export function kyivTime(iso: string, locale: string): string {
   try {
-    return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Kyiv' }).format(
-      new Date(iso)
-    );
+    return new Intl.DateTimeFormat(locale, {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Kyiv'
+    }).format(new Date(iso));
   } catch {
     return '00:00';
   }

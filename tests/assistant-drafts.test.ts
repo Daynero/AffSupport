@@ -50,7 +50,9 @@ function model(answer: unknown): ClaudeClient & { calls: string[] } {
   } as ClaudeClient & { calls: string[] };
 }
 
-function world(options: { materials?: Array<{ id: string; name: string }>; replay?: boolean } = {}) {
+function world(
+  options: { materials?: Array<{ id: string; name: string }>; replay?: boolean } = {}
+) {
   const saved: Array<Record<string, unknown>> = [];
   const calls: string[] = [];
   const stored = new Map<string, unknown>();
@@ -59,12 +61,28 @@ function world(options: { materials?: Array<{ id: string; name: string }>; repla
     calls.push(name);
     switch (name) {
       case 'service_assistant_context':
-        return { data: { conversationId: 'conv', canSaveDefaults: true, priceVersion: 'v1' }, error: null };
+        return {
+          data: { conversationId: 'conv', canSaveDefaults: true, priceVersion: 'v1' },
+          error: null
+        };
       case 'service_assistant_begin':
         commands++;
         return options.replay
-          ? { data: { commandId: '64200000-0000-4000-8000-0000000000c0', replayed: true, reply: { id: 9 } }, error: null }
-          : { data: { commandId: `64200000-0000-4000-8000-0000000000c${commands}`, replayed: false }, error: null };
+          ? {
+              data: {
+                commandId: '64200000-0000-4000-8000-0000000000c0',
+                replayed: true,
+                reply: { id: 9 }
+              },
+              error: null
+            }
+          : {
+              data: {
+                commandId: `64200000-0000-4000-8000-0000000000c${commands}`,
+                replayed: false
+              },
+              error: null
+            };
       case 'service_ai_credit_debit':
         return { data: { replayed: false, credits: {} }, error: null };
       case 'service_assistant_status':
@@ -80,13 +98,21 @@ function world(options: { materials?: Array<{ id: string; name: string }>; repla
       case 'service_assistant_command':
         return { data: { plan: stored.get(args.p_command as string) ?? null }, error: null };
       case 'list_launch_dictionaries':
-        return { data: { offers: [{ id: OFFER, value: 'ProCaps', updatedAt: 'x' }], buyers: [] }, error: null };
+        return {
+          data: { offers: [{ id: OFFER, value: 'ProCaps', updatedAt: 'x' }], buyers: [] },
+          error: null
+        };
       case 'list_team_accounts':
         return { data: [{ id: 'acc', agents: [{ id: AGENT, agent_id: 'G2' }] }], error: null };
       case 'search_materials':
         return {
           data: {
-            items: (options.materials ?? [{ id: M16, name: 'TR_16.mp4' }, { id: M18, name: 'TR_18.mp4' }]).map(m => ({
+            items: (
+              options.materials ?? [
+                { id: M16, name: 'TR_16.mp4' },
+                { id: M18, name: 'TR_18.mp4' }
+              ]
+            ).map(m => ({
               ...m,
               mimeType: 'video/mp4'
             }))
@@ -100,7 +126,12 @@ function world(options: { materials?: Array<{ id: string; name: string }>; repla
               maxBudget: 40,
               minBudget: 10,
               budgetMode: 'auto',
-              catalog: { productCount: 60, restitchEnabled: false, finalDurationMode: 'random-30-40', customFinalDurationSeconds: null }
+              catalog: {
+                productCount: 60,
+                restitchEnabled: false,
+                finalDurationMode: 'random-30-40',
+                customFinalDurationSeconds: null
+              }
             },
             subConfig: { schemaVersion: 1, sub1: ['buyer'], sub2: [], sub3: [] },
             version: '3'
@@ -109,7 +140,10 @@ function world(options: { materials?: Array<{ id: string; name: string }>; repla
         };
       case 'save_launch_draft':
         saved.push(args.p_config as Record<string, unknown>);
-        return { data: { id: `64200000-0000-4000-8000-00000000d00${saved.length}`, version: '1' }, error: null };
+        return {
+          data: { id: `64200000-0000-4000-8000-00000000d00${saved.length}`, version: '1' },
+          error: null
+        };
       case 'service_assistant_rows':
         return {
           data: ((args.p_ids as string[] | null) ?? []).map((id, index) => ({
@@ -123,7 +157,10 @@ function world(options: { materials?: Array<{ id: string; name: string }>; repla
           error: null
         };
       case 'service_assistant_reply':
-        return { data: { id: 1, role: 'assistant', text: args.p_text, cards: args.p_cards }, error: null };
+        return {
+          data: { id: 1, role: 'assistant', text: args.p_text, cards: args.p_cards },
+          error: null
+        };
       default:
         return { data: null, error: null };
     }
@@ -151,7 +188,13 @@ describe('064 assistant: one message makes ordinary drafts', () => {
   it('creates exactly five drafts with explicit and inherited values and starts nothing', async () => {
     const { rpc, saved, calls } = world();
     const client = model(plan());
-    const result = await handleAssistant(send(MESSAGE), { userId: USER, callerRpc: rpc, serviceRpc: rpc, client, now });
+    const result = await handleAssistant(send(MESSAGE), {
+      userId: USER,
+      callerRpc: rpc,
+      serviceRpc: rpc,
+      client,
+      now
+    });
     expect(saved).toHaveLength(5);
     for (const config of saved) {
       expect(config).toMatchObject({
@@ -170,9 +213,14 @@ describe('064 assistant: one message makes ordinary drafts', () => {
     expect(client.calls[0]).toContain('⟦url:1⟧');
     expect(client.calls[0]).not.toContain('shop.example');
     expect(calls.filter(name => name === 'service_ai_credit_debit')).toHaveLength(1);
-    expect(rpc).toHaveBeenCalledWith('service_ai_credit_debit', expect.objectContaining({ p_amount: 1 }));
+    expect(rpc).toHaveBeenCalledWith(
+      'service_ai_credit_debit',
+      expect.objectContaining({ p_amount: 1 })
+    );
     expect(calls).not.toContain('service_accept_launch_batch');
-    const cards = (result.message as { cards: Array<{ kind: string; payload: { rows: unknown[] } }> }).cards;
+    const cards = (
+      result.message as { cards: Array<{ kind: string; payload: { rows: unknown[] } }> }
+    ).cards;
     expect(cards[0]!.kind).toBe('result');
     expect(cards[0]!.payload.rows).toHaveLength(5);
   });
@@ -180,7 +228,13 @@ describe('064 assistant: one message makes ordinary drafts', () => {
   it('replays a repeated delivery without a model call or another draft', async () => {
     const { rpc, saved, calls } = world({ replay: true });
     const client = model(plan());
-    const result = await handleAssistant(send(MESSAGE), { userId: USER, callerRpc: rpc, serviceRpc: rpc, client, now });
+    const result = await handleAssistant(send(MESSAGE), {
+      userId: USER,
+      callerRpc: rpc,
+      serviceRpc: rpc,
+      client,
+      now
+    });
     expect(result.replayed).toBe(true);
     expect(client.calls).toHaveLength(0);
     expect(saved).toHaveLength(0);
@@ -205,7 +259,13 @@ describe('064 assistant: one message makes ordinary drafts', () => {
   it('refuses a label priced differently before anything is charged', async () => {
     const { rpc, calls } = world();
     await expect(
-      handleAssistant(send(MESSAGE, { expectedPrice: 2 }), { userId: USER, callerRpc: rpc, serviceRpc: rpc, client: model(plan()), now })
+      handleAssistant(send(MESSAGE, { expectedPrice: 2 }), {
+        userId: USER,
+        callerRpc: rpc,
+        serviceRpc: rpc,
+        client: model(plan()),
+        now
+      })
     ).rejects.toMatchObject({ code: 'PRICE_CHANGED' });
     expect(calls).toHaveLength(0);
   });
@@ -213,12 +273,18 @@ describe('064 assistant: one message makes ordinary drafts', () => {
   it('gives the credits back when the model answer is not a valid plan', async () => {
     const { rpc, saved, calls } = world();
     const client = model({ reply: 'x', actions: [{ type: 'start_generation' }] });
-    const result = await handleAssistant(send(MESSAGE), { userId: USER, callerRpc: rpc, serviceRpc: rpc, client, now });
+    const result = await handleAssistant(send(MESSAGE), {
+      userId: USER,
+      callerRpc: rpc,
+      serviceRpc: rpc,
+      client,
+      now
+    });
     expect(saved).toHaveLength(0);
     expect(calls).toContain('service_ai_credit_refund');
-    expect((result.message as { cards: Array<{ payload: { code: string } }> }).cards[0]!.payload.code).toBe(
-      'MODEL_OUTPUT_REJECTED'
-    );
+    expect(
+      (result.message as { cards: Array<{ payload: { code: string } }> }).cards[0]!.payload.code
+    ).toBe('MODEL_OUTPUT_REJECTED');
   });
 
   it('asks which material when two match, writes nothing, and continues on the button without a model', async () => {
@@ -228,13 +294,24 @@ describe('064 assistant: one message makes ordinary drafts', () => {
     ];
     const { rpc, saved } = world({ materials: twins });
     const client = model(plan());
-    const asked = await handleAssistant(send(MESSAGE), { userId: USER, callerRpc: rpc, serviceRpc: rpc, client, now });
-    const question = (asked.message as { cards: Array<{ kind: string; payload: Record<string, unknown> }> }).cards[0]!;
+    const asked = await handleAssistant(send(MESSAGE), {
+      userId: USER,
+      callerRpc: rpc,
+      serviceRpc: rpc,
+      client,
+      now
+    });
+    const question = (
+      asked.message as { cards: Array<{ kind: string; payload: Record<string, unknown> }> }
+    ).cards[0]!;
     expect(question.kind).toBe('question');
     expect(saved).toHaveLength(0);
 
     // The button: the server reads the card, then continues the stored plan with the choice.
-    rpc.mockImplementationOnce(async () => ({ data: { id: 'card', kind: 'question', commandId: null, payload: question.payload }, error: null }));
+    rpc.mockImplementationOnce(async () => ({
+      data: { id: 'card', kind: 'question', commandId: null, payload: question.payload },
+      error: null
+    }));
     const answered = await handleAssistant(
       parseAssistantCommand({
         action: 'answer',

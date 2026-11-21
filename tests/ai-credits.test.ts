@@ -8,7 +8,11 @@ import {
   refundCredits,
   translationUpperUsd
 } from '../supabase/functions/_shared/ai-credits';
-import { callStructured, ClaudeTransportError, type ClaudeClient } from '../supabase/functions/_shared/claude';
+import {
+  callStructured,
+  ClaudeTransportError,
+  type ClaudeClient
+} from '../supabase/functions/_shared/claude';
 import { recordModelUsage } from '../supabase/functions/_shared/ai-allowance';
 
 const input = {
@@ -23,7 +27,10 @@ const input = {
 
 describe('064 credits in edge functions', () => {
   it('debits through the service function with the exact price and the held estimate', async () => {
-    const rpc = vi.fn(async () => ({ data: { replayed: false, credits: { available: 98 } }, error: null }));
+    const rpc = vi.fn(async () => ({
+      data: { replayed: false, credits: { available: 98 } },
+      error: null
+    }));
     await expect(debitCredits(rpc, input)).resolves.toEqual({
       replayed: false,
       credits: { available: 98 }
@@ -50,13 +57,21 @@ describe('064 credits in edge functions', () => {
     }));
     const error = await debitCredits(rpc, input).catch(caught => caught);
     expect(error).toBeInstanceOf(CreditRefusal);
-    expect(error).toMatchObject({ code: 'INSUFFICIENT_CREDITS', details: { needed: 2, available: 1 } });
-    expect(creditRefusal({ code: 'PT409', message: 'AI_MONTH_EXHAUSTED' })?.code).toBe('AI_MONTH_EXHAUSTED');
+    expect(error).toMatchObject({
+      code: 'INSUFFICIENT_CREDITS',
+      details: { needed: 2, available: 1 }
+    });
+    expect(creditRefusal({ code: 'PT409', message: 'AI_MONTH_EXHAUSTED' })?.code).toBe(
+      'AI_MONTH_EXHAUSTED'
+    );
     expect(creditRefusal({ code: 'PT409', message: 'PERMISSION_DENIED' })).toBeNull();
   });
 
   it('treats an unreachable ledger as unavailable, never as paid', async () => {
-    const rpc = vi.fn(async () => ({ data: null, error: { code: '08006', message: 'connection' } }));
+    const rpc = vi.fn(async () => ({
+      data: null,
+      error: { code: '08006', message: 'connection' }
+    }));
     await expect(debitCredits(rpc, input)).rejects.toBeInstanceOf(CreditsUnavailable);
   });
 
@@ -79,7 +94,14 @@ describe('064 credits in edge functions', () => {
     const rpc = vi.fn(async () => ({ data: null, error: null }));
     await callStructured(
       client,
-      { model: 'claude-haiku-5-5', effort: 'low', system: 's', user: 'u', schema: {}, maxTokens: 10 },
+      {
+        model: 'claude-haiku-5-5',
+        effort: 'low',
+        system: 's',
+        user: 'u',
+        schema: {},
+        maxTokens: 10
+      },
       {
         signal: new AbortController().signal,
         record: entry =>

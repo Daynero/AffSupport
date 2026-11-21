@@ -24,7 +24,13 @@ export interface AssistantCommandTrail {
   } | null;
   /** accepted → parsing → executing → done | partial | rejected | unknown | undone */
   last_proven_stage: string | null;
-  model_calls: { outcome: string; input_tokens: number; output_tokens: number; cost_usd: number; created_at: string }[];
+  model_calls: {
+    outcome: string;
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number;
+    created_at: string;
+  }[];
   credits: { kind: string; amount: number; kyiv_day: string; created_at: string }[];
   month_hold: { usd_upper: number; usd_actual: number | null; state: string } | null;
   findings: string[];
@@ -33,9 +39,17 @@ export interface AssistantCommandTrail {
 
 export interface AssistantSummary {
   supported: boolean;
-  commands: { total: number; by_status: { status: string; count: number }[]; by_reason: { reason: string; count: number }[] };
+  commands: {
+    total: number;
+    by_status: { status: string; count: number }[];
+    by_reason: { reason: string; count: number }[];
+  };
   model_calls_per_paid_command: number | null;
-  credits: { debited: number; refunded: number; by_feature: { feature: string; debited: number; refunded: number }[] };
+  credits: {
+    debited: number;
+    refunded: number;
+    by_feature: { feature: string; debited: number; refunded: number }[];
+  };
   open_holds: number;
   blind_spots: string[];
 }
@@ -71,7 +85,9 @@ export async function getAssistantCommand(id: string): Promise<AssistantCommandT
     blind_spots: [...BLIND_SPOTS]
   };
   if (!trail.supported) {
-    trail.blind_spots.unshift('Assistant views are not installed in this database (migrations 064).');
+    trail.blind_spots.unshift(
+      'Assistant views are not installed in this database (migrations 064).'
+    );
     return trail;
   }
   const rows = await query<Record<string, unknown>>(
@@ -82,7 +98,9 @@ export async function getAssistantCommand(id: string): Promise<AssistantCommandT
   );
   const row = rows[0];
   if (!row) {
-    trail.findings.push('insufficient: no assistant command with this id (it may have expired with its conversation after 7 days).');
+    trail.findings.push(
+      'insufficient: no assistant command with this id (it may have expired with its conversation after 7 days).'
+    );
     return trail;
   }
   trail.command = {
@@ -120,25 +138,43 @@ export async function getAssistantCommand(id: string): Promise<AssistantCommandT
         where op_key = $1 order by created_at`,
       [opKey]
     )
-  ).map(entry => ({ kind: String(entry.kind), amount: n(entry.amount), kyiv_day: String(entry.kyiv_day), created_at: String(entry.created_at) }));
+  ).map(entry => ({
+    kind: String(entry.kind),
+    amount: n(entry.amount),
+    kyiv_day: String(entry.kyiv_day),
+    created_at: String(entry.created_at)
+  }));
   const hold = (
     await query<Record<string, unknown>>(
       `select usd_upper, usd_actual, state from public.analytics_ai_month_holds where op_key = $1`,
       [opKey]
     )
   )[0];
-  if (hold) trail.month_hold = { usd_upper: n(hold.usd_upper), usd_actual: hold.usd_actual === null ? null : n(hold.usd_actual), state: String(hold.state) };
+  if (hold)
+    trail.month_hold = {
+      usd_upper: n(hold.usd_upper),
+      usd_actual: hold.usd_actual === null ? null : n(hold.usd_actual),
+      state: String(hold.state)
+    };
 
   const debited = trail.credits.some(entry => entry.kind === 'debit');
   const refunded = trail.credits.some(entry => entry.kind === 'refund');
   if (trail.command.status === 'rejected' && debited && !refunded && trail.command.effects === 0)
-    trail.findings.push('fact: rejected without writes but not refunded (only PLAN_TOO_LARGE-type refusals after a model call keep nothing; check the refund path).');
+    trail.findings.push(
+      'fact: rejected without writes but not refunded (only PLAN_TOO_LARGE-type refusals after a model call keep nothing; check the refund path).'
+    );
   if (trail.command.status === 'unknown')
-    trail.findings.push('fact: the command stopped in an unknown state; its writes are keyed — re-read the drafts by the effects before any retry.');
+    trail.findings.push(
+      'fact: the command stopped in an unknown state; its writes are keyed — re-read the drafts by the effects before any retry.'
+    );
   if (trail.model_calls.some(call => call.outcome === 'failed' && call.input_tokens === 0))
-    trail.findings.push('fact: a model call left without usage figures (transport failure); its cost is unknown, not zero.');
+    trail.findings.push(
+      'fact: a model call left without usage figures (transport failure); its cost is unknown, not zero.'
+    );
   if (trail.month_hold?.state === 'held')
-    trail.findings.push('hypothesis: the month hold is still open; it stops counting after 15 minutes.');
+    trail.findings.push(
+      'hypothesis: the month hold is still open; it stops counting after 15 minutes.'
+    );
   if (trail.command.reason_code) trail.findings.push(`fact: reason ${trail.command.reason_code}.`);
   return trail;
 }
@@ -159,7 +195,10 @@ export async function getAssistantSummary(period: ResolvedPeriod): Promise<Assis
       where created_at between $1::timestamptz and $2::timestamptz group by status order by count desc`,
     range
   );
-  summary.commands.by_status = statuses.map(row => ({ status: String(row.status), count: n(row.count) }));
+  summary.commands.by_status = statuses.map(row => ({
+    status: String(row.status),
+    count: n(row.count)
+  }));
   summary.commands.total = summary.commands.by_status.reduce((sum, row) => sum + row.count, 0);
   summary.commands.by_reason = (
     await query<Record<string, unknown>>(
@@ -176,7 +215,8 @@ export async function getAssistantSummary(period: ResolvedPeriod): Promise<Assis
       where c.price > 0 and c.created_at between $1::timestamptz and $2::timestamptz`,
     range
   );
-  summary.model_calls_per_paid_command = calls[0]?.per === null || calls[0]?.per === undefined ? null : n(calls[0].per);
+  summary.model_calls_per_paid_command =
+    calls[0]?.per === null || calls[0]?.per === undefined ? null : n(calls[0].per);
   const ledger = await query<Record<string, unknown>>(
     `select feature, sum(amount) filter (where kind = 'debit')::int as debited,
             sum(amount) filter (where kind = 'refund')::int as refunded
@@ -184,11 +224,20 @@ export async function getAssistantSummary(period: ResolvedPeriod): Promise<Assis
       group by feature`,
     range
   );
-  summary.credits.by_feature = ledger.map(row => ({ feature: String(row.feature), debited: n(row.debited), refunded: n(row.refunded) }));
+  summary.credits.by_feature = ledger.map(row => ({
+    feature: String(row.feature),
+    debited: n(row.debited),
+    refunded: n(row.refunded)
+  }));
   summary.credits.debited = summary.credits.by_feature.reduce((sum, row) => sum + row.debited, 0);
   summary.credits.refunded = summary.credits.by_feature.reduce((sum, row) => sum + row.refunded, 0);
   summary.open_holds = n(
-    (await query<{ count: string }>(`select count(*)::text as count from public.analytics_ai_month_holds where state = 'held'`, []))[0]?.count
+    (
+      await query<{ count: string }>(
+        `select count(*)::text as count from public.analytics_ai_month_holds where state = 'held'`,
+        []
+      )
+    )[0]?.count
   );
   return summary;
 }

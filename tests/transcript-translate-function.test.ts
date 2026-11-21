@@ -323,7 +323,12 @@ describe('startTranslation', () => {
   it('reads the space text with the caller rights and charges exactly the shown price', async () => {
     const harness = deps();
     const result = await startTranslation(start, harness.deps);
-    expect(result).toMatchObject({ translationId: TRANSLATION, reused: false, units: 23, price: 1 });
+    expect(result).toMatchObject({
+      translationId: TRANSLATION,
+      reused: false,
+      units: 23,
+      price: 1
+    });
     const begin = harness.service.mock.calls.find(
       call => call[0] === 'service_transcript_translation_begin_credits'
     )!;
@@ -380,11 +385,15 @@ describe('startTranslation', () => {
 
   it('runs nothing for a label priced otherwise or a client older than credits', async () => {
     const stale = deps();
-    await expect(startTranslation({ ...start, expectedPrice: 2 }, stale.deps)).rejects.toMatchObject({
+    await expect(
+      startTranslation({ ...start, expectedPrice: 2 }, stale.deps)
+    ).rejects.toMatchObject({
       code: 'PRICE_CHANGED'
     });
     const old = deps();
-    await expect(startTranslation({ ...start, expectedPrice: null }, old.deps)).rejects.toMatchObject({
+    await expect(
+      startTranslation({ ...start, expectedPrice: null }, old.deps)
+    ).rejects.toMatchObject({
       code: 'CLIENT_UPGRADE'
     });
     expect(stale.service).not.toHaveBeenCalled();
