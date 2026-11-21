@@ -8,7 +8,7 @@ const seams = vi.hoisted(() => ({
   folder: vi.fn(),
   upload: vi.fn(),
   picked: vi.fn(),
-  dialog: { title: '', confirm: (_count: number) => '' }
+  dialog: { title: '', confirm: (_count: number): string => '' }
 }));
 vi.mock('../apps/web/src/team/explorer/useThumbnailSession', () => ({
   useThumbnailSession: () => null
