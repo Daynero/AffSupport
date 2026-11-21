@@ -336,3 +336,34 @@
   align-items: flex-start;
   gap: var(--space-4) var(--space-6);
 }
+/* The drop zone is one target: a press anywhere on it opens «Обрати», and it says so — a
+   firmer dashed edge, the upload mark in the accent, and the hover the drag already wears
+   (next QA 2026-11-21: it read as a faint line with a small button at its far end). */
+.launch-editor-compact .launch-creative-drop {
+  border-color: var(--color-neutral-border-strong);
+  background: var(--color-neutral-surface-subtle);
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    background-color var(--dur-control) var(--ease-standard),
+    color var(--dur-control) var(--ease-standard);
+}
+.launch-editor-compact .launch-creative-drop > svg {
+  color: var(--color-secondary-text);
+}
+.launch-editor-compact .launch-creative-drop:hover,
+.launch-editor-compact .launch-creative-drop[data-dragging] {
+  border-color: var(--color-secondary-border);
+  background: var(--color-secondary-softer);
+  color: var(--color-neutral-text);
+}
+.launch-editor-compact .launch-creative-drop[data-disabled],
+.launch-editor-compact .launch-creative-drop[data-busy] {
+  cursor: default;
+}
+.launch-editor-compact .launch-creative-drop[data-disabled]:hover {
+  border-color: var(--color-neutral-border-strong);
+  background: var(--color-neutral-surface-subtle);
+  color: var(--color-neutral-text-muted);
+}
