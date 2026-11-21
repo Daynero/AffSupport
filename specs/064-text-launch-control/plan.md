@@ -14,7 +14,7 @@ TypeScript strict, ESM, React + HeroUI v3 у вебі (лише компонен
 
 ```
 LaunchSpace ──▶ AssistantComposer ──message.send──▶ edge: assistant
-   │                 │ ціна з shared/ai/pricing              │ межі → debit (ai_credit_ledger)
+   │                 │ ціна з shared/team/ai-credits         │ межі → debit (ai_credit_ledger)
    │                 ▼                                       │ контекст (без каталогу/URL)
    │           AssistantPanel ◀── картки ───────────────────│ Claude: strict tool plan_launch_actions
    │                 │                                       │ перевірка плану → зіставлення посилань
@@ -30,7 +30,7 @@ Header: CreditsButton ──▶ ai_credits_status()          AdminPage: AiBudget
 | --- | --- |
 | `packages/shared/src/team/launches/fields.ts` | Реєстр полів: схема інструмента, системний опис, тести паритету й інвентарю |
 | `packages/shared/src/team/launches/defaults-merge.ts` | Чисте злиття «профіль офера → профіль простору → вбудоване», маска полів |
-| `packages/shared/src/ai/pricing.ts` | Ціни з версіями: переклад за хвилинами, репліка за довжиною. Один код для кнопки й сервера |
+| `packages/shared/src/team/ai-credits.ts` | Ціни з версіями: переклад за хвилинами, репліка за довжиною. Один код для кнопки й сервера |
 | `packages/shared/src/team/assistant.ts` | Типи операцій, дій плану, карток, кодів причин і детермінований розпізнавач коротких реплік |
 | `supabase/functions/assistant/` | `handler.ts` (вхід, межі, права), `interpret.ts` (Claude), `resolve.ts` (зіставлення посилань), `execute.ts` (кроки й ефекти), `review.ts`, `undo.ts` |
 | `supabase/functions/_shared/ai-credits.ts` | Debit/refund, місячний стоп, запис usage. Спільний для обох функцій |
@@ -65,7 +65,7 @@ Header: CreditsButton ──▶ ai_credits_status()          AdminPage: AiBudget
 
 | Принцип | Як дотримано |
 | --- | --- |
-| I. Типізовані межі | Вхід браузера, вихід моделі й рядки БД приходять як `unknown` і проходять перевірку. Строгий інструмент і серверна валідація плану. Тест відхилення зайвих полів |
+| I. Типізовані межі | Вхід браузера, вихід моделі й рядки БД приходять як `unknown` і проходять перевірку. Structured output за JSON Schema з реєстру й повна серверна валідація плану. Тест відхилення зайвих полів |
 | II. Єдине джерело контракту | Реєстр полів і ціни в shared. Веб і Edge беруть з одного dist, shared перебудовується перед споживанням |
 | III. Найменші права | RLS на кожній таблиці, `revoke all`, вузькі grants, `security definer` з порожнім `search_path`, адмінські RPC через `is_admin()`. Перевірка прямого виклику поза UI |
 | IV. Ресурси агента | Агент не змінюється, запуск іде наявним виконавцем 053 |
