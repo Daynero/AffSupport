@@ -119,7 +119,7 @@ export function parseAssistantCommand(body: unknown): AssistantCommand {
       only(body, ['action', 'teamId', 'cardId', 'clientKey', 'timezone']);
       return { action: 'review', teamId, cardId: body.cardId == null ? null : id(body.cardId), clientKey: body.clientKey, timezone };
     case 'undo':
-      only(body, ['action', 'teamId', 'commandId', 'clientKey']);
+      only(body, ['action', 'teamId', 'commandId', 'clientKey', 'timezone']);
       return { action: 'undo', teamId, commandId: id(body.commandId), clientKey: body.clientKey };
     default:
       invalid();
@@ -425,7 +425,9 @@ export async function sendMessage(command: Extract<AssistantCommand, { action: '
     };
     await status(deps, commandId, 'executing', null, interpreted.model, stored);
     const result = await runPlan(deps, command.teamId, commandId, stored, canSaveDefaults, interpreted.model);
-    await settleCredits(deps.serviceRpc, opKey);
+    // A plan refused before any write (too large, nothing resolvable) costs nothing.
+    if (result.status === 'rejected') await giveBack();
+    else await settleCredits(deps.serviceRpc, opKey);
     return { commandId, replayed: false, message: await reply(deps, commandId, result.text, result.cards), credits: await credits(deps) };
   } catch (error) {
     // Nothing reached the person: give the credits back. A write that did land is kept and keyed.

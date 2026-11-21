@@ -23,11 +23,11 @@
 
 ## Фаза 3 · Історії 2, 3, 5 — щоденна користь
 
-- [ ] T014 `question.answer`, `update_fields` з expected version і `EDIT_CONFLICT`. Порядкові посилання за `contextCardId`. `tests/assistant-context.test.ts`: три формулювання історії 2, рівно 2 змінені поля, відповідь кнопкою без Claude, дві вкладки з наборами А і Б («у другому» змінює рядок набору А). FR-007 FR-009 SC-002 SC-003
-- [ ] T015 `supabase/functions/assistant/review.ts`: «мої на сьогодні» за `created_by` і датою в поясі запуску, `limit 101`, версії, неготові з причиною. FR-012 FR-014
-- [ ] T016 `review.launch` → приймання пакета 053 (`drive-ops/launch-batch.ts`) з версіями рядків і ключем; `REVIEW_CHANGED`; повтор → той самий `batchId`. `tests/assistant-launch.test.ts` + pgTAP. FR-013 FR-015 SC-004 SC-009 (0 викликів Claude на перегляд, запуск, повтор)
+- [X] T014 `question.answer`, `update_fields` з expected version і `EDIT_CONFLICT`. Порядкові посилання за `contextCardId`. `tests/assistant-context.test.ts`: три формулювання історії 2, рівно 2 змінені поля, відповідь кнопкою без Claude, дві вкладки з наборами А і Б («у другому» змінює рядок набору А). FR-007 FR-009 SC-002 SC-003
+- [X] T015 `supabase/functions/assistant/review.ts`: «мої на сьогодні» за `created_by` і датою в поясі запуску, `limit 101`, версії, неготові з причиною. FR-012 FR-014
+- [X] T016 `review.launch` → приймання пакета 053 (`drive-ops/launch-batch.ts`) з версіями рядків і ключем; `REVIEW_CHANGED`; повтор → той самий `batchId`. `tests/assistant-launch.test.ts` + pgTAP. FR-013 FR-015 SC-004 SC-009 (0 викликів Claude на перегляд, запуск, повтор)
 - [X] T017 Веб: картка перегляду з «Запустити N», картка стану з доменних квитанцій. `tests/assistant-launch-ui.test.tsx`: зміна в іншій вкладці, північ між показом і натисканням, обрив, 4 з 5 готових. FR-016 SC-004
-- [ ] T018 `supabase/functions/assistant/undo.ts` + транзакційна RPC відкату ефектів. Відкат правок по полях. `tests/assistant-undo.test.ts`: 70 → 70; 3 змінено й 2 запущено → 65 + звіт; помічник змінив бюджет, людина — нотатку → бюджет повернуто, нотатку збережено; повтор — один ефект. FR-017 SC-006
+- [X] T018 `supabase/functions/assistant/undo.ts` + транзакційна RPC відкату ефектів. Відкат правок по полях. `tests/assistant-undo.test.ts`: 70 → 70; 3 змінено й 2 запущено → 65 + звіт; помічник змінив бюджет, людина — нотатку → бюджет повернуто, нотатку збережено; повтор — один ефект. FR-017 SC-006
 - [X] T019 Веб: «Скасувати» на картці результату, звіт «скасовано / лишилось з причиною». FR-017
 - [ ] T020 Чекпоінт: історії 1, 2, 3, 5 на локальній beta з підміною провайдера через браузер.
 
@@ -39,9 +39,9 @@
 
 ## Фаза 5 · Історії 4 і 6
 
-- [ ] T024 `create_drafts` з `perAccount`, `overrides`, `dates` (`each_day:N`), межі 100/1000 до першого запису, недоступна опція з причиною. `tests/assistant-multi-account.test.ts`: G1–G5 × 5 кампаній, винятки G1/G3, R2 недоступний, 14 днів. FR-005 FR-006 SC-005
+- [X] T024 `create_drafts` з `perAccount`, `overrides`, `dates` (`each_day:N`), межі 100/1000 до першого запису, недоступна опція з причиною. `tests/assistant-multi-account.test.ts`: G1–G5 × 5 кампаній, винятки G1/G3, R2 недоступний, 14 днів. FR-005 FR-006 SC-005
 - [ ] T025 `tests/assistant-launch-parity.test.ts`: для кожного поля рівня 1 створення й правка текстом проти ручного введення дають ту саму збережену чернетку. Поля рівня 2 вмикаються в реєстрі по одному разом зі своїм тестом. FR-008 SC-007
-- [ ] T026 `save_offer_defaults` завжди як пропозиція → `profile.confirm` → запис через T008, залежні кроки чекають підтвердження, ланцюжки `step:n` / `copy_of`. `tests/assistant-default-chain.test.ts`: одна репліка і три, «це» з двох джерел, без `manage_metadata`, збій після двох із трьох чернеток. FR-010 FR-011 SC-008
+- [X] T026 `save_offer_defaults` завжди як пропозиція → `profile.confirm` → запис через T008, залежні кроки чекають підтвердження, ланцюжки `step:n` / `copy_of`. `tests/assistant-default-chain.test.ts`: одна репліка і три, «це» з двох джерел, без `manage_metadata`, збій після двох із трьох чернеток. FR-010 FR-011 SC-008
 - [X] T027 Веб: картка підтвердження профілю «офер · поле · було → буде». FR-010
 
 ## Фаза 6 · Історії 8 і 9, модель
