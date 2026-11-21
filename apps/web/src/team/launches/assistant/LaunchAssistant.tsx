@@ -124,7 +124,8 @@ export function LaunchAssistant({ teamId, canEdit, onOpenLaunch, onLaunch, onCha
   }, [teamId, canEdit]);
 
   useEffect(() => {
-    list.current?.lastElementChild?.scrollIntoView({ block: 'nearest' });
+    const last = list.current?.lastElementChild as HTMLElement | null | undefined;
+    if (last && typeof last.scrollIntoView === 'function') last.scrollIntoView({ block: 'nearest' });
   }, [messages.length]);
 
   // The card the person is looking at: the one they pressed, else the newest card with rows.
