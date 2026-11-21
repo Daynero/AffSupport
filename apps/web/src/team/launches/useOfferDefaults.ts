@@ -4,23 +4,16 @@ import {
   fitCatalogToCreatives,
   launchDefaultValues,
   launchValuesEqual,
+  resolveLaunchDefaults,
   type LaunchDraft
 } from '@video-compressor/shared';
 import { launchApi } from '../../api/team';
 import { observeLaunchDefaults } from '../../analytics/launch-defaults';
-import { newLaunchDraft } from './launchDraftDefaults';
+import { launchBrowserTimezone } from './launchTimezone';
 
 type Profile = Awaited<ReturnType<typeof launchApi.defaults>>;
 export function resolvedLaunchDefaults(profile: Profile): LaunchDraft {
-  const next = {
-    ...launchDefaultValues(newLaunchDraft()),
-    ...launchDefaultValues(profile?.config ?? {}),
-    ...(profile ? { subConfig: profile.subConfig } : {})
-  };
-  // Older profiles used max/count allocation, not today's explicit minimum.
-  if (profile && profile.config.minBudget === undefined && profile.config.maxBudget !== undefined)
-    delete next.minBudget;
-  return next;
+  return resolveLaunchDefaults(profile, new Date(), launchBrowserTimezone());
 }
 
 export function useOfferDefaults({
