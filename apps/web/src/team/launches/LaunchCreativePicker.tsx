@@ -447,6 +447,14 @@ export function LaunchCreativePicker({
                 : t('launchesSelectCreative')
             }
             single={!catalogMode}
+            // A video and a picture cannot share a Launch: once one kind is ticked the other
+            // is shown unavailable, not accepted and then refused with the whole choice.
+            unavailableWith={(material, chosen) => {
+              if (!catalogMode || chosen.length === 0) return null;
+              const first = kindOf(chosen[0]!.category);
+              const own = kindOf(material.category);
+              return first && own && first !== own ? t('launchCreativesMixed') : null;
+            }}
             attachedMaterialIds={new Set(catalogMode ? creatives.map(c => c.materialId) : [])}
             accept={material => {
               if (material.kind !== 'file') return false;
