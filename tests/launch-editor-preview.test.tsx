@@ -141,7 +141,9 @@ it('keeps incomplete URL neutral until edited, then explains validation errors',
   fireEvent.change(url, { target: { value: 'https://example.invalid/?sub1=a&sub2=b&sub3=c' } });
   expect(document.querySelector('.launch-editor-url-warning')).toBe(notice);
   expect(notice?.textContent).toBe('');
-  expect(notice?.getAttribute('data-reserve')).toContain('SUB1, SUB2, SUB3');
+  // No line is held for a notice that is not there (next QA 2026-11-21): the empty live
+  // region stays in place, so the next notice is still announced.
+  expect(notice?.hasAttribute('data-reserve')).toBe(false);
 });
 
 it('names the pixel the launch link carries above the field, and nothing when it has none', () => {

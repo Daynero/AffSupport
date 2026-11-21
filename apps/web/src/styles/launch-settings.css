@@ -86,14 +86,19 @@
   white-space: nowrap;
   user-select: text;
 }
+/* The link starts on the same line as the creative beside it and is as tall: it was set in a
+   72px box and centred, a step below the drop zone (next QA 2026-11-21). */
 .launch-editor-link-field .ui-field-control {
   display: flex;
-  align-items: center;
-  min-height: calc(var(--space-6) * 3);
+  align-items: flex-start;
+}
+.launch-editor-compact .launch-creative-drop {
+  min-height: var(--control-height-lg);
 }
 .launch-editor-url {
   width: 100%;
-  min-height: 0;
+  min-height: var(--control-height-lg);
+  padding-block: calc((var(--control-height-lg) - 1lh) / 2 - 1px);
   max-height: calc(var(--space-6) * 5);
   overflow-y: auto;
   resize: none;
@@ -276,6 +281,15 @@
 }
 .launch-editor-sub-accordion .ui-accordion-item {
   min-width: 0;
+}
+/* «Підстановка значень у посилання» is a shelf of its own, drawn like the catalog's: it read
+   as loose text between the link and «Кампанії» (next QA 2026-11-21). */
+.launch-editor-compact .launch-editor-sub-accordion {
+  margin-top: var(--space-1);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-subtle);
 }
 .launch-editor-sub-accordion .ui-accordion-aside {
   min-width: 0;

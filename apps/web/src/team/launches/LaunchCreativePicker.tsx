@@ -381,7 +381,7 @@ export function LaunchCreativePicker({
         <div
           className={
             compactDrop
-              ? `flex min-h-10 min-w-0 items-center gap-2 rounded-control border border-dashed px-3 text-caption text-ink-muted ${
+              ? `launch-creative-drop flex min-h-10 min-w-0 items-center gap-2 rounded-control border border-dashed px-3 text-caption text-ink-muted ${
                   dragging ? 'border-secondary-border bg-secondary-soft' : 'border-neutral-border'
                 }`
               : 'launch-creative-field'

@@ -1116,14 +1116,10 @@
   color: var(--color-warning-text);
   font-size: var(--text-caption);
 }
-/* Reserve the longest localized notice at the current width, including zoom/wrapping. */
-.launch-editor-url-warning::before {
-  content: attr(data-reserve);
-  visibility: hidden;
-  grid-area: 1 / 1;
-}
-.launch-editor-url-warning > span {
-  grid-area: 1 / 1;
+/* No notice, no room: a line reserved for it stood empty under every link (next QA
+   2026-11-21). The live region stays in the document, so the notice is still announced. */
+.launch-editor-url-warning:has(> span:empty) {
+  margin-top: calc(var(--space-3) * -1);
 }
 .launch-editor-sub-content {
   display: flex;

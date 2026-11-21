@@ -586,12 +586,7 @@ export function LaunchEditor({
                   true,
                   'launchesUrlHelp'
                 )}
-                <p
-                  className="launch-editor-url-warning"
-                  role="status"
-                  aria-live="polite"
-                  data-reserve={t('launchesSubNotFound', { slots: 'SUB1, SUB2, SUB3' })}
-                >
+                <p className="launch-editor-url-warning" role="status" aria-live="polite">
                   <span>
                     {missingSubSlots.length > 0
                       ? t('launchesSubNotFound', {
