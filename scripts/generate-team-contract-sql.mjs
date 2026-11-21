@@ -28,6 +28,7 @@ import {
   CATALOG_VIDEO_R2_ERROR_CODES,
   LAUNCH_CREATIVE_ERROR_CODES,
   TEAM_TRANSLATION_ERROR_CODES,
+  TEAM_ASSISTANT_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
   TEAM_MATERIAL_LIFECYCLES,
@@ -80,7 +81,9 @@ const extensionCodes = new Set([
   // 062: a hand-written additive batch, like the global image codes.
   ...LAUNCH_CREATIVE_ERROR_CODES,
   // 063: transcript translation, hand-written the same way.
-  ...TEAM_TRANSLATION_ERROR_CODES
+  ...TEAM_TRANSLATION_ERROR_CODES,
+  // 064: credits and the launch assistant, hand-written the same way.
+  ...TEAM_ASSISTANT_ERROR_CODES
 ]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
 if (
@@ -105,7 +108,8 @@ if (
       GLOBAL_CATALOG_IMAGE_ERROR_CODES.length +
       CATALOG_VIDEO_R2_ERROR_CODES.length +
       LAUNCH_CREATIVE_ERROR_CODES.length +
-      TEAM_TRANSLATION_ERROR_CODES.length
+      TEAM_TRANSLATION_ERROR_CODES.length +
+      TEAM_ASSISTANT_ERROR_CODES.length
 )
   fail('Duplicate team error code');
 

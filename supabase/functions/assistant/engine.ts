@@ -1,0 +1,652 @@
+/**
+ * The launch assistant's executor (064). Pure apart from the injected RPC callers.
+ *
+ * A checked plan becomes ordinary drafts through the existing commands, called with the person's
+ * own token (their rights, their request keys). Every reference is resolved before the first
+ * write: an ambiguous one becomes a question and nothing is written; a missing one is reported
+ * and the unambiguous rest is saved. Every write is keyed, recorded as an effect for «Скасувати»,
+ * and described by a card the server builds from the stored rows.
+ */
+// @deno-types="../../../packages/shared/dist/team/assistant.d.ts"
+import {
+  ASSISTANT_MAX_CAMPAIGNS,
+  ASSISTANT_MAX_DRAFTS,
+  assistantUrlSlot,
+  matchAssistantName,
+  type AssistantAction,
+  type AssistantCandidate,
+  type AssistantFieldChange,
+  type AssistantPlan,
+  type AssistantRow
+} from '../../../packages/shared/dist/team/assistant.js';
+// @deno-types="../../../packages/shared/dist/team/assistant-apply.d.ts"
+import {
+  applyAssistantChange,
+  assistantBlockedFields,
+  type ResolvedMaterial
+} from '../../../packages/shared/dist/team/assistant-apply.js';
+// @deno-types="../../../packages/shared/dist/team/launches/defaults-merge.d.ts"
+import {
+  isLaunchDefaultPath,
+  launchDayInZone,
+  newDraftFromDefaults,
+  readLaunchPath,
+  type LaunchDefaultPath,
+  type LaunchDefaultsProfile
+} from '../../../packages/shared/dist/team/launches/defaults-merge.js';
+// @deno-types="../../../packages/shared/dist/team/launches/fields.d.ts"
+import { launchField } from '../../../packages/shared/dist/team/launches/fields.js';
+import type { Rpc } from '../_shared/ai-allowance.ts';
+import { isRecord } from '../_shared/validation.ts';
+
+type Draft = Record<string, unknown>;
+
+export interface EngineDeps {
+  userId: string;
+  teamId: string;
+  commandId: string;
+  callerRpc: Rpc;
+  serviceRpc: Rpc;
+  now: Date;
+  timezone: string;
+  urls: string[];
+  /** Answers already given to questions of this command: written reference → id. */
+  choices: Record<string, string>;
+  /** Rows of the card the person is looking at, by 1-based position. */
+  shown: AssistantRow[];
+}
+
+export interface Card {
+  kind: 'result' | 'question' | 'review' | 'profile' | 'refusal' | 'status';
+  payload: Record<string, unknown>;
+}
+
+export type EngineOutcome =
+  | { kind: 'question'; card: Card; pending: { ref: RefKey; options: AssistantCandidate[] } }
+  | { kind: 'done'; cards: Card[]; status: 'done' | 'partial'; deferred: AssistantAction[] }
+  | { kind: 'rejected'; code: string };
+
+type RefKind = 'offer' | 'buyer' | 'account' | 'material';
+export type RefKey = `${RefKind}:${string}`;
+
+interface Names {
+  offers: AssistantCandidate[];
+  buyers: AssistantCandidate[];
+  accounts: AssistantCandidate[];
+}
+
+class EngineRefusal extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+function rpcCode(error: { message?: string; code?: string } | null): string {
+  const text = `${error?.message ?? ''} ${error?.code ?? ''}`;
+  return text.match(/[A-Z][A-Z0-9_]{3,}/u)?.[0] ?? 'UNAVAILABLE';
+}
+
+async function call(rpc: Rpc, name: string, args: Record<string, unknown>): Promise<unknown> {
+  const { data, error } = await rpc(name, args);
+  if (error) throw new EngineRefusal(rpcCode(error));
+  return data;
+}
+
+export async function loadNames(deps: Pick<EngineDeps, 'callerRpc' | 'teamId'>): Promise<Names> {
+  const dictionaries = await call(deps.callerRpc, 'list_launch_dictionaries', { p_team: deps.teamId });
+  const rows = (value: unknown): AssistantCandidate[] =>
+    Array.isArray(value)
+      ? value.flatMap(item =>
+          isRecord(item) && typeof item.id === 'string' && typeof item.value === 'string' && !item.archivedAt && !item.archived_at
+            ? [{ id: item.id, name: item.value }]
+            : []
+        )
+      : [];
+  const accounts = await call(deps.callerRpc, 'list_team_accounts', { p_team: deps.teamId });
+  const agents: AssistantCandidate[] = [];
+  if (Array.isArray(accounts)) {
+    for (const account of accounts) {
+      if (!isRecord(account) || !Array.isArray(account.agents)) continue;
+      for (const agent of account.agents) {
+        if (isRecord(agent) && typeof agent.id === 'string' && typeof agent.agent_id === 'string' && !agent.archived_at)
+          agents.push({ id: agent.id, name: agent.agent_id });
+      }
+    }
+  }
+  const dict = isRecord(dictionaries) ? dictionaries : {};
+  return { offers: rows(dict.offers), buyers: rows(dict.buyers), accounts: agents };
+}
+
+async function searchMaterials(deps: EngineDeps, written: string): Promise<AssistantCandidate[]> {
+  const found = new Map<string, AssistantCandidate & { kind: 'video' | 'image' }>();
+  const queries = [written.trim(), written.replace(/[^0-9]+/gu, ' ').trim()].filter(Boolean);
+  for (const query of [...new Set(queries)].slice(0, 2)) {
+    const data = await call(deps.callerRpc, 'search_materials', {
+      p_team: deps.teamId,
+      p_query: query,
+      p_filters: {},
+      p_page: 1,
+      p_page_size: 50
+    });
+    const items = isRecord(data) && Array.isArray(data.items) ? data.items : [];
+    for (const item of items) {
+      if (!isRecord(item) || typeof item.id !== 'string' || typeof item.name !== 'string') continue;
+      const mime = typeof item.mime_type === 'string' ? item.mime_type : typeof item.mimeType === 'string' ? item.mimeType : '';
+      const kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : null;
+      if (kind) found.set(item.id, { id: item.id, name: item.name, kind });
+    }
+  }
+  return [...found.values()];
+}
+
+/** Every reference of the plan, in order of first appearance. */
+function references(plan: AssistantPlan): RefKey[] {
+  const refs: RefKey[] = [];
+  const add = (key: RefKey) => {
+    if (!refs.includes(key)) refs.push(key);
+  };
+  const fields = (changes: AssistantFieldChange[]) => {
+    for (const change of changes) {
+      if (change.field === 'buyerId' && typeof change.value === 'string') add(`buyer:${change.value}`);
+      if (change.field === 'agentRowId' && typeof change.value === 'string') add(`account:${change.value}`);
+      if (change.field === 'offerId' && typeof change.value === 'string') add(`offer:${change.value}`);
+      if (change.field === 'creatives') {
+        const list = Array.isArray(change.value) ? change.value : [change.value];
+        for (const item of list) if (typeof item === 'string') add(`material:${item}`);
+      }
+    }
+  };
+  for (const action of plan.actions) {
+    if (action.offer) add(`offer:${action.offer}`);
+    for (const account of action.accounts) add(`account:${account}`);
+    fields(action.fields);
+    for (const override of action.overrides) {
+      add(`account:${override.account}`);
+      fields(override.fields);
+    }
+  }
+  return refs;
+}
+
+export interface Resolution {
+  ids: Map<RefKey, string>;
+  names: Map<string, string>;
+  materials: Map<string, ResolvedMaterial>;
+  missing: Array<{ field: string; written: string; code: string }>;
+}
+
+/** Resolves every reference, or returns the first ambiguous one as a question. */
+export async function resolvePlan(
+  plan: AssistantPlan,
+  deps: EngineDeps,
+  names: Names
+): Promise<{ ok: true; resolution: Resolution } | { ok: false; ref: RefKey; options: AssistantCandidate[] }> {
+  const resolution: Resolution = { ids: new Map(), names: new Map(), materials: new Map(), missing: [] };
+  for (const ref of references(plan)) {
+    const [kind, ...rest] = ref.split(':') as [RefKind, ...string[]];
+    const written = rest.join(':');
+    const chosen = deps.choices[ref];
+    const pool =
+      kind === 'offer' ? names.offers : kind === 'buyer' ? names.buyers : kind === 'account' ? names.accounts : null;
+    if (kind === 'material') {
+      const candidates = await searchMaterials(deps, written);
+      const match = chosen
+        ? candidates.find(c => c.id === chosen)
+        : (() => {
+            const result = matchAssistantName(written, candidates);
+            if (result.kind === 'many') return result.candidates;
+            return result.kind === 'one' ? result.candidate : null;
+          })();
+      if (Array.isArray(match)) return { ok: false, ref, options: match };
+      if (!match) {
+        resolution.missing.push({ field: 'creatives', written, code: 'MATERIAL_NOT_FOUND' });
+        continue;
+      }
+      const kindOf = (match as AssistantCandidate & { kind?: 'video' | 'image' }).kind ?? 'video';
+      resolution.ids.set(ref, match.id);
+      resolution.names.set(match.id, match.name);
+      resolution.materials.set(written, { materialId: match.id, name: match.name, kind: kindOf });
+      continue;
+    }
+    const candidates = pool ?? [];
+    let id: string | null = null;
+    if (chosen && candidates.some(c => c.id === chosen)) id = chosen;
+    else {
+      const result = matchAssistantName(written, candidates);
+      if (result.kind === 'many') return { ok: false, ref, options: result.candidates };
+      if (result.kind === 'one') id = result.candidate.id;
+    }
+    if (!id) {
+      resolution.missing.push({
+        field: kind === 'offer' ? 'offerId' : kind === 'buyer' ? 'buyerId' : 'agentRowId',
+        written,
+        code: kind === 'offer' ? 'OFFER_NOT_FOUND' : kind === 'account' ? 'ACCOUNT_NOT_FOUND' : 'NOT_FOUND'
+      });
+      continue;
+    }
+    resolution.ids.set(ref, id);
+    resolution.names.set(id, candidates.find(c => c.id === id)?.name ?? written);
+  }
+  return { ok: true, resolution };
+}
+
+function dateList(action: AssistantAction, deps: EngineDeps): Array<string | null> {
+  const d = action.dates;
+  if (!d) return [null];
+  const today = launchDayInZone(deps.now, deps.timezone, 0);
+  if (d.kind === 'today') return [today];
+  if (d.kind === 'tomorrow') return [launchDayInZone(deps.now, deps.timezone, 1)];
+  if (d.kind === 'date') return [d.date];
+  const first = d.date ?? today;
+  const start = new Date(`${first}T12:00:00Z`);
+  return Array.from({ length: d.days ?? 1 }, (_, index) => {
+    const day = new Date(start.getTime() + index * 86_400_000);
+    return day.toISOString().slice(0, 10);
+  });
+}
+
+async function profiles(deps: EngineDeps, offerId: string | null): Promise<{
+  offer: LaunchDefaultsProfile | null;
+  workspace: LaunchDefaultsProfile | null;
+}> {
+  const read = async (name: string, args: Record<string, unknown>) => {
+    const data = await call(deps.callerRpc, name, args);
+    if (data === null) return null;
+    if (!isRecord(data) || !isRecord(data.config) || !isRecord(data.subConfig) || typeof data.version !== 'string')
+      throw new EngineRefusal('UNAVAILABLE');
+    return data as unknown as LaunchDefaultsProfile;
+  };
+  const offer = offerId ? await read('get_launch_offer_defaults', { p_team: deps.teamId, p_offer: offerId }) : null;
+  const workspace = offer ? null : await read('get_launch_defaults', { p_team: deps.teamId });
+  return { offer, workspace };
+}
+
+function refsFor(resolution: Resolution, change: AssistantFieldChange, deps: EngineDeps, offerId?: string) {
+  const id = (kind: RefKind, value: unknown) =>
+    typeof value === 'string' ? resolution.ids.get(`${kind}:${value}`) : undefined;
+  const list = Array.isArray(change.value) ? change.value : [change.value];
+  const materials = list.flatMap(item => {
+    const material = typeof item === 'string' ? resolution.materials.get(item) : undefined;
+    return material ? [material] : [];
+  });
+  return {
+    offerId: change.field === 'offerId' ? id('offer', change.value) : offerId,
+    buyerId: id('buyer', change.value),
+    agentRowId: id('account', change.value),
+    materials,
+    url: assistantUrlSlot(change.value, deps.urls) ?? undefined
+  };
+}
+
+/** Applies changes to a draft; failures are reported per field, never replaced by defaults. */
+function applyChanges(
+  draft: Draft,
+  changes: AssistantFieldChange[],
+  resolution: Resolution,
+  deps: EngineDeps,
+  problems: Array<{ field: string; written: string; code: string }>
+): Draft {
+  let next = draft;
+  for (const change of changes) {
+    if (change.field === 'creatives') {
+      const list = Array.isArray(change.value) ? change.value : [change.value];
+      if (list.every(item => typeof item === 'string' && !resolution.materials.has(item))) continue;
+    }
+    const result = applyAssistantChange(next as never, change, {
+      now: deps.now,
+      timezone: deps.timezone,
+      refs: refsFor(resolution, change, deps)
+    });
+    if (result.ok) next = result.draft as Draft;
+    else if (result.code !== 'UNRESOLVED')
+      problems.push({ field: change.field, written: String(change.value ?? ''), code: result.code });
+  }
+  return next;
+}
+
+function requestKey(deps: EngineDeps, step: number, row: string): string {
+  return `asst-${deps.commandId.replace(/-/gu, '')}-${step}-${row}`.slice(0, 200);
+}
+
+async function recordEffect(
+  deps: EngineDeps,
+  input: {
+    step: number;
+    row: string;
+    kind: 'draft_created' | 'draft_updated' | 'defaults_saved';
+    launchId?: string | null;
+    offerId?: string | null;
+    before?: string | null;
+    after?: string | null;
+    fields?: Array<{ path: string; before: unknown; after: unknown }>;
+  }
+): Promise<void> {
+  await call(deps.serviceRpc, 'service_assistant_effect', {
+    p_command: deps.commandId,
+    p_step: input.step,
+    p_row_key: input.row,
+    p_kind: input.kind,
+    p_launch: input.launchId ?? null,
+    p_offer: input.offerId ?? null,
+    p_version_before: input.before ?? null,
+    p_version_after: input.after ?? null,
+    p_fields: input.fields ?? []
+  });
+}
+
+function budgetText(config: Draft): string | null {
+  const mode = config.budgetMode;
+  if (mode === 'single' && typeof config.maxBudget === 'number') return `${config.maxBudget}`;
+  if (mode === 'manual' && Array.isArray(config.budgets)) return (config.budgets as number[]).join(' / ');
+  if (typeof config.maxBudget === 'number')
+    return typeof config.minBudget === 'number' ? `${config.minBudget}–${config.maxBudget}` : `≤${config.maxBudget}`;
+  return null;
+}
+
+/** Card rows from stored launches, in the order given. */
+export async function cardRows(deps: Pick<EngineDeps, 'serviceRpc' | 'userId' | 'teamId'>, ids: string[] | null, date: string | null): Promise<{ rows: AssistantRow[]; truncated: boolean }> {
+  const data = await call(deps.serviceRpc, 'service_assistant_rows', {
+    p_user: deps.userId,
+    p_team: deps.teamId,
+    p_ids: ids,
+    p_date: date
+  });
+  const list = Array.isArray(data) ? data : [];
+  const truncated = list.length > ASSISTANT_MAX_DRAFTS;
+  const rows = list.slice(0, ASSISTANT_MAX_DRAFTS).flatMap((item, index): AssistantRow[] => {
+    if (!isRecord(item) || typeof item.id !== 'string' || typeof item.version !== 'string') return [];
+    const config = isRecord(item.config) ? item.config : {};
+    const names = new Map<string, string>();
+    if (Array.isArray(item.materials))
+      for (const m of item.materials) if (isRecord(m) && typeof m.id === 'string' && typeof m.name === 'string') names.set(m.id, m.name);
+    const creatives = Array.isArray(config.creatives)
+      ? (config.creatives as unknown[]).flatMap(c => (isRecord(c) && typeof c.materialId === 'string' ? [names.get(c.materialId) ?? String(c.alias ?? '')] : []))
+      : typeof config.materialId === 'string'
+        ? [names.get(config.materialId) ?? String(config.creativeAlias ?? '')]
+        : [];
+    const catalog = isRecord(config.catalog) ? config.catalog : null;
+    const generation = typeof item.generationState === 'string' ? item.generationState : null;
+    return [
+      {
+        n: index + 1,
+        launchId: item.id,
+        version: item.version,
+        account: typeof item.account === 'string' ? item.account : null,
+        offer: typeof item.offer === 'string' ? item.offer : null,
+        creatives,
+        launchDate: typeof config.launchDate === 'string' ? config.launchDate : null,
+        campaignCount: typeof config.campaignCount === 'number' ? config.campaignCount : null,
+        productCount: catalog && typeof catalog.productCount === 'number' ? catalog.productCount : null,
+        budget: budgetText(config),
+        url: typeof config.originalUrl === 'string' && config.originalUrl.length > 0,
+        r2: catalog ? catalog.copyVideoToR2 === true : null,
+        blocked: [
+          ...(generation && !['failed', 'canceled'].includes(generation) ? [{ field: 'generation', code: 'LAUNCHED' }] : []),
+          ...assistantBlockedFields(config as never)
+        ]
+      }
+    ];
+  });
+  return { rows, truncated };
+}
+
+async function createDrafts(
+  action: AssistantAction,
+  step: number,
+  deps: EngineDeps,
+  resolution: Resolution,
+  problems: Array<{ field: string; written: string; code: string }>,
+  differences: Array<{ field: string; from: string | null; to: string }>,
+  created: string[]
+): Promise<void> {
+  const offerId = action.offer ? resolution.ids.get(`offer:${action.offer}`) ?? null : null;
+  const accounts = action.accounts.length
+    ? action.accounts.map(written => ({ written, id: resolution.ids.get(`account:${written}`) ?? null }))
+    : [{ written: null as string | null, id: null as string | null }];
+  const dates = dateList(action, deps);
+  const count = action.count ?? 1;
+  const total = accounts.length * dates.length * count;
+  if (total > ASSISTANT_MAX_DRAFTS) throw new EngineRefusal('PLAN_TOO_LARGE');
+  let base: Draft;
+  if (action.base === 'copy_of_row' && action.baseRow) {
+    const row = deps.shown[action.baseRow - 1];
+    if (!row) throw new EngineRefusal('NO_CONTEXT_CARD');
+    const detail = await call(deps.callerRpc, 'get_launch', { p_team: deps.teamId, p_launch: row.launchId, p_revision: null });
+    base = isRecord(detail) && isRecord(detail.draft) ? structuredClone(detail.draft) : {};
+  } else {
+    const profile = await profiles(deps, offerId);
+    base = newDraftFromDefaults({ ...profile, now: deps.now, timezone: deps.timezone }).draft as Draft;
+    const profileConfig = (profile.offer ?? profile.workspace)?.config ?? {};
+    for (const change of action.fields) {
+      const field = launchField(change.field);
+      if (!field || !field.profile || !isLaunchDefaultPath(change.field)) continue;
+      const before = readLaunchPath(profileConfig as never, change.field as LaunchDefaultPath);
+      if (before !== undefined && JSON.stringify(before) !== JSON.stringify(change.value) && change.op === 'set' && !String(change.value).startsWith('⟦url'))
+        differences.push({ field: change.field, from: JSON.stringify(before), to: JSON.stringify(change.value) });
+    }
+  }
+  if (offerId) base.offerId = offerId;
+  let campaigns = 0;
+  let row = 0;
+  for (const account of accounts) {
+    for (const day of dates) {
+      for (let copy = 0; copy < count; copy++) {
+        let draft: Draft = structuredClone(base);
+        if (account.id) draft.agentRowId = account.id;
+        if (day) {
+          draft.launchDate = day;
+          draft.timezone = draft.timezone ?? deps.timezone;
+        }
+        draft = applyChanges(draft, action.fields, resolution, deps, problems);
+        for (const override of action.overrides) {
+          if (account.written && matchAssistantName(override.account, [{ id: 'x', name: account.written }]).kind === 'one')
+            draft = applyChanges(draft, override.fields, resolution, deps, problems);
+        }
+        campaigns += typeof draft.campaignCount === 'number' ? draft.campaignCount : 0;
+        if (campaigns > ASSISTANT_MAX_CAMPAIGNS) throw new EngineRefusal('PLAN_TOO_LARGE');
+        const key = requestKey(deps, step, `r${row}`);
+        const saved = await call(deps.callerRpc, 'save_launch_draft', {
+          p_team: deps.teamId,
+          p_launch: null,
+          p_expected_version: null,
+          p_request_key: key,
+          p_config: { schemaVersion: 1, ...draft },
+          p_expected_sources: null
+        });
+        if (!isRecord(saved) || typeof saved.id !== 'string') throw new EngineRefusal('UNAVAILABLE');
+        await recordEffect(deps, {
+          step,
+          row: `r${row}`,
+          kind: 'draft_created',
+          launchId: saved.id,
+          after: typeof saved.version === 'string' ? saved.version : null
+        });
+        created.push(saved.id);
+        row++;
+      }
+    }
+  }
+}
+
+async function updateRows(
+  action: AssistantAction,
+  step: number,
+  deps: EngineDeps,
+  resolution: Resolution,
+  problems: Array<{ field: string; written: string; code: string }>,
+  touched: string[]
+): Promise<void> {
+  if (deps.shown.length === 0) throw new EngineRefusal('NO_CONTEXT_CARD');
+  let targets = action.rows.length ? action.rows.map(n => deps.shown[n - 1]).filter(Boolean) as AssistantRow[] : deps.shown;
+  if (action.accounts.length)
+    targets = targets.filter(row => action.accounts.some(a => row.account && matchAssistantName(a, [{ id: 'x', name: row.account }]).kind === 'one'));
+  for (const target of targets) {
+    const detail = await call(deps.callerRpc, 'get_launch', { p_team: deps.teamId, p_launch: target.launchId, p_revision: null });
+    if (!isRecord(detail) || !isRecord(detail.draft) || typeof detail.version !== 'string') throw new EngineRefusal('UNAVAILABLE');
+    if (detail.version !== target.version) {
+      problems.push({ field: 'row', written: String(target.n), code: 'EDIT_CONFLICT' });
+      continue;
+    }
+    const before = detail.draft as Draft;
+    let next = applyChanges(before, action.fields, resolution, deps, problems);
+    for (const override of action.overrides) {
+      if (target.account && matchAssistantName(override.account, [{ id: 'x', name: target.account }]).kind === 'one')
+        next = applyChanges(next, override.fields, resolution, deps, problems);
+    }
+    if (JSON.stringify(next) === JSON.stringify(before)) continue;
+    const fields = Object.keys({ ...before, ...next })
+      .filter(key => JSON.stringify(before[key]) !== JSON.stringify(next[key]))
+      .map(path => ({ path, before: before[path] ?? null, after: next[path] ?? null }));
+    const saved = await call(deps.callerRpc, 'save_launch_draft', {
+      p_team: deps.teamId,
+      p_launch: target.launchId,
+      p_expected_version: target.version,
+      p_request_key: requestKey(deps, step, `u${target.n}`),
+      p_config: next,
+      p_expected_sources: isRecord(detail.expectedSourceSnapshot) ? detail.expectedSourceSnapshot : null
+    });
+    if (!isRecord(saved) || typeof saved.version !== 'string') throw new EngineRefusal('UNAVAILABLE');
+    await recordEffect(deps, {
+      step,
+      row: `u${target.n}`,
+      kind: 'draft_updated',
+      launchId: target.launchId,
+      before: target.version,
+      after: saved.version,
+      fields
+    });
+    touched.push(target.launchId);
+  }
+}
+
+async function proposeDefaults(action: AssistantAction, deps: EngineDeps, resolution: Resolution, canSave: boolean): Promise<Card> {
+  const offerId = action.offer ? resolution.ids.get(`offer:${action.offer}`) : undefined;
+  if (!offerId) throw new EngineRefusal('OFFER_NOT_FOUND');
+  if (!canSave) throw new EngineRefusal('DEFAULTS_FORBIDDEN');
+  const profile = await call(deps.callerRpc, 'get_launch_offer_defaults', { p_team: deps.teamId, p_offer: offerId });
+  const stored = isRecord(profile) && isRecord(profile.config) ? (profile.config as Draft) : {};
+  const sub = isRecord(profile) && isRecord(profile.subConfig) ? (profile.subConfig as Draft) : {};
+  const mask: string[] = [];
+  const before: Record<string, unknown> = {};
+  const values: Record<string, unknown> = {};
+  const changes: Array<{ field: string; from: string | null; to: string }> = [];
+  for (const change of action.fields) {
+    if (!isLaunchDefaultPath(change.field) || change.op !== 'set') continue;
+    let path: string = change.field;
+    let value: unknown = change.value;
+    // A profile without a catalog stores the whole object: the profile writer requires its core.
+    if (path.startsWith('catalog.') && !isRecord(stored.catalog)) {
+      const key = path.slice('catalog.'.length);
+      const fresh = newDraftFromDefaults({ offer: null, workspace: null, now: deps.now, timezone: deps.timezone }).draft as Draft;
+      path = 'catalog';
+      value = { ...(isRecord(values.catalog) ? values.catalog : (fresh.catalog as Draft)), [key]: change.value };
+    }
+    const current = path.startsWith('subConfig.') ? sub[path.slice('subConfig.'.length)] : readLaunchPath(stored as never, path as LaunchDefaultPath);
+    if (!mask.includes(path)) mask.push(path);
+    if (current !== undefined) before[path] = current;
+    values[path] = value;
+    changes.push({ field: change.field, from: current === undefined ? null : JSON.stringify(current), to: JSON.stringify(change.value) });
+  }
+  if (!mask.length) throw new EngineRefusal('FIELD_NOT_SUPPORTED');
+  return {
+    kind: 'profile',
+    payload: {
+      offerId,
+      offer: resolution.names.get(offerId) ?? action.offer ?? '',
+      changes,
+      mask,
+      before,
+      values
+    }
+  };
+}
+
+/**
+ * Runs a resolved plan. A profile proposal stops the plan: the actions after it wait for the
+ * person's «Зберегти» and run then, without a model.
+ */
+export async function executePlan(
+  plan: AssistantPlan,
+  deps: EngineDeps,
+  resolution: Resolution,
+  options: { canSaveDefaults: boolean }
+): Promise<EngineOutcome> {
+  const problems = [...resolution.missing];
+  const differences: Array<{ field: string; from: string | null; to: string }> = [];
+  const created: string[] = [];
+  const touched: string[] = [];
+  const cards: Card[] = [];
+  let deferred: AssistantAction[] = [];
+  try {
+    for (let step = 0; step < plan.actions.length; step++) {
+      const action = plan.actions[step]!;
+      if (action.type === 'create_drafts') await createDrafts(action, step, deps, resolution, problems, differences, created);
+      else if (action.type === 'update_fields') await updateRows(action, step, deps, resolution, problems, touched);
+      else if (action.type === 'save_offer_defaults') {
+        cards.push(await proposeDefaults(action, deps, resolution, options.canSaveDefaults));
+        deferred = plan.actions.slice(step + 1);
+        break;
+      } else if (action.type === 'show_review' || action.type === 'show_status') {
+        cards.push(await reviewCard(deps, action.dates?.kind === 'today' ? 'today' : created.length ? created : 'shown'));
+      } else if (action.type === 'ask' && action.question) {
+        cards.push({
+          kind: 'question',
+          payload: {
+            about: action.question.about,
+            source: 'model',
+            options: action.question.options.map((label, index) => ({ id: `o${index + 1}`, label }))
+          }
+        });
+      }
+    }
+  } catch (error) {
+    if (error instanceof EngineRefusal && created.length === 0 && touched.length === 0) {
+      return { kind: 'rejected', code: error.code };
+    }
+    if (!(error instanceof EngineRefusal)) throw error;
+    problems.push({ field: 'plan', written: '', code: error.code });
+  }
+  const ids = [...created, ...touched];
+  if (ids.length > 0) {
+    const { rows } = await cardRows(deps, ids, null);
+    cards.unshift({
+      kind: 'result',
+      payload: {
+        rows,
+        differences,
+        unresolved: problems,
+        profile: null,
+        campaigns: rows.reduce((sum, row) => sum + (row.campaignCount ?? 0), 0),
+        date: rows[0]?.launchDate ?? null
+      }
+    });
+  } else if (problems.length > 0) {
+    cards.unshift({ kind: 'result', payload: { rows: [], differences, unresolved: problems, profile: null, campaigns: 0, date: null } });
+  }
+  return { kind: 'done', cards, status: problems.length ? 'partial' : 'done', deferred };
+}
+
+/** The review card: the rows «Запустити N» would send, built from stored rows only. */
+export async function reviewCard(
+  deps: Pick<EngineDeps, 'serviceRpc' | 'userId' | 'teamId' | 'now' | 'timezone' | 'shown'>,
+  selector: 'today' | 'shown' | string[]
+): Promise<Card> {
+  const date = selector === 'today' ? launchDayInZone(deps.now, deps.timezone, 0) : null;
+  const ids = selector === 'today' ? null : selector === 'shown' ? deps.shown.map(row => row.launchId) : selector;
+  if (ids !== null && ids.length === 0) {
+    return { kind: 'review', payload: { date, timezone: deps.timezone, rows: [], ready: 0, truncated: false } };
+  }
+  const { rows, truncated } = await cardRows(deps, ids, date);
+  return {
+    kind: 'review',
+    payload: {
+      date,
+      timezone: deps.timezone,
+      rows,
+      ready: rows.filter(row => row.blocked.length === 0).length,
+      truncated
+    }
+  };
+}
+
+export { EngineRefusal };

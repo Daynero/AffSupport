@@ -63,6 +63,10 @@ verify_jwt = false
 [functions.transcript-translate]
 verify_jwt = false
 
+# Launch assistant (064): verifies the caller's JWT itself, like the space functions.
+[functions.assistant]
+verify_jwt = false
+
 # Per-action user JWT or scoped desktop credential is verified by the handler.
 [functions.team-recovery]
 verify_jwt = false

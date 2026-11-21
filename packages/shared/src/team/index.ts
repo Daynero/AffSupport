@@ -53,3 +53,5 @@ export * from './catalog-video-replacement.js';
 export * from './transcript-translation.js';
 export * from './ai-credits.js';
 export * from './launches/fields.js';
+export * from './assistant.js';
+export * from './assistant-apply.js';
