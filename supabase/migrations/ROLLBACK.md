@@ -3412,3 +3412,20 @@ back 20 MB and a second index write per journal record.
 current round. Rolling back is re-applying the body from `20261207177000` — then an update
 that fails the way the previous one did stays «в роботі» again until someone cancels it, as
 TR 84_v1 did on 2026-11-20. Attempts this branch closed stay closed; nothing to restore.
+
+## 20261222110000–20261222113000 — transcript translation through Claude (063)
+
+- `20261222110000_ai_allowance_and_usage` — additive: allowance, reservations and the model-call
+  ledger. Dropping `private.ai_allowance_reservations` loses who spent what today (every
+  allowance is full again until midnight); dropping `private.ai_usage_events` loses the cost
+  history the `ai-usage` CLI reports. The compatible rollback is a function release that stops
+  calling the model; the tables can stay. Changing the limit is an `update` of
+  `private.ai_feature_allowances`, never a migration rollback.
+- `20261222111000_transcript_translations` — additive. Dropping the table deletes every saved
+  translation (people pay again to get them back). Do not drop the `task_cleanup_reference_fence`
+  trigger while the table exists: `task_cleanup_coverage_verified` then answers false for the
+  whole database and attachment cleanup stops. Rolling back the web without the function leaves
+  the rows unread and harmless.
+- `20261222112000_translation_error_codes` — additive seed; codes stay (rows reference them).
+- `20261222113000_ai_usage_analytics` — views only; dropping them makes `ai-usage` report the
+  feature as unsupported, nothing else.

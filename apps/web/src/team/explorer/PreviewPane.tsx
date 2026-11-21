@@ -370,7 +370,10 @@ export function PreviewPane({
               videoId={row.id}
               onTranscribe={() => onTranscribe(row)}
               onRetranscribe={() => onTranscribe(row, { fresh: true })}
-              onCopied={() => push({ tone: 'success', text: t('teamTranscriptCopied') })}
+              videoName={row.name}
+              onCopied={variant =>
+                push({ tone: 'success', text: t('textTranslationCopied', { variant }) })
+              }
               compact
             />
           )}

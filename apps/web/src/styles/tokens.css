@@ -899,6 +899,10 @@
 :root {
   --catalog-disabled-opacity: 0.55;
   --catalog-manager-width: 1240px;
+  /* 063: transcript translation surfaces. */
+  --translation-launcher-width: 340px;
+  --video-text-viewer-width: 760px;
+  --video-text-viewer-height: 720px;
   --catalog-schedule-panel-scale: 0.825;
   --catalog-schedule-panel-height: 338.8px;
   --catalog-manager-height: 680px;

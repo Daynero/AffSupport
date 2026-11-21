@@ -348,6 +348,22 @@
       "note": "Absent means production, matching the web surface."
     },
     {
+      "name": "ANTHROPIC_API_KEY",
+      "surface": "functions",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "Claude API key from the Claude Console (never a Claude subscription login). Absent, transcript-translate answers TRANSLATION_UNAVAILABLE and reserves nothing."
+    },
+    {
+      "name": "SOTY_TRANSLATION_PROVIDER",
+      "surface": "functions",
+      "required": [],
+      "secret": false,
+      "format": "enum:fake|fake-refuse|fake-down",
+      "note": "Beta only: a deterministic stand-in for Claude so the translation UI can be checked without a key. Ignored unless SOTY_ENVIRONMENT=beta and ANTHROPIC_API_KEY is absent."
+    },
+    {
       "name": "PUBLIC_SITE_ORIGIN",
       "surface": "agent",
       "required": ["production"],

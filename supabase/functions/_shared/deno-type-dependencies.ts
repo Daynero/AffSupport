@@ -11,3 +11,4 @@ import '../../../packages/shared/dist/team/catalog-video-r2.d.ts';
 import '../../../packages/shared/dist/team/catalog-publication-source.d.ts';
 import '../../../packages/shared/dist/team/catalog-global-images.d.ts';
 import '../../../packages/shared/dist/team/catalog-global-alias.d.ts';
+import '../../../packages/shared/dist/team/transcript-translation.d.ts';

@@ -1,0 +1,190 @@
+/*
+ * 063 — transcript translation: the row of texts, the reader, the progress strip and the
+ * launcher. Names tokens only (docs/DESIGN.md); every value lives in tokens.css.
+ */
+
+.text-variant-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.text-variant-tabs .ui-tabs {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.text-variant-tabs .ui-tabs::-webkit-scrollbar {
+  display: none;
+}
+.text-variant-tabs .ui-tab-badge {
+  display: inline-flex;
+  align-items: center;
+}
+.text-variant-tabs .progress-ring {
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+}
+.text-variant-stale-dot {
+  display: inline-block;
+  inline-size: var(--space-2);
+  block-size: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-warning-solid);
+}
+
+.text-variant-reader {
+  display: grid;
+  gap: var(--space-2);
+  max-inline-size: var(--measure);
+  color: var(--color-text);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+.text-variant-reader p {
+  margin: 0;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--motion-base) var(--ease-fade);
+}
+.text-variant-reader p.is-active {
+  background: var(--color-secondary-softer);
+}
+
+.translation-progress {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-secondary-border);
+  border-radius: var(--radius-md);
+  background: var(--color-secondary-softer);
+  color: var(--color-text);
+  font-size: var(--text-caption);
+  animation: translation-progress-enter var(--motion-base) var(--ease-out-curve);
+}
+.translation-progress.is-compact {
+  padding: var(--space-1-5) var(--space-2);
+}
+.translation-progress-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.translation-progress-head svg,
+.translation-progress.is-failed svg {
+  flex: none;
+  color: var(--color-secondary-text);
+}
+.translation-progress-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.translation-progress-percent {
+  flex: none;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.translation-progress .ui-progress-fill {
+  transition: transform var(--motion-slow) var(--ease-out-curve);
+}
+.translation-progress.is-failed {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-color: var(--color-neutral-border);
+  background: var(--color-surface-muted);
+}
+.translation-progress.is-failed .translation-progress-text {
+  white-space: normal;
+}
+@keyframes translation-progress-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+}
+
+.translate-launcher {
+  display: inline-flex;
+}
+.translate-launcher-surface {
+  inline-size: min(var(--translation-launcher-width), calc(100vw - var(--space-6)));
+}
+.translate-launcher-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.translate-launcher-label {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.translate-launcher-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.translate-launcher-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.translate-launcher-cost {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  text-decoration: underline dotted;
+  text-underline-offset: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The space's text viewer: the row of texts above, the text in its own scroll, actions below. */
+.video-text-viewer {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  inline-size: min(var(--video-text-viewer-width), calc(100vw - var(--space-6)));
+  max-block-size: min(var(--video-text-viewer-height), calc(100vh - var(--space-6)));
+}
+.video-text-viewer-head {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.video-text-viewer-head h2 {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-section);
+}
+.video-text-viewer-body {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  overscroll-behavior: contain;
+}
+.video-text-viewer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.video-text-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.video-text-translating {
+  display: grid;
+  gap: var(--space-2);
+}

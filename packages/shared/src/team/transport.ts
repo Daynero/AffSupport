@@ -38,6 +38,16 @@ export const TEAM_PROCESS_ERROR_CODES = ['PROCESS_RESULT_UNCERTAIN'] as const;
 /** 046 additive retirement catalog, installed by the cutover migration. */
 export const TEAM_RETIREMENT_ERROR_CODES = ['FEATURE_RETIRED'] as const;
 
+/** 063 transcript translation through Claude; seeded by 20261222112000_translation_error_codes.sql. */
+export const TEAM_TRANSLATION_ERROR_CODES = [
+  'TRANSLATION_ALLOWANCE_EXCEEDED',
+  'TRANSLATION_SOURCE_UNAVAILABLE',
+  'TRANSLATION_UNAVAILABLE',
+  'TRANSLATION_REFUSED',
+  'TRANSLATION_FAILED',
+  'TRANSLATION_TIMEOUT'
+] as const;
+
 /** Installed with the commercial access boundary; keep the historical seed immutable. */
 export const TEAM_COMMERCIAL_ERROR_CODES = ['GOOGLE_ACCOUNT_NOT_APPROVED'] as const;
 
@@ -102,6 +112,7 @@ export const TEAM_ERROR_CODES = [
   ...TEAM_ACCOUNT_ERROR_CODES,
   ...TEAM_PROCESS_ERROR_CODES,
   ...TEAM_RETIREMENT_ERROR_CODES,
+  ...TEAM_TRANSLATION_ERROR_CODES,
   'LAUNCH_VERSION_CONFLICT',
   'LAUNCH_BUSY',
   'LAUNCH_URL_INVALID',

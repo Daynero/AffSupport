@@ -50,3 +50,4 @@ export * from './catalog-global-images.js';
 export * from './catalog-global-alias.js';
 
 export * from './catalog-video-replacement.js';
+export * from './transcript-translation.js';
