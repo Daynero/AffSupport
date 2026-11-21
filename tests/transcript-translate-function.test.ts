@@ -385,7 +385,7 @@ describe('startTranslation', () => {
       p_code: 'TRANSLATION_REFUSED'
     });
     expect(
-      refusing.service.mock.calls.filter(call => call[0] === 'service_ai_usage_record')
+      refusing.service.mock.calls.filter(call => call[0] === 'service_ai_usage_record_v2')
     ).toHaveLength(2);
   });
 });

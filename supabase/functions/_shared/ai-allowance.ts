@@ -57,11 +57,20 @@ export function allowanceExceeded(error: RpcFailure | null): AllowanceExceededEr
 
 export async function recordModelUsage(
   rpc: Rpc,
-  input: { feature: string; userId: string; subjectId: string | null; entry: UsageRecord }
+  input: {
+    feature: string;
+    userId: string;
+    subjectId: string | null;
+    entry: UsageRecord;
+    /** 064: the credit operation that paid for this call. */
+    opKey?: string | null;
+  }
 ): Promise<void> {
   const { entry } = input;
   // The ledger never blocks the work it describes: a failed write is logged and dropped.
-  const { error } = await rpc('service_ai_usage_record', {
+  const { error } = await rpc('service_ai_usage_record_v2', {
+    p_op_key: input.opKey ?? null,
+    p_usage_known: entry.usageKnown ?? true,
     p_feature: input.feature,
     p_user: input.userId,
     p_subject: input.subjectId,

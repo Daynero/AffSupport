@@ -75,6 +75,8 @@ export type StructuredOutcome =
 export interface UsageRecord {
   model: ClaudeModel;
   outcome: 'completed' | 'refused' | 'failed';
+  /** False when the call left without usage figures (transport failure): unknown, not zero. */
+  usageKnown?: boolean;
   stopReason: string | null;
   usage: ClaudeUsage;
   costMicroUsd: number;
@@ -88,6 +90,16 @@ const PRICES: Readonly<
   'claude-haiku-5-5': { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
   'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 }
 };
+
+/** Per-token prices in micro-USD (USD per million tokens) for one model. */
+export function modelPrice(model: ClaudeModel): {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+} {
+  return PRICES[model];
+}
 
 const NO_USAGE: ClaudeUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
 
@@ -131,6 +143,7 @@ export async function callStructured(
     await options.record({
       model: request.model,
       outcome: 'failed',
+      usageKnown: false,
       stopReason: null,
       usage: NO_USAGE,
       costMicroUsd: 0,
