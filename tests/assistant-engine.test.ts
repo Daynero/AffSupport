@@ -364,6 +364,44 @@ describe('064 assistant executor', () => {
     expect(names).not.toContain('service_accept_launch_batch');
   });
 
+  it('changes no row through an unknown or foreign card', async () => {
+    const world = space();
+    await world.send('1 запуск ProCaps на G2', model({
+      reply: 'ok', actions: [action({ offer: 'ProCaps', accounts: ['G2'], count: 1, base: 'offer_defaults' })]
+    }));
+    const before = world.saves().length;
+    const reply = await world.send('у першому 9 кампаній', model({
+      reply: 'ok', actions: [action({ type: 'update_fields', rows: [1], fields: [{ field: 'campaignCount', op: 'set', value: 9 }] })]
+    }), id(999));
+    expect(world.saves().length).toBe(before);
+    expect(firstCard(reply).payload.code).toBe('NO_CONTEXT_CARD');
+  });
+
+  it('never turns a raw id from the model into a reference', async () => {
+    const world = space();
+    const foreign = '99999999-0000-4000-8000-000000000001';
+    await world.send('1 запуск на рекламному акаунті', model({
+      reply: 'ok', actions: [action({ offer: 'ProCaps', accounts: [foreign], count: 1, base: 'offer_defaults', fields: [{ field: 'agentRowId', op: 'set', value: foreign }] })]
+    }));
+    expect([...world.launches.values()][0]!.draft.agentRowId).toBeUndefined();
+  });
+
+  it('sends the model the message and small dictionaries, never the material catalog or a link', async () => {
+    const world = space();
+    const client = model({ reply: 'ok', actions: [action({ type: 'out_of_scope' })] });
+    const prompts: string[] = [];
+    (client.create as ReturnType<typeof vi.fn>).mockImplementation(async (request: { user: string; system: string }) => {
+      prompts.push(request.system + request.user);
+      return { stopReason: 'end_turn', text: JSON.stringify({ reply: 'ok', actions: [action({ type: 'out_of_scope' })] }), usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 } };
+    });
+    await world.send('зроби TR 16 на G2 https://private.example/token=abc', client);
+    expect(prompts[0]).toContain('⟦url:1⟧');
+    expect(prompts[0]).not.toContain('private.example');
+    expect(prompts[0]).not.toContain('TR_18.mp4');
+    expect(prompts[0]).toContain('ProCaps');
+    expect([...world.launches.values()]).toHaveLength(0);
+  });
+
   it('refuses a field the assistant may not change instead of writing it', async () => {
     const world = space();
     const reply = await world.send('нотатка «x»', model({

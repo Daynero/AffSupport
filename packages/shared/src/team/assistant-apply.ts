@@ -6,8 +6,9 @@
  * not open to the assistant, or a value it rejects, comes back as a reason and leaves the draft
  * as it was — never silently replaced by a default.
  */
-import type { LaunchCreative, LaunchCreativeKind, LaunchDraft, LaunchSubVariable } from './launches.js';
-import { balanceCopies, fitCatalogToCreatives } from './launches/creative-distribution.js';
+import type { LaunchCreativeKind, LaunchDraft, LaunchSubVariable } from './launches.js';
+import { addCreatives, fitCatalogToCreatives, removeCreative, rescaleCopies } from './launches/creative-distribution.js';
+import { creativesPatch, draftCreatives } from './launches/creative-patch.js';
 import { launchDayInZone } from './launches/defaults-merge.js';
 import { launchCreativeAlias, parseLaunchConfig } from './launches/validation.js';
 import { checkLaunchFieldValue, launchField, type LaunchFieldOp } from './launches/fields.js';
@@ -39,34 +40,10 @@ function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
-function withCreatives(draft: LaunchDraft, materials: ResolvedMaterial[]): LaunchDraft {
-  const next = clone(draft);
-  if (materials.length === 0) {
-    delete next.creatives;
-    delete next.materialId;
-    delete next.creativeAlias;
-    delete next.creativeKind;
-    return next;
-  }
-  const kind = materials[0]!.kind;
-  const productCount = next.catalog?.productCount ?? materials.length;
-  const list: LaunchCreative[] = materials.map(material => ({
-    materialId: material.materialId,
-    alias: launchCreativeAlias(material.name),
-    copies: 1,
-    pinned: null
-  }));
-  const creatives = balanceCopies(list, Math.max(productCount, list.length));
-  next.creatives = creatives;
-  next.materialId = creatives[0]!.materialId;
-  next.creativeAlias = creatives[0]!.alias;
-  next.creativeKind = kind;
-  return fitCatalogToCreatives(next);
-}
-
+/** The creatives a draft names as resolved materials (names known only for the ones just resolved). */
 function currentMaterials(draft: LaunchDraft, known: ResolvedMaterial[]): ResolvedMaterial[] {
   const byId = new Map(known.map(material => [material.materialId, material]));
-  return (draft.creatives ?? []).map(
+  return draftCreatives(draft).map(
     creative =>
       byId.get(creative.materialId) ?? {
         materialId: creative.materialId,
@@ -74,6 +51,44 @@ function currentMaterials(draft: LaunchDraft, known: ResolvedMaterial[]): Resolv
         kind: draft.creativeKind ?? 'video'
       }
   );
+}
+
+/**
+ * Creatives stored exactly as the form stores them: one material without the catalog method is
+ * the single-creative shape; in the catalog method the list goes through addCreatives and
+ * creativesPatch (copies, the product count, variations under re-stitch, images without it).
+ */
+function withCreatives(draft: LaunchDraft, change: 'set' | 'add' | 'remove', resolved: ResolvedMaterial[]): LaunchDraft {
+  if (draft.method === 'other') {
+    const one = change === 'remove' ? undefined : resolved[0];
+    return {
+      ...draft,
+      materialId: one?.materialId,
+      creativeAlias: one ? launchCreativeAlias(one.name) : undefined,
+      creatives: undefined,
+      creativeKind: undefined
+    };
+  }
+  const n = draft.catalog?.productCount ?? resolved.length;
+  if (change === 'remove') {
+    let list = draftCreatives(draft);
+    let productCount = n;
+    for (const material of resolved) {
+      const index = list.findIndex(creative => creative.materialId === material.materialId);
+      if (index < 0) continue;
+      list = removeCreative(list, index, productCount);
+      productCount = list.reduce((sum, creative) => sum + creative.copies, 0) || productCount;
+    }
+    return { ...draft, ...creativesPatch(draft, list, list.length ? (draft.creativeKind ?? null) : null, productCount) };
+  }
+  const base = change === 'set' ? [] : draftCreatives(draft);
+  const next = addCreatives(
+    base,
+    resolved.map(material => ({ materialId: material.materialId, alias: launchCreativeAlias(material.name) })),
+    n
+  );
+  const kind = resolved[0]?.kind ?? draft.creativeKind ?? null;
+  return { ...draft, ...creativesPatch(draft, next.creatives, kind, next.productCount) };
 }
 
 function subList(draft: LaunchDraft, slot: 'sub1' | 'sub2' | 'sub3'): LaunchSubVariable[] {
@@ -111,13 +126,10 @@ export function applyAssistantChange(
       const resolved = context.refs.materials;
       if (!resolved || resolved.length === 0) return { ok: false, code: 'UNRESOLVED' };
       const current = currentMaterials(next, resolved);
-      let list: ResolvedMaterial[];
-      if (change.op === 'set' || change.op === 'reorder') list = resolved;
-      else if (change.op === 'add')
-        list = [...current, ...resolved.filter(item => !current.some(c => c.materialId === item.materialId))];
-      else list = current.filter(item => !resolved.some(r => r.materialId === item.materialId));
-      if (list.some(item => item.kind !== list[0]!.kind)) return { ok: false, code: 'INVALID_VALUE' };
-      return { ok: true, draft: withCreatives(next, list) };
+      const kinds = new Set([...(change.op === 'add' ? current : []), ...resolved].map(item => item.kind));
+      if (kinds.size > 1) return { ok: false, code: 'INVALID_VALUE' };
+      const mode = change.op === 'add' ? 'add' : change.op === 'remove' ? 'remove' : 'set';
+      return { ok: true, draft: withCreatives(next, mode, resolved) };
     }
     case 'url': {
       if (change.op === 'clear') {
@@ -159,25 +171,36 @@ export function applyAssistantChange(
     default: {
       const [head, key] = field.path.split('.') as [keyof LaunchDraft, string | undefined];
       if (key === undefined) {
+        if (head === 'campaignCount' && draft.budgetMode === 'manual' && typeof value === 'number') {
+          // As the form: the manual sums follow the count, padded with zeros; a shorter list keeps
+          // its largest sum as the maximum.
+          const resized = Array.from({ length: value }, (_, index) => draft.budgets?.[index] ?? 0);
+          next.campaignCount = value;
+          next.budgets = resized;
+          if (value < (draft.campaignCount ?? 0) && resized.some(sum => sum > 0)) next.maxBudget = Math.max(...resized);
+          return { ok: true, draft: next };
+        }
         if (value === undefined) delete next[head];
         else (next as Record<string, unknown>)[head] = value;
         if (head === 'budgetMode' && value !== 'manual') next.budgets = null;
         if (head === 'budgets' && value !== undefined) next.budgetMode = 'manual';
-        if (head === 'campaignCount' && next.budgetMode === 'manual' && Array.isArray(next.budgets)) {
-          // A changed campaign count no longer matches the manual sums: back to one sum each.
-          next.budgetMode = 'single';
-          next.budgets = null;
-        }
         return { ok: true, draft: next };
       }
       if (!next.catalog) return { ok: false, code: 'NOT_CATALOG' };
+      if (key === 'productCount' && draftCreatives(next).length > 1) {
+        // As the form: several creatives keep their split, scaled; fewer products than creatives
+        // is refused with the reason.
+        const list = draftCreatives(next);
+        if ((value as number) < list.length) return { ok: false, code: 'INVALID_VALUE' };
+        return {
+          ok: true,
+          draft: { ...next, ...creativesPatch(next, rescaleCopies(list, value as number), next.creativeKind ?? null, value as number) }
+        };
+      }
       const catalog = { ...next.catalog } as Record<string, unknown>;
       if (value === undefined) delete catalog[key];
       else catalog[key] = value;
       next.catalog = catalog as unknown as LaunchDraft['catalog'];
-      if (key === 'productCount' && next.creatives?.length) {
-        next.creatives = balanceCopies(next.creatives, value as number);
-      }
       return { ok: true, draft: fitCatalogToCreatives(next) };
     }
   }
