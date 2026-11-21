@@ -32,7 +32,7 @@ function targetOf(system: string): string {
   return /\(([A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)\)/u.exec(system)?.[1] ?? 'xx';
 }
 
-export function createFakeClient(mode: FakeMode, delayMs = 1_200): ClaudeClient {
+export function createFakeClient(mode: FakeMode, delayMs = 3_500): ClaudeClient {
   return {
     async create(request: ClaudeRequest, signal: AbortSignal) {
       await new Promise<void>((resolve, reject) => {

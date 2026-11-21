@@ -349,7 +349,7 @@ export function PreviewPane({
        * displays the original transcript directly, with its view, copy and retry actions.
        * `copyText` stays unwired in `PaneActions` to avoid a duplicate shortcut.
        */}
-      {row.category === 'video' && onTranscribe && (
+      {row.category === 'video' && (
         <div className="team-explorer-pane-transcript">
           <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>
           {transcribing && transcribing.videoId === row.id ? (
@@ -368,8 +368,8 @@ export function PreviewPane({
             <VideoTextActions
               teamId={teamId}
               videoId={row.id}
-              onTranscribe={() => onTranscribe(row)}
-              onRetranscribe={() => onTranscribe(row, { fresh: true })}
+              onTranscribe={onTranscribe ? () => onTranscribe(row) : undefined}
+              onRetranscribe={onTranscribe ? () => onTranscribe(row, { fresh: true }) : undefined}
               videoName={row.name}
               onCopied={variant =>
                 push({ tone: 'success', text: t('textTranslationCopied', { variant }) })

@@ -7,7 +7,7 @@ import {
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Alert, Button, Chip } from '../../components/ui/index';
+import { Alert, Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { translationClient, type TranslationClient } from '../../translation/api';
 import { allowanceFigures, formatMinutes } from '../../translation/format';
@@ -55,7 +55,8 @@ export function VideoTextActions({
   videoName?: string;
   client?: VideoTextActionsClient;
   translations?: TranslationClient;
-  onTranscribe: () => void;
+  /** Absent where the space cannot process (read-only storage): the text stays readable. */
+  onTranscribe?: () => void;
   /** Re-run the transcription when text already exists (shown beside View/Copy). */
   onRetranscribe?: () => void;
   /** Notified after a successful copy, with the name of the text copied. */
@@ -71,6 +72,8 @@ export function VideoTextActions({
   const [viewing, setViewing] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const visibleAttempts = useRef(new Set<string>());
+  /** A translation started here opens by itself when it is ready (US1). */
+  const [awaiting, setAwaiting] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -119,6 +122,20 @@ export function VideoTextActions({
       : undefined) ?? state.original;
 
   useEffect(() => {
+    if (!awaiting) return;
+    const done = state.translations.find(
+      item => item.language === awaiting && item.status === 'ready' && !item.stale
+    );
+    const failed = state.translations.find(
+      item => item.language === awaiting && item.status === 'failed'
+    );
+    if (done) {
+      setAwaiting(null);
+      setViewing(done.key);
+    } else if (failed) setAwaiting(null);
+  }, [awaiting, state.translations]);
+
+  useEffect(() => {
     if (
       viewing !== 'original' ||
       !text ||
@@ -137,7 +154,7 @@ export function VideoTextActions({
 
   if (loading) return <small>{t('creativeLibraryTextLoading')}</small>;
   if (!text) {
-    return payload?.canProcess !== false ? (
+    return payload?.canProcess !== false && onTranscribe ? (
       <Button
         color="neutral"
         variant="ghost"
@@ -186,6 +203,7 @@ export function VideoTextActions({
           state={state}
           trigger={compact ? 'compact' : 'button'}
           onOpenTranslation={target => setViewing(`translation:${target}`)}
+          onStarted={target => setAwaiting(target)}
         />
         {onRetranscribe && (
           <Button
@@ -202,18 +220,26 @@ export function VideoTextActions({
       {shownChips.length > 0 && (
         <div className="video-text-chips" aria-label={t('textTranslationVariants')} role="group">
           {shownChips.map(item => (
-            <Chip key={item.key} size="sm" variant="soft" onSelect={() => setViewing(item.key)}>
+            <Button
+              key={item.key}
+              size="xs"
+              color="neutral"
+              variant="soft"
+              title={item.stale ? t('textTranslationStale') : undefined}
+              onClick={() => setViewing(item.key)}
+            >
               {variantName(item, language, t('textTranslationOriginal'))}
-            </Chip>
+            </Button>
           ))}
           {ready.length > shownChips.length && (
-            <Chip
-              size="sm"
-              variant="soft"
-              onSelect={() => setViewing(ready[shownChips.length]!.key)}
+            <Button
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              onClick={() => setViewing(ready[shownChips.length]!.key)}
             >
               {t('textTranslationMore', { count: ready.length - shownChips.length })}
-            </Chip>
+            </Button>
           )}
         </div>
       )}

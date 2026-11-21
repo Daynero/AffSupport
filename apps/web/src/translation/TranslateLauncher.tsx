@@ -14,9 +14,14 @@ import { allowanceFigures, formatMinutes, formatResetTime } from './format';
 import { failureText } from './TranslationProgress';
 import { readRecentTargets, type TextVariantsState } from './useTextVariants';
 
-function defaultTarget(source: string | null, recents: readonly string[]): string {
-  const usable = (code: string) => !sameTranslationLanguage(source, code);
-  return recents.find(usable) ?? (usable('uk') ? 'uk' : 'en');
+/** The first recent language that is neither the source nor already translated. */
+function defaultTarget(
+  source: string | null,
+  recents: readonly string[],
+  done: readonly string[] = []
+): string {
+  const usable = (code: string) => !sameTranslationLanguage(source, code) && !done.includes(code);
+  return recents.find(usable) ?? ['uk', 'en', 'ru', 'es'].find(usable) ?? 'uk';
 }
 
 /**
@@ -52,8 +57,12 @@ export function TranslateLauncher({
   useEffect(() => {
     if (!open) return;
     setFailure(null);
-    setTarget(current =>
-      sameTranslationLanguage(source, current) ? defaultTarget(source, recents) : current
+    setTarget(
+      defaultTarget(
+        source,
+        recents,
+        state.translations.map(item => item.language)
+      )
     );
     void state.refreshAllowance();
   }, [open]);
@@ -195,6 +204,7 @@ export function TranslateLauncher({
         size="sm"
         aria-expanded={open}
         aria-label={trigger === 'compact' ? t('textTranslationAction') : undefined}
+        title={trigger === 'compact' ? t('textTranslationAction') : undefined}
         leading={<Languages size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
         onClick={() => setOpen(value => !value)}
       >

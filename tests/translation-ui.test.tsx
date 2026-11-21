@@ -251,6 +251,57 @@ describe('several texts', () => {
     expect(screen.getByRole('button', { name: /Update translation/u })).toBeTruthy();
   });
 
+  it('says a refusal calmly, returns the minutes and offers to try again', async () => {
+    const user = userEvent.setup();
+    const start = vi.fn(async () => ({
+      translationId: '06300000-0000-4000-8000-000000000001',
+      status: 'processing' as const,
+      reused: false,
+      units: 23,
+      allowance: null
+    }));
+    const client = fakeClient({
+      start,
+      listForVideo: vi.fn(async () => [
+        translation({
+          status: 'failed',
+          failureCode: 'TRANSLATION_REFUSED',
+          segments: null,
+          completedSegments: 0,
+          model: null,
+          completedAt: null
+        })
+      ])
+    });
+    render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
+    );
+    expect(
+      await screen.findByText(/declined to translate this text\. Minutes returned\./u)
+    ).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(start).toHaveBeenCalledWith('uk', { scope: 'team_video', teamId: TEAM, videoId: VIDEO });
+  });
+
+  it('keeps the text readable where the space cannot transcribe', async () => {
+    render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={fakeClient()}
+      />
+    );
+    expect(await screen.findByRole('button', { name: 'View text' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Redo/u })).toBeNull();
+  });
+
   it('follows a running translation to its result', async () => {
     let emit: ((event: TranslationStreamEvent) => void) | null = null;
     let finish: () => void = () => {};

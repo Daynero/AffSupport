@@ -21,7 +21,10 @@ export function variantName(
   originalLabel: string
 ): string {
   if (variant.kind === 'original') {
-    return variant.language
+    // "auto", "und" or a word like "unknown" names no language: the label stays plain.
+    return variant.language &&
+      /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/u.test(variant.language) &&
+      !['und', 'auto'].includes(variant.language.toLowerCase())
       ? `${originalLabel} · ${variant.language.toUpperCase()}`
       : originalLabel;
   }

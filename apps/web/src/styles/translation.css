@@ -137,6 +137,7 @@
   font-size: var(--text-caption);
 }
 .translate-launcher-cost {
+  white-space: nowrap;
   color: var(--color-text-muted);
   font-size: var(--text-caption);
   text-decoration: underline dotted;
@@ -187,4 +188,11 @@
 .video-text-translating {
   display: grid;
   gap: var(--space-2);
+}
+
+/* A video whose space cannot transcribe and that has no text shows no empty "Transcript" heading. */
+.team-explorer-pane-transcript:not(
+  :has(.video-text-actions, .team-media-action, small, .team-explorer-pane-transcribing)
+) {
+  display: none;
 }
