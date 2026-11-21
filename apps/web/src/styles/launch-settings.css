@@ -178,6 +178,7 @@
   min-width: 0;
   min-height: var(--control-height-lg);
   flex: 0 0 auto;
+  flex-direction: row;
   align-items: center;
 }
 /* «Варіації відео [ 2 ]» on the switch's own line: a caption and a small field, not a
@@ -187,6 +188,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1) var(--space-2);
+}
+.launch-editor-variations .ui-field-control {
+  display: flex;
 }
 .launch-editor-variations .ui-field-label {
   min-height: 0;
