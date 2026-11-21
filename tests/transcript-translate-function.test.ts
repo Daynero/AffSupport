@@ -133,7 +133,7 @@ describe('translateTranscript', () => {
     expect(systemPrompt('uk')).toMatch(/same script.*another script, transliterate/su);
   });
 
-  it('translates every chunk and keeps empty segments empty', async () => {
+  it('translates every chunk, a sentence per line, skipping empty pieces', async () => {
     const client = scripted([good]);
     const progress: number[] = [];
     const result = await translateTranscript({
@@ -146,10 +146,27 @@ describe('translateTranscript', () => {
     expect(result).toEqual({
       ok: true,
       model: 'claude-haiku-5-5',
-      segments: ['UK Merhaba.', 'UK Bir tablet al.', '', 'UK Teşekkürler.']
+      segments: ['UK Merhaba.', 'UK Bir tablet al.', 'UK Teşekkürler.']
     });
-    expect(client.calls.every(call => call.user.includes('4. Teşekkürler.'))).toBe(true);
-    expect(Math.max(...progress)).toBe(4);
+    expect(client.calls.every(call => call.user.includes('3. Teşekkürler.'))).toBe(true);
+    expect(Math.max(...progress)).toBe(3);
+  });
+
+  it('translates whole sentences, not the recognizer pieces', async () => {
+    const client = scripted([good]);
+    const result = await translateTranscript({
+      ...base,
+      client,
+      segments: ['Что это за элемент и где', 'его можно взять? В 70 или 80', 'лет вы даже.']
+    });
+    expect(client.calls[0]!.user).toContain(
+      '1. Что это за элемент и где его можно взять? В 70 или 80 лет вы даже.'
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      segments: ['UK Что это за элемент и где его можно взять? В 70 или 80 лет вы даже.']
+    });
+    expect(systemPrompt('uk')).toMatch(/Correct only what speech recognition obviously got wrong/u);
   });
 
   it('retries a wrong line count once, then fails', async () => {
@@ -157,13 +174,13 @@ describe('translateTranscript', () => {
     const fixed = await translateTranscript({
       ...base,
       client: scripted([wrong, good]),
-      segments: ['a', 'b']
+      segments: ['a.', 'b.']
     });
     expect(fixed.ok).toBe(true);
     const failed = await translateTranscript({
       ...base,
       client: scripted([wrong]),
-      segments: ['a', 'b']
+      segments: ['a.', 'b.']
     });
     expect(failed).toEqual({ ok: false, code: 'TRANSLATION_FAILED' });
   });

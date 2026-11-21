@@ -6,6 +6,7 @@
 // @deno-types="../../../packages/shared/dist/team/transcript-translation.d.ts"
 import {
   chunkTranslationSegments,
+  groupTranslationUnits,
   normalizeTranslationSegment,
   type TranslationChunk,
   type TranslationFailureCode
@@ -55,9 +56,11 @@ export function systemPrompt(target: string): string {
   const name = languageName(target);
   return [
     `You translate a video transcript into ${name} for a reader who does not speak the source language. The translation is shown next to the original transcript so the reader can understand exactly what the video says; it is for reading and review, not for publishing.`,
+    'The transcript comes from automatic speech recognition and is given as numbered sentences. The recognizer sometimes cuts a sentence in the wrong place, misses punctuation or mishears a word.',
     'Rules:',
-    `- Translate faithfully and completely into natural ${name}. Do not summarize, comment, soften, add or omit anything.`,
-    '- The transcript is given as numbered lines. Translate only the requested lines, one output string per line, in the same order.',
+    `- Write each requested line as natural, fluent ${name}, the way a native speaker would say it, in natural word order. Read the neighbouring lines to understand a line that was cut in the wrong place.`,
+    '- Correct only what speech recognition obviously got wrong, using the context. Keep every claim, number, name, brand, slang word and the emotional tone. Do not summarize, comment, soften, add or omit anything.',
+    '- One output string per requested line, in the same order.',
     '- Keep personal names exactly as spelled in the source when the target language uses the same script; when it uses another script, transliterate them by how they are pronounced in the source language. Keep numbers, units and brand names as in the source.',
     '- Reply with JSON only: {"translations": [ ... ]}.'
   ].join('\n');
@@ -119,9 +122,9 @@ export async function translateTranscript(input: TranslateInput): Promise<Transl
   const budget = setTimeout(() => controller.abort(), TRANSLATION_BUDGET_MS);
   input.signal?.addEventListener('abort', () => controller.abort(), { once: true });
   const system = systemPrompt(input.targetLanguage);
-  const output: (string | null)[] = input.segments.map(segment =>
-    normalizeTranslationSegment(segment) ? null : ''
-  );
+  // Whole sentences, not the recognizer's breath-length pieces (see groupTranslationUnits).
+  const texts = groupTranslationUnits(input.segments).map(unit => unit.text);
+  const output: (string | null)[] = texts.map(() => null);
   let usedModel: ClaudeModel = PRIMARY.model;
   let completed = output.filter(value => value === '').length;
 
@@ -134,7 +137,7 @@ export async function translateTranscript(input: TranslateInput): Promise<Transl
           model: tier.model,
           effort: tier.effort,
           system,
-          user: userPrompt(input.segments, chunk, input.sourceLanguage),
+          user: userPrompt(texts, chunk, input.sourceLanguage),
           schema: SCHEMA,
           maxTokens: MAX_TOKENS
         },
@@ -194,11 +197,7 @@ export async function translateTranscript(input: TranslateInput): Promise<Transl
     throw new Stop('TRANSLATION_FAILED');
   };
 
-  const pending = chunkTranslationSegments(input.segments, input.chunkUnits).filter(chunk =>
-    input.segments
-      .slice(chunk.start, chunk.end)
-      .some(segment => normalizeTranslationSegment(segment))
-  );
+  const pending = chunkTranslationSegments(texts, input.chunkUnits);
   let failure: TranslationFailureCode | null = null;
   const worker = async () => {
     while (pending.length > 0 && failure === null) {

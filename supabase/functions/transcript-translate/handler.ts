@@ -10,6 +10,7 @@
  */
 // @deno-types="../../../packages/shared/dist/team/transcript-translation.d.ts"
 import {
+  groupTranslationUnits,
   isTranslationTargetLanguage,
   parseTranscriptTranslation,
   sameTranslationLanguage,
@@ -235,7 +236,8 @@ export async function startTranslation(
     p_fingerprint: fingerprint,
     p_source_language: source.sourceLanguage,
     p_target_language: command.targetLanguage,
-    p_total_segments: source.segments.length,
+    // One translated string per sentence (groupTranslationUnits), not per recognizer piece.
+    p_total_segments: groupTranslationUnits(source.segments).length,
     p_units: units,
     p_requested_by: deps.userId
   });

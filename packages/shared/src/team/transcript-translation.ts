@@ -167,9 +167,70 @@ export async function translationFingerprint(
   subtle: SubtleCrypto = crypto.subtle
 ): Promise<string> {
   const body = segments.map(normalizeTranslationSegment).join('\n');
-  const digest = await subtle.digest('SHA-256', new TextEncoder().encode(`v1\n${body}`));
+  // The method is part of the identity: a translation made line by line (before sentences,
+  // 2026-11-21) reads as made from an earlier text and offers to be updated.
+  const digest = await subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`v1\n${TRANSLATION_METHOD}\n${body}`)
+  );
   const hex = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
   return `v1:${hex}`;
+}
+
+/** What a translation is made of; changing it makes earlier translations read as outdated. */
+export const TRANSLATION_METHOD = 'sentences-1';
+
+/** A sentence of speech: one or more consecutive recognizer segments. */
+export interface TranslationUnit {
+  /** First source segment (0-based). */
+  start: number;
+  /** One past the last source segment. */
+  end: number;
+  /** The segments' text joined with single spaces. */
+  text: string;
+}
+
+const SENTENCE_END = /[.!?…。！？؟]["'»”’)\]]*$/u;
+/** A recognizer that writes no punctuation still yields sentences of readable size. */
+const UNIT_MAX_CHARACTERS = 600;
+const UNIT_MAX_SEGMENTS = 8;
+
+/**
+ * Speech recognition cuts where the speaker breathes, not where a sentence ends: "Що це за
+ * елемент і де" / "можна його отримати? У 70 чи 80" / "років ви навіть". Translating those
+ * pieces one by one gave the owner (2026-11-21) sentences in Yoda's word order. A unit
+ * is a whole sentence: segments are joined until one ends a sentence, and the translation
+ * is made per unit. Deterministic, so the browser and the function cut the same way, and the
+ * transcriber maps a unit back to its segments' timings.
+ */
+export function groupTranslationUnits(segments: readonly string[]): TranslationUnit[] {
+  const units: TranslationUnit[] = [];
+  let start = 0;
+  let parts: string[] = [];
+  let length = 0;
+  const close = (end: number) => {
+    // Empty segments ride with the next sentence; a run of them never closes a unit.
+    if (parts.length === 0) return;
+    units.push({ start, end, text: parts.join(' ') });
+    start = end;
+    parts = [];
+    length = 0;
+  };
+  segments.forEach((segment, index) => {
+    const text = normalizeTranslationSegment(segment);
+    if (text) {
+      parts.push(text);
+      length += text.length + 1;
+    }
+    const ended = text ? SENTENCE_END.test(text) : false;
+    if (ended || length >= UNIT_MAX_CHARACTERS || index + 1 - start >= UNIT_MAX_SEGMENTS) {
+      close(index + 1);
+    }
+  });
+  close(segments.length);
+  // Trailing empty segments belong to the last unit, so units always cover every segment.
+  if (units.length > 0) units[units.length - 1]!.end = segments.length;
+  return units;
 }
 
 export interface TranslationChunk {

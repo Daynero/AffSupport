@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   chunkTranslationSegments,
+  groupTranslationUnits,
   isTranslationTargetLanguage,
   parseTranscriptTranslation,
   parseTranscriptTranslationList,
@@ -164,5 +165,32 @@ describe('parsers', () => {
       type: 'failed',
       code: 'TRANSLATION_TIMEOUT'
     });
+  });
+});
+
+describe('sentence units', () => {
+  it('joins recognizer pieces until a sentence ends and covers every segment', () => {
+    const units = groupTranslationUnits([
+      'Що це за елемент і де',
+      'можна його отримати? У 70 чи 80',
+      '',
+      'років ви навіть.',
+      'Дайте мені 30 секунд!',
+      ''
+    ]);
+    expect(units.map(unit => unit.text)).toEqual([
+      'Що це за елемент і де можна його отримати? У 70 чи 80 років ви навіть.',
+      'Дайте мені 30 секунд!'
+    ]);
+    expect(units.map(unit => [unit.start, unit.end])).toEqual([
+      [0, 4],
+      [4, 6]
+    ]);
+  });
+
+  it('bounds a transcript without punctuation', () => {
+    const units = groupTranslationUnits(Array.from({ length: 20 }, () => 'no punctuation here'));
+    expect(units.every(unit => unit.end - unit.start <= 8)).toBe(true);
+    expect(units.at(-1)!.end).toBe(20);
   });
 });

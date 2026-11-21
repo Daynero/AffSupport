@@ -4,6 +4,7 @@
  * only in where the original comes from and where translations are filed.
  */
 import {
+  groupTranslationUnits,
   translationFingerprint,
   translationUnits,
   type TranscriptTranslation,
@@ -390,7 +391,7 @@ export function useTextVariants(
                     status: 'processing',
                     segments: null,
                     completedSegments: 0,
-                    totalSegments: Math.max(1, source.segments.length),
+                    totalSegments: Math.max(1, groupTranslationUnits(source.segments).length),
                     failureCode: null,
                     sourceFingerprint: fingerprint,
                     stale: false,

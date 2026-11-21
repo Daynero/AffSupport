@@ -37,6 +37,7 @@ import {
   type TranscriptExportFormat
 } from './export';
 import { useTextVariants, type TextVariant } from '../translation/useTextVariants';
+import { groupTranslationUnits } from '@video-compressor/shared';
 import { TextVariantReader, TextVariantTabs, variantName } from '../translation/TextVariantViews';
 import { TranslationProgress } from '../translation/TranslationProgress';
 import {
@@ -368,6 +369,11 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
       ? variants.translations.find(item => item.key === variantKey)
       : undefined) ?? variants.original;
   const showingTranslation = shownVariant.kind === 'translation';
+  // A translation is made per sentence; each sentence spans one or more timed segments.
+  const units = useMemo(
+    () => groupTranslationUnits(segments.map(segment => segment.sourceText)),
+    [segments]
+  );
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
 
   const { sourceScrollRef, centerActiveWord } = useTranscriptScroll({
@@ -465,13 +471,17 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
     }
     const update = () => {
       const ms = media.currentTime * 1000;
-      const index = segments.findIndex(segment => ms >= segment.startMs && ms < segment.endMs);
+      const index = units.findIndex(
+        unit =>
+          ms >= (segments[unit.start]?.startMs ?? Infinity) &&
+          ms < (segments[unit.end - 1]?.endMs ?? -Infinity)
+      );
       setPlayingIndex(index >= 0 ? index : null);
     };
     media.addEventListener('timeupdate', update);
     update();
     return () => media.removeEventListener('timeupdate', update);
-  }, [showingTranslation, previewOpen, segments, mediaPreview?.state]);
+  }, [showingTranslation, previewOpen, segments, units, mediaPreview?.state]);
 
   // Exporting while a translation is open exports that translation, with the original's timings.
   const exportShown = (format: TranscriptExportFormat, content: TranscriptExportContent) => {
@@ -487,8 +497,11 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
     downloadTranscriptExport(
       buildTranscriptExport({
         fileName: job.fileName,
-        segments: segments.map((segment, index) => ({
-          ...segment,
+        // One cue per sentence, timed from its first segment to its last.
+        segments: units.map((unit, index) => ({
+          ...segments[unit.start]!,
+          endMs: segments[unit.end - 1]!.endMs,
+          words: [],
           sourceText: translated[index] ?? ''
         })),
         content,
@@ -711,7 +724,7 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
                     variant={shownVariant}
                     activeIndex={playingIndex}
                     onSegmentClick={index => {
-                      const start = segments[index]?.startMs;
+                      const start = segments[units[index]?.start ?? -1]?.startMs;
                       if (start !== undefined && mediaRef.current) seekTo(start);
                     }}
                   />
