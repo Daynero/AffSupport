@@ -61,6 +61,7 @@ npm run analytics -- team-workspace [--period ...] [--json]
 npm run analytics -- sync <team-id|owner-email> [--limit N] [--json]
 npm run analytics -- global-images [--image <uuid>] [--at-least 5000] [--sort id|uses] [--cleanup] [--json]
 npm run analytics -- catalog-trends [user-email|user-id] [--period ...] [--as-of <iso>] [--limit N] [--html <path>] [--json]
+npm run analytics -- ai-usage   [--period ...] [--as-of <iso>] [--json]
 npm run analytics -- connection [--period ...] [--json]
 npm run analytics -- navigation [--period ...] [--limit N] [--json]
 npm run analytics -- audit      [--period ...] [--as-of <iso>] [--write] [--json]
@@ -108,6 +109,10 @@ means no client emits that event today — treat it as unknown, never as zero.
 ### Global white-image pool
 
 Use `npm run analytics -- global-images --json` for confirmed catalog+image uses, issued URL slots and the informational5000 threshold. Use `--cleanup` for the immutable T0/deadline and retained/deleted/unknown/external-untouched status. Counters are exact decimal strings; they are not ad impressions. `--as-of` cannot reconstruct historical mutable counters. No reporting command activates or cleans the pool.
+
+### Claude usage and transcript translation (063)
+
+For what calling Claude costs, how many translations ran, refusals, failures and who spends the daily allowance, use `npm run analytics -- ai-usage --period 7d --json`. Cost is computed by the function from token counts and the published price list (the Claude Console invoice is the authority). Users are opaque ids; no transcript, translation or fingerprint is read. A refusal (`TRANSLATION_REFUSED`) is a content decision of both models, not a code fault; check that the prompt in `supabase/functions/transcript-translate/translate.ts` still describes the job truthfully before changing anything. The daily limit is a row in `private.ai_feature_allowances` (units are characters; 900 = one minute), changed by SQL, never by a release.
 
 ### Catalog schedule trends
 
