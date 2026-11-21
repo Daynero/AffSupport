@@ -139,33 +139,46 @@
   padding-inline: var(--space-1);
   background: transparent;
 }
-/* The catalog's options are a column of rows. Each row is as tall as its tallest control
-   (the R2 help mark is a full touch target) before anything is switched on, so a switch
-   never moves under the pointer; what an option adds sits beside it in the same row or
-   folds open below (next QA 2026-11-21). */
+/* The catalog shelf: the options on the left as a column of rows, the stitch duration on
+   the right. Each row is as tall as its tallest control before anything is switched on, so
+   a switch never moves under the pointer; what an option adds sits beside it — in its row,
+   or, for the duration, in the half of the shelf the switches left empty, wide enough to
+   set by hand (next QA 2026-11-21). Narrow, the duration goes under the switches. */
 .launch-editor-compact .launch-editor-catalog-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  align-items: start;
+  gap: 0 var(--space-6);
   margin: 0;
   padding: 0;
   border: 0;
   background: none;
+}
+.launch-editor-catalog-switches {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
 }
 .launch-editor-catalog-row {
   display: flex;
   min-width: 0;
   min-height: var(--control-height-lg);
   flex-wrap: wrap;
+  align-content: flex-start;
   align-items: center;
-  gap: var(--space-1) var(--space-5);
+  gap: 0 var(--space-5);
 }
 .launch-editor-catalog-row:empty {
   display: none;
 }
+/* The switch keeps the full row height in either state, so the field that joins it on the
+   same line cannot shift it, and a hint that wraps goes under it. */
 .launch-editor-compact .launch-editor-restitch {
+  display: flex;
   min-width: 0;
+  min-height: var(--control-height-lg);
   flex: 0 0 auto;
+  align-items: center;
 }
 /* «Варіації відео [ 2 ]» on the switch's own line: a caption and a small field, not a
    labelled block that made the row thick. Its hint and its error follow on the same line. */
@@ -184,23 +197,15 @@
   min-height: var(--control-height-sm);
   height: var(--control-height-sm);
 }
-/* The duration folds open under the re-stitch row, lined up with its label. */
-/* The duration belongs to re-stitch: it folds open under the switch's label, not under the
-   switch, and reads as part of that option rather than as a heading of its own. */
-.launch-editor-compact .launch-editor-catalog-fold .launch-duration-disclosure {
-  /* The switch track is as wide as a medium control is tall; the label follows a gap on. */
-  padding-inline-start: calc(var(--control-height-md) + var(--space-3));
-}
-.launch-editor-compact .launch-editor-catalog-fold .ui-accordion-trigger {
-  width: auto;
-  min-height: var(--control-height-sm);
-  color: var(--color-neutral-text-muted);
-  font-size: var(--text-caption);
-  font-weight: var(--weight-body);
-}
 .launch-editor-compact .launch-editor-catalog-publication {
   min-height: var(--control-height-lg);
   justify-content: center;
+}
+.launch-editor-compact .launch-duration-open {
+  padding-block: var(--space-1) var(--space-2);
+}
+.launch-editor-compact .launch-duration-open .restitch-duration-control {
+  max-width: none;
 }
 .launch-editor-catalog-advanced {
   flex-basis: 100%;
@@ -286,14 +291,6 @@
 }
 .launch-creative-replace {
   flex-shrink: 0;
-}
-.launch-duration-disclosure {
-  flex-basis: 100%;
-  min-width: 0;
-}
-.launch-duration-disclosure .restitch-duration-control {
-  max-width: 40rem;
-  padding-block: var(--space-3);
 }
 
 .catalog-rename-warning {
