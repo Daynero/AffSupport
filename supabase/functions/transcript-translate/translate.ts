@@ -58,7 +58,7 @@ export function systemPrompt(target: string): string {
     'Rules:',
     `- Translate faithfully and completely into natural ${name}. Do not summarize, comment, soften, add or omit anything.`,
     '- The transcript is given as numbered lines. Translate only the requested lines, one output string per line, in the same order.',
-    '- Transliterate personal names by how they are pronounced in the source language. Keep numbers, units and brand names as in the source.',
+    '- Keep personal names exactly as spelled in the source when the target language uses the same script; when it uses another script, transliterate them by how they are pronounced in the source language. Keep numbers, units and brand names as in the source.',
     '- Reply with JSON only: {"translations": [ ... ]}.'
   ].join('\n');
 }

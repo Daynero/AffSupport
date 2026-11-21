@@ -128,6 +128,9 @@ describe('translateTranscript', () => {
   it('describes the job truthfully and asks for exactly the requested lines', () => {
     expect(systemPrompt('es-MX')).toContain('for reading and review, not for publishing');
     expect(systemPrompt('es-MX')).toContain('(es-MX)');
+    // Measured 2026-11-21: "Canan Karatay" became "Yanán Karatái" in Spanish under a
+    // pronounce-everything rule, and "Канан" in Ukrainian without one.
+    expect(systemPrompt('uk')).toMatch(/same script.*another script, transliterate/su);
   });
 
   it('translates every chunk and keeps empty segments empty', async () => {
