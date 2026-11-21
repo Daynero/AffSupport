@@ -9,6 +9,7 @@
  */
 // @deno-types="../../../packages/shared/dist/team/assistant.d.ts"
 import {
+  assistantKey,
   ASSISTANT_MAX_CAMPAIGNS,
   ASSISTANT_MAX_DRAFTS,
   assistantUrlSlot,
@@ -69,10 +70,18 @@ export type EngineOutcome =
 type RefKind = 'offer' | 'buyer' | 'account' | 'material';
 export type RefKey = `${RefKind}:${string}`;
 
+interface AgentCandidate extends AssistantCandidate {
+  /** The account (social) name people write: «g4». */
+  account: string;
+  /** As the launch list shows it: «g4-257». */
+  label: string;
+  free: boolean;
+}
+
 interface Names {
   offers: AssistantCandidate[];
   buyers: AssistantCandidate[];
-  accounts: AssistantCandidate[];
+  accounts: AgentCandidate[];
 }
 
 class EngineRefusal extends Error {
@@ -109,18 +118,28 @@ export async function loadNames(deps: Pick<EngineDeps, 'callerRpc' | 'teamId'>):
         )
       : [];
   const accounts = await call(deps.callerRpc, 'list_team_accounts', { p_team: deps.teamId });
-  const agents: AssistantCandidate[] = [];
+  const agents: AgentCandidate[] = [];
   if (Array.isArray(accounts)) {
     for (const account of accounts) {
       if (!isRecord(account) || !Array.isArray(account.agents)) continue;
+      const accountName = typeof account.name === 'string' ? account.name.trim() : '';
       for (const agent of account.agents) {
         if (
           isRecord(agent) &&
           typeof agent.id === 'string' &&
           typeof agent.agent_id === 'string' &&
           !agent.archived_at
-        )
-          agents.push({ id: agent.id, name: agent.agent_id });
+        ) {
+          const availability = isRecord(agent.availability) ? agent.availability : {};
+          const label = accountName ? `${accountName}-${agent.agent_id.slice(-3)}` : agent.agent_id;
+          agents.push({
+            id: agent.id,
+            name: label,
+            account: accountName,
+            label,
+            free: availability.status === 'free'
+          });
+        }
       }
     }
   }
@@ -149,10 +168,58 @@ async function searchMaterials(deps: EngineDeps, written: string): Promise<Assis
             ? item.mimeType
             : '';
       const kind = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : null;
-      if (kind) found.set(item.id, { id: item.id, name: item.name, kind });
+      const alias = materialAlias(item.name);
+      if (kind && alias)
+        found.set(item.id, { id: item.id, name: alias, kind, file: item.name } as never);
     }
   }
   return [...found.values()];
+}
+
+/**
+ * An ad account as people write it: the list label «g4-257», the full ID, or the account name
+ * «g4». A name with several ad accounts takes the free one; several free ones take the first in
+ * the list order; none free — the person chooses.
+ */
+function pickAgent(
+  written: string,
+  agents: readonly AgentCandidate[]
+):
+  | { kind: 'one'; candidate: AgentCandidate }
+  | { kind: 'many'; candidates: AgentCandidate[] }
+  | { kind: 'none' } {
+  const key = assistantKey(written);
+  if (!key) return { kind: 'none' };
+  const exact = agents.filter(
+    agent => assistantKey(agent.label) === key || assistantKey(agent.id) === key
+  );
+  if (exact.length === 1) return { kind: 'one', candidate: exact[0]! };
+  const byId = agents.filter(
+    agent => agent.label.endsWith(written.trim()) || assistantKey(agent.name).endsWith(key)
+  );
+  const ofAccount = agents.filter(agent => agent.account && assistantKey(agent.account) === key);
+  const pool = ofAccount.length ? ofAccount : exact.length ? exact : byId.length === 1 ? byId : [];
+  if (pool.length === 0) return { kind: 'none' };
+  if (pool.length === 1) return { kind: 'one', candidate: pool[0]! };
+  const free = pool.filter(agent => agent.free);
+  if (free.length >= 1) return { kind: 'one', candidate: free[0]! };
+  return { kind: 'many', candidates: pool.slice(0, 5) };
+}
+
+/** «g4» names the account of «g4-257»; the full label names that ad account. */
+function sameAccount(written: string, label: string): boolean {
+  const key = assistantKey(written);
+  return (
+    Boolean(key) && (assistantKey(label) === key || assistantKey(label.split('-')[0] ?? '') === key)
+  );
+}
+
+/** «TR_17 restitched.mp4» → «TR_17»: the alias people say; generated catalog files are not creatives. */
+function materialAlias(name: string): string | null {
+  if (/^catalog_variant_/iu.test(name)) return null;
+  const stem = name.replace(/\.[A-Za-z0-9]{1,5}$/u, '');
+  const token = /^([A-Za-zА-Яа-яІіЇїЄєҐґ]{1,6})[ _-]?(\d{1,4})(?!\d)/u.exec(stem);
+  return token ? `${token[1]}_${token[2]}` : stem;
 }
 
 /** Every reference of the plan, in order of first appearance. */
@@ -191,6 +258,8 @@ export interface Resolution {
   ids: Map<RefKey, string>;
   names: Map<string, string>;
   materials: Map<string, ResolvedMaterial>;
+  /** «g18*free» → every free ad account of g18, «g18*all», «*free»: expanded by Soty. */
+  expansions: Map<string, AgentCandidate[]>;
   missing: Array<{ field: string; written: string; code: string }>;
 }
 
@@ -203,6 +272,7 @@ export async function resolvePlan(
   { ok: true; resolution: Resolution } | { ok: false; ref: RefKey; options: AssistantCandidate[] }
 > {
   const resolution: Resolution = {
+    expansions: new Map(),
     ids: new Map(),
     names: new Map(),
     materials: new Map(),
@@ -226,7 +296,19 @@ export async function resolvePlan(
         ? candidates.find(c => c.id === chosen)
         : (() => {
             const result = matchAssistantName(written, candidates);
-            if (result.kind === 'many') return result.candidates;
+            if (result.kind === 'many') {
+              const plain = result.candidates.filter(c => {
+                const file = (c as AssistantCandidate & { file?: string }).file ?? c.name;
+                return (
+                  assistantKey(file.replace(/\.[A-Za-z0-9]{1,5}$/u, '')) === assistantKey(c.name)
+                );
+              });
+              if (plain.length === 1) return plain[0]!;
+              return result.candidates.map(c => ({
+                id: c.id,
+                name: (c as AssistantCandidate & { file?: string }).file ?? c.name
+              }));
+            }
             return result.kind === 'one' ? result.candidate : null;
           })();
       if (Array.isArray(match)) return { ok: false, ref, options: match };
@@ -236,14 +318,32 @@ export async function resolvePlan(
       }
       const kindOf = (match as AssistantCandidate & { kind?: 'video' | 'image' }).kind ?? 'video';
       resolution.ids.set(ref, match.id);
-      resolution.names.set(match.id, match.name);
-      resolution.materials.set(written, { materialId: match.id, name: match.name, kind: kindOf });
+      const file = (match as AssistantCandidate & { file?: string }).file ?? match.name;
+      resolution.names.set(match.id, file);
+      resolution.materials.set(written, { materialId: match.id, name: file, kind: kindOf });
       continue;
     }
     const candidates = pool ?? [];
     let id: string | null = null;
     if (chosen && candidates.some(c => c.id === chosen)) id = chosen;
-    else {
+    else if (kind === 'account' && written.includes('*')) {
+      const [account, which] = written.split('*') as [string, string];
+      const key = assistantKey(account);
+      const pool = names.accounts.filter(agent => !key || assistantKey(agent.account) === key);
+      const chosenAgents = which === 'all' ? pool : pool.filter(agent => agent.free);
+      if (chosenAgents.length === 0) {
+        resolution.missing.push({
+          field: 'agentRowId',
+          written: account || '*',
+          code: pool.length === 0 ? 'ACCOUNT_NOT_FOUND' : 'NO_FREE_ACCOUNTS'
+        });
+      } else resolution.expansions.set(written, chosenAgents.slice(0, ASSISTANT_MAX_DRAFTS));
+      continue;
+    } else if (kind === 'account') {
+      const picked = pickAgent(written, names.accounts);
+      if (picked.kind === 'many') return { ok: false, ref, options: picked.candidates };
+      if (picked.kind === 'one') id = picked.candidate.id;
+    } else {
       const result = matchAssistantName(written, candidates);
       if (result.kind === 'many') return { ok: false, ref, options: result.candidates };
       if (result.kind === 'one') id = result.candidate.id;
@@ -474,11 +574,14 @@ async function createDrafts(
 ): Promise<void> {
   const offerId = action.offer ? (resolution.ids.get(`offer:${action.offer}`) ?? null) : null;
   const accounts = action.accounts.length
-    ? action.accounts.map(written => ({
-        written,
-        id: resolution.ids.get(`account:${written}`) ?? null
-      }))
+    ? action.accounts.flatMap(written => {
+        const expanded = resolution.expansions.get(written);
+        if (expanded)
+          return expanded.map(agent => ({ written: agent.label, id: agent.id as string | null }));
+        return [{ written, id: resolution.ids.get(`account:${written}`) ?? null }];
+      })
     : [{ written: null as string | null, id: null as string | null }];
+  if (accounts.length === 0) return;
   const dates = dateList(action, deps);
   const count = action.count ?? 1;
   const total = accounts.length * dates.length * count;
@@ -529,11 +632,7 @@ async function createDrafts(
         }
         draft = applyChanges(draft, action.fields, resolution, deps, problems);
         for (const override of action.overrides) {
-          if (
-            account.written &&
-            matchAssistantName(override.account, [{ id: 'x', name: account.written }]).kind ===
-              'one'
-          )
+          if (account.written && sameAccount(override.account, account.written))
             draft = applyChanges(draft, override.fields, resolution, deps, problems);
         }
         campaigns += typeof draft.campaignCount === 'number' ? draft.campaignCount : 0;
@@ -578,7 +677,7 @@ async function updateRows(
   if (action.accounts.length)
     targets = targets.filter(row =>
       action.accounts.some(
-        a => row.account && matchAssistantName(a, [{ id: 'x', name: row.account }]).kind === 'one'
+        a => row.account && sameAccount(a.split('*')[0] || row.account, row.account)
       )
     );
   for (const target of targets) {
@@ -596,10 +695,7 @@ async function updateRows(
     const before = detail.draft as Draft;
     let next = applyChanges(before, action.fields, resolution, deps, problems);
     for (const override of action.overrides) {
-      if (
-        target.account &&
-        matchAssistantName(override.account, [{ id: 'x', name: target.account }]).kind === 'one'
-      )
+      if (target.account && sameAccount(override.account, target.account))
         next = applyChanges(next, override.fields, resolution, deps, problems);
     }
     if (JSON.stringify(next) === JSON.stringify(before)) continue;
@@ -711,6 +807,24 @@ export async function executePlan(
   const touched: string[] = [];
   const cards: Card[] = [];
   let deferred: AssistantAction[] = [];
+  const asked = plan.actions.find(action => action.type === 'ask' && action.question);
+  if (asked && asked.question) {
+    return {
+      kind: 'done',
+      status: 'done',
+      deferred: [],
+      cards: [
+        {
+          kind: 'question',
+          payload: {
+            about: asked.question.about,
+            source: 'model',
+            options: asked.question.options.map((label, index) => ({ id: `o${index + 1}`, label }))
+          }
+        }
+      ]
+    };
+  }
   try {
     for (let step = 0; step < plan.actions.length; step++) {
       const action = plan.actions[step]!;

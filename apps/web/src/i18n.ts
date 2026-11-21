@@ -76,6 +76,13 @@ export function catalogDeleteConfirmKey(language: Language, count: number): Tran
   return category === 'few' ? 'catalogUpdaterDeleteConfirmFew' : 'catalogUpdaterDeleteConfirmMany';
 }
 
+/** 064 — «1 чернетка», «3 чернетки», «5 чернеток» on an assistant card. */
+export function assistantDraftsKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'assistantDraftsOne';
+  return category === 'few' ? 'assistantDraftsFew' : 'assistantDraftsMany';
+}
+
 /** 023 — "12 catalogs" on the updater's chip. */
 export function catalogCountKey(language: Language, count: number): TranslationKey {
   const category = pluralCategory(language, count);

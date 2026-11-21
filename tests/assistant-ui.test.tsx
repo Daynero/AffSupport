@@ -131,7 +131,7 @@ describe('the assistant in Launches', () => {
     assistant();
     const field = await screen.findByRole('textbox');
     await user.type(field, '5 запусків ProCaps на G2');
-    expect(screen.getByRole('button', { name: /Send · 1/u })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Send · 1 credit/u })).toBeTruthy();
     await user.keyboard('{Control>}{Enter}{/Control}');
     await waitFor(() => expect(api.send).toHaveBeenCalledTimes(1));
     expect(api.send.mock.calls[0]![0]).toMatchObject({
@@ -154,9 +154,9 @@ describe('the assistant in Launches', () => {
     assistant();
     await user.type(await screen.findByRole('textbox'), '5 запусків ProCaps на G2');
     expect(screen.getByText(/Short by 1 · renews at/u)).toBeTruthy();
-    expect((screen.getByRole('button', { name: /Send · 1/u }) as HTMLButtonElement).disabled).toBe(
-      true
-    );
+    expect(
+      (screen.getByRole('button', { name: /Send · 1 credit/u }) as HTMLButtonElement).disabled
+    ).toBe(true);
   });
 
   it('launches exactly the reviewed rows through the batch, with their versions, once', async () => {
@@ -225,7 +225,7 @@ describe('the assistant in Launches', () => {
       credits
     });
     assistant();
-    expect(await screen.findByText(/Drafts: 2 · campaigns: 4/u)).toBeTruthy();
+    expect(await screen.findByText(/2 drafts/u)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(api.undo).toHaveBeenCalledWith('team', 'cmd-1', expect.any(String)));
     expect(await screen.findByText('Undone: 2')).toBeTruthy();

@@ -58,7 +58,9 @@ function model(...answers: unknown[]): ClaudeClient & { calls: number } {
   return client as ClaudeClient & { calls: number };
 }
 
-function space() {
+function space(
+  options: { accounts?: unknown[]; materials?: Array<{ id: string; name: string }> } = {}
+) {
   const launches = new Map<string, Launch>();
   const effects: Array<Record<string, unknown>> = [];
   const cards = new Map<string, Record<string, unknown>>();
@@ -130,9 +132,11 @@ function space() {
       case 'list_launch_dictionaries':
         return ok({ offers: [{ id: OFFER, value: 'ProCaps', updatedAt: 'x' }], buyers: [] });
       case 'list_team_accounts':
-        return ok([{ id: 'acc', agents: AGENTS }]);
+        return ok(options.accounts ?? [{ id: 'acc', agents: AGENTS }]);
       case 'search_materials':
-        return ok({ items: MATERIALS.map(m => ({ ...m, mimeType: 'video/mp4' })) });
+        return ok({
+          items: (options.materials ?? MATERIALS).map(m => ({ ...m, mimeType: 'video/mp4' }))
+        });
       case 'get_launch_offer_defaults':
         return ok({
           config: profile,
@@ -605,6 +609,139 @@ describe('064 assistant executor', () => {
     expect(prompts[0]).not.toContain('TR_18.mp4');
     expect(prompts[0]).toContain('ProCaps');
     expect([...world.launches.values()]).toHaveLength(0);
+  });
+
+  it('reads «на g4 вільний рк» as a free ad account of the account g4', async () => {
+    const world = space({
+      accounts: [
+        {
+          id: 'g4',
+          name: 'g4',
+          agents: [
+            {
+              id: id(941),
+              agent_id: '1581299363292257',
+              availability: { status: 'busy', assignmentCount: 1, legacyCount: 0 }
+            },
+            {
+              id: id(942),
+              agent_id: '1581299363292999',
+              availability: { status: 'free', assignmentCount: 0, legacyCount: 0 }
+            }
+          ]
+        }
+      ]
+    });
+    await world.send(
+      'за завтра запуск ProCaps на g4 вільний рк',
+      model({
+        reply: 'ok',
+        actions: [action({ offer: 'ProCaps', accounts: ['g4'], count: 1, base: 'offer_defaults' })]
+      })
+    );
+    expect([...world.launches.values()][0]!.draft.agentRowId).toBe(id(942));
+  });
+
+  it('makes one draft per free ad account for «на всі порожні РК на g18»', async () => {
+    const free = { status: 'free', assignmentCount: 0, legacyCount: 0 };
+    const world = space({
+      accounts: [
+        {
+          id: 'g18',
+          name: 'g18',
+          agents: [
+            { id: id(951), agent_id: '29128055033492244', availability: free },
+            {
+              id: id(952),
+              agent_id: '4371698153094046',
+              availability: { status: 'busy', assignmentCount: 2, legacyCount: 0 }
+            },
+            { id: id(953), agent_id: '4371698153094777', availability: free }
+          ]
+        },
+        { id: 'g4', name: 'g4', agents: [{ id: id(954), agent_id: '1', availability: free }] }
+      ]
+    });
+    await world.send(
+      'на всі порожні РК на g18 запусти ProCaps',
+      model({
+        reply: 'ok',
+        actions: [action({ offer: 'ProCaps', accounts: ['g18*free'], base: 'offer_defaults' })]
+      })
+    );
+    expect([...world.launches.values()].map(launch => launch.draft.agentRowId).sort()).toEqual([
+      id(951),
+      id(953)
+    ]);
+  });
+
+  it('finds «17відос» as TR_17 and leaves generated catalog files out', async () => {
+    const world = space({
+      materials: [
+        { id: id(17), name: 'TR_17 restitched.mp4' },
+        { id: id(18), name: 'catalog_variant_6c1b6786-4beb-4840-b784-098a268fea63_17.mp4' },
+        { id: id(19), name: 'TR_16 restitched (17).mp4' }
+      ]
+    });
+    await world.send(
+      'запуск прокапс 17відос',
+      model({
+        reply: 'ok',
+        actions: [
+          action({
+            offer: 'ProCaps',
+            accounts: ['G2'],
+            count: 1,
+            base: 'offer_defaults',
+            fields: [{ field: 'creatives', op: 'set', value: ['17'] }]
+          })
+        ]
+      })
+    );
+    expect(
+      ([...world.launches.values()][0]!.draft.creatives as Array<{ materialId: string }>)[0]!
+        .materialId
+    ).toBe(id(17));
+  });
+
+  it('writes nothing while the model asks, and the answer continues the command for free', async () => {
+    const world = space();
+    const client = model(
+      {
+        reply: 'Уточни',
+        actions: [
+          action({ offer: 'ProCaps', accounts: ['G2'], count: 1, base: 'offer_defaults' }),
+          action({
+            type: 'ask',
+            question: { about: 'TR_16 чи 16 відео?', options: ['TR_16', '16 різних'] }
+          })
+        ]
+      },
+      {
+        reply: 'ok',
+        actions: [
+          action({
+            offer: 'ProCaps',
+            accounts: ['G2'],
+            count: 1,
+            base: 'offer_defaults',
+            fields: [{ field: 'creatives', op: 'set', value: ['TR_16'] }]
+          })
+        ]
+      }
+    );
+    const asked = await world.send('запуск прокапс 16 відео на G2', client);
+    expect(world.saves()).toHaveLength(0);
+    const question = firstCard(asked);
+    expect(question.kind).toBe('question');
+    const debits = world.calls.filter(([name]) => name === 'service_ai_credit_debit').length;
+    await world.run(
+      { action: 'answer', cardId: question.id, optionId: 'o1', clientKey: 'answer-key-1' },
+      client
+    );
+    expect(client.calls).toBe(2);
+    expect(world.saves()).toHaveLength(1);
+    expect(world.calls.filter(([name]) => name === 'service_ai_credit_debit').length).toBe(debits);
   });
 
   it('refuses a field the assistant may not change instead of writing it', async () => {

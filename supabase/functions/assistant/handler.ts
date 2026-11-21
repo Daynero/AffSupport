@@ -411,6 +411,63 @@ async function quick(
   return { text: '', cards: [refusal('USE_BUTTONS')] };
 }
 
+/** One model call for a message (masked links), with the space's names and the shown card. */
+async function interpretFor(
+  deps: AssistantDeps,
+  input: {
+    teamId: string;
+    commandId: string;
+    opKey: string | null;
+    text: string;
+    contextCardId: string | null;
+    timezone: string;
+  }
+) {
+  const shown = await shownRows(deps, input.teamId, input.contextCardId);
+  const names = await loadNames({ callerRpc: deps.callerRpc, teamId: input.teamId });
+  const now = deps.now?.() ?? new Date();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60_000);
+  try {
+    return await interpretMessage(
+      deps.client!,
+      {
+        today: launchDayInZone(now, input.timezone, 0),
+        timezone: input.timezone,
+        offers: names.offers.map(item => item.name).slice(0, 120),
+        buyers: names.buyers.map(item => item.name).slice(0, 60),
+        accounts: [...new Set(names.accounts.map(item => item.account || item.name))]
+          .slice(0, 120)
+          .map(account => {
+            const of = names.accounts.filter(item => (item.account || item.name) === account);
+            return `${account} (вільних ${of.filter(item => item.free).length} з ${of.length})`;
+          }),
+        shownRows: shown.rows
+          .slice(0, 40)
+          .map(
+            row =>
+              `${row.n}. ${row.account ?? '—'} · ${row.offer ?? '—'} · ${row.creatives.join(', ') || '—'} · ${row.launchDate ?? '—'}`
+          ),
+        lastOffer: shown.rows[0]?.offer ?? null,
+        message: input.text
+      },
+      {
+        signal: controller.signal,
+        record: entry =>
+          recordModelUsage(deps.serviceRpc, {
+            feature: FEATURE,
+            userId: deps.userId,
+            subjectId: input.commandId,
+            entry,
+            opKey: input.opKey
+          })
+      }
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function sendMessage(
   command: Extract<AssistantCommand, { action: 'send' }>,
   deps: AssistantDeps
@@ -515,45 +572,14 @@ export async function sendMessage(
         p_command: commandId,
         p_urls: masked.urls
       });
-    const shown = await shownRows(deps, command.teamId, command.contextCardId);
-    const names = await loadNames({ callerRpc: deps.callerRpc, teamId: command.teamId });
-    const now = deps.now?.() ?? new Date();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60_000);
-    let interpreted;
-    try {
-      interpreted = await interpretMessage(
-        deps.client,
-        {
-          today: launchDayInZone(now, command.timezone, 0),
-          timezone: command.timezone,
-          offers: names.offers.map(item => item.name).slice(0, 120),
-          buyers: names.buyers.map(item => item.name).slice(0, 60),
-          accounts: names.accounts.map(item => item.name).slice(0, 120),
-          shownRows: shown.rows
-            .slice(0, 40)
-            .map(
-              row =>
-                `${row.n}. ${row.account ?? '—'} · ${row.offer ?? '—'} · ${row.creatives.join(', ') || '—'} · ${row.launchDate ?? '—'}`
-            ),
-          lastOffer: shown.rows[0]?.offer ?? null,
-          message: masked.text
-        },
-        {
-          signal: controller.signal,
-          record: entry =>
-            recordModelUsage(deps.serviceRpc, {
-              feature: FEATURE,
-              userId: deps.userId,
-              subjectId: commandId,
-              entry,
-              opKey
-            })
-        }
-      );
-    } finally {
-      clearTimeout(timer);
-    }
+    const interpreted = await interpretFor(deps, {
+      teamId: command.teamId,
+      commandId,
+      opKey,
+      text: masked.text,
+      contextCardId: command.contextCardId,
+      timezone: command.timezone
+    });
     if (!interpreted.ok) {
       await giveBack();
       await status(deps, commandId, 'rejected', interpreted.code, ASSISTANT_MODEL.model, null);
@@ -580,6 +606,14 @@ export async function sendMessage(
       canSaveDefaults,
       interpreted.model
     );
+    for (const card of result.cards)
+      if (card.kind === 'question' && card.payload.source === 'model')
+        card.payload = {
+          ...card.payload,
+          commandId,
+          message: masked.text,
+          contextCardId: command.contextCardId
+        };
     // A plan refused before any write (too large, nothing resolvable) costs nothing.
     if (result.status === 'rejected') await giveBack();
     else await settleCredits(deps.serviceRpc, opKey);
@@ -688,14 +722,64 @@ export async function answerQuestion(
     typeof payload.commandId !== 'string' ||
     typeof payload.ref !== 'string'
   ) {
-    // A model's own question: the chosen option is the person's next instruction.
-    await status(deps, started.commandId, 'done', null, null, null);
+    // The model's own question: its message with the chosen option is interpreted once more,
+    // at Soty's cost, and the plan runs. The person is not charged again.
+    if (payload.source !== 'model' || typeof payload.message !== 'string' || !deps.client) {
+      await status(deps, started.commandId, 'rejected', 'MODEL_UNAVAILABLE', null, null);
+      return {
+        commandId: started.commandId,
+        replayed: false,
+        message: await reply(deps, started.commandId, '', [refusal('MODEL_UNAVAILABLE')]),
+        credits: await credits(deps)
+      };
+    }
+    const contextCardId = typeof payload.contextCardId === 'string' ? payload.contextCardId : null;
+    const urlsFrom = typeof payload.commandId === 'string' ? payload.commandId : started.commandId;
+    const interpreted = await interpretFor(deps, {
+      teamId: command.teamId,
+      commandId: started.commandId,
+      opKey: null,
+      text: `${payload.message}\nУточнення: ${option.label}`,
+      contextCardId,
+      timezone: command.timezone
+    });
+    if (!interpreted.ok) {
+      await status(
+        deps,
+        started.commandId,
+        'rejected',
+        interpreted.code,
+        ASSISTANT_MODEL.model,
+        null
+      );
+      return {
+        commandId: started.commandId,
+        replayed: false,
+        message: await reply(deps, started.commandId, '', [refusal(interpreted.code)]),
+        credits: await credits(deps)
+      };
+    }
+    // A second question would loop: run what is clear and say what is not.
+    const plan = {
+      ...interpreted.plan,
+      actions: interpreted.plan.actions.filter(action => action.type !== 'ask')
+    };
+    const context = await service(deps, 'service_assistant_context', {
+      p_user: deps.userId,
+      p_team: command.teamId
+    });
+    const again = await runPlan(
+      deps,
+      command.teamId,
+      started.commandId,
+      { plan, choices: {}, timezone: command.timezone, contextCardId, urlsFrom },
+      isRecord(context) && context.canSaveDefaults === true,
+      interpreted.model
+    );
     return {
       commandId: started.commandId,
       replayed: false,
-      message: await reply(deps, started.commandId, '', [
-        refusal('ANSWER_AS_MESSAGE', { text: option.label })
-      ]),
+      message: await reply(deps, started.commandId, again.text, again.cards),
       credits: await credits(deps)
     };
   }
