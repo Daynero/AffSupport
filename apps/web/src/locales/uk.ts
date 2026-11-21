@@ -139,14 +139,14 @@ export const uk: Record<keyof typeof en, string> = {
     'Чекає на комп’ютерний агент. Увімкніть фонову роботу на цьому комп’ютері, щоб продовжити.',
   catalogVideoCreationCanceling: 'Скасування запитано; очікуємо підтвердження завершення.',
 
-  catalogPublicationStatusUnknown: 'Стан публікації відеопосилання ще не підтверджено.',
-  catalogPublicationPreviouslyVerified: 'Останню публікацію відеопосилання підтверджено.',
-  catalogPublicationTableScheduled: 'Наступну публікацію відеопосилання заплановано на {date}.',
+  catalogPublicationStatusUnknown: 'Стан публікації посилань креативів ще не підтверджено.',
+  catalogPublicationPreviouslyVerified: 'Останню публікацію посилань креативів підтверджено.',
+  catalogPublicationTableScheduled: 'Наступну публікацію посилань креативів заплановано на {date}.',
   catalogPublicationOverdue:
-    'Час публікації відеопосилань ({date}) минув, але запис у таблицю ще не підтверджено. Soty перевіряє його автоматично.',
+    'Час публікації посилань креативів ({date}) минув, але запис у таблицю ще не підтверджено. Soty перевіряє його автоматично.',
   catalogPublicationWaitingForVideos:
     'Час додавання посилань ({date}) настав. Чекаємо, поки будуть готові всі відео, — посилання додамо в таблицю одразу після цього.',
-  catalogPublicationTableHeld: 'Очікувану публікацію відеопосилання призупинено.',
+  catalogPublicationTableHeld: 'Очікувану публікацію посилань креативів призупинено.',
   catalogPublicationHeldVideoCanceled:
     'Відеопосилання не буде опубліковано: створення відео скасовано. Каталог збережено без посилань.',
   catalogPublicationAddNow: 'Запросити публікацію зараз',
@@ -181,6 +181,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Результат збереження ще не підтверджено. Перевірка читає початковий запит без повторного запису.',
   catalogPublicationCheck: 'Перевірити стан',
   catalogPublicationDelayed: 'Відкласти додавання відеопосилання',
+  catalogPublicationDelayedImages: 'Відкласти підстановку зображень',
   catalogPublicationDay: 'Дата',
   catalogTimeChoose: 'Обрати час',
   catalogTimeHours: 'Години',

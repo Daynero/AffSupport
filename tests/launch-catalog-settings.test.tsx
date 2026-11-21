@@ -192,3 +192,19 @@ it('keeps a variation count that already covers every video when restitch is tur
   fireEvent.click(screen.getByRole('switch', { name: 'Restitch video' }));
   expect(change.mock.lastCall![0].catalog.videoVariationCount).toBe(12);
 });
+
+/** Found on next 2026-11-21: an image launch offered to «schedule the video link». */
+it('offers to schedule the images, not a video link, in a launch of images', async () => {
+  const images = {
+    ...threeVideos(),
+    creativeKind: 'image' as const,
+    creatives: threeVideos().creatives!.map(c => ({
+      ...c,
+      materialId: c.materialId.replace('video', 'image')
+    }))
+  };
+  render(<LaunchEditor {...editorProps(vi.fn())} config={images} />);
+  expect(await screen.findByRole('switch', { name: 'Schedule the images' })).toBeTruthy();
+  expect(screen.queryByRole('switch', { name: 'Schedule the video link' })).toBeNull();
+  expect(screen.queryByRole('switch', { name: 'Restitch video' })).toBeNull();
+});

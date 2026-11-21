@@ -139,14 +139,14 @@ export const en = {
     'Waiting for the computer agent. Turn on background work on this computer to continue.',
   catalogVideoCreationCanceling: 'Cancellation requested; waiting for confirmation.',
 
-  catalogPublicationStatusUnknown: 'Video-link publication status is not confirmed.',
-  catalogPublicationPreviouslyVerified: 'The last video-link publication was verified.',
-  catalogPublicationTableScheduled: 'Video-link publication is scheduled for {date}.',
+  catalogPublicationStatusUnknown: 'Creative-link publication status is not confirmed.',
+  catalogPublicationPreviouslyVerified: 'The last creative-link publication was verified.',
+  catalogPublicationTableScheduled: 'Creative-link publication is scheduled for {date}.',
   catalogPublicationOverdue:
-    'The video-link publication time ({date}) has passed, but the write to the table is not confirmed yet. Soty keeps checking automatically.',
+    'The creative-link publication time ({date}) has passed, but the write to the table is not confirmed yet. Soty keeps checking automatically.',
   catalogPublicationWaitingForVideos:
     'The video-link time ({date}) has come. Waiting for all videos to be ready — the links go into the table right after that.',
-  catalogPublicationTableHeld: 'Pending video-link publication is on hold.',
+  catalogPublicationTableHeld: 'Pending creative-link publication is on hold.',
   catalogPublicationHeldVideoCanceled:
     'The video link will not be published: video generation was canceled. The catalog is kept without links.',
   catalogPublicationAddNow: 'Request publication now',
@@ -182,6 +182,7 @@ export const en = {
     'The save result is not confirmed. Check reads the original request without another write.',
   catalogPublicationCheck: 'Check status',
   catalogPublicationDelayed: 'Schedule the video link',
+  catalogPublicationDelayedImages: 'Schedule the images',
   catalogPublicationDay: 'Date',
   catalogTimeChoose: 'Choose time',
   catalogTimeHours: 'Hours',

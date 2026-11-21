@@ -16,8 +16,10 @@ export function CatalogCreationVideoFields({
   productCount,
   disabled,
   part = 'all',
-  creativeCopies
+  creativeCopies,
+  media
 }: {
+  media?: 'video' | 'image';
   value: CatalogCreationVideoDraft;
   onChange(value: CatalogCreationVideoDraft): void;
   restitch: boolean;
@@ -70,7 +72,12 @@ export function CatalogCreationVideoFields({
         </FormField>
       )}
       {part !== 'variations' && (
-        <CatalogPublicationFields value={value} onChange={change} disabled={disabled} />
+        <CatalogPublicationFields
+          value={value}
+          onChange={change}
+          disabled={disabled}
+          media={media}
+        />
       )}
     </>
   );

@@ -884,6 +884,7 @@ export function LaunchEditor({
                     <Suspense fallback={null}>
                       <LaunchCatalogVideoFields
                         part="publication"
+                        media={creativeKind === 'image' ? 'image' : 'video'}
                         value={config.catalog!}
                         disabled={disabled}
                         onChange={catalog => changed({ catalog })}

@@ -14,8 +14,11 @@ export function CatalogPublicationSchedule({
   time,
   zone,
   onChange,
-  children
+  children,
+  media = 'video'
 }: {
+  /** 062: an image catalog schedules its pictures, not a video link. */
+  media?: 'video' | 'image';
   enabled: boolean;
   disabled: boolean;
   date: string;
@@ -29,7 +32,9 @@ export function CatalogPublicationSchedule({
   return (
     <>
       <Switch
-        label={t('catalogPublicationDelayed')}
+        label={t(
+          media === 'image' ? 'catalogPublicationDelayedImages' : 'catalogPublicationDelayed'
+        )}
         checked={enabled}
         disabled={disabled}
         onChange={enabled => {

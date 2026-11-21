@@ -13,8 +13,11 @@ export function LaunchCatalogVideoFields({
   onChange,
   disabled,
   part = 'all',
-  creativeCopies
+  creativeCopies,
+  media
 }: {
+  /** 062: images schedule their pictures; the switch says so. */
+  media?: 'video' | 'image';
   /** 062: copies per video when the Launch has several. */
   creativeCopies?: readonly number[];
   value: LaunchCatalogConfig;
@@ -108,6 +111,7 @@ export function LaunchCatalogVideoFields({
         productCount={value.productCount}
         disabled={disabled}
         creativeCopies={creativeCopies}
+        media={media}
       />
       {error && (
         <div className="ui-field launch-publication-error">
