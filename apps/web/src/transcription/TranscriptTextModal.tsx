@@ -29,7 +29,16 @@ import { ExportMenu } from './ExportMenu';
 import { type KaraokeStore, useActiveWordInSegment } from './karaoke-store';
 import { useTranscriptScroll } from './useTranscriptScroll';
 import { useKaraoke } from './useKaraoke';
-import { hasTimings, type TranscriptExportContent, type TranscriptExportFormat } from './export';
+import {
+  buildTranscriptExport,
+  downloadTranscriptExport,
+  hasTimings,
+  type TranscriptExportContent,
+  type TranscriptExportFormat
+} from './export';
+import { useTextVariants, type TextVariant } from '../translation/useTextVariants';
+import { TextVariantReader, TextVariantTabs, variantName } from '../translation/TextVariantViews';
+import { TranslationProgress } from '../translation/TranslationProgress';
 import {
   Alert,
   Button,
@@ -338,6 +347,29 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
     [segments]
   );
 
+  // 063: the original and its translations. A translation is filed under this job and under
+  // the text itself, so the same transcript opened on another computer finds it too.
+  const variantSource = useMemo(
+    () =>
+      document_ && !loadFailed && segments.length > 0
+        ? {
+            scope: 'personal' as const,
+            documentKey: job.id,
+            language: sourceLanguage === 'auto' ? null : sourceLanguage,
+            segments: segments.map(segment => segment.sourceText)
+          }
+        : null,
+    [document_, job.id, loadFailed, segments, sourceLanguage]
+  );
+  const variants = useTextVariants(variantSource);
+  const [variantKey, setVariantKey] = useState('original');
+  const shownVariant: TextVariant =
+    (variantKey !== 'original'
+      ? variants.translations.find(item => item.key === variantKey)
+      : undefined) ?? variants.original;
+  const showingTranslation = shownVariant.kind === 'translation';
+  const [playingIndex, setPlayingIndex] = useState<number | null>(null);
+
   const { sourceScrollRef, centerActiveWord } = useTranscriptScroll({
     layoutKey: `${job.id}@${job.finishedAt ?? 0}`,
     reducedMotion
@@ -404,6 +436,66 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
     } catch {
       onToast?.(t('transcriptionFailedTitle'), 'error');
     }
+  };
+
+  const copyTranslation = async () => {
+    if (shownVariant.kind !== 'translation' || !shownVariant.segments) return;
+    try {
+      await navigator.clipboard.writeText(shownVariant.segments.join('\n'));
+      setCopied({ side: 'source', scope: 'all' });
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(null), 1800);
+      onToast?.(
+        t('textTranslationCopied', {
+          variant: variantName(shownVariant, language, t('textTranslationOriginal'))
+        }),
+        'success'
+      );
+    } catch {
+      onToast?.(t('transcriptionFailedTitle'), 'error');
+    }
+  };
+
+  // The translation follows the player by segment: the words of a translation have no timings.
+  useEffect(() => {
+    const media = mediaRef.current;
+    if (!media || !showingTranslation || !previewOpen) {
+      setPlayingIndex(null);
+      return;
+    }
+    const update = () => {
+      const ms = media.currentTime * 1000;
+      const index = segments.findIndex(segment => ms >= segment.startMs && ms < segment.endMs);
+      setPlayingIndex(index >= 0 ? index : null);
+    };
+    media.addEventListener('timeupdate', update);
+    update();
+    return () => media.removeEventListener('timeupdate', update);
+  }, [showingTranslation, previewOpen, segments, mediaPreview?.state]);
+
+  // Exporting while a translation is open exports that translation, with the original's timings.
+  const exportShown = (format: TranscriptExportFormat, content: TranscriptExportContent) => {
+    if (shownVariant.kind !== 'translation' || !shownVariant.segments) {
+      onExport?.(format, content);
+      return;
+    }
+    if (format !== 'txt' && !hasTimings(segments)) {
+      onToast?.(t('transcriptionExportNoTimings'), 'warning');
+      return;
+    }
+    const translated = shownVariant.segments;
+    downloadTranscriptExport(
+      buildTranscriptExport({
+        fileName: job.fileName,
+        segments: segments.map((segment, index) => ({
+          ...segment,
+          sourceText: translated[index] ?? ''
+        })),
+        content,
+        format,
+        suffix: `.${shownVariant.language}`
+      })
+    );
   };
 
   const preparePreview = async () => {
@@ -531,7 +623,14 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
             )}
           </p>
         </div>
-        {}
+        {variantSource && (
+          <TextVariantTabs
+            state={variants}
+            value={shownVariant.key}
+            onChange={setVariantKey}
+            scope="personal"
+          />
+        )}
 
         <IconButton
           className="transcript-modal-close"
@@ -552,16 +651,29 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
         >
           <div className="transcript-column-head">
             <span className="transcript-column-title">
-              {languageDisplayName(sourceLanguage, language)}
+              {showingTranslation
+                ? variantName(shownVariant, language, t('textTranslationOriginal'))
+                : languageDisplayName(sourceLanguage, language)}
             </span>
-            <Button
-              color="neutral"
-              variant="ghost"
-              disabled={loading}
-              onClick={() => void copyColumn('source')}
-            >
-              {copyLabel('source', hasSourceSelection)}
-            </Button>
+            {showingTranslation ? (
+              <Button
+                color="neutral"
+                variant="ghost"
+                disabled={shownVariant.kind !== 'translation' || shownVariant.status !== 'ready'}
+                onClick={() => void copyTranslation()}
+              >
+                {copied ? t('transcriptionCopiedAll') : t('transcriptionCopyAll')}
+              </Button>
+            ) : (
+              <Button
+                color="neutral"
+                variant="ghost"
+                disabled={loading}
+                onClick={() => void copyColumn('source')}
+              >
+                {copyLabel('source', hasSourceSelection)}
+              </Button>
+            )}
           </div>
           <div
             ref={sourceScrollRef}
@@ -581,7 +693,33 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
               document_.reliability.timedWords < document_.reliability.totalWords * 0.9 && (
                 <Alert color="warning">{t('transcriptionTimingsPartial')}</Alert>
               )}
-            {loading ? (
+            {shownVariant.kind === 'translation' ? (
+              <div className="transcript-translation-view">
+                {shownVariant.status !== 'ready' && (
+                  <TranslationProgress
+                    variant={shownVariant}
+                    onRetry={
+                      shownVariant.status === 'failed'
+                        ? () => void variants.start(shownVariant.language)
+                        : undefined
+                    }
+                  />
+                )}
+                {shownVariant.stale && (
+                  <Alert color="warning">{t('textTranslationStale')}</Alert>
+                )}
+                {shownVariant.status === 'ready' && (
+                  <TextVariantReader
+                    variant={shownVariant}
+                    activeIndex={playingIndex}
+                    onSegmentClick={index => {
+                      const start = segments[index]?.startMs;
+                      if (start !== undefined && mediaRef.current) seekTo(start);
+                    }}
+                  />
+                )}
+              </div>
+            ) : loading ? (
               <div className="transcript-modal-loading" role="status">
                 <span className="soty-spinner" aria-hidden="true" />
                 <span>{t('transcriptionModalLoading')}</span>
@@ -697,8 +835,12 @@ export const TranscriptTextModal = memo(function TranscriptTextModal({
         {onExport && (
           <ExportMenu
             hasTimings={timed}
-            disabled={loading || segments.length === 0}
-            onExport={onExport}
+            disabled={
+              loading ||
+              segments.length === 0 ||
+              (shownVariant.kind === 'translation' && shownVariant.status !== 'ready')
+            }
+            onExport={exportShown}
             t={t}
           />
         )}

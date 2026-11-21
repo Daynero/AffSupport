@@ -27,6 +27,7 @@ import {
   GLOBAL_CATALOG_IMAGE_ERROR_CODES,
   CATALOG_VIDEO_R2_ERROR_CODES,
   LAUNCH_CREATIVE_ERROR_CODES,
+  TEAM_TRANSLATION_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
   TEAM_MATERIAL_LIFECYCLES,
@@ -77,7 +78,9 @@ const extensionCodes = new Set([
   ...GLOBAL_CATALOG_IMAGE_ERROR_CODES,
   ...CATALOG_VIDEO_R2_ERROR_CODES,
   // 062: a hand-written additive batch, like the global image codes.
-  ...LAUNCH_CREATIVE_ERROR_CODES
+  ...LAUNCH_CREATIVE_ERROR_CODES,
+  // 063: transcript translation, hand-written the same way.
+  ...TEAM_TRANSLATION_ERROR_CODES
 ]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
 if (
@@ -101,7 +104,8 @@ if (
       CATALOG_IMAGE_ERROR_CODES.length +
       GLOBAL_CATALOG_IMAGE_ERROR_CODES.length +
       CATALOG_VIDEO_R2_ERROR_CODES.length +
-      LAUNCH_CREATIVE_ERROR_CODES.length
+      LAUNCH_CREATIVE_ERROR_CODES.length +
+      TEAM_TRANSLATION_ERROR_CODES.length
 )
   fail('Duplicate team error code');
 
@@ -300,6 +304,16 @@ const retirementInsert =
 const retirementCodes = [...retirementInsert.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]);
 if (JSON.stringify(retirementCodes) !== JSON.stringify([...TEAM_RETIREMENT_ERROR_CODES]))
   fail('Retirement error catalog is out of date: ' + retirementPath);
+
+// 063: the translation codes are a hand-written additive batch; check it, never rewrite it.
+const translationPath = resolve(root, 'supabase/migrations/20261222112000_translation_error_codes.sql');
+const translationInsert =
+  /insert into public\.team_error_codes\s*\(code\)\s+values\s+([\s\S]*?)on conflict/iu.exec(
+    readFileSync(translationPath, 'utf8')
+  )?.[1] ?? '';
+const translationCodes = [...translationInsert.matchAll(/\('([^']+)'\)/gu)].map(match => match[1]);
+if (JSON.stringify(translationCodes) !== JSON.stringify([...TEAM_TRANSLATION_ERROR_CODES]))
+  fail('Translation error catalog is out of date: ' + translationPath);
 
 const commercialPath = resolve(
   root,

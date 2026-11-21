@@ -106,11 +106,14 @@ export function TextVariantTabs({
 export function TextVariantReader({
   variant,
   activeIndex,
+  onSegmentClick,
   className
 }: {
   variant: TextVariant;
   /** The segment playing now, in a viewer with a player. */
   activeIndex?: number | null;
+  /** A paragraph was clicked: the viewer seeks its player there. */
+  onSegmentClick?: (index: number) => void;
   className?: string;
 }) {
   const segments = variant.kind === 'original' ? variant.segments : (variant.segments ?? []);
@@ -123,7 +126,12 @@ export function TextVariantReader({
     >
       {segments.map((segment, index) =>
         segment ? (
-          <p key={index} className={index === activeIndex ? 'is-active' : undefined} data-segment={index}>
+          <p
+            key={index}
+            className={index === activeIndex ? 'is-active' : undefined}
+            data-segment={index}
+            onClick={onSegmentClick ? () => onSegmentClick(index) : undefined}
+          >
             {segment}
           </p>
         ) : null

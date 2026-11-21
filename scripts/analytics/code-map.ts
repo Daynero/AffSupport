@@ -1901,6 +1901,30 @@ export const CODE_MAP: Readonly<Record<string, CodeLocation>> = Object.freeze({
       }
     ])
   ),
+  // 063: transcript translation through Claude. The server row and the ledger are authoritative.
+  ...Object.fromEntries(
+    (
+      [
+        ['TRANSLATION_ALLOWANCE_EXCEEDED', 'The daily allowance (private.ai_feature_allowances, Kyiv day) was smaller than the text; nothing was reserved. Compare usedUnits with the reservations of that day in analytics_ai_allowance_daily.'],
+        ['TRANSLATION_SOURCE_UNAVAILABLE', 'The space transcript was not fully ingested, was truncated, or was empty when the function read it with the caller rights.'],
+        ['TRANSLATION_UNAVAILABLE', 'No ANTHROPIC_API_KEY in the function secrets, or the model was unreachable after SDK retries (a failed ledger row with zero usage).'],
+        ['TRANSLATION_REFUSED', 'Haiku 5.5 and then Sonnet 5.5 returned stop_reason refusal for a chunk; minutes were returned. Check that the system prompt still describes the job truthfully.'],
+        ['TRANSLATION_FAILED', 'A chunk answered with the wrong number of lines twice, or saving the result failed; minutes were returned.'],
+        ['TRANSLATION_TIMEOUT', 'The attempt outlived the four-minute budget or was found processing after five minutes; minutes were returned.']
+      ] as const
+    ).map(([code, check]) => [
+      `translation:transcript:${code}`,
+      {
+        files: [
+          'supabase/functions/transcript-translate/handler.ts',
+          'supabase/functions/transcript-translate/translate.ts',
+          'supabase/migrations/20261222111000_transcript_translations.sql',
+          'apps/web/src/translation/useTextVariants.ts'
+        ],
+        check
+      }
+    ])
+  ),
   'tariff:commercial:review_required': {
     files: [
       'supabase/migrations/20261207110000_commercial_access_guards.sql',
