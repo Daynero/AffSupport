@@ -77,6 +77,11 @@ create table private.ai_admin_events (
   created_at timestamptz not null default now()
 );
 
+-- jsonb puts the journal in the attachment-cleanup inventory; without the fence the coverage check
+-- turns false and attachment cleanup stops for the whole base.
+create trigger task_cleanup_reference_fence before insert or update on private.ai_admin_events
+  for each row execute function private.guard_task_cleanup_reference();
+
 -- The provider's cost of a call is joined to the action that paid for it by op_key; a call whose
 -- usage never arrived is "unknown", not zero.
 alter table private.ai_usage_events add column op_key text;
