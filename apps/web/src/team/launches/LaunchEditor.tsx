@@ -535,7 +535,7 @@ export function LaunchEditor({
                   </p>
                 )}
                 {keptFirstCreative && config.method === 'other' && (
-                  <p className="field-hint">{t('launchOtherMethodOneCreative')}</p>
+                  <p className="ui-field-help">{t('launchOtherMethodOneCreative')}</p>
                 )}
               </div>
               <div className="launch-editor-link-field">
@@ -906,7 +906,7 @@ export function LaunchEditor({
                         />
                       </Suspense>
                       {creativeKind === 'image' && scheduledPublication && (
-                        <p className="field-hint">{t('launchImagesScheduleHint')}</p>
+                        <p className="ui-field-help">{t('launchImagesScheduleHint')}</p>
                       )}
                     </div>
                   </div>

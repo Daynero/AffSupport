@@ -72,7 +72,7 @@ export function CatalogCreationVideoFields({
           {/* Under the field, where its error would be: inside the label it ran on into the
               field's name — «Варіації відео Варіації роздаються…» (next, 2026-11-21). */}
           {split && (
-            <p id={`${countId}-split`} className="field-hint m-0">
+            <p id={`${countId}-split`} className="ui-field-help">
               {t('launchDistributionVariationHint', { split })}
             </p>
           )}

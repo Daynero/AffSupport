@@ -1766,11 +1766,7 @@
   display: inline-flex;
   color: var(--color-neutral-text-muted);
 }
-/* `field-hint` is what the catalog and launch forms have always written for a hint under a
-   field; nothing drew it, so those hints came out in body size with a paragraph's margins
-   (next QA 2026-11-21). It is the field help, under its older name. */
-.ui-field-help,
-.field-hint {
+.ui-field-help {
   margin: 0;
   color: var(--color-neutral-text-muted);
   font-size: var(--text-caption);

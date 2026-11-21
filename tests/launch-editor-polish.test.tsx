@@ -116,12 +116,17 @@ describe('R2 switch availability', () => {
 });
 
 describe('launch editor rows', () => {
-  it('draws every choice row as tall as a field, and the hint class has a style', () => {
+  it('draws every choice row as tall as a field, and its hints are field help', () => {
     const launch = readFileSync('apps/web/src/styles/launch-settings.css', 'utf8');
     expect(launch).toMatch(
       /\.launch-editor-compact \.ui-segmented \{[^}]*height: var\(--control-height-md\)/u
     );
-    const components = readFileSync('apps/web/src/styles/components.css', 'utf8');
-    expect(components).toMatch(/\.field-hint \{[^}]*font-size: var\(--text-caption\)/u);
+    // `field-hint` is the compressor's large hint (styles.css); a field's own hint in the
+    // launch editor is the design system's field help, in caption size.
+    for (const file of [
+      'apps/web/src/team/launches/LaunchEditor.tsx',
+      'apps/web/src/team/product-catalog/CatalogCreationVideoFields.tsx'
+    ])
+      expect(readFileSync(file, 'utf8')).not.toMatch(/className="field-hint/u);
   });
 });
