@@ -825,75 +825,91 @@ export function LaunchEditor({
                 </div>
                 {config.catalog && (
                   <div className="launch-editor-catalog-options">
+                    {/* One row per option, each as tall as its tallest control from the start, so
+                        a switch never moves under the pointer: turning re-stitch on used to add a
+                        labelled field above the row and drop the switch a line down (next QA
+                        2026-11-21). What an option adds appears beside it or folds open below. */}
                     {creativeKind !== 'image' && (
-                      <div className="launch-editor-restitch">
-                        <Switch
-                          label={t('launchesRestitch')}
-                          checked={config.catalog.restitchEnabled}
-                          disabled={disabled}
-                          onChange={restitchEnabled => {
-                            const current = config.catalog!;
-                            // Turning restitch on with several videos starts at one variation per
-                            // video, the least the launch accepts — not at an error the user did
-                            // not make. Turning it off returns a v1 catalog to its one original.
-                            const next = { ...current, restitchEnabled };
-                            changed({
-                              catalog:
-                                restitchEnabled &&
-                                creativeCount > 1 &&
-                                (current.videoVariationCount ?? 1) < creativeCount
-                                  ? withVariationCount(
-                                      next,
-                                      Math.min(creativeCount, current.productCount)
-                                    )
-                                  : !restitchEnabled && current.catalogVideoProtocolVersion === 1
-                                    ? { ...next, videoVariationCount: 1 }
-                                    : next
-                            });
-                          }}
-                        />
+                      <div className="launch-editor-catalog-row">
+                        <div className="launch-editor-restitch">
+                          <Switch
+                            label={t('launchesRestitch')}
+                            checked={config.catalog.restitchEnabled}
+                            disabled={disabled}
+                            onChange={restitchEnabled => {
+                              const current = config.catalog!;
+                              // Turning restitch on with several videos starts at one variation per
+                              // video, the least the launch accepts — not at an error the user did
+                              // not make. Turning it off returns a v1 catalog to its one original.
+                              const next = { ...current, restitchEnabled };
+                              changed({
+                                catalog:
+                                  restitchEnabled &&
+                                  creativeCount > 1 &&
+                                  (current.videoVariationCount ?? 1) < creativeCount
+                                    ? withVariationCount(
+                                        next,
+                                        Math.min(creativeCount, current.productCount)
+                                      )
+                                    : !restitchEnabled && current.catalogVideoProtocolVersion === 1
+                                      ? { ...next, videoVariationCount: 1 }
+                                      : next
+                              });
+                            }}
+                          />
+                        </div>
+                        {config.catalog.restitchEnabled && (
+                          <div className="launch-editor-variations launch-editor-appear">
+                            <Suspense fallback={null}>
+                              <LaunchCatalogVideoFields
+                                part="variations"
+                                value={config.catalog}
+                                disabled={disabled}
+                                creativeCopies={
+                                  creativeCount > 1
+                                    ? draftCreatives(config).map(c => c.copies)
+                                    : undefined
+                                }
+                                onChange={catalog => changed({ catalog })}
+                              />
+                            </Suspense>
+                          </div>
+                        )}
                       </div>
                     )}
                     {creativeKind !== 'image' && (
-                      <Suspense fallback={null}>
-                        <LaunchCatalogVideoFields
-                          part="variations"
+                      <Collapse
+                        open={config.catalog.restitchEnabled}
+                        className="launch-editor-catalog-fold"
+                      >
+                        <LaunchRestitchDurationField
                           value={config.catalog}
                           disabled={disabled}
-                          creativeCopies={
-                            creativeCount > 1
-                              ? draftCreatives(config).map(c => c.copies)
+                          error={
+                            errors.customFinalDurationSeconds &&
+                            (submitted || touched.has('catalog'))
+                              ? t('launchesDurationInvalid')
                               : undefined
                           }
-                          onChange={catalog => changed({ catalog })}
+                          onChange={duration =>
+                            changed({ catalog: { ...config.catalog!, ...duration } })
+                          }
                         />
-                      </Suspense>
+                      </Collapse>
                     )}
-                    <CatalogVideoR2Toggle
-                      mode="create"
-                      teamId={teamId}
-                      control="switch"
-                      media={creativeKind === 'image' ? 'image' : 'video'}
-                      checked={config.catalog!.copyVideoToR2 === true}
-                      disabled={disabled}
-                      onChange={copyVideoToR2 =>
-                        changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
-                      }
-                    />
-                    {config.catalog.restitchEnabled && creativeKind !== 'image' && (
-                      <LaunchRestitchDurationField
-                        value={config.catalog}
+                    <div className="launch-editor-catalog-row">
+                      <CatalogVideoR2Toggle
+                        mode="create"
+                        teamId={teamId}
+                        control="switch"
+                        media={creativeKind === 'image' ? 'image' : 'video'}
+                        checked={config.catalog!.copyVideoToR2 === true}
                         disabled={disabled}
-                        error={
-                          errors.customFinalDurationSeconds && (submitted || touched.has('catalog'))
-                            ? t('launchesDurationInvalid')
-                            : undefined
-                        }
-                        onChange={duration =>
-                          changed({ catalog: { ...config.catalog!, ...duration } })
+                        onChange={copyVideoToR2 =>
+                          changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
                         }
                       />
-                    )}
+                    </div>
                     <div className="flex basis-full flex-col gap-2">
                       <Suspense fallback={null}>
                         <LaunchCatalogVideoFields

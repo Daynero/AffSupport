@@ -139,25 +139,54 @@
   padding-inline: var(--space-1);
   background: transparent;
 }
-.launch-editor-compact .launch-editor-method {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  column-gap: var(--space-4);
-}
-.launch-editor-compact .launch-editor-method > .launch-editor-section-heading {
-  flex-basis: 100%;
-}
+/* The catalog's options are a column of rows. Each row is as tall as its tallest control
+   (the R2 help mark is a full touch target) before anything is switched on, so a switch
+   never moves under the pointer; what an option adds sits beside it in the same row or
+   folds open below (next QA 2026-11-21). */
 .launch-editor-compact .launch-editor-catalog-options {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.launch-editor-catalog-row {
+  display: flex;
+  min-width: 0;
+  min-height: var(--control-height-lg);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-5);
+}
+.launch-editor-catalog-row:empty {
+  display: none;
 }
 .launch-editor-compact .launch-editor-restitch {
   min-width: 0;
   flex: 0 0 auto;
-  /* As tall as the R2 switch beside it, whose help mark is a full touch target: the row
-     aligns their bottoms, and two heights put the switches a few pixels apart. */
-  min-height: var(--control-height-lg);
-  justify-content: center;
+}
+/* «Варіації відео [ 2 ]» on the switch's own line: a caption and a small field, not a
+   labelled block that made the row thick. Its hint and its error follow on the same line. */
+.launch-editor-variations > .ui-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.launch-editor-variations .ui-field-label {
+  min-height: 0;
+  font-weight: var(--weight-body);
+}
+.launch-editor-variations .ui-input {
+  width: calc(var(--control-height-lg) * 1.5);
+  min-height: var(--control-height-sm);
+  height: var(--control-height-sm);
+}
+/* The duration folds open under the re-stitch row, lined up with its label. */
+.launch-editor-compact .launch-editor-catalog-fold .launch-duration-disclosure {
+  padding-bottom: var(--space-1);
 }
 .launch-editor-catalog-advanced {
   flex-basis: 100%;

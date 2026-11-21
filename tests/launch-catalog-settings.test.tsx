@@ -230,3 +230,35 @@ it('says how variations go round the videos under the field, apart from its name
     'Variations go to videos in turn: 2 · 1 · 1'
   );
 });
+it('keeps the re-stitch switch in place: its variations join its row, its duration folds below', async () => {
+  // next QA 2026-11-21: turning re-stitch on added a labelled field above the row and
+  // dropped the switch a line down, out from under the pointer.
+  const draft = threeVideos();
+  const view = render(<LaunchEditor {...editorProps(vi.fn())} config={draft} />);
+  const restitch = screen.getByRole('switch', { name: 'Restitch video' });
+  const row = restitch.closest('.launch-editor-catalog-row');
+  expect(row).toBeTruthy();
+  const fold = document.querySelector('.launch-editor-catalog-fold');
+  expect(fold?.classList.contains('is-open')).toBe(false);
+  view.rerender(
+    <LaunchEditor
+      {...editorProps(vi.fn())}
+      config={{
+        ...draft,
+        catalog: {
+          ...draft.catalog!,
+          restitchEnabled: true,
+          catalogVideoProtocolVersion: 1,
+          videoVariationCount: 3
+        }
+      }}
+    />
+  );
+  const variations = await screen.findByRole('textbox', { name: 'Video variations' });
+  expect(variations.closest('.launch-editor-catalog-row')).toBe(row);
+  expect(
+    screen.getByRole('switch', { name: 'Restitch video' }).closest('.launch-editor-catalog-row')
+  ).toBe(row);
+  expect(document.querySelector('.launch-editor-catalog-fold')).toBe(fold);
+  expect(fold?.classList.contains('is-open')).toBe(true);
+});
