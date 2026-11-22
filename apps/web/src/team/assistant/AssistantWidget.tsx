@@ -374,7 +374,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     setBusy(true);
     setError(null);
     try {
-      if (card.kind === 'review') await assistantApi.reviewLaunched(card.id, batchKey);
+      await assistantApi.reviewLaunched(card.id, batchKey);
       await launchRows(
         teamId,
         rows.map(item => ({ launchId: item.launchId, version: item.version })),
