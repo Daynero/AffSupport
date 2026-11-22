@@ -37,6 +37,7 @@ import {
   type AssistantDialog
 } from '../../api/assistant';
 import { launchApi } from '../../api/launches';
+import { TeamApiError } from '../../api/team';
 import { CreditsButton } from '../../credits/CreditsButton';
 import { Button, DropdownMenu, IconButton, Spinner } from '../../components/ui/index.js';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
@@ -384,7 +385,14 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
       flow.finish('success');
     } catch (caught) {
       flow.finish('failure');
-      setError(teamErrorMessageFor(caught, t));
+      // A card from earlier in the dialog shows drafts as they were; changed or removed since,
+      // they are not launched, and the person is told how to get a current card.
+      const code = caught instanceof TeamApiError ? caught.code : null;
+      setError(
+        code === 'REVIEW_CHANGED' || code === 'NOT_FOUND' || code === 'LAUNCH_VERSION_CONFLICT'
+          ? t('assistantCardStale')
+          : teamErrorMessageFor(caught, t)
+      );
     } finally {
       setBusy(false);
     }

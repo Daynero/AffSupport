@@ -5273,5 +5273,7 @@ export const en = {
   assistantBudgetRange: 'range',
   assistantBudgetSingle: 'same for all',
   assistantBudgetManual: 'by hand',
-  assistantR2Short: 'video in R2'
+  assistantR2Short: 'video in R2',
+  assistantCardStale:
+    'These drafts have changed or were removed. Ask to show them again for a current card.'
 } as const;

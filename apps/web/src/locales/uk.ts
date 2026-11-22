@@ -5247,5 +5247,7 @@ export const uk: Record<keyof typeof en, string> = {
   assistantBudgetRange: 'діапазон',
   assistantBudgetSingle: 'однаковий',
   assistantBudgetManual: 'вручну',
-  assistantR2Short: 'відео в R2'
+  assistantR2Short: 'відео в R2',
+  assistantCardStale:
+    'Ці чернетки вже змінилися або видалені. Попроси показати їх знову — картка буде свіжа.'
 };
