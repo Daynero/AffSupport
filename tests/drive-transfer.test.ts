@@ -616,14 +616,15 @@ describe('resumable upload and full-download transfer contract', () => {
     });
     await expect(
       buildDownloadGrantResult(
-        material({ sizeBytes: 100 * MiB }),
+        material({ sizeBytes: 32 * MiB }),
         { consumer: 'browser', rangeEndpoint: 'https://edge.test/range' },
         issueGrant
       )
     ).resolves.toMatchObject({ kind: 'browser', disposition: 'attachment' });
+    // A plain browser GET gets one 32 MiB range; a larger file would be saved cut (2026-11-22).
     await expect(
       buildDownloadGrantResult(
-        material({ sizeBytes: 100 * MiB + 1 }),
+        material({ sizeBytes: 32 * MiB + 1 }),
         { consumer: 'browser', rangeEndpoint: 'https://edge.test/range' },
         issueGrant
       )
