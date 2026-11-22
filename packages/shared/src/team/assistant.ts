@@ -70,6 +70,11 @@ export interface AssistantAction {
   notesFrom: string | null;
   /** The language to translate those notes into («Spanish (Mexico)»); null keeps them as they are. */
   notesLanguage: string | null;
+  /**
+   * archive_drafts: true when the person said «запуски» («видали всі запуски на завтра») — launched
+   * ones go too, as the Launches tab deletes them; false or null for «чернетки».
+   */
+  includeLaunched: boolean | null;
   /** use_tool: the space tool to use (search, folders, tags, finance, tasks…); null otherwise. */
   tool: string | null;
   /** use_tool: its arguments as written, checked by the tool itself. */
@@ -183,6 +188,7 @@ export function assistantPlanSchema(): Record<string, unknown> {
             },
             notesFrom: nullableString,
             notesLanguage: nullableString,
+            includeLaunched: { type: ['boolean', 'null'] },
             tool: nullableString,
             args: {
               type: 'array',
@@ -208,6 +214,7 @@ export function assistantPlanSchema(): Record<string, unknown> {
             'question',
             'notesFrom',
             'notesLanguage',
+            'includeLaunched',
             'tool',
             'args'
           ],
@@ -255,7 +262,7 @@ function parseChange(value: unknown): AssistantFieldChange | null {
   return { field, op: op as AssistantFieldOp, value: raw as AssistantValue };
 }
 
-const NOTES_KEYS = ['notesFrom', 'notesLanguage', 'tool', 'args'];
+const NOTES_KEYS = ['notesFrom', 'notesLanguage', 'includeLaunched', 'tool', 'args'];
 
 const ACTION_KEYS = [
   'type',
@@ -298,6 +305,8 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
       return null;
     if (notesLanguage !== null && (typeof notesLanguage !== 'string' || notesLanguage.length > 60))
       return null;
+    const includeLaunched = item.includeLaunched ?? null;
+    if (includeLaunched !== null && typeof includeLaunched !== 'boolean') return null;
     const tool = item.tool ?? null;
     if (tool !== null && (typeof tool !== 'string' || !/^[a-z_]{2,40}$/u.test(tool))) return null;
     const rawArgs = item.args ?? [];
@@ -413,6 +422,7 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
       question,
       notesFrom: notesFrom as string | null,
       notesLanguage: notesLanguage as string | null,
+      includeLaunched,
       tool: tool as string | null,
       args
     });

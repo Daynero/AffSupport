@@ -323,6 +323,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
   };
 
   const missing = (item: AssistantRow) => {
+    if (item.blocked.some(entry => entry.code === 'GENERATING')) return t('assistantGeneratingRow');
     if (item.blocked.some(entry => entry.code === 'LAUNCHED')) return t('assistantLaunchedRow');
     const words = new Set<string>();
     for (const entry of item.blocked) {
@@ -727,6 +728,9 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     const removing = payload.purpose === 'archive';
     const removed = removing && card.state === 'confirmed';
     const kept = typeof payload.launchedKept === 'number' ? payload.launchedKept : 0;
+    const generatingKept = typeof payload.generatingKept === 'number' ? payload.generatingKept : 0;
+    const launchedIncluded =
+      typeof payload.launchedIncluded === 'number' ? payload.launchedIncluded : 0;
     const created = Array.isArray(payload.createdOffers) ? (payload.createdOffers as string[]) : [];
     // Drafts that cannot go yet and are not simply launched: the card says so and what to write.
     const unfinished = rows.filter(
@@ -775,6 +779,16 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         )}
         {kept > 0 && (
           <p className="assistant-note">{t('assistantArchiveKeptLaunched', { count: kept })}</p>
+        )}
+        {removing && launchedIncluded > 0 && !removed && (
+          <p className="assistant-note">
+            {t('assistantArchiveLaunchedIncluded', { count: launchedIncluded })}
+          </p>
+        )}
+        {removing && generatingKept > 0 && (
+          <p className="assistant-note is-warning">
+            {t('assistantArchiveGeneratingKept', { count: generatingKept })}
+          </p>
         )}
         {rows.length > 0 && (
           <ul className="assistant-rows">
@@ -1114,18 +1128,23 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             <li className="assistant-empty">
               <p className="assistant-text">{t('assistantEmpty')}</p>
               <div className="assistant-examples">
-                {(['assistantExample1', 'assistantExample2', 'assistantExample3'] as const).map(
-                  example => (
-                    <Button
-                      key={example}
-                      size="xs"
-                      variant="outline"
-                      onClick={() => setText(t(example))}
-                    >
-                      {t(example)}
-                    </Button>
-                  )
-                )}
+                {(
+                  [
+                    'assistantExample1',
+                    'assistantExample2',
+                    'assistantExample3',
+                    'assistantExample4'
+                  ] as const
+                ).map(example => (
+                  <Button
+                    key={example}
+                    size="xs"
+                    variant="outline"
+                    onClick={() => setText(t(example))}
+                  >
+                    {t(example)}
+                  </Button>
+                ))}
               </div>
             </li>
           )}

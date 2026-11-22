@@ -325,7 +325,9 @@ export function ToolReviewCard({
   const destination = payload.destination as { label?: string; create?: string } | undefined;
   const title = REVIEW_TITLE[tool];
   return (
-    <section className={danger ? 'assistant-card is-danger' : 'assistant-card'}>
+    <section
+      className={danger && !dismissed && !done ? 'assistant-card is-danger' : 'assistant-card'}
+    >
       <p className="assistant-card-title">
         {danger ? (
           <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
@@ -361,7 +363,7 @@ export function ToolReviewCard({
             : t('assistantToolInRoot')}
         </p>
       )}
-      {created.length > 0 && !done && (
+      {created.length > 0 && !done && !dismissed && (
         <p className="assistant-note">{t('assistantToolNewTags', { names: created.join(', ') })}</p>
       )}
       {destination?.create && (
@@ -406,7 +408,7 @@ export function ToolReviewCard({
           {t('assistantToolSum', { sum: usd.format(Number(payload.total)) })}
         </p>
       )}
-      {typeof payload.overwrites === 'number' && payload.overwrites > 0 && !done && (
+      {typeof payload.overwrites === 'number' && payload.overwrites > 0 && !done && !dismissed && (
         <p className="assistant-note is-warning">
           <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
           {t('assistantToolOverwrites', { count: payload.overwrites })}
@@ -424,13 +426,16 @@ export function ToolReviewCard({
           {t('assistantFolderMoveUnsupported', { written: folders.join(', ') })}
         </p>
       )}
-      {typeof payload.folderCount === 'number' && payload.folderCount > 0 && !done && (
-        <p className="assistant-note is-warning">
-          <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          {t('assistantToolTrashFolders', { count: payload.folderCount })}
-        </p>
-      )}
-      {danger && !done && (
+      {typeof payload.folderCount === 'number' &&
+        payload.folderCount > 0 &&
+        !done &&
+        !dismissed && (
+          <p className="assistant-note is-warning">
+            <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t('assistantToolTrashFolders', { count: payload.folderCount })}
+          </p>
+        )}
+      {danger && !done && !dismissed && (
         <p className="assistant-note">{t(DANGER_NOTE[tool] ?? 'assistantToolTrashNote')}</p>
       )}
       {payload.truncated === true && (

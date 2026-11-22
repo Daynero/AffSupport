@@ -994,6 +994,10 @@ export async function cardRows(
           ...(generation && !['failed', 'canceled'].includes(generation)
             ? [{ field: 'generation', code: 'LAUNCHED' }]
             : []),
+          // Still being generated: nothing may touch it until it ends, as in Launches.
+          ...(generation && !['failed', 'canceled', 'succeeded'].includes(generation)
+            ? [{ field: 'generation', code: 'GENERATING' }]
+            : []),
           ...assistantBlockedFields(config as never)
         ]
       }
@@ -1427,13 +1431,26 @@ export async function executePlan(
         rememberRenames(card, renamed);
         cards.push(card);
       } else if (action.type === 'archive_drafts') {
-        // Only a card: the drafts go away when the person presses «Видалити N» on it.
+        // Only a card: they go away when the person presses «Видалити N» on it. Launched ones too,
+        // as the Launches tab deletes them (their catalog stays in the space) — owner, 2026-11-22:
+        // «видали всі запуски на завтра» that kept two launched ones read as a failure. Only a
+        // launch still being generated is left, and the card says why.
         const picked = await selectRows(action, deps, resolution, created);
-        const launched = picked.rows.filter(row =>
-          row.blocked.some(entry => entry.code === 'LAUNCHED')
+        const generating = picked.rows.filter(row =>
+          row.blocked.some(entry => entry.code === 'GENERATING')
         ).length;
+        // «чернетки» keeps launched ones out and says so; «запуски» takes them too.
+        const withLaunched = action.includeLaunched === true;
+        const launchedOut = withLaunched
+          ? 0
+          : picked.rows.filter(
+              row =>
+                row.blocked.some(entry => entry.code === 'LAUNCHED') &&
+                !row.blocked.some(entry => entry.code === 'GENERATING')
+            ).length;
         const rows = picked.rows
-          .filter(row => !row.blocked.some(entry => entry.code === 'LAUNCHED'))
+          .filter(row => !row.blocked.some(entry => entry.code === 'GENERATING'))
+          .filter(row => withLaunched || !row.blocked.some(entry => entry.code === 'LAUNCHED'))
           .map((row, index) => ({ ...row, n: index + 1 }));
         cards.push({
           kind: 'review',
@@ -1443,7 +1460,11 @@ export async function executePlan(
             timezone: deps.timezone,
             rows,
             ready: rows.length,
-            launchedKept: launched,
+            launchedKept: launchedOut,
+            generatingKept: generating,
+            launchedIncluded: rows.filter(row =>
+              row.blocked.some(entry => entry.code === 'LAUNCHED')
+            ).length,
             truncated: picked.truncated
           }
         });

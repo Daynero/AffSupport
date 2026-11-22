@@ -5138,10 +5138,11 @@ export const uk: Record<keyof typeof en, string> = {
   assistantShort: 'Бракує {missing} · поновиться о {time}',
   assistantCounter: '{count} / 4000',
   assistantEmpty:
-    'Напиши, що зробити. Зараз я готую запуски: збережу звичайні чернетки, а запустиш ти кнопкою.',
+    'Напиши, що зробити в просторі: запуски, гроші РК і виписки, файли й папки, теги, каталоги, люди, завдання. Що змінює дані — покажу карткою з кнопкою, нічого не зроблю сам.',
   assistantExample1: 'на завтра g18: прокапс тр25; урафірин май1',
-  assistantExample2: 'покажи все на завтра',
-  assistantExample3: 'видали чернетки на сьогодні',
+  assistantExample2: 'скільки витрат за вчора по акаунтах',
+  assistantExample3: 'дай виписку поповнень за тегами за тиждень',
+  assistantExample4: 'створи папку TR і перенеси туди тр16',
   assistantClose: 'Закрити',
   assistantThinking: 'Розбираю…',
   assistantResultTitle: 'Чернеток: {count} · кампаній: {campaigns}',
@@ -5220,7 +5221,8 @@ export const uk: Record<keyof typeof en, string> = {
   assistantArchived: 'Видалено: {count}',
   assistantArchiveFailed: 'Не вдалося видалити: {count}. Можливо, їх уже змінили — онови список.',
   assistantArchiveEmpty: 'Чернеток для видалення не знайшов.',
-  assistantArchiveKeptLaunched: 'Запущені не чіпаю: {count}. Їх видаляють вручну у формі.',
+  assistantArchiveKeptLaunched:
+    'Уже запущені не чіпаю: {count}. Щоб прибрати і їх, напиши «видали запуски», а не «чернетки».',
   aiBudgetBonus: 'Бонусні чарунки',
   aiBudgetBonusHint: 'Не згорають. Від’ємне число забирає невитрачені.',
   aiBudgetBonusGive: 'Нарахувати',
@@ -5349,6 +5351,11 @@ export const uk: Record<keyof typeof en, string> = {
     'Доступ до простору зникне; файли, які вони відкривали на Drive напряму, лишаться в них.',
   assistantToolDone: 'Готово: {count}',
   assistantToolFailed: 'Не вийшло: {count}. Онови сторінку й спробуй ще раз.',
+  assistantGeneratingRow: 'Генерується зараз',
+  assistantArchiveLaunchedIncluded:
+    'Серед них уже запущені: {count}. Видаляється лише запуск у Soty — кампанії й каталог лишаються.',
+  assistantArchiveGeneratingKept:
+    'Генеруються просто зараз: {count}. Їх можна буде видалити, коли генерація закінчиться.',
   assistantToolDismiss: 'Не треба',
   assistantToolDismissed: 'Скасовано — нічого не змінено.',
   assistantToolNothingEntered: 'За цей період нічого не внесено.',

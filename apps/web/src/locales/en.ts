@@ -5164,10 +5164,11 @@ export const en = {
   assistantShort: 'Short by {missing} · renews at {time}',
   assistantCounter: '{count} / 4,000',
   assistantEmpty:
-    'Write what to do. For now I prepare launches: I save ordinary drafts; you launch them with a button.',
+    'Write what to do in the space: launches, ad account money and statements, files and folders, tags, catalogs, people, tasks. Anything that changes data comes as a card with a button; I never change it by myself.',
   assistantExample1: 'tomorrow g18: procaps tr25; urafirin my1',
-  assistantExample2: 'show everything for tomorrow',
-  assistantExample3: 'remove today’s drafts',
+  assistantExample2: 'how much did we spend yesterday per account',
+  assistantExample3: 'top-up statement by tags for the week',
+  assistantExample4: 'create a folder TR and move tr16 there',
   assistantClose: 'Close',
   assistantThinking: 'Working…',
   assistantResultTitle: 'Drafts: {count} · campaigns: {campaigns}',
@@ -5245,7 +5246,8 @@ export const en = {
   assistantArchived: 'Removed: {count}',
   assistantArchiveFailed: 'Could not remove {count}. They may have changed — refresh the list.',
   assistantArchiveEmpty: 'No drafts to remove.',
-  assistantArchiveKeptLaunched: 'Launched ones stay: {count}. Remove them by hand in the form.',
+  assistantArchiveKeptLaunched:
+    'Launched ones stay: {count}. To remove them too, write «delete launches», not «drafts».',
   aiBudgetBonus: 'Bonus credits',
   aiBudgetBonusHint: 'They don’t expire. A negative number takes back unspent ones.',
   aiBudgetBonusGive: 'Give',
@@ -5374,6 +5376,11 @@ export const en = {
     'They lose access to the space; files they opened on Drive directly stay with them.',
   assistantToolDone: 'Done: {count}',
   assistantToolFailed: 'Failed: {count}. Refresh the page and try again.',
+  assistantGeneratingRow: 'Generating now',
+  assistantArchiveLaunchedIncluded:
+    'Already launched among them: {count}. Only the launch in Soty goes — campaigns and the catalog stay.',
+  assistantArchiveGeneratingKept:
+    'Being generated right now: {count}. They can be deleted when generation ends.',
   assistantToolDismiss: 'Not needed',
   assistantToolDismissed: 'Cancelled — nothing was changed.',
   assistantToolNothingEntered: 'Nothing entered for this period.',

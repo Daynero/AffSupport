@@ -23,7 +23,13 @@ const MATERIALS = [
 ];
 const now = () => new Date('2026-11-21T10:00:00Z');
 
-type Launch = { id: string; version: string; draft: Record<string, unknown>; archived: boolean };
+type Launch = {
+  id: string;
+  version: string;
+  draft: Record<string, unknown>;
+  archived: boolean;
+  generationState?: string;
+};
 
 function action(overrides: Record<string, unknown>) {
   return {
@@ -91,7 +97,8 @@ function space(
     config: launch.draft,
     offer: offers.find(offer => offer.id === launch.draft.offerId)?.value ?? null,
     account: AGENTS.find(agent => agent.id === launch.draft.agentRowId)?.agent_id ?? null,
-    materials: MATERIALS
+    materials: MATERIALS,
+    generationState: launch.generationState ?? null
   });
   const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
     calls.push([name, args]);
@@ -912,6 +919,49 @@ describe('064 assistant — offers, removal and selection', () => {
     expect((card.payload.rows as unknown[]).length).toBe(2);
     expect([...world.launches.values()].every(launch => !launch.archived)).toBe(true);
     expect(world.calls.some(([name]) => name === 'archive_launch')).toBe(false);
+  });
+
+  it('«чернетки» leaves launched ones; «запуски» takes them too; a generating one never goes', async () => {
+    const world = space();
+    await world.send(
+      'три запуски',
+      model(
+        plan(
+          action({
+            offer: 'ProCaps',
+            accounts: ['G1', 'G2', 'G3'],
+            dates: { kind: 'tomorrow', date: null, days: null }
+          })
+        )
+      )
+    );
+    const [, launched, generating] = [...world.launches.values()];
+    launched!.generationState = 'succeeded';
+    generating!.generationState = 'running';
+    const remove = async (includeLaunched: boolean) =>
+      firstCard(
+        await world.send(
+          includeLaunched ? 'видали всі запуски на завтра' : 'видали чернетки на завтра',
+          model(
+            plan(
+              action({
+                type: 'archive_drafts',
+                includeLaunched,
+                dates: { kind: 'tomorrow', date: null, days: null }
+              })
+            )
+          )
+        )
+      ).payload;
+    expect(await remove(false)).toMatchObject({
+      launchedKept: 1,
+      generatingKept: 1,
+      launchedIncluded: 0
+    });
+    expect(((await remove(false)).rows as unknown[]).length).toBe(1);
+    const all = await remove(true);
+    expect(all).toMatchObject({ launchedKept: 0, generatingKept: 1, launchedIncluded: 1 });
+    expect((all.rows as unknown[]).length).toBe(2);
   });
 
   it('narrows a review to an ad account', async () => {
