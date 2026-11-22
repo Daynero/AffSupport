@@ -1233,6 +1233,28 @@ describe('064 assistant — accounts and notes from another offer', () => {
     expect(client.calls).toBe(2);
   });
 
+  it('saves the drafted values as defaults when «збережи по дефолту» names none', async () => {
+    const world = space();
+    const reply = await world.send(
+      'прокапс на g1 по 3 кампанії і збережи по дефолту',
+      model(
+        plan(
+          action({
+            offer: 'ProCaps',
+            accounts: ['G1'],
+            fields: [{ field: 'campaignCount', op: 'set', value: 3 }]
+          }),
+          action({ type: 'save_offer_defaults', offer: 'ProCaps' })
+        )
+      )
+    );
+    const cards = (
+      reply.message as { cards: Array<{ kind: string; payload: Record<string, unknown> }> }
+    ).cards;
+    const profile = cards.find(card => card.kind === 'profile')!;
+    expect(profile.payload.mask).toEqual(['campaignCount']);
+  });
+
   it('says when the source offer has no notes and does the rest', async () => {
     const world = space();
     const reply = await world.send(

@@ -1339,7 +1339,22 @@ export async function executePlan(
       else if (action.type === 'update_fields')
         await updateRows(action, step, deps, resolution, problems, touched);
       else if (action.type === 'save_offer_defaults') {
-        cards.push(await proposeDefaults(action, deps, resolution, options.canSaveDefaults));
+        // «…і збережи офер по дефолту» without values of its own saves what the same message
+        // set on that offer's drafts; the model often names them only once.
+        const drafted = plan.actions.find(
+          other => other.type === 'create_drafts' && other.offer === action.offer
+        );
+        const own = action.fields.filter(change => isLaunchDefaultPath(change.field));
+        const effective =
+          drafted && own.length === 0
+            ? {
+                ...action,
+                fields: drafted.fields.filter(change => isLaunchDefaultPath(change.field)),
+                notesFrom: action.notesFrom ?? drafted.notesFrom ?? null,
+                notesLanguage: action.notesLanguage ?? drafted.notesLanguage ?? null
+              }
+            : action;
+        cards.push(await proposeDefaults(effective, deps, resolution, options.canSaveDefaults));
         deferred = plan.actions.slice(step + 1);
         break;
       } else if (action.type === 'show_review' || action.type === 'show_status') {
