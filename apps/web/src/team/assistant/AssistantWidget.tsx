@@ -96,6 +96,7 @@ const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
   FIELD_FORM_ONLY: 'assistantFieldFormOnly',
   FIELD_NOT_SUPPORTED: 'assistantFieldFormOnly',
   INVALID_VALUE: 'assistantInvalidValue',
+  NOT_SAID: 'assistantNotSaid',
   OP_NOT_ALLOWED: 'assistantInvalidValue',
   NOT_CATALOG: 'assistantNotCatalog',
   LAUNCHED: 'assistantLaunchedRow',

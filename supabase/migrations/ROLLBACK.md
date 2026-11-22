@@ -3485,3 +3485,10 @@ Additive: `assistant_card_claim`, `assistant_card_finish`, `service_assistant_sw
 indexes. Dropping the claim and finish functions makes the assistant's action buttons refuse with
 an error until the web is rolled back too; nothing is lost. Dropping the sweep leaves a command
 that died after its debit unrefunded, as before.
+
+## 20261223310000 — assistant dialogs deleted after seven idle days (064)
+
+Additive: `private.prune_idle_assistant_dialogs`, an index on `assistant_conversations(last_active_at)`
+and the hourly cron job `soty-assistant-dialog-retention`. To stop deleting:
+`select cron.unschedule('soty-assistant-dialog-retention')`. Dialogs already deleted are not
+recoverable — they were past the seven days the window promises. Money records are untouched.

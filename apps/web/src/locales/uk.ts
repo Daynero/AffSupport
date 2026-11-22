@@ -5113,6 +5113,8 @@ export const uk: Record<keyof typeof en, string> = {
   assistantNotFound: 'Не знайдено: {written}',
   assistantFieldFormOnly: 'Це поле зміни у формі.',
   assistantInvalidValue: 'Недопустиме значення: {written}',
+  assistantNotSaid:
+    '«{written}» — у ваших повідомленнях такого немає, тому я нічого не створював. Напишіть назву самі.',
   assistantNotCatalog: 'Лише для каталожного методу.',
   assistantLaunchedRow: 'Уже запущено',
   assistantChangedAfter: 'Змінено пізніше',

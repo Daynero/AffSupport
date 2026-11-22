@@ -59,6 +59,27 @@ export interface EngineDeps {
   shown: AssistantRow[];
   /** Translates notes (a second model call); absent where no model is available. */
   translateNotes?: (notes: NoteText[], language: string) => Promise<NoteText[] | null>;
+  /**
+   * What the person wrote in this dialog (this message and the requests before it). An offer or
+   * an account is created without a button only under a name the person wrote: a name the model
+   * read in the space's data (a file, a note, a task) must never create anything by itself.
+   * Absent for plans stored before this rule; then nothing is checked.
+   */
+  said?: string | null;
+}
+
+/**
+ * Whether the person wrote this name themselves (spelling, case and spaces aside). An offer's
+ * country code is the model's reading of the person's words («прокапс на мексику» → ProCaps MX),
+ * so for an offer the product is what has to be written.
+ */
+function personSaid(deps: EngineDeps, name: string, offer = false): boolean {
+  if (deps.said === undefined || deps.said === null) return true;
+  const product = offer ? name.trim().replace(/\s+[A-Za-z]{2,3}$/u, '') : name;
+  // «флексі» is Flexi: x reads as ks in both.
+  const fold = (text: string) => assistantKey(text).replace(/x/gu, 'ks');
+  const key = fold(product);
+  return key.length > 0 && fold(deps.said).includes(key);
 }
 
 export interface NoteText {
@@ -400,6 +421,13 @@ async function createAccounts(
     const existing = names.accounts.find(
       agent => assistantKey(agent.account) === assistantKey(name)
     );
+    // Created without a button, so only what the person wrote: a new account by its name, an ad
+    // account by its id (review 2026-11-22 — names from the space reach the model's prompt).
+    const unsaid = [...(existing ? [] : [name]), ...ids].find(value => !personSaid(deps, value));
+    if (unsaid !== undefined) {
+      resolution.missing.push({ field: 'account', written: unsaid, code: 'NOT_SAID' });
+      continue;
+    }
     let accountId = existing ? await accountIdOf(deps, name) : null;
     const created: string[] = [];
     try {
@@ -773,7 +801,10 @@ export async function resolvePlan(
       else if (kind === 'offer' && chosen === NO_OFFER) continue;
       else if (kind === 'offer' && offerWanted(plan, written)) {
         // A new offer: created when the person asked for it, otherwise asked about once.
-        const asked = plan.actions.some(a => a.type === 'create_offer' && a.offer === written);
+        // Asked for in the person's own words; a name only the model brought is asked about.
+        const asked =
+          personSaid(deps, written, true) &&
+          plan.actions.some(a => a.type === 'create_offer' && a.offer === written);
         if (!asked && chosen !== NEW_OFFER)
           return {
             ok: false,

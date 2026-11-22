@@ -5138,6 +5138,8 @@ export const en = {
   assistantNotFound: 'Not found: {written}',
   assistantFieldFormOnly: 'Change this field in the form.',
   assistantInvalidValue: 'Not an allowed value: {written}',
+  assistantNotSaid:
+    '«{written}» is not in your messages, so nothing was created. Write the name yourself.',
   assistantNotCatalog: 'Only for the catalog method.',
   assistantLaunchedRow: 'Already launched',
   assistantChangedAfter: 'Changed later',

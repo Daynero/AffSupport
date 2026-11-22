@@ -413,6 +413,19 @@ interface StoredPlan {
   deferred?: AssistantAction[];
   /** The command whose links the plan refers to. */
   urlsFrom: string;
+  /** The person's own words behind the plan (see EngineDeps.said). */
+  said?: string;
+}
+
+const SAID_LIMIT = 4000;
+
+/** What the person wrote in a previous command of the dialog, for EngineDeps.said. */
+async function previousSaid(deps: AssistantDeps, commandId: string): Promise<string | null> {
+  try {
+    return (await storedPlanOf(deps, commandId)).said ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function runPlan(
@@ -430,6 +443,7 @@ async function runPlan(
     urls: urls ?? [],
     choices: stored.choices,
     shown: shown.rows,
+    said: stored.said ?? null,
     ...(deps.client ? { translateNotes: notesTranslator(deps, commandId) } : {})
   });
   const names = await loadNames(engine);
@@ -452,7 +466,31 @@ async function runPlan(
   const outcome = await executePlan(stored.plan, engine, resolved.resolution, { canSaveDefaults });
   if (outcome.kind === 'rejected') {
     await status(deps, commandId, 'rejected', outcome.code, model, stored);
-    return { text: stored.plan.reply, cards: [refusal(outcome.code)], status: 'rejected' };
+    // What the plan already created before it was refused stays, and is said: an account or an
+    // offer the person asked for is kept for the next message, never left unmentioned.
+    const made: Card[] = [
+      ...(resolved.resolution.createdAccounts.length
+        ? [
+            {
+              kind: 'status' as const,
+              payload: { accountsCreated: resolved.resolution.createdAccounts }
+            }
+          ]
+        : []),
+      ...(resolved.resolution.createdOffers.length
+        ? [
+            {
+              kind: 'status' as const,
+              payload: { offersCreated: resolved.resolution.createdOffers }
+            }
+          ]
+        : [])
+    ];
+    return {
+      text: stored.plan.reply,
+      cards: [...made, refusal(outcome.code)],
+      status: 'rejected'
+    };
   }
   if (outcome.kind === 'question') {
     await status(deps, commandId, 'waiting_answer', null, model, stored);
@@ -719,12 +757,18 @@ export async function sendMessage(
         credits: await credits(deps)
       };
     }
+    const earlier = await Promise.all(command.previousCommandIds.map(id => previousSaid(deps, id)));
     const stored: StoredPlan = {
       plan: interpreted.plan,
       choices: {},
       timezone: command.timezone,
       contextCardId: command.contextCardId,
-      urlsFrom: commandId
+      urlsFrom: commandId,
+      said: Array.from(
+        [masked.text, ...earlier.filter((line): line is string => line !== null)].join('\n')
+      )
+        .slice(0, SAID_LIMIT)
+        .join('')
     };
     await status(deps, commandId, 'executing', null, interpreted.model, stored);
     const result = await runPlan(
@@ -800,6 +844,7 @@ async function storedPlanOf(deps: AssistantDeps, commandId: string): Promise<Sto
     timezone: typeof stored.timezone === 'string' ? stored.timezone : 'Europe/Kyiv',
     contextCardId: typeof stored.contextCardId === 'string' ? stored.contextCardId : null,
     urlsFrom: typeof stored.urlsFrom === 'string' ? stored.urlsFrom : commandId,
+    ...(typeof stored.said === 'string' ? { said: stored.said } : {}),
     deferred
   };
 }
@@ -928,7 +973,15 @@ async function answerQuestionOnce(
       deps,
       command.teamId,
       started.commandId,
-      { plan, choices: {}, timezone: command.timezone, contextCardId, urlsFrom },
+      {
+        plan,
+        choices: {},
+        timezone: command.timezone,
+        contextCardId,
+        urlsFrom,
+        // The clarification label is the model's own: only the person's message counts.
+        said: Array.from(payload.message).slice(0, SAID_LIMIT).join('')
+      },
       isRecord(context) && context.canSaveDefaults === true,
       interpreted.model
     );

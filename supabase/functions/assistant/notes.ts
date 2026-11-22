@@ -36,6 +36,15 @@ const SYSTEM = [
   'An empty title stays empty. Return the notes in the same order and the same count.'
 ].join('\n');
 
+/** Notes per model call, and the source characters one call carries at most. */
+const CHUNK_NOTES = 10;
+const CHUNK_CHARS = 6_000;
+
+/**
+ * Every note is translated: a long list goes in parts, side by side (review 2026-11-22 — notes past
+ * the twentieth were dropped without a word). Any part that fails fails the whole: the caller says
+ * the notes were not translated rather than carrying half of them.
+ */
 export async function translateNotes(
   client: ClaudeClient,
   notes: NoteText[],
@@ -43,6 +52,34 @@ export async function translateNotes(
   options: { signal: AbortSignal; record: (entry: UsageRecord) => Promise<void> | void }
 ): Promise<NoteText[] | null> {
   if (notes.length === 0) return [];
+  const chunks: NoteText[][] = [];
+  let current: NoteText[] = [];
+  let chars = 0;
+  for (const note of notes) {
+    const size = note.title.length + note.text.length;
+    if (current.length && (current.length >= CHUNK_NOTES || chars + size > CHUNK_CHARS)) {
+      chunks.push(current);
+      current = [];
+      chars = 0;
+    }
+    current.push(note);
+    chars += size;
+  }
+  chunks.push(current);
+  const parts = await Promise.all(
+    chunks.map(chunk => translateChunk(client, chunk, language, options))
+  );
+  if (parts.some(part => part === null)) return null;
+  return parts.flatMap(part => part!);
+}
+
+async function translateChunk(
+  client: ClaudeClient,
+  notes: NoteText[],
+  language: string,
+  options: { signal: AbortSignal; record: (entry: UsageRecord) => Promise<void> | void }
+): Promise<NoteText[] | null> {
+  const chars = notes.reduce((sum, note) => sum + note.title.length + note.text.length, 0);
   const outcome = await callStructured(
     client,
     {
@@ -52,17 +89,17 @@ export async function translateNotes(
       user: [
         `Target language: ${language.slice(0, 60)}`,
         'Notes (data):',
-        JSON.stringify({ notes: notes.slice(0, 20) })
+        JSON.stringify({ notes })
       ].join('\n'),
       schema: SCHEMA,
-      maxTokens: 2_000
+      // Room for the whole translation: a long note no longer cuts the reply short.
+      maxTokens: Math.min(8_000, Math.max(2_000, Math.ceil(chars * 1.2) + 400))
     },
     options
   );
   if (!outcome.ok) return null;
   const value = outcome.value as { notes?: unknown };
-  if (!Array.isArray(value?.notes) || value.notes.length !== Math.min(notes.length, 20))
-    return null;
+  if (!Array.isArray(value?.notes) || value.notes.length !== notes.length) return null;
   const out: NoteText[] = [];
   for (const item of value.notes as unknown[]) {
     if (
