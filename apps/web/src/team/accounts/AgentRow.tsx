@@ -19,14 +19,7 @@ import { TEAM_ACCOUNT_NAME_COLORS, type TeamAccountNameColor } from '@video-comp
  * under the last line. Enter saves, Escape lets go.
  */
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode
-} from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {
   Archive,
   History,
@@ -66,7 +59,7 @@ import { AgentTasksPeek } from './AgentTasksPeek';
 import { useTeam } from '../TeamContext';
 import { copyText } from '../../two-factor/clipboard';
 import { runCountKey, taskCountKey } from './plural';
-import { Popover } from '../../components/ui/index';
+import { DropdownMenu } from '../../components/ui/index';
 import { ArchivedAccountActions } from './AccountArchiveDrawer';
 
 const ICON = 18;
@@ -155,15 +148,6 @@ export function agentTooltip(
 export type RunEditing = { runId: string | null } | null;
 
 /**
- * At most one row menu is open in the list at a time. A `pointerdown` outside
- * closes the one that is open, but a keyboard never issues one — Enter on a
- * second row's "…" left two menus open, both claiming `aria-expanded`, and
- * Escape then ran in both and threw the focus at whichever trigger answered
- * last. So opening registers here, and registering closes whoever held it.
- */
-let closeOpenAgentMenu: (() => void) | null = null;
-
-/**
  * The row's own actions, behind a "…": correcting the id and deleting the
  * agent. Both are rare and both are destructive of something typed, which is
  * exactly why they do not sit beside a run's pencil and bin.
@@ -207,97 +191,7 @@ function AgentMenu({
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  /** Which item the roving focus is on; only that one is tabbable. */
-  const [active, setActive] = useState(0);
   const box = useRef<HTMLDivElement>(null);
-  const menuItems = useRef<HTMLDivElement>(null);
-  const items = useRef<(HTMLButtonElement | null)[]>([]);
-
-  const close = useCallback(
-    (returnFocus: boolean) => {
-      setOpen(false);
-      if (returnFocus) triggerRef.current?.focus();
-    },
-    [triggerRef]
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    closeOpenAgentMenu?.();
-    const forget = () => setOpen(false);
-    closeOpenAgentMenu = forget;
-    // The outside press and Escape are the shared popover's; what stays here is
-    // the rule that only one agent menu in the table is ever open.
-    return () => {
-      if (closeOpenAgentMenu === forget) closeOpenAgentMenu = null;
-    };
-  }, [open]);
-
-  // Opening lands on the first item, as a menu does.
-  useEffect(() => {
-    if (open) items.current[active]?.focus();
-  }, [open, active]);
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const last = items.current.length - 1;
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      close(true);
-      return;
-    }
-    // Tab leaves the menu rather than walking into the row behind it.
-    if (event.key === 'Tab') {
-      close(false);
-      return;
-    }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setActive(index => (index >= last ? 0 : index + 1));
-    }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setActive(index => (index <= 0 ? last : index - 1));
-    }
-    if (event.key === 'Home') {
-      event.preventDefault();
-      setActive(0);
-    }
-    if (event.key === 'End') {
-      event.preventDefault();
-      setActive(last);
-    }
-  };
-
-  const choose = (run: () => void) => {
-    setOpen(false);
-    triggerRef.current?.focus();
-    run();
-  };
-
-  const item = (
-    index: number,
-    className: string,
-    ariaLabel: string,
-    icon: ReactNode,
-    text: string,
-    onClick: () => void
-  ) => (
-    <button
-      ref={element => {
-        items.current[index] = element;
-      }}
-      type="button"
-      role="menuitem"
-      tabIndex={active === index ? 0 : -1}
-      className={className}
-      aria-label={ariaLabel}
-      onFocus={() => setActive(index)}
-      onClick={onClick}
-    >
-      {icon}
-      {text}
-    </button>
-  );
 
   const actions = [
     ...(onEdit
@@ -372,8 +266,10 @@ function AgentMenu({
         ]
       : [])
   ];
-  items.current.length = actions.length;
 
+  /* The shared menu (024, T117): React Aria walks it, closes it on Escape,
+     Tab and an outside press, and gives the focus back to the "…" — so the
+     hand-rolled keys and the module-level "one menu open" register are gone. */
   return (
     <div className="team-agent-menu" ref={box}>
       <button
@@ -386,54 +282,31 @@ function AgentMenu({
         aria-expanded={open}
         data-reorder-keyboard={onOrderUp || onOrderDown ? 'true' : undefined}
         aria-keyshortcuts={onOrderUp || onOrderDown ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
-        onClick={() => {
-          setActive(0);
-          setOpen(value => !value);
-        }}
+        onClick={() => setOpen(value => !value)}
       >
         <MoreHorizontal size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
       </button>
-      <Popover
+      <DropdownMenu
         open={open}
-        onClose={() => close(true)}
-        anchor={box}
+        onClose={() => {
+          setOpen(false);
+          // After the popover has let go of the page: while it is open the
+          // rest of the document is inert, and focus cannot land there.
+          requestAnimationFrame(() => triggerRef.current?.focus());
+        }}
+        anchor={triggerRef}
         placement="bottom-end"
-        frequent
         label={label}
-        surface="none"
         className="team-agent-menu-list"
-      >
-        <div
-          ref={menuItems}
-          className="team-agent-menu-items"
-          role="menu"
-          aria-label={label}
-          onKeyDown={onKeyDown}
-          // The pointer can leave a menu without a click — into another row's
-          // trigger, or out of the window. Losing the focus closes it too.
-          // Measured against the menu itself, not against the row: the surface
-          // is portalled to the body, so the row no longer contains it.
-          onBlur={event => {
-            const next = event.relatedTarget;
-            if (next instanceof Node && menuItems.current?.contains(next)) return;
-            if (next instanceof Node && box.current?.contains(next)) return;
-            setOpen(false);
-          }}
-        >
-          {actions.map((action, index) => (
-            <span key={action.label} className="contents">
-              {item(
-                index,
-                `team-agent-menu-item${'danger' in action ? ' is-danger' : ''}`,
-                action.label,
-                action.icon,
-                action.text,
-                () => choose(action.run)
-              )}
-            </span>
-          ))}
-        </div>
-      </Popover>
+        items={actions.map(action => ({
+          id: action.label,
+          label: action.text,
+          ariaLabel: action.label,
+          icon: action.icon,
+          destructive: 'danger' in action,
+          onSelect: action.run
+        }))}
+      />
     </div>
   );
 }

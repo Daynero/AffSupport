@@ -626,6 +626,11 @@ export interface MenuItem {
    * put on or taken off and the reader goes on to the next one.
    */
   keepOpen?: boolean;
+  /**
+   * The item's name when the visible label is short for its context: "Edit"
+   * in a row's menu is announced as "Edit ad account 123".
+   */
+  ariaLabel?: string;
   onSelect: () => void;
 }
 
@@ -761,94 +766,113 @@ export function DropdownMenu({
         ['--trigger-width' as string]: matchWidth ? 'var(--trigger-width)' : undefined
       }}
     >
-      <HeroMenu
-        className="ui-menu"
-        aria-label={label}
-        /*
-         * Selection belongs to a section, not to the menu (024).
-         *
-         * A menu can ask more than one question and still carry a command: a
-         * task's menu offers a status, an assignee, a tag — three answers —
-         * and a delete. Putting the mode on the menu made every item a radio,
-         * so "Delete" announced itself as one of several states the task could
-         * be in. A section whose items carry a tick is a radio group; a section
-         * of commands is a list of commands.
-         */
-        selectionMode={menuSelects ? selection : 'none'}
-        selectedKeys={rows.filter(item => item.checked).map(item => item.id)}
-        disabledKeys={rows.filter(item => item.disabled).map(item => item.id)}
-        onAction={key => {
-          const item = byId.get(String(key));
-          if (!item || item.disabled) return;
-          item.onSelect();
-          if (closeOnSelect && !item.keepOpen) onClose();
+      {/* Tab leaves a menu rather than walking into the page behind it. */}
+      <div
+        className="contents"
+        onKeyDown={event => {
+          if (event.key === 'Tab') onClose();
         }}
       >
-        {sections.map((section, index) => (
-          <HeroMenuSection
-            key={`section-${index}`}
-            className="ui-menu-section"
-            /*
-             * Only where the menu is asking something.
-             *
-             * A section whose items carry a tick is a radio group; a section of
-             * commands under the same menu says so, or "Delete" announces
-             * itself as one of the states the thing could be in. And where the
-             * menu asks nothing at all, the prop is left off entirely —
-             * setting it switches the collection's disabled behaviour, and an
-             * item that carries a reason has to keep saying it.
-             */
-            {...(menuSelects
-              ? section.items.some(item => item.checked !== undefined)
-                ? {
-                    selectionMode: selection,
-                    selectedKeys: section.items.filter(item => item.checked).map(item => item.id)
-                  }
-                : { selectionMode: 'none' as const }
-              : {})}
-          >
-            {section.heading !== null && (
-              <Header className="ui-menu-heading">{section.heading}</Header>
-            )}
-            {section.items.map(item => (
-              <HeroMenuItem
-                key={item.id}
-                id={item.id}
-                textValue={typeof item.label === 'string' ? item.label : item.id}
-                className={[
-                  'ui-menu-item',
-                  item.destructive ? 'is-destructive' : '',
-                  item.checked ? 'is-checked' : ''
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                {item.checked !== undefined && (
-                  <span className="ui-menu-check" aria-hidden="true">
-                    {item.checked ? '✓' : ''}
-                  </span>
-                )}
-                {item.icon && (
-                  <span className="ui-menu-icon" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                )}
-                <span className="ui-menu-copy">
-                  <Text slot="label" className="ui-menu-label">
-                    {item.label}
-                  </Text>
-                  {item.note && (
-                    <Text slot="description" className="ui-menu-note">
-                      {item.note}
-                    </Text>
+        <HeroMenu
+          className="ui-menu"
+          aria-label={label}
+          /* A menu opens onto its first item, as the pattern says: the arrows
+           then walk from there rather than from the surface. */
+          autoFocus="first"
+          /*
+           * Selection belongs to a section, not to the menu (024).
+           *
+           * A menu can ask more than one question and still carry a command: a
+           * task's menu offers a status, an assignee, a tag — three answers —
+           * and a delete. Putting the mode on the menu made every item a radio,
+           * so "Delete" announced itself as one of several states the task could
+           * be in. A section whose items carry a tick is a radio group; a section
+           * of commands is a list of commands.
+           */
+          selectionMode={menuSelects ? selection : 'none'}
+          selectedKeys={rows.filter(item => item.checked).map(item => item.id)}
+          disabledKeys={rows.filter(item => item.disabled).map(item => item.id)}
+          onAction={key => {
+            const item = byId.get(String(key));
+            if (!item || item.disabled) return;
+            item.onSelect();
+            if (closeOnSelect && !item.keepOpen) onClose();
+          }}
+        >
+          {sections.map((section, index) => (
+            <HeroMenuSection
+              key={`section-${index}`}
+              className="ui-menu-section"
+              /*
+               * Only where the menu is asking something.
+               *
+               * A section whose items carry a tick is a radio group; a section of
+               * commands under the same menu says so, or "Delete" announces
+               * itself as one of the states the thing could be in. And where the
+               * menu asks nothing at all, the prop is left off entirely —
+               * setting it switches the collection's disabled behaviour, and an
+               * item that carries a reason has to keep saying it.
+               */
+              {...(menuSelects
+                ? section.items.some(item => item.checked !== undefined)
+                  ? {
+                      selectionMode: selection,
+                      selectedKeys: section.items.filter(item => item.checked).map(item => item.id)
+                    }
+                  : { selectionMode: 'none' as const }
+                : {})}
+            >
+              {section.heading !== null && (
+                <Header className="ui-menu-heading">{section.heading}</Header>
+              )}
+              {section.items.map(item => (
+                <HeroMenuItem
+                  key={item.id}
+                  id={item.id}
+                  textValue={typeof item.label === 'string' ? item.label : item.id}
+                  aria-label={item.ariaLabel}
+                  className={[
+                    'ui-menu-item',
+                    item.destructive ? 'is-destructive' : '',
+                    item.checked ? 'is-checked' : ''
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  {item.checked !== undefined && (
+                    <span className="ui-menu-check" aria-hidden="true">
+                      {item.checked ? '✓' : ''}
+                    </span>
                   )}
-                </span>
-                {item.trailing && <span className="ui-menu-trailing">{item.trailing}</span>}
-              </HeroMenuItem>
-            ))}
-          </HeroMenuSection>
-        ))}
-      </HeroMenu>
+                  {item.icon && (
+                    <span className="ui-menu-icon" aria-hidden="true">
+                      {item.icon}
+                    </span>
+                  )}
+                  <span className="ui-menu-copy">
+                    {/* The labelled slot names the item by its visible text and
+                        would override the fuller name it was given, so an item
+                        that has one draws its label as plain text. */}
+                    {item.ariaLabel ? (
+                      <span className="ui-menu-label">{item.label}</span>
+                    ) : (
+                      <Text slot="label" className="ui-menu-label">
+                        {item.label}
+                      </Text>
+                    )}
+                    {item.note && (
+                      <Text slot="description" className="ui-menu-note">
+                        {item.note}
+                      </Text>
+                    )}
+                  </span>
+                  {item.trailing && <span className="ui-menu-trailing">{item.trailing}</span>}
+                </HeroMenuItem>
+              ))}
+            </HeroMenuSection>
+          ))}
+        </HeroMenu>
+      </div>
     </HeroPopover.Content>
   );
 }

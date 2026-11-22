@@ -837,8 +837,13 @@ processed copy from the attachment, and see all three on the task without it clo
       **Target from the at-rest table (US14):** an agent row carries identity, state, run, money,
       one primary action and "…"; Copy ID and run edit/delete go into the menu; "Balance / Top-up"
       captions appear once, in the column header; the account head's rename/delete go into "…".
-- [ ] T117 [US8] Delete the hand-rolled `AgentMenu` and its module-level "one menu open" global;
+- [x] T117 [US8] Delete the hand-rolled `AgentMenu` and its module-level "one menu open" global;
       row actions come from the shared menu.
+      **Closed 2026-11-22.** The row's "…" opens the inventory's `DropdownMenu`; the register,
+      the roving keys and the `team-agent-menu-*` rules are gone. The shared menu gained two
+      things on the way: it opens onto its first item and closes on Tab, and an item may carry
+      a fuller accessible name (`ariaLabel`) than its visible label. Two menus cannot be open
+      at once because the open one sets the rest of the page aside.
 - [ ] T118 [US8] Put `apps/web/src/team/accounts/AgentMoney.tsx` on `InputNumber`, with one money
       format and its currency, used everywhere money appears.
 - [ ] T119 [US8] Put the occupancy chips, the marker filter and fold-all on `SegmentedControl` /

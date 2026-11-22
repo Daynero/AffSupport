@@ -1372,65 +1372,6 @@
   color: var(--color-text);
 }
 
-/* Placed by the component (021): a table row clips what spills past its edge,
-   so the menu opens on the body beside the trigger. */
-.team-agent-menu-list {
-  z-index: var(--layer-popover);
-  display: grid;
-  min-width: 200px;
-  padding: var(--space-1);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-menu);
-}
-
-/* The menu's own element inside the surface; it takes no space of its own. */
-.team-agent-menu-items {
-  display: contents;
-}
-
-.team-agent-menu-item {
-  display: flex;
-  min-height: 34px;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-label);
-  text-align: left;
-}
-
-/*
- * `:focus` and not only `:focus-visible`. A menu opened with the mouse puts
- * the focus on its first item — that is what a menu does — and with only the
- * `:focus-visible` rule nothing on screen said so, while Enter, the reflex for
- * "never mind", silently opened the id editor.
- */
-.team-agent-menu-item:hover,
-.team-agent-menu-item:focus {
-  background: var(--color-surface-muted);
-}
-
-.team-agent-menu-item:focus {
-  outline: 2px solid var(--color-focus);
-  outline-offset: -2px;
-}
-
-.team-agent-menu-item.is-danger {
-  color: var(--color-error);
-}
-
-.team-agent-menu-item.is-danger:hover,
-.team-agent-menu-item.is-danger:focus {
-  background: color-mix(in srgb, var(--color-error) 14%, transparent);
-}
-
 .team-agent-action.is-confirm.icon-button {
   border: 1px solid color-mix(in srgb, var(--color-success) 55%, var(--color-border));
   background: color-mix(in srgb, var(--color-success) 18%, transparent);
