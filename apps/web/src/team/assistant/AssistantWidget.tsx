@@ -14,8 +14,6 @@ import {
   ArrowUp,
   CheckCircle2,
   ChevronDown,
-  Cloud,
-  Link2,
   Minus,
   Play,
   Sparkles,
@@ -40,7 +38,7 @@ import {
 } from '../../api/assistant';
 import { launchApi } from '../../api/launches';
 import { CreditsButton } from '../../credits/CreditsButton';
-import { Button, DropdownMenu, IconButton, Spinner, Tooltip } from '../../components/ui/index.js';
+import { Button, DropdownMenu, IconButton, Spinner } from '../../components/ui/index.js';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
 import { kyivTime, setCredits, useCredits } from '../../credits/store';
 import { assistantDraftsKey, useI18n, type TranslationKey } from '../../i18n';
@@ -455,7 +453,8 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         ? t('assistantCampaignsShort', { count: item.campaignCount })
         : null,
       item.productCount !== null ? t('assistantProductsShort', { count: item.productCount }) : null,
-      item.budget ? `${item.budget} $` : null
+      item.budget ? `${item.budget} $` : null,
+      item.r2 ? t('assistantR2Short') : null
     ].filter(Boolean);
     return (
       <li key={item.launchId}>
@@ -474,28 +473,6 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
                 {stem(name)}
               </span>
             ))}
-            <span className="assistant-row-icons">
-              {item.url && (
-                <Tooltip label={t('assistantLinkSet')}>
-                  <Link2
-                    className="assistant-row-icon"
-                    size={14}
-                    strokeWidth={ICON_STROKE}
-                    aria-label={t('assistantLinkSet')}
-                  />
-                </Tooltip>
-              )}
-              {item.r2 && (
-                <Tooltip label={t('assistantR2On')}>
-                  <Cloud
-                    className="assistant-row-icon"
-                    size={14}
-                    strokeWidth={ICON_STROKE}
-                    aria-label={t('assistantR2On')}
-                  />
-                </Tooltip>
-              )}
-            </span>
           </span>
           {(facts.length > 0 || need) && (
             <span className="assistant-row-line is-sub">

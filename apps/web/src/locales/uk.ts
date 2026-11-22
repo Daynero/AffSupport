@@ -5211,8 +5211,6 @@ export const uk: Record<keyof typeof en, string> = {
   assistantSendPrice: 'Надіслати · {price} чарунка',
   assistantSendPriceFew: 'Надіслати · {price} чарунки',
   assistantAlreadyAnswered: 'Відповідь уже прийнято.',
-  assistantLinkSet: 'Посилання вставлено',
-  assistantR2On: 'Відео копіюється в R2',
   assistantNoFreeAccounts: 'Немає вільних РК: {written}',
   assistantNewDialog: 'Новий діалог',
   assistantDialogs: 'Діалоги',
@@ -5248,5 +5246,6 @@ export const uk: Record<keyof typeof en, string> = {
   assistantValueNo: 'ні',
   assistantBudgetRange: 'діапазон',
   assistantBudgetSingle: 'однаковий',
-  assistantBudgetManual: 'вручну'
+  assistantBudgetManual: 'вручну',
+  assistantR2Short: 'відео в R2'
 };

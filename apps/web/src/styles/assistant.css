@@ -187,9 +187,6 @@ body:has(.next-channel-badge) .assistant-dock {
 .assistant-row-facts {
   color: var(--color-text-muted);
 }
-.assistant-row-icon {
-  color: var(--color-text-muted);
-}
 .assistant-row-line {
   display: flex;
   flex-wrap: wrap;
@@ -199,11 +196,6 @@ body:has(.next-channel-badge) .assistant-dock {
 }
 .assistant-row-line.is-sub {
   font-size: var(--text-caption);
-}
-.assistant-row-icons {
-  display: inline-flex;
-  gap: var(--space-1);
-  margin-left: auto;
 }
 .assistant-row-need {
   display: inline-flex;

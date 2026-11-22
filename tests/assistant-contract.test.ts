@@ -111,6 +111,20 @@ describe('064 assistant contract', () => {
     expect(matchAssistantName('прокапс', [{ id: 'o', name: 'ProCaps' }])).toMatchObject({
       kind: 'one'
     });
+    // names written by ear find their offer; numbers never go fuzzy
+    const offers = [
+      { id: 'p', name: 'Proveliq TR' },
+      { id: 's', name: 'Prostavia ID' },
+      { id: 'm', name: 'Multixan SA' }
+    ];
+    expect(matchAssistantName('провелік тр', offers)).toEqual({
+      kind: 'one',
+      candidate: offers[0]
+    });
+    expect(matchAssistantName('простовія', offers)).toEqual({ kind: 'one', candidate: offers[1] });
+    expect(matchAssistantName('мультіксан', offers)).toEqual({ kind: 'one', candidate: offers[2] });
+    expect(matchAssistantName('Flexi TR', offers)).toEqual({ kind: 'none' });
+    expect(matchAssistantName('TR 17', materials)).toEqual({ kind: 'none' });
   });
 
   it('keeps pasted links out of the model text and puts them back only by marker', () => {

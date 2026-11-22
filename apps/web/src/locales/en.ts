@@ -5236,8 +5236,6 @@ export const en = {
   assistantSendPrice: 'Send · {price} credit',
   assistantSendPriceFew: 'Send · {price} credits',
   assistantAlreadyAnswered: 'The answer is already taken.',
-  assistantLinkSet: 'Link set',
-  assistantR2On: 'Video is copied to R2',
   assistantNoFreeAccounts: 'No free ad accounts: {written}',
   assistantNewDialog: 'New dialog',
   assistantDialogs: 'Dialogs',
@@ -5274,5 +5272,6 @@ export const en = {
   assistantValueNo: 'no',
   assistantBudgetRange: 'range',
   assistantBudgetSingle: 'same for all',
-  assistantBudgetManual: 'by hand'
+  assistantBudgetManual: 'by hand',
+  assistantR2Short: 'video in R2'
 } as const;

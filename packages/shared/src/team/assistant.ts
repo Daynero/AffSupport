@@ -522,7 +522,54 @@ export function matchAssistantName(
   if (prefixed.length === 1) return { kind: 'one', candidate: prefixed[0]!.candidate };
   if (prefixed.length > 1)
     return { kind: 'many', candidates: prefixed.map(item => item.candidate).slice(0, 5) };
-  return { kind: 'none' };
+  // A name written by ear: «провелік» is Proveliq, «простовія» is Prostavia. Never for a name with
+  // a number — TR 16 is not TR 18.
+  if (/\d/u.test(written)) return { kind: 'none' };
+  const loose = looseKey(key);
+  if (loose.length < 4) return { kind: 'none' };
+  const allowed = Math.max(1, Math.floor(loose.length / 5));
+  const near = keyed
+    .map(item => {
+      const other = looseKey(item.key);
+      return {
+        candidate: item.candidate,
+        distance: Math.min(
+          editDistance(loose, other),
+          editDistance(loose, other.slice(0, loose.length))
+        )
+      };
+    })
+    .filter(item => item.distance <= allowed)
+    .sort((a, b) => a.distance - b.distance);
+  if (near.length === 0) return { kind: 'none' };
+  const best = near.filter(item => item.distance === near[0]!.distance);
+  if (best.length === 1) return { kind: 'one', candidate: best[0]!.candidate };
+  return { kind: 'many', candidates: best.map(item => item.candidate).slice(0, 5) };
+}
+
+/** Spelling transliteration cannot settle: q/k, x/ks, w/v, y/i, doubled letters. */
+function looseKey(key: string): string {
+  return key
+    .replace(/q/gu, 'k')
+    .replace(/x/gu, 'ks')
+    .replace(/w/gu, 'v')
+    .replace(/[yj]/gu, 'i')
+    .replace(/ph/gu, 'f')
+    .replace(/(.)\1+/gu, '$1');
+}
+
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    let previous = row[0]!;
+    row[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const current = row[j]!;
+      row[j] = Math.min(row[j]! + 1, row[j - 1]! + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = current;
+    }
+  }
+  return row[b.length]!;
 }
 
 /** Links a person pasted become ⟦url:N⟧ before the text reaches the model; values stay on the server. */
