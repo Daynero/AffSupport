@@ -5165,9 +5165,9 @@ export const en = {
   assistantCounter: '{count} / 4,000',
   assistantEmpty:
     'Write what to do. For now I prepare launches: I save ordinary drafts; you launch them with a button.',
-  assistantExample1: 'Today 5 ProCaps launches on G2, TR_16, 2 campaigns each',
-  assistantExample2: 'In the second one switch to TR_18',
-  assistantExample3: 'Launch all for today',
+  assistantExample1: 'tomorrow g18: procaps tr25; urafirin my1',
+  assistantExample2: 'show everything for tomorrow',
+  assistantExample3: 'remove today’s drafts',
   assistantClose: 'Close',
   assistantThinking: 'Working…',
   assistantResultTitle: 'Drafts: {count} · campaigns: {campaigns}',
@@ -5196,8 +5196,6 @@ export const en = {
   aiBudgetForecast: 'Forecast for the month',
   aiBudgetForecastUnknown: 'Not enough data',
   aiBudgetFullGrant: 'Full use of active grants',
-  aiBudgetFullGrantHint:
-    'At the credit face value. New people and cost above the price can make it more.',
   aiBudgetCoverage: 'Price coverage',
   aiBudgetUnknown: 'Calls without usage',
   aiBudgetBaseGrant: 'Base daily grant',
@@ -5207,7 +5205,6 @@ export const en = {
   aiBudgetReset: 'Reset',
   aiBudgetAssistant: 'Assistant enabled',
   aiBudgetPilot: 'Pilot spaces',
-  aiBudgetEstimate: 'estimate from the price list',
   aiBudgetOverWarning: 'Full use of grants exceeds the limit. Paid actions stop at the limit.',
   aiBudgetConsoleReminder: 'Check the spend limit of the separate workspace in the Claude Console.',
   aiBudgetUpdated: 'Data as of {time}',
@@ -5251,10 +5248,8 @@ export const en = {
   assistantArchiveEmpty: 'No drafts to remove.',
   assistantArchiveKeptLaunched: 'Launched ones stay: {count}. Remove them by hand in the form.',
   aiBudgetBonus: 'Bonus credits',
-  aiBudgetBonusHint:
-    'For the email above. They don’t expire; a negative number takes back unspent ones.',
+  aiBudgetBonusHint: 'They don’t expire. A negative number takes back unspent ones.',
   aiBudgetBonusGive: 'Give',
-  aiBudgetBonusRow: '{email} · bonus {count}',
   assistantCardUndone: 'Undone — these changes are gone.',
   assistantFieldCampaignCount: 'Campaigns',
   assistantFieldAdsCount: 'Ads',
@@ -5275,5 +5270,21 @@ export const en = {
   assistantBudgetManual: 'by hand',
   assistantR2Short: 'video in R2',
   assistantCardStale:
-    'These drafts have changed or were removed. Ask to show them again for a current card.'
+    'These drafts have changed or were removed. Ask to show them again for a current card.',
+  assistantOpenLaunch: 'Open launch',
+  aiBudgetAssistantOn: 'Assistant on',
+  aiBudgetAssistantOff: 'Assistant off',
+  aiBudgetLimitsTitle: 'Limits',
+  aiBudgetLimitsSubtitle:
+    'How much the platform may spend on models this month and how many credits everyone gets each day.',
+  aiBudgetLimitUsd: 'Monthly limit, $',
+  aiBudgetPeopleTitle: 'People',
+  aiBudgetPeopleSubtitle: 'A personal daily grant and bonus credits by email.',
+  aiBudgetPeopleEmpty: 'Nobody has a personal grant or bonus yet.',
+  aiBudgetGrantBase: 'base · {count}',
+  aiBudgetPilotSubtitle: 'Spaces where the assistant is available. Others don’t see it.',
+  aiBudgetPilotRemove: 'Remove',
+  aiBudgetPilotAdd: 'Add',
+  aiBudgetPilotEmpty: 'No space is in the pilot yet.',
+  aiBudgetPilotSearch: 'Find a space by name'
 } as const;

@@ -398,6 +398,35 @@ describe('the space assistant', () => {
     expect(screen.queryByRole('button', { name: 'Launch 2' })).toBeNull();
   });
 
+  it('opens a launch from its row and folds the window, without a row-wide button', async () => {
+    const user = userEvent.setup();
+    api.open.mockResolvedValueOnce({
+      enabled: true,
+      canSaveDefaults: true,
+      ...dialog,
+      credits,
+      messages: [
+        message([
+          {
+            id: 'card-result',
+            kind: 'result',
+            state: 'open',
+            commandId: 'cmd-1',
+            payload: { rows, campaigns: 4, date: '2026-11-21', differences: [], unresolved: [] },
+            createdAt: 'x'
+          }
+        ])
+      ]
+    });
+    assistant();
+    const open = await screen.findAllByRole('button', { name: 'Open launch' });
+    expect(open).toHaveLength(2);
+    await user.click(open[1]!);
+    expect(bridge.openLaunch).toHaveBeenCalledWith('team', rows[1]!.launchId);
+    expect(screen.queryByRole('textbox')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Assistant' })).toBeTruthy();
+  });
+
   it('stays hidden where the assistant is not enabled', async () => {
     api.open.mockResolvedValue({ enabled: false, canSaveDefaults: false, messages: [], credits });
     const { container } = render(<AssistantWidget teamId="team" canEdit />);
@@ -458,7 +487,11 @@ describe('the AI budget panel', () => {
     expect(await screen.findByText('$60.00')).toBeTruthy();
     expect(screen.getByText('$120.00')).toBeTruthy();
     expect(screen.getByText(/Full use of grants exceeds the limit/u)).toBeTruthy();
-    expect(screen.getByText(/Price coverage: 1.2/u)).toBeTruthy();
-    expect(screen.getByText('a@example.com · bonus 40')).toBeTruthy();
+    expect(screen.getByText(/Price coverage 1.2/u)).toBeTruthy();
+    // people with a bonus are listed in the table, the pilot is a list with «Remove»
+    expect(screen.getByText('a@example.com')).toBeTruthy();
+    expect(screen.getByText('40')).toBeTruthy();
+    expect(screen.getByText('Goor')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeTruthy();
   });
 });

@@ -7,7 +7,9 @@
 /* The test-build badge sits in the same corner on next; the assistant stands above it. */
 body:has(.next-channel-badge) .assistant-dock {
   bottom: calc(var(--space-5) + var(--space-6) + var(--space-3));
-  z-index: 40;
+  /* Above a dialog it may sit next to (a launch opened from it), below the menus it opens itself:
+     between --layer-modal and --layer-anchored, as the work panel of 024 is. */
+  z-index: var(--layer-modal-nested);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -15,8 +17,11 @@ body:has(.next-channel-badge) .assistant-dock {
 .assistant-fab {
   border-radius: var(--radius-full);
   box-shadow: var(--shadow-lg);
+  animation: assistant-appear var(--motion-base) var(--ease-out-curve);
 }
 .assistant-window {
+  transform-origin: bottom right;
+  animation: assistant-appear var(--motion-base) var(--ease-out-curve);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -120,9 +125,6 @@ body:has(.next-channel-badge) .assistant-dock {
   border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
-.assistant-card.is-context {
-  border-color: var(--color-accent-soft);
-}
 .assistant-card-title {
   display: inline-flex;
   align-items: center;
@@ -146,22 +148,19 @@ body:has(.next-channel-badge) .assistant-dock {
 .assistant-row {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
   gap: var(--space-1);
-  width: 100%;
   padding: var(--space-1-5) var(--space-2);
-  border: 0;
   border-radius: var(--radius-md);
-  background: transparent;
   color: var(--color-text);
-  font: inherit;
   font-size: var(--text-caption);
-  text-align: left;
-  cursor: pointer;
 }
-.assistant-row:hover,
-.assistant-row:focus-visible {
-  background: var(--color-surface-raised);
+.assistant-row + .assistant-row {
+  border-top: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+}
+.assistant-row-open {
+  margin-left: auto;
+  color: var(--color-text-muted);
 }
 .assistant-chip {
   display: inline-flex;
@@ -262,9 +261,29 @@ body:has(.next-channel-badge) .assistant-dock {
   color: var(--color-text-muted);
 }
 .assistant-price {
+  display: inline-flex;
   align-self: center;
-  color: var(--color-text-muted);
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-accent-text);
   font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+.assistant-thread.is-switching {
+  opacity: 0.5;
+  transition: opacity var(--motion-fast) var(--ease-fade);
+}
+@keyframes assistant-appear {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2)) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .assistant-window,
+  .assistant-fab {
+    animation: none;
+  }
 }
 .credits-panel {
   display: flex;

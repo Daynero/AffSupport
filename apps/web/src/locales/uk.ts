@@ -5139,9 +5139,9 @@ export const uk: Record<keyof typeof en, string> = {
   assistantCounter: '{count} / 4000',
   assistantEmpty:
     'Напиши, що зробити. Зараз я готую запуски: збережу звичайні чернетки, а запустиш ти кнопкою.',
-  assistantExample1: 'На сьогодні 5 запусків ProCaps на G2, TR_16, по 2 кампанії',
-  assistantExample2: 'У другому заміни на TR_18',
-  assistantExample3: 'Запусти всі на сьогодні',
+  assistantExample1: 'на завтра g18: прокапс тр25; урафірин май1',
+  assistantExample2: 'покажи все на завтра',
+  assistantExample3: 'видали чернетки на сьогодні',
   assistantClose: 'Закрити',
   assistantThinking: 'Розбираю…',
   assistantResultTitle: 'Чернеток: {count} · кампаній: {campaigns}',
@@ -5170,8 +5170,6 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetForecast: 'Прогноз на кінець місяця',
   aiBudgetForecastUnknown: 'Недостатньо даних',
   aiBudgetFullGrant: 'Повне використання грантів активними',
-  aiBudgetFullGrantHint:
-    'За номіналом чарунок. Нові люди й собівартість понад ціну можуть дати більше.',
   aiBudgetCoverage: 'Покриття ціною',
   aiBudgetUnknown: 'Виклики без usage',
   aiBudgetBaseGrant: 'Базовий денний грант',
@@ -5181,7 +5179,6 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetReset: 'Скинути',
   aiBudgetAssistant: 'Помічник увімкнено',
   aiBudgetPilot: 'Простори пілоту',
-  aiBudgetEstimate: 'оцінка за тарифом',
   aiBudgetOverWarning:
     'Повне використання грантів перевищує ліміт. Платні дії зупиняться на ліміті.',
   aiBudgetConsoleReminder: 'Звір spend limit окремого workspace у Claude Console.',
@@ -5226,9 +5223,8 @@ export const uk: Record<keyof typeof en, string> = {
   assistantArchiveEmpty: 'Чернеток для видалення не знайшов.',
   assistantArchiveKeptLaunched: 'Запущені не чіпаю: {count}. Їх видаляють вручну у формі.',
   aiBudgetBonus: 'Бонусні чарунки',
-  aiBudgetBonusHint: 'Для пошти вище. Не згорають; від’ємне число забирає невитрачені.',
+  aiBudgetBonusHint: 'Не згорають. Від’ємне число забирає невитрачені.',
   aiBudgetBonusGive: 'Нарахувати',
-  aiBudgetBonusRow: '{email} · бонусних {count}',
   assistantCardUndone: 'Скасовано — цих змін уже немає.',
   assistantFieldCampaignCount: 'Кампаній',
   assistantFieldAdsCount: 'Оголошень',
@@ -5249,5 +5245,21 @@ export const uk: Record<keyof typeof en, string> = {
   assistantBudgetManual: 'вручну',
   assistantR2Short: 'відео в R2',
   assistantCardStale:
-    'Ці чернетки вже змінилися або видалені. Попроси показати їх знову — картка буде свіжа.'
+    'Ці чернетки вже змінилися або видалені. Попроси показати їх знову — картка буде свіжа.',
+  assistantOpenLaunch: 'Відкрити запуск',
+  aiBudgetAssistantOn: 'Помічник увімкнено',
+  aiBudgetAssistantOff: 'Помічник вимкнено',
+  aiBudgetLimitsTitle: 'Ліміти',
+  aiBudgetLimitsSubtitle:
+    'Скільки платформа може витратити на моделі за місяць і скільки чарунок кожен отримує щодня.',
+  aiBudgetLimitUsd: 'Ліміт місяця, $',
+  aiBudgetPeopleTitle: 'Люди',
+  aiBudgetPeopleSubtitle: 'Особистий денний грант і бонусні чарунки за поштою.',
+  aiBudgetPeopleEmpty: 'Особливих грантів і бонусів ще ні в кого немає.',
+  aiBudgetGrantBase: 'базовий · {count}',
+  aiBudgetPilotSubtitle: 'Простори, де помічник уже доступний. Решта його не бачить.',
+  aiBudgetPilotRemove: 'Прибрати',
+  aiBudgetPilotAdd: 'Додати',
+  aiBudgetPilotEmpty: 'Жоден простір ще не в пілоті.',
+  aiBudgetPilotSearch: 'Знайти простір за назвою'
 };

@@ -1,11 +1,26 @@
 /**
- * 064: the AI budget for the platform owner — the month's limit and real spend, what is still
- * available for new calls, the forecast, what full use of the grants could cost, how well the
- * prices cover the real cost, and the grants and the assistant pilot that drive it.
+ * 064: the AI budget for the platform owner, laid out like the other admin tabs (the image pool
+ * of 052): the month at a glance, the two limits, people (a personal daily grant and bonus
+ * credits by email, and who holds what), and the assistant pilot as a list with «Прибрати» and a
+ * search to add — not a switch per space.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { refreshCredits } from '../../credits/store';
-import { Alert, Button, Card, FormField, Input, Switch } from '../../components/ui/index';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  FormField,
+  Input,
+  Switch,
+  Table,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow
+} from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { aiBudgetApi, type AiBudgetOverview, type AiPilotSpace } from '../../api/ai-budget';
 import { teamErrorMessageFor } from '../../team/errors';
@@ -20,6 +35,15 @@ function usd(value: number, language: string): string {
 
 export function AiBudgetPanel() {
   const { t, language } = useI18n();
+  const ids = { month: useId(), limits: useId(), people: useId(), pilot: useId() };
+  const fieldIds = {
+    limit: useId(),
+    base: useId(),
+    email: useId(),
+    grant: useId(),
+    bonus: useId(),
+    search: useId()
+  };
   const [overview, setOverview] = useState<AiBudgetOverview | null>(null);
   const [spaces, setSpaces] = useState<AiPilotSpace[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +52,8 @@ export function AiBudgetPanel() {
   const [email, setEmail] = useState('');
   const [grant, setGrant] = useState('');
   const [bonus, setBonus] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
 
   const apply = useCallback((next: AiBudgetOverview) => {
     setOverview(next);
@@ -50,8 +75,9 @@ export function AiBudgetPanel() {
     };
   }, [apply, t]);
 
-  const run = async (work: () => Promise<AiBudgetOverview | void>) => {
-    setBusy(true);
+  // One action at a time; only its own button shows that it is working.
+  const run = async (name: string, work: () => Promise<AiBudgetOverview | void>) => {
+    setBusy(name);
     setError(null);
     try {
       const next = await work();
@@ -59,7 +85,7 @@ export function AiBudgetPanel() {
     } catch (caught) {
       setError(teamErrorMessageFor(caught, t));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
@@ -69,67 +95,114 @@ export function AiBudgetPanel() {
         {error}
       </Alert>
     ) : null;
+
   const over = overview.fullGrantUseUsd > overview.limitUsd;
-  const figure = (label: string, value: string, hint?: string) => (
-    <div className="ai-budget-figure">
-      <span className="credits-panel-line">{label}</span>
-      <strong>{value}</strong>
-      {hint && <span className="credits-panel-line">{hint}</span>}
-    </div>
-  );
+  const people = new Map<string, { grant: number | null; bonus: number }>();
+  for (const row of overview.grants)
+    people.set(row.email, { grant: row.dailyGrant, bonus: people.get(row.email)?.bonus ?? 0 });
+  for (const row of overview.bonuses)
+    people.set(row.email, { grant: people.get(row.email)?.grant ?? null, bonus: row.balance });
+  const pilot = spaces.filter(space => space.pilot);
+  const needle = query.trim().toLowerCase();
+  const found =
+    needle.length < 2
+      ? []
+      : spaces
+          .filter(space => !space.pilot && space.name.toLowerCase().includes(needle))
+          .slice(0, 8);
+  const setSpace = (space: AiPilotSpace, enabled: boolean) =>
+    run(`space:${space.teamId}`, async () => {
+      setSpaces(await aiBudgetApi.setSpace(space.teamId, enabled));
+      setQuery('');
+    });
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="admin-pool">
       {error && (
         <Alert color="error" live="alert">
           {error}
         </Alert>
       )}
-      <Card
-        title={`${t('aiBudgetTitle')} · ${overview.month}`}
-        aside={t('aiBudgetUpdated', {
-          time: new Date(overview.updatedAt).toLocaleTimeString(language)
-        })}
-      >
-        <div className="ai-budget-grid">
-          {figure(t('aiBudgetLimit'), usd(overview.limitUsd, language))}
-          {figure(t('aiBudgetSpent'), usd(overview.spentUsd, language), t('aiBudgetEstimate'))}
-          {figure(t('aiBudgetFree'), usd(overview.freeUsd, language))}
-          {figure(
-            t('aiBudgetForecast'),
-            overview.forecastUsd === null
-              ? t('aiBudgetForecastUnknown')
-              : usd(overview.forecastUsd, language)
-          )}
-          {figure(
-            t('aiBudgetFullGrant'),
-            usd(overview.fullGrantUseUsd, language),
-            t('aiBudgetFullGrantHint')
-          )}
+
+      <Card className="admin-card" aria-labelledby={ids.month}>
+        <div className="admin-card-heading">
+          <div>
+            <h3 id={ids.month}>{`${t('aiBudgetTitle')} · ${overview.month}`}</h3>
+            <p>
+              {t('aiBudgetUpdated', {
+                time: new Date(overview.updatedAt).toLocaleTimeString(language, {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              })}
+            </p>
+          </div>
+          <Badge color={overview.assistantEnabled ? 'success' : 'neutral'}>
+            {t(overview.assistantEnabled ? 'aiBudgetAssistantOn' : 'aiBudgetAssistantOff')}
+          </Badge>
         </div>
+        <dl className="admin-pool-counts">
+          {(
+            [
+              ['aiBudgetLimit', usd(overview.limitUsd, language)],
+              ['aiBudgetSpent', usd(overview.spentUsd, language)],
+              ['aiBudgetFree', usd(overview.freeUsd, language)],
+              [
+                'aiBudgetForecast',
+                overview.forecastUsd === null
+                  ? t('aiBudgetForecastUnknown')
+                  : usd(overview.forecastUsd, language)
+              ],
+              ['aiBudgetFullGrant', usd(overview.fullGrantUseUsd, language)]
+            ] as const
+          ).map(([label, value]) => (
+            <div key={label}>
+              <dt>{t(label)}</dt>
+              <dd className="numeric">{value}</dd>
+            </div>
+          ))}
+        </dl>
         {over && (
           <Alert color="warning" variant="soft">
             {t('aiBudgetOverWarning')}
           </Alert>
         )}
-        <div className="ai-budget-grid">
-          {overview.byFeature.map(feature =>
-            figure(
-              t(
-                feature.feature === 'launch_assistant'
-                  ? 'creditsFeatureAssistant'
-                  : 'creditsFeatureTranslation'
-              ),
-              usd(feature.spentUsd, language),
-              `${t('aiBudgetCoverage')}: ${feature.coverage ?? '—'} · ${t('aiBudgetUnknown')}: ${feature.unknownCalls}`
-            )
-          )}
-        </div>
-        <p className="credits-panel-line">{t('aiBudgetConsoleReminder')}</p>
+        <ul className="admin-pool-jobs">
+          {overview.byFeature.map(feature => (
+            <li key={feature.feature}>
+              <span>
+                {t(
+                  feature.feature === 'launch_assistant'
+                    ? 'creditsFeatureAssistant'
+                    : 'creditsFeatureTranslation'
+                )}
+              </span>
+              <span className="numeric">
+                {`${usd(feature.spentUsd, language)} · ${t('aiBudgetCoverage')} ${feature.coverage ?? '—'} · ${t('aiBudgetUnknown')} ${feature.unknownCalls}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="ai-budget-note">{t('aiBudgetConsoleReminder')}</p>
       </Card>
-      <Card title={t('aiBudgetLimit')}>
-        <div className="ai-budget-grid">
-          <FormField label={t('aiBudgetLimit')}>
+
+      <Card className="admin-card" aria-labelledby={ids.limits}>
+        <div className="admin-card-heading">
+          <div>
+            <h3 id={ids.limits}>{t('aiBudgetLimitsTitle')}</h3>
+            <p>{t('aiBudgetLimitsSubtitle')}</p>
+          </div>
+        </div>
+        <form
+          className="release-testers-form"
+          onSubmit={event => {
+            event.preventDefault();
+            void run('limit', () => aiBudgetApi.setMonthLimit(Number(limit)));
+          }}
+        >
+          <FormField label={t('aiBudgetLimitUsd')} htmlFor={fieldIds.limit}>
             <Input
+              id={fieldIds.limit}
               type="number"
               min={1}
               value={limit}
@@ -137,14 +210,23 @@ export function AiBudgetPanel() {
             />
           </FormField>
           <Button
-            size="sm"
-            disabled={busy || !(Number(limit) > 0)}
-            onClick={() => void run(() => aiBudgetApi.setMonthLimit(Number(limit)))}
+            type="submit"
+            loading={busy === 'limit'}
+            disabled={busy !== null || !(Number(limit) > 0)}
           >
             {t('aiBudgetSet')}
           </Button>
-          <FormField label={t('aiBudgetBaseGrant')}>
+        </form>
+        <form
+          className="release-testers-form"
+          onSubmit={event => {
+            event.preventDefault();
+            void run('base', () => aiBudgetApi.setBaseGrant(Number(base)));
+          }}
+        >
+          <FormField label={t('aiBudgetBaseGrant')} htmlFor={fieldIds.base}>
             <Input
+              id={fieldIds.base}
               type="number"
               min={0}
               value={base}
@@ -152,19 +234,43 @@ export function AiBudgetPanel() {
             />
           </FormField>
           <Button
-            size="sm"
-            disabled={busy || !(Number(base) >= 0)}
-            onClick={() => void run(() => aiBudgetApi.setBaseGrant(Number(base)))}
+            type="submit"
+            loading={busy === 'base'}
+            disabled={busy !== null || !(Number(base) >= 0)}
           >
             {t('aiBudgetSet')}
           </Button>
+        </form>
+      </Card>
+
+      <Card className="admin-card" aria-labelledby={ids.people}>
+        <div className="admin-card-heading">
+          <div>
+            <h3 id={ids.people}>{t('aiBudgetPeopleTitle')}</h3>
+            <p>{t('aiBudgetPeopleSubtitle')}</p>
+          </div>
         </div>
-        <div className="ai-budget-grid">
-          <FormField label={t('aiBudgetEmail')}>
-            <Input type="email" value={email} onChange={event => setEmail(event.target.value)} />
-          </FormField>
-          <FormField label={t('aiBudgetUserGrant')}>
+        <div className="release-testers-form">
+          <FormField label={t('aiBudgetEmail')} htmlFor={fieldIds.email}>
             <Input
+              id={fieldIds.email}
+              type="email"
+              autoComplete="off"
+              value={email}
+              onChange={event => setEmail(event.target.value)}
+            />
+          </FormField>
+        </div>
+        <form
+          className="release-testers-form"
+          onSubmit={event => {
+            event.preventDefault();
+            void run('grant', () => aiBudgetApi.setUserGrant(email, Number(grant)));
+          }}
+        >
+          <FormField label={t('aiBudgetUserGrant')} htmlFor={fieldIds.grant}>
+            <Input
+              id={fieldIds.grant}
               type="number"
               min={0}
               value={grant}
@@ -172,82 +278,143 @@ export function AiBudgetPanel() {
             />
           </FormField>
           <Button
-            size="sm"
-            disabled={busy || !email || grant === ''}
-            onClick={() => void run(() => aiBudgetApi.setUserGrant(email, Number(grant)))}
+            type="submit"
+            loading={busy === 'grant'}
+            disabled={busy !== null || !email || grant === ''}
           >
             {t('aiBudgetSet')}
           </Button>
           <Button
-            size="sm"
             variant="ghost"
-            disabled={busy || !email}
-            onClick={() => void run(() => aiBudgetApi.setUserGrant(email, null))}
+            loading={busy === 'reset'}
+            disabled={busy !== null || !email}
+            onClick={() => void run('reset', () => aiBudgetApi.setUserGrant(email, null))}
           >
             {t('aiBudgetReset')}
           </Button>
-        </div>
-        {overview.grants.length > 0 && (
-          <ul className="ai-budget-list">
-            {overview.grants.map(row => (
-              <li key={row.email}>{`${row.email} · ${row.dailyGrant}`}</li>
-            ))}
-          </ul>
-        )}
-        <div className="ai-budget-grid">
-          <FormField label={t('aiBudgetBonus')}>
-            <Input type="number" value={bonus} onChange={event => setBonus(event.target.value)} />
+        </form>
+        <form
+          className="release-testers-form"
+          onSubmit={event => {
+            event.preventDefault();
+            void run('bonus', async () => {
+              const next = await aiBudgetApi.grantBonus(email, Math.trunc(Number(bonus)), null);
+              setBonus('');
+              // When it was the administrator's own balance, the header shows it at once.
+              void refreshCredits();
+              return next;
+            });
+          }}
+        >
+          <FormField
+            label={t('aiBudgetBonus')}
+            hint={t('aiBudgetBonusHint')}
+            htmlFor={fieldIds.bonus}
+          >
+            <Input
+              id={fieldIds.bonus}
+              type="number"
+              value={bonus}
+              onChange={event => setBonus(event.target.value)}
+            />
           </FormField>
           <Button
-            size="sm"
-            disabled={busy || !email || !Number(bonus)}
-            onClick={() =>
-              void run(async () => {
-                const next = await aiBudgetApi.grantBonus(email, Math.trunc(Number(bonus)), null);
-                setBonus('');
-                // When it was the administrator's own balance, the header shows it at once.
-                void refreshCredits();
-                return next;
-              })
-            }
+            type="submit"
+            loading={busy === 'bonus'}
+            disabled={busy !== null || !email || !Number(bonus)}
           >
             {t('aiBudgetBonusGive')}
           </Button>
+        </form>
+        {people.size > 0 ? (
+          <Table className="admin-table" aria-label={t('aiBudgetPeopleTitle')}>
+            <TableHeader>
+              <TableHeaderCell>{t('aiBudgetEmail')}</TableHeaderCell>
+              <TableHeaderCell>{t('aiBudgetUserGrant')}</TableHeaderCell>
+              <TableHeaderCell>{t('aiBudgetBonus')}</TableHeaderCell>
+            </TableHeader>
+            {[...people.entries()].map(([who, row]) => (
+              <TableRow key={who}>
+                <TableCell>{who}</TableCell>
+                <TableCell>
+                  <span className="numeric">
+                    {row.grant ?? t('aiBudgetGrantBase', { count: overview.baseDailyGrant })}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <span className="numeric">{row.bonus || '—'}</span>
+                </TableCell>
+              </TableRow>
+            ))}
+          </Table>
+        ) : (
+          <EmptyState className="admin-empty" size="sm" title={t('aiBudgetPeopleEmpty')} />
+        )}
+      </Card>
+
+      <Card className="admin-card" aria-labelledby={ids.pilot}>
+        <div className="admin-card-heading">
+          <div>
+            <h3 id={ids.pilot}>{t('aiBudgetPilot')}</h3>
+            <p>{t('aiBudgetPilotSubtitle')}</p>
+          </div>
+          <Switch
+            checked={overview.assistantEnabled}
+            disabled={busy !== null}
+            label={t('aiBudgetAssistant')}
+            onChange={enabled =>
+              void run('enabled', () => aiBudgetApi.setAssistantEnabled(enabled))
+            }
+          />
         </div>
-        <p className="ai-budget-note">{t('aiBudgetBonusHint')}</p>
-        {overview.bonuses.length > 0 && (
-          <ul className="ai-budget-list">
-            {overview.bonuses.map(row => (
-              <li key={row.email}>
-                {t('aiBudgetBonusRow', { email: row.email, count: row.balance })}
+        {pilot.length ? (
+          <ul className="admin-pool-teams">
+            {pilot.map(space => (
+              <li key={space.teamId}>
+                <span>{space.name}</span>
+                <Button
+                  size="sm"
+                  color="neutral"
+                  variant="ghost"
+                  loading={busy === `space:${space.teamId}`}
+                  disabled={busy !== null}
+                  onClick={() => void setSpace(space, false)}
+                >
+                  {t('aiBudgetPilotRemove')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState className="admin-empty" size="sm" title={t('aiBudgetPilotEmpty')} />
+        )}
+        <FormField label={t('aiBudgetPilotSearch')} htmlFor={fieldIds.search}>
+          <Input
+            id={fieldIds.search}
+            autoComplete="off"
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+          />
+        </FormField>
+        {found.length > 0 && (
+          <ul className="admin-pool-teams">
+            {found.map(space => (
+              <li key={space.teamId}>
+                <span>{space.name}</span>
+                <Button
+                  size="sm"
+                  color="primary"
+                  variant="soft"
+                  loading={busy === `space:${space.teamId}`}
+                  disabled={busy !== null}
+                  onClick={() => void setSpace(space, true)}
+                >
+                  {t('aiBudgetPilotAdd')}
+                </Button>
               </li>
             ))}
           </ul>
         )}
-      </Card>
-      <Card title={t('aiBudgetPilot')}>
-        <Switch
-          checked={overview.assistantEnabled}
-          disabled={busy}
-          label={t('aiBudgetAssistant')}
-          onChange={enabled => void run(() => aiBudgetApi.setAssistantEnabled(enabled))}
-        />
-        <ul className="ai-budget-list">
-          {spaces.map(space => (
-            <li key={space.teamId}>
-              <Switch
-                checked={space.pilot}
-                disabled={busy}
-                label={space.name}
-                onChange={enabled =>
-                  void run(async () => {
-                    setSpaces(await aiBudgetApi.setSpace(space.teamId, enabled));
-                  })
-                }
-              />
-            </li>
-          ))}
-        </ul>
       </Card>
     </div>
   );

@@ -12,16 +12,27 @@
 import {
   AlertTriangle,
   ArrowUp,
+  ArrowUpRight,
   CheckCircle2,
   ChevronDown,
   Minus,
   Play,
+  Sparkle,
   Sparkles,
   SquarePen,
   Trash2,
   Undo2
 } from 'lucide-react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode
+} from 'react';
+import { createPortal } from 'react-dom';
 import {
   assistantMessagePrice,
   ASSISTANT_MESSAGE_MAX_CHARACTERS,
@@ -145,12 +156,16 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
   const [dialogId, setDialogId] = useState<string | null>(null);
   const [dialogs, setDialogs] = useState<AssistantDialog[]>([]);
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
+  // What is waiting, kept apart so one wait does not light up every button in the dialog: the
+  // model reading a message, one card acting (its own buttons only), a dialog being opened.
+  const [thinking, setThinking] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const busy = thinking || pending !== null || switching;
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState(readOpen);
   const [menu, setMenu] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [focusedCard, setFocusedCard] = useState<string | null>(null);
   const pendingKey = useRef<{ text: string; key: string } | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLOListElement>(null);
@@ -162,7 +177,6 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     setDialogs(conversation.dialogs);
     setMessages(conversation.messages);
     setCredits(conversation.credits);
-    setFocusedCard(null);
     setError(null);
   };
 
@@ -203,9 +217,8 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     field.style.height = `${Math.min(field.scrollHeight, 160)}px`;
   }, [text, enabled, panel]);
 
-  // The card the person is looking at: the one they pressed, else the newest card with rows.
+  // The card «у другому» refers to: the newest card with rows.
   const contextCard = useMemo(() => {
-    if (focusedCard) return focusedCard;
     for (let i = messages.length - 1; i >= 0; i--) {
       const card = messages[i]!.cards.find(
         c =>
@@ -216,7 +229,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
       if (card) return card.id;
     }
     return null;
-  }, [messages, focusedCard]);
+  }, [messages]);
 
   if (!canEdit || enabled !== true) return null;
 
@@ -236,7 +249,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
   };
 
   const switchDialog = async (next: string) => {
-    setBusy(true);
+    setSwitching(true);
     try {
       apply(
         next === 'new'
@@ -247,7 +260,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     } catch (caught) {
       setError(teamErrorMessageFor(caught, t));
     } finally {
-      setBusy(false);
+      setSwitching(false);
     }
   };
 
@@ -285,9 +298,11 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
 
   const take = async (
     run: () => Promise<{ message: AssistantMessage | null; credits: unknown }>,
-    optimistic?: AssistantMessage
+    optimistic?: AssistantMessage,
+    cardId?: string
   ) => {
-    setBusy(true);
+    if (cardId) setPending(cardId);
+    else setThinking(true);
     setError(null);
     if (optimistic) setMessages(current => [...current, optimistic]);
     try {
@@ -309,7 +324,8 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
       setError(teamErrorMessageFor(caught, t));
       return false;
     } finally {
-      setBusy(false);
+      if (cardId) setPending(null);
+      else setThinking(false);
     }
   };
 
@@ -342,7 +358,6 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     if (ok) {
       pendingKey.current = null;
       setText('');
-      setFocusedCard(null);
     }
   };
 
@@ -372,7 +387,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     const batchKey =
       typeof card.payload.batchKey === 'string' ? card.payload.batchKey : crypto.randomUUID();
     const flow = observeAssistant('launch');
-    setBusy(true);
+    setPending(card.id);
     setError(null);
     try {
       await assistantApi.reviewLaunched(card.id, batchKey);
@@ -394,7 +409,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
           : teamErrorMessageFor(caught, t)
       );
     } finally {
-      setBusy(false);
+      setPending(null);
     }
   };
 
@@ -402,7 +417,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
   const archive = async (card: AssistantCard) => {
     const rows = (card.payload.rows as AssistantRow[]) ?? [];
     if (!rows.length || busy) return;
-    setBusy(true);
+    setPending(card.id);
     setError(null);
     let failed = 0;
     for (const item of rows) {
@@ -423,7 +438,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     });
     if (failed) setError(t('assistantArchiveFailed', { count: failed }));
     notifyLaunchesChanged(teamId);
-    setBusy(false);
+    setPending(null);
   };
 
   const answer = (card: AssistantCard, optionId: string) => {
@@ -454,7 +469,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     return String(value);
   };
 
-  const row = (item: AssistantRow) => {
+  const row = (item: AssistantRow, openable: boolean) => {
     const need = missing(item);
     const facts = [
       item.campaignCount !== null
@@ -465,35 +480,44 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
       item.r2 ? t('assistantR2Short') : null
     ].filter(Boolean);
     return (
-      <li key={item.launchId}>
-        <button
-          type="button"
-          className="assistant-row"
-          onClick={() => openLaunch(teamId, item.launchId)}
-        >
-          <span className="assistant-row-line">
-            <span className={`assistant-chip${item.account ? '' : ' is-missing'}`}>
-              {item.account ?? t('assistantFieldAccount')}
-            </span>
-            {item.offer && <span className="assistant-row-offer">{item.offer}</span>}
-            {item.creatives.map(name => (
-              <span key={name} className="assistant-chip is-creative">
-                {stem(name)}
-              </span>
-            ))}
+      <li key={item.launchId} className="assistant-row">
+        <span className="assistant-row-line">
+          <span className={`assistant-chip${item.account ? '' : ' is-missing'}`}>
+            {item.account ?? t('assistantFieldAccount')}
           </span>
-          {(facts.length > 0 || need) && (
-            <span className="assistant-row-line is-sub">
-              {facts.length > 0 && <span className="assistant-row-facts">{facts.join(' · ')}</span>}
-              {need && (
-                <span className="assistant-row-need">
-                  <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  {need}
-                </span>
-              )}
+          {item.offer && <span className="assistant-row-offer">{item.offer}</span>}
+          {item.creatives.map(name => (
+            <span key={name} className="assistant-chip is-creative">
+              {stem(name)}
             </span>
+          ))}
+          {openable && (
+            <IconButton
+              size="xs"
+              variant="ghost"
+              className="assistant-row-open"
+              label={t('assistantOpenLaunch')}
+              onClick={() => {
+                // The launch opens over the space; the window folds so it does not cover the form.
+                openLaunch(teamId, item.launchId);
+                toggle(false);
+              }}
+            >
+              <ArrowUpRight size={14} strokeWidth={ICON_STROKE} />
+            </IconButton>
           )}
-        </button>
+        </span>
+        {(facts.length > 0 || need) && (
+          <span className="assistant-row-line is-sub">
+            {facts.length > 0 && <span className="assistant-row-facts">{facts.join(' · ')}</span>}
+            {need && (
+              <span className="assistant-row-need">
+                <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {need}
+              </span>
+            )}
+          </span>
+        )}
       </li>
     );
   };
@@ -514,8 +538,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     return (
       <section
         key={card.id}
-        className={`assistant-card${contextCard === card.id ? ' is-context' : ''}${card.state === 'undone' ? ' is-undone' : ''}`}
-        onClick={() => setFocusedCard(card.id)}
+        className={`assistant-card${card.state === 'undone' ? ' is-undone' : ''}`}
       >
         {rows.length > 0 && (
           <p className="assistant-card-title">
@@ -548,7 +571,11 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         {kept > 0 && (
           <p className="assistant-note">{t('assistantArchiveKeptLaunched', { count: kept })}</p>
         )}
-        {rows.length > 0 && <ul className="assistant-rows">{rows.map(row)}</ul>}
+        {rows.length > 0 && (
+          <ul className="assistant-rows">
+            {rows.map(item => row(item, !removed && card.state !== 'undone'))}
+          </ul>
+        )}
         {unresolved.length > 0 && (
           <ul className="assistant-notes">
             {unresolved.map((item, index) => (
@@ -576,7 +603,8 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
                 size="sm"
                 color="error"
                 variant="soft"
-                loading={busy}
+                loading={pending === card.id}
+                disabled={busy && pending !== card.id}
                 leading={<Trash2 size={16} strokeWidth={ICON_STROKE} />}
                 onClick={() => void archive(card)}
               >
@@ -603,7 +631,8 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
                 <Button
                   size="sm"
                   variant="primary"
-                  loading={busy}
+                  loading={pending === card.id}
+                  disabled={busy && pending !== card.id}
                   leading={<Play size={16} strokeWidth={ICON_STROKE} />}
                   onClick={() => void launch(card)}
                 >
@@ -618,8 +647,10 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
                 disabled={busy}
                 leading={<Undo2 size={16} strokeWidth={ICON_STROKE} />}
                 onClick={() =>
-                  void take(() =>
-                    assistantApi.undo(teamId, dialogId, message.commandId!, key())
+                  void take(
+                    () => assistantApi.undo(teamId, dialogId, message.commandId!, key()),
+                    undefined,
+                    card.id
                   ).then(ok => {
                     if (ok) markCard(card.id, { state: 'undone' });
                   })
@@ -653,7 +684,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
                   variant={
                     card.state === 'answered' && payload.answer === option.id ? 'soft' : 'outline'
                   }
-                  disabled={busy || card.state !== 'open'}
+                  disabled={thinking || card.state !== 'open'}
                   onClick={() => answer(card, option.id)}
                 >
                   {stem(option.label)}
@@ -683,10 +714,13 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
                 <Button
                   size="sm"
                   variant="primary"
-                  disabled={busy}
+                  loading={pending === card.id}
+                  disabled={busy && pending !== card.id}
                   onClick={() =>
-                    void take(() =>
-                      assistantApi.confirmProfile(teamId, dialogId, card.id, key())
+                    void take(
+                      () => assistantApi.confirmProfile(teamId, dialogId, card.id, key()),
+                      undefined,
+                      card.id
                     ).then(ok => {
                       if (ok) markCard(card.id, { state: 'confirmed' });
                     })
@@ -744,27 +778,41 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
   const sendLabel = price
     ? t(price === 1 ? 'assistantSendPrice' : 'assistantSendPriceFew', { price })
     : t('assistantSendFree');
-  const currentTitle = dialogs.find(dialog => dialog.id === dialogId)?.title ?? t('assistantTitle');
+  // A dialog is named by its first message; shown as a title, it starts with a capital letter.
+  const titled = (title: string | null) =>
+    title ? title.charAt(0).toLocaleUpperCase(language) + title.slice(1) : null;
+  const currentTitle =
+    titled(dialogs.find(dialog => dialog.id === dialogId)?.title ?? null) ?? t('assistantTitle');
+  // Today's dialogs differ by the hour, older ones by the day.
+  const when = (at: string) => {
+    const date = new Date(at);
+    return date.toDateString() === new Date().toDateString()
+      ? date.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })
+      : date.toLocaleDateString(language, { day: 'numeric', month: 'short' });
+  };
+
+  // On the page itself, not inside the section: a section's route transition moves its content,
+  // and a fixed corner inside moving content jumped with every click between sections.
+  const dock = (content: ReactNode) => createPortal(content, document.body);
 
   if (!panel) {
-    return (
+    return dock(
       <div className="assistant-dock">
-        <IconButton
+        <Button
           ref={fab}
-          size="lg"
-          color="primary"
-          variant="solid"
+          size="md"
+          variant="primary"
           className="assistant-fab"
-          label={t('assistantTitle')}
+          leading={<Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
           onClick={() => toggle(true)}
         >
-          <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-        </IconButton>
+          {t('assistantTitle')}
+        </Button>
       </div>
     );
   }
 
-  return (
+  return dock(
     <div className="assistant-dock">
       <section className="assistant-window" aria-label={t('assistantTitle')}>
         <header className="assistant-head">
@@ -791,12 +839,9 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
               { heading: t('assistantDialogs') },
               ...dialogs.map(dialog => ({
                 id: dialog.id,
-                label: dialog.title ?? t('assistantNewDialog'),
+                label: titled(dialog.title) ?? t('assistantNewDialog'),
                 checked: dialog.id === dialogId,
-                trailing: new Date(dialog.lastActiveAt).toLocaleDateString(language, {
-                  day: 'numeric',
-                  month: 'short'
-                }),
+                trailing: when(dialog.lastActiveAt),
                 onSelect: () => void switchDialog(dialog.id)
               }))
             ]}
@@ -805,7 +850,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
           <IconButton
             size="sm"
             label={t('assistantNewDialog')}
-            disabled={busy}
+            disabled={switching || thinking}
             onClick={() => void switchDialog('new')}
           >
             <SquarePen size={ICON_SIZE} strokeWidth={ICON_STROKE} />
@@ -814,7 +859,12 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             <Minus size={ICON_SIZE} strokeWidth={ICON_STROKE} />
           </IconButton>
         </header>
-        <ol ref={list} className="assistant-thread" aria-live="polite">
+        <ol
+          ref={list}
+          className={`assistant-thread${switching ? ' is-switching' : ''}`}
+          aria-live="polite"
+          aria-busy={switching || thinking}
+        >
           {messages.length === 0 && (
             <li className="assistant-empty">
               <p className="assistant-text">{t('assistantEmpty')}</p>
@@ -840,7 +890,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
               {message.cards.map(card => renderCard(card, message))}
             </li>
           ))}
-          {busy && (
+          {thinking && (
             <li className="assistant-message is-assistant">
               <p className="assistant-note">
                 <Spinner /> {t('assistantThinking')}
@@ -884,6 +934,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             price !== null &&
             price > 0 && (
               <span className="assistant-price" aria-hidden="true">
+                <Sparkle size={12} strokeWidth={ICON_STROKE} />
                 {price}
               </span>
             )
@@ -893,8 +944,8 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             color="primary"
             variant="solid"
             label={sendLabel}
-            loading={busy}
-            disabled={!trimmed || price === null || short > 0 || tooLong}
+            loading={thinking}
+            disabled={busy || !trimmed || price === null || short > 0 || tooLong}
             onClick={() => void send()}
           >
             <ArrowUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />
