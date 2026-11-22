@@ -133,7 +133,7 @@ function space(
         return ok({ id: 1, role: 'assistant', text: args.p_text, cards: list });
       }
       case 'list_launch_dictionaries':
-        return ok({ offers, buyers: [] });
+        return ok({ offers, buyers: [{ id: id(201), value: 'goor', updatedAt: 'x' }] });
       case 'create_launch_dictionary': {
         const created = {
           id: id(300 + offers.length),
@@ -971,6 +971,35 @@ describe('064 assistant — what the 19 November batch taught', () => {
     );
     const [draft] = [...world.launches.values()];
     expect(JSON.stringify(draft!.draft)).toContain(id(61));
+  });
+
+  it('stores a buyer and a pasted link in offer defaults as an id and the link itself', async () => {
+    const world = space();
+    const reply = await world.send(
+      'збережи для прокапс баєра goor і посилання https://shop.example/p?x=1 як дефолт',
+      model(
+        plan(
+          action({
+            type: 'save_offer_defaults',
+            offer: 'ProCaps',
+            fields: [
+              { field: 'buyerId', op: 'set', value: 'goor' },
+              { field: 'originalUrl', op: 'set', value: '⟦url:1⟧' }
+            ]
+          })
+        )
+      )
+    );
+    const card = firstCard(reply);
+    expect(card.kind).toBe('profile');
+    expect(card.payload.values).toMatchObject({
+      buyerId: id(201),
+      originalUrl: 'https://shop.example/p?x=1'
+    });
+    expect(card.payload.changes).toEqual([
+      { field: 'buyerId', from: null, to: '"goor"' },
+      { field: 'originalUrl', from: null, to: '"https://shop.example/p?x=1"' }
+    ]);
   });
 
   it('lets the creatives choose between offers of different countries', async () => {

@@ -882,6 +882,17 @@ async function proposeDefaults(
     if (!isLaunchDefaultPath(change.field) || change.op !== 'set') continue;
     let path: string = change.field;
     let value: unknown = change.value;
+    // A buyer by name and a pasted link are resolved exactly as on a draft: the profile stores the
+    // buyer's id and the link itself, never «goor» or ⟦url:1⟧.
+    if (!path.startsWith('catalog.') && !path.startsWith('subConfig.')) {
+      const problems: Array<{ field: string; written: string; code: string }> = [];
+      const applied = applyChanges(structuredClone(stored), [change], resolution, deps, problems);
+      const resolved = readLaunchPath(applied as never, path as LaunchDefaultPath);
+      if (problems.length || resolved === undefined || resolved === change.value) {
+        if (change.field === 'buyerId' || change.field === 'originalUrl') continue;
+      }
+      if (resolved !== undefined) value = resolved;
+    }
     // A profile without a catalog stores the whole object: the profile writer requires its core.
     if (path.startsWith('catalog.') && !isRecord(stored.catalog)) {
       const key = path.slice('catalog.'.length);
@@ -903,10 +914,14 @@ async function proposeDefaults(
     if (!mask.includes(path)) mask.push(path);
     if (current !== undefined) before[path] = current;
     values[path] = value;
+    const shown = (raw: unknown) =>
+      change.field === 'buyerId' && typeof raw === 'string'
+        ? (resolution.names.get(raw) ?? raw)
+        : raw;
     changes.push({
       field: change.field,
-      from: current === undefined ? null : JSON.stringify(current),
-      to: JSON.stringify(change.value)
+      from: current === undefined ? null : JSON.stringify(shown(current)),
+      to: JSON.stringify(shown(path === change.field ? value : change.value))
     });
   }
   if (!mask.length) throw new EngineRefusal('FIELD_NOT_SUPPORTED');
