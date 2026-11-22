@@ -290,10 +290,12 @@ export const NO_OFFER = 'no-offer';
 function offerWanted(plan: AssistantPlan, written: string): boolean {
   return plan.actions.some(
     action =>
-      action.offer === written &&
-      (action.type === 'create_drafts' ||
-        action.type === 'save_offer_defaults' ||
-        action.type === 'create_offer')
+      (action.offer === written &&
+        (action.type === 'create_drafts' ||
+          action.type === 'save_offer_defaults' ||
+          action.type === 'create_offer')) ||
+      (action.type === 'update_fields' &&
+        action.fields.some(change => change.field === 'offerId' && change.value === written))
   );
 }
 
@@ -306,6 +308,23 @@ async function createOffer(deps: EngineDeps, written: string, n: number): Promis
   });
   if (!isRecord(data) || typeof data.id !== 'string') throw new EngineRefusal('UNAVAILABLE');
   return data.id;
+}
+
+/** Creatives written as a bare number with an offer: «21», «21й відос» → 21. */
+function creativeNumbers(plan: AssistantPlan, offer: string): number[] {
+  const numbers = new Set<number>();
+  for (const action of plan.actions) {
+    if (action.offer !== offer) continue;
+    for (const change of action.fields) {
+      if (change.field !== 'creatives') continue;
+      for (const item of Array.isArray(change.value) ? change.value : [change.value]) {
+        if (typeof item === 'number') numbers.add(item);
+        else if (typeof item === 'string' && /^[0-9]+$/u.test(assistantKey(item)))
+          numbers.add(Number(assistantKey(item)));
+      }
+    }
+  }
+  return [...numbers].slice(0, 5);
 }
 
 /** The one country code of the creatives given with an offer: «тр25», «TR_23» → TR. */
@@ -326,12 +345,16 @@ function creativeGeo(plan: AssistantPlan, offer: string): string | null {
 }
 
 /** Country codes that end the offers a plan names: «Urafirin MY» → MY. */
-function planGeos(plan: AssistantPlan, names: Names): string[] {
+function planGeos(plan: AssistantPlan, names: Names, resolution?: Resolution): string[] {
   const geos = new Set<string>();
   for (const action of plan.actions) {
     if (!action.offer) continue;
+    // The offer as resolved (after a question or by its creatives), else as matched by name.
+    const resolvedId = resolution?.ids.get(`offer:${action.offer}`);
     const found = matchAssistantName(action.offer, names.offers);
-    const name = found.kind === 'one' ? found.candidate.name : action.offer;
+    const name =
+      (resolvedId ? resolution?.names.get(resolvedId) : undefined) ??
+      (found.kind === 'one' ? found.candidate.name : action.offer);
     const geo = /(?:^|\s)([A-Za-z]{2,3})$/u.exec(name.trim())?.[1];
     if (geo) geos.add(geo.toUpperCase());
   }
@@ -356,6 +379,18 @@ export async function resolvePlan(
     offerSets: new Map(),
     pools: new Map()
   };
+  // The model sometimes names a new draft's offer as an offerId field instead of the action's
+  // offer: it is the same offer, resolved — and asked about — the same way. Idempotent.
+  for (const action of plan.actions) {
+    if (action.type !== 'create_drafts' || action.offer) continue;
+    const named = action.fields.find(
+      change =>
+        change.field === 'offerId' && change.op === 'set' && typeof change.value === 'string'
+    );
+    if (!named) continue;
+    action.offer = named.value as string;
+    action.fields = action.fields.filter(change => change !== named);
+  }
   for (const ref of references(plan)) {
     const [kind, ...rest] = ref.split(':') as [RefKind, ...string[]];
     const written = rest.join(':');
@@ -375,6 +410,12 @@ export async function resolvePlan(
         : (() => {
             const result = matchAssistantName(written, candidates);
             if (result.kind === 'many') {
+              // «21» next to ProCaps TR is TR_21 even when BG_21 exists too.
+              const geos = planGeos(plan, names, resolution);
+              const ofOffer = result.candidates.filter(c =>
+                geos.some(geo => assistantKey(c.name).startsWith(geo.toLowerCase()))
+              );
+              if (ofOffer.length === 1) return ofOffer[0]!;
               const plain = result.candidates.filter(c => {
                 const file = (c as AssistantCandidate & { file?: string }).file ?? c.name;
                 return (
@@ -393,7 +434,7 @@ export async function resolvePlan(
       if (!match) {
         // «май1» next to «Urafirin MY» is MY_1: creatives are named by the offer's country code.
         const number = assistantNumber(written);
-        for (const geo of number === null ? [] : planGeos(plan, names)) {
+        for (const geo of number === null ? [] : planGeos(plan, names, resolution)) {
           const guess = `${geo}_${number}`;
           const result = matchAssistantName(guess, await searchMaterials(deps, guess));
           if (result.kind === 'one') {
@@ -466,6 +507,25 @@ export async function resolvePlan(
             )
           : [];
         if (fit.length === 1) result = { kind: 'one', candidate: fit[0]! };
+        // «21й відос» has no country: the offer whose country has a creative 21 is the one.
+        else if (!geo) {
+          const numbers = creativeNumbers(plan, written);
+          const having: AssistantCandidate[] = [];
+          for (const candidate of numbers.length ? result.candidates : []) {
+            const country = /(?:^|\s)([A-Za-z]{2,3})$/u.exec(candidate.name.trim())?.[1];
+            if (!country) continue;
+            let all = true;
+            for (const number of numbers) {
+              const guess = `${country.toUpperCase()}_${number}`;
+              if (matchAssistantName(guess, await searchMaterials(deps, guess)).kind !== 'one') {
+                all = false;
+                break;
+              }
+            }
+            if (all) having.push(candidate);
+          }
+          if (having.length === 1) result = { kind: 'one', candidate: having[0]! };
+        }
       }
       if (result.kind === 'many' && kind === 'offer' && !offerWanted(plan, written)) {
         resolution.offerSets.set(

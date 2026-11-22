@@ -1047,6 +1047,35 @@ describe('064 assistant — what the 19 November batch taught', () => {
     expect(firstCard(filled).kind).toBe('result');
   });
 
+  it('takes an offer named as an offerId field and picks its country by the bare creative number', async () => {
+    const world = space({
+      materials: [...MATERIALS, { id: id(21), name: 'TR_21.mp4' }]
+    });
+    world.offers.splice(0, world.offers.length);
+    world.offers.push(
+      { id: id(397), value: 'ProCaps TR', updatedAt: 'x' },
+      { id: id(396), value: 'ProCaps BG', updatedAt: 'x' }
+    );
+    const reply = await world.send(
+      'запусти на завтра прокапс 20-120баксів 21й відос',
+      model(
+        plan(
+          action({
+            dates: tomorrow,
+            fields: [
+              { field: 'offerId', op: 'set', value: 'прокапс' },
+              { field: 'creatives', op: 'set', value: ['21'] }
+            ]
+          })
+        )
+      )
+    );
+    expect(firstCard(reply).kind).toBe('result');
+    const [draft] = [...world.launches.values()];
+    expect(draft!.draft.offerId).toBe(id(397));
+    expect(JSON.stringify(draft!.draft)).toContain(id(21));
+  });
+
   it('makes one launch on «any free» ad account, not one per free account', async () => {
     const world = space();
     await world.send('на будь-якому вільному', model(plan(action({ accounts: ['*any'] }))));
