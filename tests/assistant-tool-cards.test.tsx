@@ -135,6 +135,25 @@ describe('the space tools’ cards', () => {
     expect(screen.getByText(/qa-image-2\.png/u)).toBeTruthy();
   });
 
+  it('shows the first rows of a long list and keeps the button in sight', () => {
+    render(
+      <ToolReviewCard
+        card={card('review', {
+          purpose: 'tool',
+          tool: 'trash_catalogs',
+          danger: true,
+          items: Array.from({ length: 20 }, (_, index) => ({ label: `C${index}`, id: `c${index}` }))
+        })}
+        pending={false}
+        disabled={false}
+        onRun={vi.fn()}
+      />
+    );
+    expect(screen.getAllByRole('listitem')).toHaveLength(8);
+    // «Показати всі 20» and the red «Видалити 20» right under the eight rows.
+    expect(screen.getAllByRole('button', { name: /20/u })).toHaveLength(2);
+  });
+
   it('makes a removal red and says where things go', () => {
     const { container } = render(
       <ToolReviewCard

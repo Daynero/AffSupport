@@ -17,6 +17,9 @@ const A2 = '00000000-0000-4000-8000-0000000000a2';
 const A3 = '00000000-0000-4000-8000-0000000000a3';
 const G18 = '00000000-0000-4000-8000-0000000000b1';
 const G4 = '00000000-0000-4000-8000-0000000000b2';
+/** An archived ad account with money on 2026-11-19 and the tag #2. */
+const A4 = '00000000-0000-4000-8000-0000000000a4';
+const G9 = '00000000-0000-4000-8000-0000000000b9';
 
 const accounts = [
   {
@@ -66,17 +69,19 @@ function snapshot(from: string, to: string) {
     generatedAt: '2026-11-22T10:00:00Z',
     accounts: [
       { id: G18, name: 'g18' },
-      { id: G4, name: 'g4' }
+      { id: G4, name: 'g4' },
+      { id: G9, name: 'g9' }
     ],
     agents: [
       { id: A1, agentId: '1111111244' },
       { id: A2, agentId: '2222222257' },
-      { id: A3, agentId: '3333333999' }
+      { id: A3, agentId: '3333333999' },
+      { id: A4, agentId: '4444444111' }
     ],
-    placements: [A1, A2, A3].map(agent => ({
+    placements: [A1, A2, A3, A4].map(agent => ({
       id: `p-${agent}`,
       agentRowId: agent,
-      accountId: agent === A3 ? G4 : G18,
+      accountId: agent === A3 ? G4 : agent === A4 ? G9 : G18,
       startsOn: '2026-11-01',
       endsOn: null,
       version: '1'
@@ -87,7 +92,8 @@ function snapshot(from: string, to: string) {
       field(A2, '2026-11-21', 'spend', '5.50'),
       field(A2, '2026-11-21', 'topup', '50.00'),
       field(A3, '2026-11-21', 'topup', '0.00'),
-      field(A3, '2026-11-20', 'spend', '7.00')
+      field(A3, '2026-11-20', 'spend', '7.00'),
+      field(A4, '2026-11-19', 'spend', '1000.00')
     ].filter(f => f.date >= from && f.date <= to)
   };
 }
@@ -141,6 +147,25 @@ function deps(extra: Record<string, (args: Record<string, unknown>) => unknown> 
   calls.length = 0;
   const table: Record<string, (args: Record<string, unknown>) => unknown> = {
     list_team_accounts: () => accounts,
+    // The overview of a period lists archived accounts and ad accounts too.
+    get_team_accounts_overview: () => ({
+      accounts: [
+        ...accounts,
+        {
+          id: G9,
+          name: 'g9',
+          archived_at: '2026-11-20T00:00:00Z',
+          agents: [
+            {
+              id: A4,
+              agent_id: '4444444111',
+              archived_at: '2026-11-20T00:00:00Z',
+              labels: [{ id: 'l2', name: '#2' }]
+            }
+          ]
+        }
+      ]
+    }),
     get_team_agent_finance_v2: args => snapshot(String(args.p_from), String(args.p_to)),
     search_materials: args => {
       const query = String(args.p_query ?? '')
@@ -240,10 +265,28 @@ describe('reading money', () => {
     ]);
     const long = await runTool(
       'finance_report',
-      [arg('from', '2026-01-01'), arg('to', '2026-11-21')],
+      [arg('from', '2025-01-01'), arg('to', '2026-11-21')],
       deps()
     );
     expect((long.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('PERIOD_TOO_LONG');
+  });
+
+  it('counts an archived ad account in a money report, as «Деталі періоду» does', async () => {
+    const card = await runTool(
+      'finance_report',
+      [arg('from', '2026-11-19'), arg('to', '2026-11-21'), arg('scope', ['#2'])],
+      deps()
+    );
+    expect(card.payload).toMatchObject({ total: ['1015.50', '150.00'], scope: ['#2'] });
+  });
+
+  it('never writes money to an archived ad account', async () => {
+    const card = await runTool(
+      'set_finance',
+      [arg('date', '2026-11-19'), arg('entries', ['g9-111=5'])],
+      deps()
+    );
+    expect((card.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('NOT_FOUND');
   });
 
   it('gives a statement of top-ups by tags with a text to copy, zeros left out', async () => {
@@ -335,6 +378,8 @@ describe('recording money', () => {
     expect(pickAdAccounts(all, ['#2']).picked.map(a => a.id)).toEqual([A1, A2]);
     expect(pickAdAccounts(all, ['999']).picked.map(a => a.id)).toEqual([A3]);
     expect(pickAdAccounts(all, ['g99']).missing).toEqual(['g99']);
+    expect(pickAdAccounts(all, ['g18*all']).picked.map(a => a.id)).toEqual([A1, A2]);
+    expect(pickAdAccounts(all, ['*free']).picked).toHaveLength(3);
   });
 });
 
@@ -434,6 +479,31 @@ describe('files and folders', () => {
       ['TR_16.mp4', 'ProCaps_4.mp4'],
       ['TR_23.mp4', 'ProCaps_5.mp4'],
       ['TR_25.mp4', 'ProCaps_6.mp4']
+    ]);
+  });
+
+  it('reads «всі відео» as a kind, not as files called «відео»', async () => {
+    const card = await runTool(
+      'rename_materials',
+      [
+        arg('query', 'відео'),
+        arg('kind', 'video'),
+        arg('in_folder', 'TR'),
+        arg('template', 'CR_{n}')
+      ],
+      deps()
+    );
+    expect((card.payload.items as unknown[]).length).toBe(4);
+  });
+
+  it('says what an empty selection asked for', async () => {
+    const card = await runTool(
+      'trash_materials',
+      [arg('query', 'nothing-like-this'), arg('in_folder', 'old')],
+      deps()
+    );
+    expect(card.payload.unresolved).toEqual([
+      { field: 'trash_materials', written: 'old · nothing-like-this', code: 'NOT_FOUND' }
     ]);
   });
 

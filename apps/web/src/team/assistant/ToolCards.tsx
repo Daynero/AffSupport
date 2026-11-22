@@ -78,6 +78,9 @@ const REVIEW_GO: Readonly<Record<string, TranslationKey>> = {
 
 const MONEY_COLUMNS = new Set(['spend', 'topup']);
 
+/** Rows a tool card lists before «Показати всі». */
+const SHOWN = 8;
+
 /** File kinds in the words of the explorer. */
 const KIND: Readonly<Record<string, TranslationKey>> = {
   folder: 'teamExplorerKindFolder',
@@ -106,11 +109,20 @@ const STATUS: Readonly<Record<string, TranslationKey>> = {
   done: 'assistantTaskDone'
 };
 
-function period(payload: Record<string, unknown>): string {
+/** «16 лист. — 22 лист. · #2»: the period and what the answer was narrowed to. */
+function period(payload: Record<string, unknown>, language: string): string {
   const from = typeof payload.from === 'string' ? payload.from : null;
   const to = typeof payload.to === 'string' ? payload.to : null;
-  if (!from) return '';
-  return from === to || !to ? from : `${from} — ${to}`;
+  const scope = Array.isArray(payload.scope) ? (payload.scope as string[]).join(', ') : '';
+  if (!from) return scope;
+  const day = (value: string) =>
+    new Date(`${value}T12:00:00Z`).toLocaleDateString(language, {
+      day: 'numeric',
+      month: 'short',
+      timeZone: 'UTC'
+    });
+  const range = from === to || !to ? day(from) : `${day(from)} — ${day(to)}`;
+  return scope ? `${range} · ${scope}` : range;
 }
 
 const UNTAGGED = '{untagged}';
@@ -148,6 +160,14 @@ export function TableCard({ card }: { card: AssistantCard }) {
     if (column === 'status' && STATUS[value]) return t(STATUS[value]);
     if (column === 'role' && ROLE[value]) return t(ROLE[value]);
     if (column === 'kind' && KIND[value]) return t(KIND[value]);
+    // A day row of «по днях»: «пн, 16 лист.».
+    if (column === 'group' && payload.by === 'day' && /^\d{4}-\d{2}-\d{2}$/u.test(value))
+      return new Date(`${value}T12:00:00Z`).toLocaleDateString(language, {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        timeZone: 'UTC'
+      });
     if (column === 'updated' && /^\d{4}-\d{2}-\d{2}T/u.test(value))
       return new Date(value).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
     return value;
@@ -160,9 +180,11 @@ export function TableCard({ card }: { card: AssistantCard }) {
     <section className="assistant-card">
       <p className="assistant-card-title">
         <Wrench size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        {title ? t(title, { period: period(payload), count }) : tool}
+        {title ? t(title, { period: period(payload, language), count }) : tool}
       </p>
-      {onlyTotal ? (
+      {onlyTotal && total.every(value => value === null) ? (
+        <p className="assistant-note">{t('assistantToolNothingEntered')}</p>
+      ) : onlyTotal ? (
         <dl className="assistant-table-totals">
           {columns.map((column, index) => (
             <div key={column}>
@@ -259,6 +281,8 @@ export function ToolReviewCard({
   onRun: () => void;
 }) {
   const { t, language } = useI18n();
+  // A long list (77 catalogs) shows its first rows; the button stays in sight.
+  const [expanded, setExpanded] = useState(false);
   const usd = new Intl.NumberFormat(language, { style: 'currency', currency: 'USD' });
   const payload = card.payload as Record<string, unknown>;
   const tool = String(payload.tool ?? '');
@@ -333,7 +357,7 @@ export function ToolReviewCard({
         </p>
       )}
       <ul className="assistant-rows">
-        {items.slice(0, 60).map((item, index) => (
+        {items.slice(0, expanded ? 500 : SHOWN).map((item, index) => (
           <li key={index} className="assistant-row">
             <span className="assistant-row-line">
               {item.from !== item.label && <span className="assistant-chip">{item.label}</span>}
@@ -357,8 +381,12 @@ export function ToolReviewCard({
           </li>
         ))}
       </ul>
-      {items.length > 60 && (
-        <p className="assistant-note">{t('assistantToolMore', { count: items.length - 60 })}</p>
+      {items.length > SHOWN && (
+        <Button size="xs" variant="ghost" onClick={() => setExpanded(value => !value)}>
+          {expanded
+            ? t('assistantToolCollapse')
+            : t('assistantToolShowAll', { count: items.length })}
+        </Button>
       )}
       {typeof payload.total === 'string' && money && (
         <p className="assistant-note">

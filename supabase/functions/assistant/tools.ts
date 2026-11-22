@@ -58,7 +58,7 @@ export class ToolRefusal extends Error {
 }
 
 /** The bounds every tool keeps, so one message can never touch the whole space by accident. */
-export const TOOL_LIMITS = { rows: 200, days: 92 } as const;
+export const TOOL_LIMITS = { rows: 200, days: 366 } as const;
 
 type Args = Map<string, AssistantToolArg['value']>;
 
@@ -156,17 +156,38 @@ interface AdAccount {
   tags: string[];
 }
 
-async function adAccounts(deps: ToolDeps): Promise<AdAccount[]> {
-  const data = await call(deps, 'list_team_accounts', {});
+/**
+ * The ad accounts a step may name. A write takes the live ones only (an archived one needs the
+ * Accounts tab's historical correction); a money report over a period takes archived ones too,
+ * as «Деталі періоду» does — found on next 2026-11-22: «скільки на #2 цього місяця» left out six
+ * archived ad accounts and more than half the money.
+ */
+async function adAccounts(
+  deps: ToolDeps,
+  history: { from: string; to: string } | null = null
+): Promise<AdAccount[]> {
+  const data = history
+    ? await call(deps, 'get_team_accounts_overview', {
+        p_from: history.from,
+        p_to: history.to,
+        p_timezone: deps.timezone
+      })
+    : await call(deps, 'list_team_accounts', {});
+  const rows = history
+    ? isRecord(data) && Array.isArray(data.accounts)
+      ? data.accounts
+      : []
+    : data;
   const out: AdAccount[] = [];
-  for (const account of Array.isArray(data) ? data : []) {
+  for (const account of Array.isArray(rows) ? rows : []) {
     if (!isRecord(account) || !Array.isArray(account.agents) || typeof account.id !== 'string')
       continue;
+    if (!history && account.archived_at) continue;
     const name = typeof account.name === 'string' ? account.name.trim() : '';
     for (const agent of account.agents) {
       if (!isRecord(agent) || typeof agent.id !== 'string' || typeof agent.agent_id !== 'string')
         continue;
-      if (agent.archived_at) continue;
+      if (!history && agent.archived_at) continue;
       const tags = Array.isArray(agent.labels)
         ? agent.labels.flatMap(label =>
             isRecord(label) && typeof label.name === 'string' ? [label.name] : []
@@ -196,7 +217,10 @@ export function pickAdAccounts(
   const picked = new Map<string, AdAccount>();
   const missing: string[] = [];
   for (const raw of written) {
-    const ref = fold(raw);
+    // The launch selections («g18*all», «g18*free», «*all») mean the account's or every ad account
+    // here — the model writes them out of habit (found on next 2026-11-22).
+    const selection = fold(raw).match(/^(.*?)\*(all|free|any)$/u);
+    const ref = selection ? selection[1]!.trim() || '*' : fold(raw);
     if (['*', 'all', 'всі', 'усі', 'все'].includes(ref)) {
       all.forEach(agent => picked.set(agent.id, agent));
       continue;
@@ -268,7 +292,10 @@ async function financeReport(args: Args, deps: ToolDeps): Promise<ToolCard> {
   if (!['total', 'account', 'ad_account', 'tag', 'day'].includes(by))
     throw new ToolRefusal('INVALID_INPUT', by);
   const scope = list(args, 'scope');
-  const [snap, agents] = await Promise.all([snapshot(deps, from, to), adAccounts(deps)]);
+  const [snap, agents] = await Promise.all([
+    snapshot(deps, from, to),
+    adAccounts(deps, { from, to })
+  ]);
   const report = buildFinanceReport(snap);
   const chosen = scope.length ? pickAdAccounts(agents, scope) : null;
   if (chosen && chosen.picked.length === 0)
@@ -326,6 +353,7 @@ async function financeReport(args: Args, deps: ToolDeps): Promise<ToolCard> {
               .slice(0, TOOL_LIMITS.rows)
               .map(([key, group]) => [key, show(group.spend), show(group.topup)]),
       total: [show(total.spend), show(total.topup)],
+      scope,
       missing: chosen?.missing ?? [],
       truncated: ordered.length > TOOL_LIMITS.rows
     }
@@ -341,8 +369,13 @@ async function topupStatement(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const { from, to } = period(deps, args);
   const by = text(args, 'by') === 'account' ? 'account' : 'tag';
   const scope = list(args, 'scope');
-  const [snap, agents] = await Promise.all([snapshot(deps, from, to), adAccounts(deps)]);
+  const [snap, agents] = await Promise.all([
+    snapshot(deps, from, to),
+    adAccounts(deps, { from, to })
+  ]);
   const chosen = scope.length ? pickAdAccounts(agents, scope) : null;
+  if (chosen && chosen.picked.length === 0)
+    throw new ToolRefusal('NOT_FOUND', chosen.missing.join(', '));
   const ids = chosen ? new Set(chosen.picked.map(agent => agent.id)) : null;
   const tags = new Map(agents.map(agent => [agent.id, agent.tags]));
   const rows = buildFinanceReport(snap).topups.filter(
@@ -394,6 +427,7 @@ async function topupStatement(args: Args, deps: ToolDeps): Promise<ToolCard> {
       ]),
       total: [String(rows.length), show(total)],
       copyText,
+      scope,
       missing: chosen?.missing ?? [],
       truncated: false
     }
@@ -608,7 +642,7 @@ async function pickMaterials(
   tree: Folder[] | null
 ): Promise<{ items: Material[]; missing: string[]; truncated: boolean }> {
   const names = list(args, 'items');
-  const query = text(args, 'query') ?? '';
+  const query = nameQuery(text(args, 'query'));
   const kinds = list(args, 'kind')
     .map(kind => fold(kind))
     .filter(kind => KINDS.includes(kind));
@@ -663,6 +697,65 @@ async function pickMaterials(
     items.length = TOOL_LIMITS.rows;
   }
   return { items, missing, truncated };
+}
+
+/**
+ * Words that name a kind or «all», not a file: «всі відео» is kind video, not files called
+ * «відео». Found on next 2026-11-22 — the model wrote query «відео» beside kind video and the
+ * selection came back empty.
+ */
+const GENERIC_WORDS = new Set([
+  'всі',
+  'усі',
+  'все',
+  'усе',
+  'all',
+  'every',
+  'відео',
+  'відос',
+  'відоси',
+  'ролики',
+  'ролик',
+  'video',
+  'videos',
+  'фото',
+  'картинки',
+  'картинка',
+  'зображення',
+  'image',
+  'images',
+  'pictures',
+  'файли',
+  'файл',
+  'files',
+  'file',
+  'креативи',
+  'креатив',
+  'creatives',
+  'папки',
+  'папка',
+  'folders',
+  'folder',
+  'лендинги',
+  'лендинг',
+  'архіви',
+  'транскрипти'
+]);
+
+/** What a selection without names asked for, for «не знайдено»: «Creatives · video». */
+function selectionText(args: Args): string {
+  return ['in_folder', 'kind', 'tag', 'offer', 'geo', 'query']
+    .flatMap(name => list(args, name))
+    .join(' · ');
+}
+
+function nameQuery(written: string | null): string {
+  if (!written) return '';
+  return written
+    .split(/\s+/u)
+    .filter(word => !GENERIC_WORDS.has(fold(word)))
+    .join(' ')
+    .trim();
 }
 
 const fileItem = <T extends Record<string, unknown>>(item: Material, extra: T = {} as T) => ({
@@ -769,7 +862,7 @@ async function moveMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
   if (!picked.items.length)
     throw new ToolRefusal(
       folderNames.length ? 'FOLDER_MOVE_UNSUPPORTED' : 'NOT_FOUND',
-      folderNames.length ? folderNames.join(', ') : picked.missing.join(', ')
+      folderNames.length ? folderNames.join(', ') : picked.missing.join(', ') || selectionText(args)
     );
   const parentWritten = text(args, 'parent');
   const parent = parentWritten ? pickFolder(tree, parentWritten) : 'root';
@@ -871,6 +964,7 @@ async function renameMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
       throw new ToolRefusal('NAME_CONFLICT', item.to as string);
     clash.add(fold(item.to as string));
   }
+  if (!items.length) throw new ToolRefusal('NOT_FOUND', missing.join(', ') || selectionText(args));
   if (!changed.length) throw new ToolRefusal('NOTHING_TO_CHANGE', '');
   return {
     kind: 'review',
@@ -888,7 +982,8 @@ async function editMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
     throw new ToolRefusal('INVALID_INPUT', 'change');
   if (addTags.some(tag => tag.length > 64)) throw new ToolRefusal('INVALID_NAME', 'tag');
   const picked = await pickMaterials(deps, args, null);
-  if (!picked.items.length) throw new ToolRefusal('NOT_FOUND', picked.missing.join(', '));
+  if (!picked.items.length)
+    throw new ToolRefusal('NOT_FOUND', picked.missing.join(', ') || selectionText(args));
   const items = picked.items.flatMap(item => {
     const tags = [...item.tags.filter(tag => !removeTags.includes(fold(tag)))];
     for (const tag of addTags) if (!tags.some(t => fold(t) === fold(tag))) tags.push(tag);
@@ -927,7 +1022,8 @@ async function editMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
 /** «видали тр16», «видали всі зображення з папки old» — into the Drive trash, restorable there. */
 async function trashMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const picked = await pickMaterials(deps, args, null);
-  if (!picked.items.length) throw new ToolRefusal('NOT_FOUND', picked.missing.join(', '));
+  if (!picked.items.length)
+    throw new ToolRefusal('NOT_FOUND', picked.missing.join(', ') || selectionText(args));
   return {
     kind: 'review',
     payload: {
