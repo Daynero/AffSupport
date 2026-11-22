@@ -383,6 +383,12 @@ export function ToolReviewCard({
           {t('assistantFolderMoveUnsupported', { written: folders.join(', ') })}
         </p>
       )}
+      {typeof payload.folderCount === 'number' && payload.folderCount > 0 && !done && (
+        <p className="assistant-note is-warning">
+          <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          {t('assistantToolTrashFolders', { count: payload.folderCount })}
+        </p>
+      )}
       {danger && !done && (
         <p className="assistant-note">{t(DANGER_NOTE[tool] ?? 'assistantToolTrashNote')}</p>
       )}

@@ -935,7 +935,7 @@ async function trashMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
       tool: 'trash_materials',
       danger: true,
       items: picked.items.map(item => fileItem(item, { kind: item.kind })),
-      folders: picked.items.filter(item => item.kind === 'folder').length,
+      folderCount: picked.items.filter(item => item.kind === 'folder').length,
       missing: picked.missing,
       truncated: picked.truncated
     }

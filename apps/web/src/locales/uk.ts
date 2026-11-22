@@ -5322,7 +5322,7 @@ export const uk: Record<keyof typeof en, string> = {
   assistantToolMoveMaterials: 'Перенести в «{destination}»: {count}',
   assistantToolRenameMaterials: 'Перейменувати: {count}',
   assistantToolEditMaterials: 'Змінити файли: {count}',
-  assistantToolTrashMaterials: 'Видалити файли: {count}',
+  assistantToolTrashMaterials: 'Видалити в кошик: {count}',
   assistantToolTrashCatalogs: 'Видалити каталоги: {count}',
   assistantToolUpdateCatalogs: 'Оновити каталоги: {count}',
   assistantToolInviteMembers: 'Запросити як {role}: {count}',
@@ -5350,6 +5350,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Доступ до простору зникне; файли, які вони відкривали на Drive напряму, лишаться в них.',
   assistantToolDone: 'Готово: {count}',
   assistantToolFailed: 'Не вийшло: {count}. Онови сторінку й спробуй ще раз.',
+  assistantToolTrashFolders: 'Папки підуть разом з усім, що в них ({count}).',
   assistantToolDeleteTasks: 'Видалити завдання: {count}',
   assistantToolGoDelete: 'Видалити {count}',
   assistantToolDeleteTasksNote:
