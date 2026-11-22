@@ -420,7 +420,12 @@ body:has(.next-channel-badge) .assistant-dock {
   padding: var(--space-1) var(--space-2);
   text-align: start;
   border-bottom: var(--border-width) solid var(--color-border);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+}
+/* The first column is the name; it may wrap at spaces, the rest scroll sideways whole. */
+.assistant-table td:first-child {
+  white-space: normal;
+  min-width: calc(var(--space-6) * 4);
 }
 .assistant-table th {
   position: sticky;

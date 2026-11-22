@@ -182,6 +182,7 @@ function deps(extra: Record<string, (args: Record<string, unknown>) => unknown> 
   };
   return {
     teamId: TEAM,
+    userId: 'u-owner',
     timezone: 'Europe/Kyiv',
     now: new Date('2026-11-22T10:00:00Z'),
     callerRpc: async (name, args) => {
@@ -475,6 +476,17 @@ describe('catalogs, people and tasks', () => {
         ],
         materials: [{ id: 'm16', label: 'TR_16.mp4' }]
       })
+    ]);
+  });
+
+  it('«на мене» is the person writing', async () => {
+    const card = await runTool(
+      'create_tasks',
+      [arg('tasks', ['Перевірити | me | tomorrow | |']), arg('x', null)],
+      deps()
+    );
+    expect(card.payload.items).toEqual([
+      expect.objectContaining({ assigneeId: 'u-owner', assignee: 'Roman' })
     ]);
   });
 

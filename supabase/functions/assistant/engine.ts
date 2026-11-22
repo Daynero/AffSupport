@@ -1418,6 +1418,7 @@ export async function executePlan(
         cards.push(
           await runTool(action.tool, action.args, {
             teamId: deps.teamId,
+            userId: deps.userId,
             callerRpc: deps.callerRpc,
             timezone: deps.timezone,
             now: deps.now

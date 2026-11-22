@@ -31,6 +31,8 @@ export type ToolRpc = (
 
 export interface ToolDeps {
   teamId: string;
+  /** The person writing: «на мене», «мені» name them. */
+  userId: string;
   callerRpc: ToolRpc;
   timezone: string;
   now: Date;
@@ -682,7 +684,7 @@ async function findMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
       columns: ['name', 'kind', 'offer', 'tags'],
       rows: picked.items.map(item => [
         item.name,
-        item.kind,
+        item.kind === 'folder' ? 'folder' : (item.category ?? item.kind),
         [item.offer, item.geo].filter(Boolean).join(' · ') || null,
         item.tags.join(', ') || null
       ]),
@@ -1079,8 +1081,14 @@ async function people(deps: ToolDeps): Promise<{ list: Person[]; full: boolean }
   };
 }
 
-function pickPerson(all: Person[], written: string): Person {
+const SELF = ['me', 'myself', 'я', 'мене', 'мені', 'мною', 'собі', 'себе', 'сам', 'сама'];
+
+function pickPerson(all: Person[], written: string, self: string): Person {
   const ref = fold(written).replace(/^@/u, '');
+  if (SELF.includes(ref)) {
+    const me = all.find(person => person.id === self);
+    if (me) return me;
+  }
   const exact = all.filter(
     person => fold(person.name) === ref || (person.email !== null && fold(person.email) === ref)
   );
@@ -1147,7 +1155,7 @@ async function changeMembers(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const role = fold(text(args, 'role') ?? '');
   if (!remove && !ROLES.includes(role)) throw new ToolRefusal('INVALID_INPUT', role);
   const items = list(args, 'people').map(written => {
-    const person = pickPerson(all, written);
+    const person = pickPerson(all, written, deps.userId);
     if (person.role === 'owner') throw new ToolRefusal('OWNER_TRANSFER_REQUIRED', person.name);
     return {
       id: person.id,
@@ -1272,7 +1280,7 @@ async function createTasks(args: Args, deps: ToolDeps): Promise<ToolCard> {
       .map(part => part.trim());
     const clean = title.replace(/\s+/gu, ' ');
     if (!clean || Array.from(clean).length > 160) throw new ToolRefusal('INVALID_NAME', title);
-    const assignee = who ? pickPerson(all, who) : null;
+    const assignee = who ? pickPerson(all, who, deps.userId) : null;
     const date = when ? dayAny(deps, when) : null;
     const tags = labelRefs(known, tagText ? tagText.split(',') : []);
     const attach = files
@@ -1332,7 +1340,7 @@ async function updateTasks(args: Args, deps: ToolDeps): Promise<ToolCard> {
   if (status && !['todo', 'in_progress', 'done'].includes(status))
     throw new ToolRefusal('INVALID_INPUT', status);
   const [{ list: everyone }, known] = await Promise.all([people(deps), labels(deps, 'task')]);
-  const assignee = who ? pickPerson(everyone, who) : null;
+  const assignee = who ? pickPerson(everyone, who, deps.userId) : null;
   const addTags = labelRefs(known, list(args, 'add_tags'));
   const missing: string[] = [];
   const picked = new Map<string, TaskRow>();

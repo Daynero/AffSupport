@@ -76,6 +76,28 @@ const REVIEW_GO: Readonly<Record<string, TranslationKey>> = {
 
 const MONEY_COLUMNS = new Set(['spend', 'topup']);
 
+/** File kinds in the words of the explorer. */
+const KIND: Readonly<Record<string, TranslationKey>> = {
+  folder: 'teamExplorerKindFolder',
+  image: 'teamExplorerKindImage',
+  video: 'teamExplorerKindVideo',
+  landing: 'teamExplorerKindLanding',
+  archive: 'teamExplorerKindArchive',
+  transcript: 'teamExplorerKindTranscript',
+  document: 'teamExplorerKindDocument',
+  shortcut: 'teamExplorerKindShortcut',
+  file: 'teamExplorerKindOther',
+  other: 'teamExplorerKindOther'
+};
+
+/** Roles in the words of the People tab. */
+const ROLE: Readonly<Record<string, TranslationKey>> = {
+  owner: 'teamRoleOwner',
+  admin: 'teamRoleAdmin',
+  editor: 'teamRoleEditor',
+  viewer: 'teamRoleViewer'
+};
+
 const STATUS: Readonly<Record<string, TranslationKey>> = {
   todo: 'assistantTaskTodo',
   in_progress: 'assistantTaskInProgress',
@@ -97,8 +119,20 @@ export function TableCard({ card }: { card: AssistantCard }) {
   const [copied, setCopied] = useState(false);
   const payload = card.payload as Record<string, unknown>;
   const tool = String(payload.tool ?? '');
-  const columns = (payload.columns as string[]) ?? [];
-  const rows = (payload.rows as Array<Array<string | null>>) ?? [];
+  const allColumns = (payload.columns as string[]) ?? [];
+  const allRows = (payload.rows as Array<Array<string | null>>) ?? [];
+  // A column with nothing in any row («Офер: —» on every file) only takes room.
+  const kept = allColumns
+    .map((column, index) => ({ column, index }))
+    .filter(
+      ({ column, index }) =>
+        index === 0 ||
+        MONEY_COLUMNS.has(column) ||
+        column === 'count' ||
+        allRows.some(row => row[index] !== null && row[index] !== '')
+    );
+  const columns = kept.map(entry => entry.column);
+  const rows = allRows.map(row => kept.map(entry => row[entry.index] ?? null));
   const total = (payload.total as Array<string | null> | null) ?? null;
   const missing = (payload.missing as string[]) ?? [];
   const copyText =
@@ -110,6 +144,8 @@ export function TableCard({ card }: { card: AssistantCard }) {
     if (value === UNTAGGED) return t('teamAgentLabelsUntagged');
     if (MONEY_COLUMNS.has(column)) return usd.format(Number(value));
     if (column === 'status' && STATUS[value]) return t(STATUS[value]);
+    if (column === 'role' && ROLE[value]) return t(ROLE[value]);
+    if (column === 'kind' && KIND[value]) return t(KIND[value]);
     if (column === 'updated' && /^\d{4}-\d{2}-\d{2}T/u.test(value))
       return new Date(value).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
     return value;
@@ -261,7 +297,7 @@ export function ToolReviewCard({
           ? t(title, {
               count: active.length,
               date: String(payload.date ?? ''),
-              role: String(payload.role ?? ''),
+              role: ROLE[String(payload.role)] ? t(ROLE[String(payload.role)]!) : '',
               metric: payload.metric
                 ? t(METRIC[String(payload.metric)] ?? 'assistantColTopup')
                 : '',
