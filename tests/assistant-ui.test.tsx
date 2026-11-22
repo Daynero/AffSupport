@@ -83,6 +83,11 @@ const bridge = vi.hoisted(() => ({
 vi.mock('../apps/web/src/team/assistant/bridge', () => bridge);
 const launches = vi.hoisted(() => ({ archive: vi.fn(async (..._args: unknown[]) => ({})) }));
 vi.mock('../apps/web/src/api/launches', () => ({ launchApi: launches }));
+const releases = vi.hoisted(() => ({
+  read: vi.fn(async () => ({ version: '5' })),
+  release: vi.fn(async (..._args: unknown[]) => ({}))
+}));
+vi.mock('../apps/web/src/api/team-agent-release', () => ({ agentReleaseApi: releases }));
 vi.mock('../apps/web/src/auth/AuthContext', () => ({
   useOptionalAuth: () => ({ user: { id: 'u' } })
 }));
@@ -462,6 +467,45 @@ describe('the space assistant', () => {
     assistant();
     expect(await screen.findByText(/Not ready to launch: 1/u)).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Launch/u })).toBeNull();
+  });
+
+  it('frees the listed ad accounts as Accounts does, skipping old assignments', async () => {
+    const user = userEvent.setup();
+    api.open.mockResolvedValueOnce({
+      enabled: true,
+      canSaveDefaults: true,
+      ...dialog,
+      credits,
+      messages: [
+        message([
+          {
+            id: 'card-release',
+            kind: 'review',
+            state: 'open',
+            commandId: 'cmd-1',
+            payload: {
+              purpose: 'release',
+              rows: [],
+              agents: [
+                { agentRowId: 'a1', label: 'g18-046', launches: 2, runs: 1, legacy: 0 },
+                { agentRowId: 'a2', label: 'g4-257', launches: 1, runs: 0, legacy: 1 }
+              ]
+            },
+            createdAt: 'x'
+          }
+        ])
+      ]
+    });
+    assistant();
+    expect(await screen.findByText('Free ad accounts: 2')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Free 1' }));
+    await waitFor(() => expect(releases.release).toHaveBeenCalledTimes(1));
+    expect(releases.release.mock.calls[0]![0]).toMatchObject({
+      teamId: 'team',
+      agentRowId: 'a1',
+      expectedVersion: '5'
+    });
+    expect(await screen.findByText('Freed: 1')).toBeTruthy();
   });
 
   it('stays hidden where the assistant is not enabled', async () => {

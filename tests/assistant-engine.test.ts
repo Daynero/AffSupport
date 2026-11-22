@@ -1276,3 +1276,40 @@ describe('064 assistant — accounts and notes from another offer', () => {
     ]);
   });
 });
+
+describe('064 assistant — freeing ad accounts', () => {
+  const plan = (...actions: unknown[]) => ({ reply: 'Готово.', actions });
+
+  it('lists the busy ad accounts for «звільни всі РК» and writes nothing', async () => {
+    const world = space({
+      accounts: [
+        {
+          id: 'acc',
+          name: 'g18',
+          agents: [
+            {
+              id: id(946),
+              agent_id: '111046',
+              availability: { status: 'busy', assignmentCount: 2 }
+            },
+            {
+              id: id(944),
+              agent_id: '222244',
+              availability: { status: 'free', assignmentCount: 0 }
+            }
+          ]
+        }
+      ]
+    });
+    const reply = await world.send(
+      'звільни всі рк',
+      model(plan(action({ type: 'release_accounts', accounts: [] })))
+    );
+    const card = firstCard(reply);
+    expect(card).toMatchObject({ kind: 'review', payload: { purpose: 'release', checked: 2 } });
+    expect(card.payload.agents).toEqual([
+      { agentRowId: id(946), label: 'g18-046', launches: 2, runs: 0, legacy: 0 }
+    ]);
+    expect(world.saves()).toHaveLength(0);
+  });
+});

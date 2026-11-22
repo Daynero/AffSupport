@@ -14,6 +14,7 @@ export const ASSISTANT_ACTIONS = [
   'update_fields',
   'create_offer',
   'create_account',
+  'release_accounts',
   'archive_drafts',
   'save_offer_defaults',
   'show_review',

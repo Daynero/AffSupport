@@ -5298,5 +5298,14 @@ export const en = {
   assistantAccountCreatedEmpty: 'Account {name} is ready, but no ad account was added.',
   assistantProfileUrl: 'Link',
   assistantProfileBuyer: 'Buyer',
-  assistantProfileDate: 'Date'
+  assistantProfileDate: 'Date',
+  assistantReleaseTitle: 'Free ad accounts: {count}',
+  assistantReleaseNone: 'These ad accounts are already free.',
+  assistantReleaseLaunches: 'launches: {count}',
+  assistantReleaseRuns: 'manual marks: {count}',
+  assistantReleaseLegacy: 'Old assignments — reconcile them in Accounts first.',
+  assistantReleaseRunsNote: 'Manual marks on these ad accounts are cleared too, as in Accounts.',
+  assistantRelease: 'Free {count}',
+  assistantReleased: 'Freed: {count}',
+  assistantReleaseFailed: 'Could not free {count}. Refresh Accounts and try again.'
 } as const;

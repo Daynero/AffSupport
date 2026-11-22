@@ -21,6 +21,7 @@ import {
   Sparkles,
   SquarePen,
   Trash2,
+  Unlink,
   Undo2
 } from 'lucide-react';
 import {
@@ -48,6 +49,7 @@ import {
   type AssistantDialog
 } from '../../api/assistant';
 import { launchApi } from '../../api/launches';
+import { agentReleaseApi } from '../../api/team-agent-release';
 import { TeamApiError } from '../../api/team';
 import { CreditsButton } from '../../credits/CreditsButton';
 import { Button, DropdownMenu, IconButton, Spinner } from '../../components/ui/index.js';
@@ -145,6 +147,14 @@ function key(): string {
 
 function stem(name: string): string {
   return name.replace(/\.[A-Za-z0-9]{1,5}$/u, '');
+}
+
+interface ReleaseAgent {
+  agentRowId: string;
+  label: string;
+  launches: number;
+  runs: number;
+  legacy: number;
 }
 
 export interface AssistantWidgetProps {
@@ -448,6 +458,114 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     setPending(null);
   };
 
+  // «Звільнити N»: each ad account released as in Accounts — read its version, then release.
+  const release = async (card: AssistantCard) => {
+    const agents = ((card.payload.agents as ReleaseAgent[]) ?? []).filter(agent => !agent.legacy);
+    if (!agents.length || busy) return;
+    setPending(card.id);
+    setError(null);
+    let failed = 0;
+    for (const agent of agents) {
+      try {
+        const state = await agentReleaseApi.read(teamId, agent.agentRowId);
+        await agentReleaseApi.release({
+          teamId,
+          agentRowId: agent.agentRowId,
+          expectedVersion: String(state.version),
+          requestKey: crypto.randomUUID()
+        });
+      } catch {
+        failed++;
+      }
+    }
+    try {
+      if (failed < agents.length) await assistantApi.cardConfirmed(card.id);
+    } catch {
+      /* released either way; the card only remembers it */
+    }
+    markCard(card.id, {
+      state: failed < agents.length ? 'confirmed' : card.state,
+      payload: { ...card.payload, released: agents.length - failed }
+    });
+    if (failed) setError(t('assistantReleaseFailed', { count: failed }));
+    notifyLaunchesChanged(teamId);
+    setPending(null);
+  };
+
+  const releaseCard = (card: AssistantCard) => {
+    const agents = (card.payload.agents as ReleaseAgent[]) ?? [];
+    const releasable = agents.filter(agent => !agent.legacy);
+    const done = card.state === 'confirmed';
+    const runs = releasable.reduce((sum, agent) => sum + agent.runs, 0);
+    return (
+      <section key={card.id} className="assistant-card">
+        <p className="assistant-card-title">
+          <Unlink size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          {agents.length
+            ? t('assistantReleaseTitle', { count: agents.length })
+            : t('assistantReleaseNone')}
+        </p>
+        {agents.length > 0 && (
+          <ul className="assistant-rows">
+            {agents.map(agent => (
+              <li key={agent.agentRowId} className="assistant-row">
+                <span className="assistant-row-line">
+                  <span className="assistant-chip">{agent.label}</span>
+                  <span className="assistant-row-facts">
+                    {[
+                      agent.launches
+                        ? t('assistantReleaseLaunches', { count: agent.launches })
+                        : null,
+                      agent.runs ? t('assistantReleaseRuns', { count: agent.runs }) : null
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </span>
+                {agent.legacy > 0 && (
+                  <span className="assistant-row-line is-sub">
+                    <span className="assistant-row-need">
+                      <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                      {t('assistantReleaseLegacy')}
+                    </span>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {runs > 0 && !done && <p className="assistant-note">{t('assistantReleaseRunsNote')}</p>}
+        {releasable.length > 0 && (
+          <div className="assistant-card-actions">
+            {done ? (
+              <span className="assistant-note is-success">
+                <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {t('assistantReleased', {
+                  count:
+                    typeof card.payload.released === 'number'
+                      ? card.payload.released
+                      : releasable.length
+                })}
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                color="warning"
+                variant="soft"
+                loading={pending === card.id}
+                disabled={busy && pending !== card.id}
+                leading={<Unlink size={16} strokeWidth={ICON_STROKE} />}
+                onClick={() => void release(card)}
+              >
+                {t('assistantRelease', { count: releasable.length })}
+              </Button>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  };
+
   const answer = (card: AssistantCard, optionId: string) => {
     markCard(card.id, { state: 'answered', payload: { ...card.payload, answer: optionId } });
     void take(() => assistantApi.answer(teamId, dialogId, card.id, optionId, key()));
@@ -694,6 +812,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     switch (card.kind) {
       case 'result':
       case 'review':
+        if (payload.purpose === 'release') return releaseCard(card);
         return rowsCard(card, message);
       case 'question': {
         const options = (payload.options as Array<{ id: string; label: string }>) ?? [];

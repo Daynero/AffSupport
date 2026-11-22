@@ -91,6 +91,10 @@ interface AgentCandidate extends AssistantCandidate {
   free: boolean;
   /** Launches currently on it; the least loaded is taken when none is free. */
   load: number;
+  /** Assignments from before 053 that must be reconciled in Accounts first. */
+  legacy?: number;
+  /** Manual marks on it, which a release clears too. */
+  runs?: number;
 }
 
 interface Names {
@@ -154,7 +158,9 @@ export async function loadNames(deps: Pick<EngineDeps, 'callerRpc' | 'teamId'>):
             label,
             free: availability.status === 'free',
             load:
-              typeof availability.assignmentCount === 'number' ? availability.assignmentCount : 0
+              typeof availability.assignmentCount === 'number' ? availability.assignmentCount : 0,
+            legacy: typeof availability.legacyCount === 'number' ? availability.legacyCount : 0,
+            runs: Array.isArray(agent.runs) ? agent.runs.length : 0
           });
         }
       }
@@ -270,7 +276,7 @@ function references(plan: AssistantPlan): RefKey[] {
   for (const action of plan.actions) {
     if (action.offer) add(`offer:${action.offer}`);
     if (action.notesFrom) add(`offer:${action.notesFrom}`);
-    if (action.type !== 'create_account')
+    if (action.type !== 'create_account' && action.type !== 'release_accounts')
       for (const account of action.accounts) add(`account:${account}`);
     fields(action.fields);
     for (const override of action.overrides) {
@@ -509,6 +515,41 @@ async function actionNotes(
       ...(source[index]?.color ? { color: source[index]!.color } : {})
     }))
   );
+}
+
+/**
+ * «звільни всі РК», «звільни g18», «звільни g18-244»: the busy ad accounts of the selection, with
+ * how many launches and manual marks each holds. Only a card — the person releases them with its
+ * button, through the same release as the Accounts tab.
+ */
+async function releaseCard(action: AssistantAction, deps: EngineDeps): Promise<Card> {
+  const names = await loadNames(deps);
+  const wanted = action.accounts.map(entry => entry.split('*')[0]!.trim()).filter(Boolean);
+  const picked = names.accounts.filter(
+    agent =>
+      wanted.length === 0 ||
+      wanted.some(
+        written =>
+          assistantKey(written) === assistantKey(agent.label) ||
+          assistantKey(written) === assistantKey(agent.account)
+      )
+  );
+  const busy = picked.filter(agent => agent.load > 0 || (agent.runs ?? 0) > 0);
+  return {
+    kind: 'review',
+    payload: {
+      purpose: 'release',
+      agents: busy.map(agent => ({
+        agentRowId: agent.id,
+        label: agent.label,
+        launches: agent.load,
+        runs: agent.runs ?? 0,
+        legacy: agent.legacy ?? 0
+      })),
+      checked: picked.length,
+      rows: []
+    }
+  };
 }
 
 /** Each draft gets the notes with ids of its own. */
@@ -1369,6 +1410,8 @@ export async function executePlan(
             truncated: picked.truncated
           }
         });
+      } else if (action.type === 'release_accounts') {
+        cards.push(await releaseCard(action, deps));
       } else if (action.type === 'archive_drafts') {
         // Only a card: the drafts go away when the person presses «Видалити N» on it.
         const picked = await selectRows(action, deps, resolution, created);

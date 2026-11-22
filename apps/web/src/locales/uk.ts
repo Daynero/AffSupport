@@ -5273,5 +5273,14 @@ export const uk: Record<keyof typeof en, string> = {
   assistantAccountCreatedEmpty: 'Акаунт {name} готовий, але РК не додано.',
   assistantProfileUrl: 'Посилання',
   assistantProfileBuyer: 'Баєр',
-  assistantProfileDate: 'Дата'
+  assistantProfileDate: 'Дата',
+  assistantReleaseTitle: 'Звільнити РК: {count}',
+  assistantReleaseNone: 'Усі ці РК уже вільні.',
+  assistantReleaseLaunches: 'запусків: {count}',
+  assistantReleaseRuns: 'ручних позначок: {count}',
+  assistantReleaseLegacy: 'Старі призначення — спершу звір їх в «Акаунтах».',
+  assistantReleaseRunsNote: 'Ручні позначки на цих РК теж приберуться, як і в «Акаунтах».',
+  assistantRelease: 'Звільнити {count}',
+  assistantReleased: 'Звільнено: {count}',
+  assistantReleaseFailed: 'Не вдалося звільнити: {count}. Онови «Акаунти» і спробуй ще раз.'
 };
