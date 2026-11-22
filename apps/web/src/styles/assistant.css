@@ -360,3 +360,6 @@ body:has(.next-channel-badge) .assistant-dock {
 .ai-budget-forms .release-testers-form .ui-field {
   flex: 0 1 auto;
 }
+.assistant-card-warning {
+  color: var(--color-warning-text);
+}

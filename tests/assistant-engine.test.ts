@@ -1002,6 +1002,57 @@ describe('064 assistant — what the 19 November batch taught', () => {
     ]);
   });
 
+  it('puts «any free» ad account into a shown draft that lacks one', async () => {
+    const world = space({
+      accounts: [
+        {
+          id: 'acc',
+          name: 'g18',
+          agents: [
+            {
+              id: id(946),
+              agent_id: '111046',
+              availability: { status: 'busy', assignmentCount: 2 }
+            },
+            {
+              id: id(944),
+              agent_id: '222244',
+              availability: { status: 'free', assignmentCount: 0 }
+            }
+          ]
+        }
+      ]
+    });
+    const created = await world.send(
+      'запусти на завтра прокапс',
+      model(plan(action({ offer: 'ProCaps', dates: tomorrow })))
+    );
+    const [draft] = [...world.launches.values()];
+    expect(draft!.draft.agentRowId).toBeUndefined();
+    const filled = await world.send(
+      'запусти на будь якому вільному',
+      model(
+        plan(
+          action({
+            type: 'update_fields',
+            rows: [1],
+            fields: [{ field: 'agentRowId', op: 'set', value: '*any' }]
+          }),
+          action({ type: 'show_review', rows: [1] })
+        )
+      ),
+      firstCard(created).id
+    );
+    expect(draft!.draft.agentRowId).toBe(id(944));
+    expect(firstCard(filled).kind).toBe('result');
+  });
+
+  it('makes one launch on «any free» ad account, not one per free account', async () => {
+    const world = space();
+    await world.send('на будь-якому вільному', model(plan(action({ accounts: ['*any'] }))));
+    expect(world.launches.size).toBe(1);
+  });
+
   it('lets the creatives choose between offers of different countries', async () => {
     const world = space();
     world.offers.splice(0, world.offers.length);

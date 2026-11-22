@@ -538,6 +538,11 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     const removed = removing && card.state === 'confirmed';
     const kept = typeof payload.launchedKept === 'number' ? payload.launchedKept : 0;
     const created = Array.isArray(payload.createdOffers) ? (payload.createdOffers as string[]) : [];
+    // Drafts that cannot go yet and are not simply launched: the card says so and what to write.
+    const unfinished = rows.filter(
+      item => item.blocked.length > 0 && !item.blocked.some(entry => entry.code === 'LAUNCHED')
+    ).length;
+    const settled = removing || launched || card.state === 'undone';
     return (
       <section
         key={card.id}
@@ -547,6 +552,13 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
           <p className="assistant-card-title">
             {removing ? (
               <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            ) : unfinished > 0 ? (
+              <AlertTriangle
+                className="assistant-card-warning"
+                size={16}
+                strokeWidth={ICON_STROKE}
+                aria-hidden="true"
+              />
             ) : (
               <CheckCircle2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
             )}
@@ -588,6 +600,11 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
               </li>
             ))}
           </ul>
+        )}
+        {unfinished > 0 && !settled && (
+          <p className="assistant-note is-warning">
+            {t('assistantNotReady', { count: unfinished })}
+          </p>
         )}
         {payload.truncated === true && (
           <p className="assistant-note">{t('assistantReviewTruncated')}</p>

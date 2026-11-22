@@ -5261,5 +5261,7 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetPilotAdd: 'Додати',
   aiBudgetPilotEmpty: 'Жоден простір ще не в пілоті.',
   aiBudgetPilotSearch: 'Знайти простір за назвою',
-  aiBudgetMonthSubtitle: 'Витрати на моделі цього місяця · дані на {time}'
+  aiBudgetMonthSubtitle: 'Витрати на моделі цього місяця · дані на {time}',
+  assistantNotReady:
+    'Не готові до запуску: {count}. Допиши, чого бракує, — наприклад «на будь-який вільний РК» чи «креатив TR_16».'
 };

@@ -5286,5 +5286,7 @@ export const en = {
   aiBudgetPilotAdd: 'Add',
   aiBudgetPilotEmpty: 'No space is in the pilot yet.',
   aiBudgetPilotSearch: 'Find a space by name',
-  aiBudgetMonthSubtitle: 'This month’s model spend · as of {time}'
+  aiBudgetMonthSubtitle: 'This month’s model spend · as of {time}',
+  assistantNotReady:
+    'Not ready to launch: {count}. Write what is missing — for example «on any free ad account» or «creative TR_16».'
 } as const;

@@ -278,6 +278,8 @@ export interface Resolution {
   createdOffers: string[];
   /** A filter's offer that names several («прокапс» → ProCaps TR and ProCaps BG): all of them. */
   offerSets: Map<string, string[]>;
+  /** «*any», «g18*any»: ad accounts to take one by one, free first, then the least loaded. */
+  pools: Map<string, AgentCandidate[]>;
 }
 
 /** Answers of the «no such offer» question. */
@@ -351,7 +353,8 @@ export async function resolvePlan(
     materials: new Map(),
     missing: [],
     createdOffers: [],
-    offerSets: new Map()
+    offerSets: new Map(),
+    pools: new Map()
   };
   for (const ref of references(plan)) {
     const [kind, ...rest] = ref.split(':') as [RefKind, ...string[]];
@@ -417,6 +420,28 @@ export async function resolvePlan(
       const [account, which] = written.split('*') as [string, string];
       const key = assistantKey(account);
       const pool = names.accounts.filter(agent => !key || assistantKey(agent.account) === key);
+      // «на будь-якому вільному»: one ad account, not one launch per free one. Written as a
+      // field (the account of a shown draft), «*free» means the same.
+      const single =
+        which === 'any' || !plan.actions.some(action => action.accounts.includes(written));
+      if (single) {
+        const ranked = [...pool].sort(
+          (a, b) =>
+            Number(b.free) - Number(a.free) || a.load - b.load || a.label.localeCompare(b.label)
+        );
+        if (ranked.length === 0) {
+          resolution.missing.push({
+            field: 'agentRowId',
+            written: account || '*',
+            code: 'ACCOUNT_NOT_FOUND'
+          });
+          continue;
+        }
+        resolution.pools.set(written, ranked);
+        resolution.ids.set(ref, ranked[0]!.id);
+        resolution.names.set(ranked[0]!.id, ranked[0]!.label);
+        continue;
+      }
       const chosenAgents = which === 'all' ? pool : pool.filter(agent => agent.free);
       if (chosenAgents.length === 0) {
         resolution.missing.push({
@@ -812,7 +837,18 @@ async function updateRows(
         a => row.account && sameAccount(a.split('*')[0] || row.account, row.account)
       )
     );
-  for (const target of targets) {
+  for (const [index, target] of targets.entries()) {
+    // «на вільних» over several drafts: each takes the next ad account of the pool.
+    const changes = action.fields.map(change => {
+      const pool =
+        change.field === 'agentRowId' && typeof change.value === 'string'
+          ? resolution.pools.get(change.value)
+          : undefined;
+      if (!pool?.length) return change;
+      const agent = pool[index % pool.length]!;
+      resolution.ids.set(`account:${agent.label}`, agent.id);
+      return { ...change, value: agent.label };
+    });
     const detail = await call(deps.callerRpc, 'get_launch', {
       p_team: deps.teamId,
       p_launch: target.launchId,
@@ -825,7 +861,7 @@ async function updateRows(
       continue;
     }
     const before = detail.draft as Draft;
-    let next = applyChanges(before, action.fields, resolution, deps, problems);
+    let next = applyChanges(before, changes, resolution, deps, problems);
     for (const override of action.overrides) {
       if (target.account && sameAccount(override.account, target.account))
         next = applyChanges(next, override.fields, resolution, deps, problems);

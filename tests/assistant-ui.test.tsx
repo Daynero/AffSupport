@@ -363,7 +363,12 @@ describe('the space assistant', () => {
         ])
       ]
     });
-    api.confirmProfile.mockResolvedValue({ commandId: 'c', replayed: false, message: null, credits });
+    api.confirmProfile.mockResolvedValue({
+      commandId: 'c',
+      replayed: false,
+      message: null,
+      credits
+    });
     assistant();
     expect(await screen.findByText('Campaigns: — → 3')).toBeTruthy();
     expect(screen.getByText('Budget: — → range')).toBeTruthy();
@@ -425,6 +430,38 @@ describe('the space assistant', () => {
     expect(bridge.openLaunch).toHaveBeenCalledWith('team', rows[1]!.launchId);
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.getByRole('button', { name: 'Assistant' })).toBeTruthy();
+  });
+
+  it('says a draft is not ready and what to write instead of a success tick', async () => {
+    api.open.mockResolvedValueOnce({
+      enabled: true,
+      canSaveDefaults: true,
+      ...dialog,
+      credits,
+      messages: [
+        message([
+          {
+            id: 'card-result',
+            kind: 'result',
+            state: 'open',
+            commandId: 'cmd-1',
+            payload: {
+              rows: [
+                { ...rows[0]!, account: null, blocked: [{ field: 'agentRowId', code: 'MISSING' }] }
+              ],
+              campaigns: 2,
+              date: '2026-11-21',
+              differences: [],
+              unresolved: []
+            },
+            createdAt: 'x'
+          }
+        ])
+      ]
+    });
+    assistant();
+    expect(await screen.findByText(/Not ready to launch: 1/u)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Launch/u })).toBeNull();
   });
 
   it('stays hidden where the assistant is not enabled', async () => {
