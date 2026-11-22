@@ -691,6 +691,13 @@ describe('catalogs, people and tasks', () => {
     expect(card.payload.missing).toEqual([]);
   });
 
+  it('reads «ж18» as g18 from items, and shows an archived ad account of a named account', async () => {
+    const g18 = await runTool('list_ad_accounts', [arg('items', 'ж18')], deps());
+    expect(g18.payload.count).toBe(2);
+    const g9 = await runTool('list_ad_accounts', [arg('scope', ['g9'])], deps());
+    expect(g9.payload.rows).toEqual([['g9-111', '4444444111', 'archived', '#2']]);
+  });
+
   it('lists launches with their state and narrows to launched ones', async () => {
     const launches = {
       items: [

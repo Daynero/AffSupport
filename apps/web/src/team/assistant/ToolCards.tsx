@@ -198,6 +198,7 @@ export function TableCard({ card }: { card: AssistantCard }) {
     if (column === 'kind' && KIND[value]) return t(KIND[value]);
     // «вільний», «зайнятий: 3», «запущено» — the words of Accounts and Launches.
     if (column === 'state' && value === 'free') return t('assistantStateFree');
+    if (column === 'state' && value === 'archived') return t('assistantStateArchived');
     if (column === 'state' && value.startsWith('busy:'))
       return t('assistantStateBusy', { count: Number(value.slice(5)) });
     if (column === 'state' && value.startsWith('launch:') && LAUNCH_STATE[value.slice(7)])

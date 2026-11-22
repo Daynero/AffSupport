@@ -80,9 +80,11 @@ const AD_ACCOUNT_WORDS = new Set([
 function adScope(args: Args): string[] {
   return [
     ...new Set(
-      ['scope', 'accounts', 'account', 'ad_accounts']
+      ['scope', 'accounts', 'account', 'ad_accounts', 'items']
         .flatMap(name => list(args, name))
         .filter(written => !AD_ACCOUNT_WORDS.has(fold(written)))
+        // «ж18», «г18»: an account name typed in Cyrillic is the Latin one of the space.
+        .map(written => written.replace(/^[жгґ](?=\d)/iu, 'g'))
     )
   ];
 }
@@ -1659,8 +1661,18 @@ async function deleteTasks(args: Args, deps: ToolDeps): Promise<ToolCard> {
  * tab lists them, with a text to copy — owner, 2026-11-22: the assistant had no way to say them.
  */
 async function listAdAccounts(args: Args, deps: ToolDeps): Promise<ToolCard> {
-  const all = await adAccounts(deps);
+  const live = await adAccounts(deps);
   const scope = adScope(args);
+  // An account named outright shows its archived ad accounts too, marked so — an ID is still asked
+  // for after archiving (found on next 2026-11-22: every g18 ad account was archived).
+  const today = dayInZone(deps.now, deps.timezone);
+  const archived = scope.length
+    ? (await adAccounts(deps, { from: today, to: today })).filter(
+        agent =>
+          (agent.archived || agent.accountArchived) && !live.some(other => other.id === agent.id)
+      )
+    : [];
+  const all = [...live, ...archived.map(agent => ({ ...agent, status: 'archived' }))];
   const chosen = scope.length ? pickAdAccounts(all, scope) : { picked: all, missing: [] };
   const state = fold(text(args, 'status') ?? 'all');
   const picked = chosen.picked.filter(agent =>
