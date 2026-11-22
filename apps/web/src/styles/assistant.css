@@ -356,3 +356,7 @@ body:has(.next-channel-badge) .assistant-dock {
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
   gap: 0 var(--space-5);
 }
+/* A number field keeps its own width; its button stands right next to it, not across the column. */
+.ai-budget-forms .release-testers-form .ui-field {
+  flex: 0 1 auto;
+}
