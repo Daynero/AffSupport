@@ -5288,5 +5288,12 @@ export const en = {
   aiBudgetPilotSearch: 'Find a space by name',
   aiBudgetMonthSubtitle: 'This month’s model spend · as of {time}',
   assistantNotReady:
-    'Not ready to launch: {count}. Write what is missing — for example «on any free ad account» or «creative TR_16».'
+    'Not ready to launch: {count}. Write what is missing — for example «on any free ad account» or «creative TR_16».',
+  assistantAccountForbidden: 'Only someone who manages the space’s accounts can create them.',
+  assistantNotesNotFound: '«{written}» has no notes to take.',
+  assistantNotesTranslateFailed:
+    'Could not translate the notes of «{written}»; the rest is done without them.',
+  assistantFieldNotes: 'Notes',
+  assistantAccountCreated: 'Account {name} created · ad accounts {agents}',
+  assistantAccountCreatedEmpty: 'Account {name} is ready, but no ad account was added.'
 } as const;

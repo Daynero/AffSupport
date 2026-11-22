@@ -80,6 +80,9 @@ function space(
   };
   let profileVersion = 3;
   const offers = [{ id: OFFER, value: 'ProCaps', updatedAt: 'x' }];
+  const accountList: Array<Record<string, unknown>> = (options.accounts as never) ?? [
+    { id: 'acc', agents: AGENTS }
+  ];
   let commands = 0;
   let launchSeq = 0;
   const rowOf = (launch: Launch) => ({
@@ -144,7 +147,22 @@ function space(
         return ok({ id: created.id, value: created.value });
       }
       case 'list_team_accounts':
-        return ok(options.accounts ?? [{ id: 'acc', agents: AGENTS }]);
+        return ok(accountList);
+      case 'create_team_account': {
+        const account = { id: id(800 + accountList.length), name: args.p_name, agents: [] };
+        accountList.push(account);
+        return ok({ id: account.id, name: account.name });
+      }
+      case 'add_team_account_agent': {
+        const account = accountList.find(a => a.id === args.p_account)!;
+        const agent = {
+          id: id(850 + (account.agents as unknown[]).length),
+          agent_id: args.p_agent_id,
+          availability: { status: 'free', assignmentCount: 0 }
+        };
+        (account.agents as unknown[]).push(agent);
+        return ok(agent);
+      }
       case 'search_materials':
         return ok({
           items: (options.materials ?? MATERIALS).map(m => ({ ...m, mimeType: 'video/mp4' }))
@@ -261,6 +279,10 @@ function space(
     );
   const saves = () => calls.filter(([name]) => name === 'save_launch_draft');
   return {
+    accountList,
+    setProfile: (next: Record<string, unknown>) => {
+      profile = next;
+    },
     launches,
     effects,
     cards,
@@ -1149,5 +1171,86 @@ describe('064 assistant — what the 19 November batch taught', () => {
     );
     const rows = firstCard(one).payload.rows as Array<{ creatives: string[] }>;
     expect(rows.map(row => row.creatives)).toEqual([['TR_25.mp4']]);
+  });
+});
+
+describe('064 assistant — accounts and notes from another offer', () => {
+  const plan = (...actions: unknown[]) => ({ reply: 'Готово.', actions });
+
+  it('creates an account with its ad account, a new offer, drafts on it and defaults with translated notes', async () => {
+    const world = space();
+    world.setProfile({
+      ...world.profile(),
+      notes: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          title: '',
+          text: '👉 Daha fazla bilgi'
+        }
+      ]
+    });
+    const notesFrom = { notesFrom: 'ProCaps', notesLanguage: 'Spanish (Mexico)' };
+    const client = model(
+      plan(
+        action({ type: 'create_account', accounts: ['g20#1234567890123'] }),
+        action({ type: 'create_offer', offer: 'ProCaps MX' }),
+        action({
+          offer: 'ProCaps MX',
+          accounts: ['g20'],
+          fields: [{ field: 'campaignCount', op: 'set', value: 3 }],
+          ...notesFrom
+        }),
+        action({
+          type: 'save_offer_defaults',
+          offer: 'ProCaps MX',
+          fields: [{ field: 'campaignCount', op: 'set', value: 3 }],
+          ...notesFrom
+        })
+      ),
+      { notes: [{ title: '', text: '👉 Más información' }] }
+    );
+    const reply = await world.send(
+      'створи g20 з рк 1234567890123 і запусти прокапс на мексику',
+      client
+    );
+    const cards = (
+      reply.message as { cards: Array<{ kind: string; payload: Record<string, unknown> }> }
+    ).cards;
+    expect(cards[0]).toMatchObject({
+      kind: 'status',
+      payload: { accountsCreated: [{ name: 'g20', agents: ['g20-123'] }] }
+    });
+    const g20 = world.accountList.find(account => account.name === 'g20')!;
+    const agentRow = (g20.agents as Array<{ id: string }>)[0]!.id;
+    const [draft] = [...world.launches.values()];
+    expect(draft!.draft.agentRowId).toBe(agentRow);
+    expect((draft!.draft.notes as Array<{ text: string }>)[0]!.text).toBe('👉 Más información');
+    const profile = cards.find(card => card.kind === 'profile')!;
+    expect((profile.payload.values as { notes: Array<{ text: string }> }).notes[0]!.text).toBe(
+      '👉 Más información'
+    );
+    // translated once for both the drafts and the defaults
+    expect(client.calls).toBe(2);
+  });
+
+  it('says when the source offer has no notes and does the rest', async () => {
+    const world = space();
+    const reply = await world.send(
+      'тайтл як у прокапс',
+      model(
+        plan(
+          action({
+            offer: 'ProCaps',
+            accounts: ['G1'],
+            notesFrom: 'ProCaps',
+            notesLanguage: null
+          })
+        )
+      )
+    );
+    expect(world.launches.size).toBe(1);
+    expect(firstCard(reply).payload.unresolved).toEqual([
+      { field: 'notes', written: 'ProCaps', code: 'NOTES_NOT_FOUND' }
+    ]);
   });
 });

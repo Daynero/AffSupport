@@ -61,6 +61,7 @@ import {
   ASSISTANT_MODEL,
   interpretMessage
 } from './interpret.ts';
+import { translateNotes, type NoteText } from './notes.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 const CLIENT_KEY = /^[A-Za-z0-9_-]{8,80}$/u;
@@ -358,6 +359,32 @@ function engineDeps(
   };
 }
 
+/** Notes in another language: one more model call, recorded against the same command. */
+function notesTranslator(deps: AssistantDeps, commandId: string) {
+  return async (notes: NoteText[], language: string): Promise<NoteText[] | null> => {
+    if (!deps.client) return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25_000);
+    try {
+      return await translateNotes(deps.client, notes, language, {
+        signal: controller.signal,
+        record: entry =>
+          recordModelUsage(deps.serviceRpc, {
+            feature: FEATURE,
+            userId: deps.userId,
+            subjectId: commandId,
+            entry,
+            opKey: null
+          })
+      });
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
 function refusal(code: string, details?: Record<string, unknown>): Card {
   return { kind: 'refusal', payload: { code, ...(details ? { details } : {}) } };
 }
@@ -387,7 +414,8 @@ async function runPlan(
   const engine = engineDeps(deps, teamId, commandId, stored.timezone, {
     urls: urls ?? [],
     choices: stored.choices,
-    shown: shown.rows
+    shown: shown.rows,
+    ...(deps.client ? { translateNotes: notesTranslator(deps, commandId) } : {})
   });
   const names = await loadNames(engine);
   const resolved = await resolvePlan(stored.plan, engine, names);

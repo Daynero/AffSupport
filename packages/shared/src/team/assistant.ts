@@ -13,6 +13,7 @@ export const ASSISTANT_ACTIONS = [
   'create_drafts',
   'update_fields',
   'create_offer',
+  'create_account',
   'archive_drafts',
   'save_offer_defaults',
   'show_review',
@@ -60,6 +61,13 @@ export interface AssistantAction {
   /** Exceptions for one account among the created or targeted launches. */
   overrides: Array<{ account: string; fields: AssistantFieldChange[] }>;
   question: { about: string; options: string[] } | null;
+  /**
+   * Notes taken from another offer's defaults («тайтл як у Туреччині»), as written; Soty reads
+   * them. Absent in plans stored before this field existed.
+   */
+  notesFrom: string | null;
+  /** The language to translate those notes into («Spanish (Mexico)»); null keeps them as they are. */
+  notesLanguage: string | null;
 }
 
 export interface AssistantPlan {
@@ -158,7 +166,9 @@ export function assistantPlanSchema(): Record<string, unknown> {
                 },
                 { type: 'null' }
               ]
-            }
+            },
+            notesFrom: nullableString,
+            notesLanguage: nullableString
           },
           required: [
             'type',
@@ -171,7 +181,9 @@ export function assistantPlanSchema(): Record<string, unknown> {
             'rows',
             'fields',
             'overrides',
-            'question'
+            'question',
+            'notesFrom',
+            'notesLanguage'
           ],
           additionalProperties: false
         }
@@ -217,6 +229,8 @@ function parseChange(value: unknown): AssistantFieldChange | null {
   return { field, op: op as AssistantFieldOp, value: raw as AssistantValue };
 }
 
+const NOTES_KEYS = ['notesFrom', 'notesLanguage'];
+
 const ACTION_KEYS = [
   'type',
   'offer',
@@ -243,7 +257,20 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
   if (!Array.isArray(actions) || actions.length > ASSISTANT_MAX_ACTIONS) return null;
   const parsed: AssistantAction[] = [];
   for (const item of actions) {
-    if (!isRecord(item) || !exactKeys(item, ACTION_KEYS)) return null;
+    // Every key of the contract, and the two notes keys when present (older stored plans lack them).
+    if (
+      !isRecord(item) ||
+      Object.keys(item).some(
+        key => !(ACTION_KEYS as readonly string[]).includes(key) && !NOTES_KEYS.includes(key)
+      ) ||
+      ACTION_KEYS.some(key => !(key in item))
+    )
+      return null;
+    const notesFrom = item.notesFrom ?? null;
+    const notesLanguage = item.notesLanguage ?? null;
+    if (notesFrom !== null && (typeof notesFrom !== 'string' || notesFrom.length > 200)) return null;
+    if (notesLanguage !== null && (typeof notesLanguage !== 'string' || notesLanguage.length > 60))
+      return null;
     if (!(ASSISTANT_ACTIONS as readonly unknown[]).includes(item.type)) return null;
     if (item.offer !== null && (typeof item.offer !== 'string' || item.offer.length > 200))
       return null;
@@ -343,7 +370,9 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
       rows: item.rows as number[],
       fields: fields as AssistantFieldChange[],
       overrides,
-      question
+      question,
+      notesFrom: notesFrom as string | null,
+      notesLanguage: notesLanguage as string | null
     });
   }
   return { reply: reply.slice(0, ASSISTANT_REPLY_MAX), actions: parsed };

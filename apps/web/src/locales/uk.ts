@@ -5263,5 +5263,12 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetPilotSearch: 'Знайти простір за назвою',
   aiBudgetMonthSubtitle: 'Витрати на моделі цього місяця · дані на {time}',
   assistantNotReady:
-    'Не готові до запуску: {count}. Допиши, чого бракує, — наприклад «на будь-який вільний РК» чи «креатив TR_16».'
+    'Не готові до запуску: {count}. Допиши, чого бракує, — наприклад «на будь-який вільний РК» чи «креатив TR_16».',
+  assistantAccountForbidden: 'Створювати акаунти може лише той, хто керує акаунтами простору.',
+  assistantNotesNotFound: 'У «{written}» немає заміток, які можна взяти.',
+  assistantNotesTranslateFailed:
+    'Не вдалося перекласти замітки з «{written}» — решту зроблено без них.',
+  assistantFieldNotes: 'Замітки',
+  assistantAccountCreated: 'Створено акаунт {name} · РК {agents}',
+  assistantAccountCreatedEmpty: 'Акаунт {name} готовий, але РК не додано.'
 };

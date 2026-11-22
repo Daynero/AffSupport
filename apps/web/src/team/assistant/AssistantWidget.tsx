@@ -76,6 +76,9 @@ const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
   NOT_FOUND: 'assistantNotFoundQuoted',
   NO_FREE_ACCOUNTS: 'assistantNoFreeAccounts',
   OFFER_CREATE_FORBIDDEN: 'assistantOfferForbidden',
+  ACCOUNT_CREATE_FORBIDDEN: 'assistantAccountForbidden',
+  NOTES_NOT_FOUND: 'assistantNotesNotFound',
+  NOTES_TRANSLATE_FAILED: 'assistantNotesTranslateFailed',
   FIELD_FORM_ONLY: 'assistantFieldFormOnly',
   FIELD_NOT_SUPPORTED: 'assistantFieldFormOnly',
   INVALID_VALUE: 'assistantInvalidValue',
@@ -114,7 +117,8 @@ const PROFILE_FIELD_COPY: Readonly<Record<string, TranslationKey>> = {
   launchDate: 'assistantFieldDate',
   'subConfig.sub1': 'assistantFieldSub1',
   'subConfig.sub2': 'assistantFieldSub2',
-  'subConfig.sub3': 'assistantFieldSub3'
+  'subConfig.sub3': 'assistantFieldSub3',
+  notes: 'assistantFieldNotes'
 };
 
 const OPEN_KEY = 'soty.assistant.open';
@@ -754,6 +758,24 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         );
       }
       case 'status': {
+        if (Array.isArray(payload.accountsCreated))
+          return (
+            <div key={card.id}>
+              {(payload.accountsCreated as Array<{ name: string; agents: string[] }>).map(
+                account => (
+                  <p key={account.name} className="assistant-note is-success">
+                    <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    {account.agents.length
+                      ? t('assistantAccountCreated', {
+                          name: account.name,
+                          agents: account.agents.join(', ')
+                        })
+                      : t('assistantAccountCreatedEmpty', { name: account.name })}
+                  </p>
+                )
+              )}
+            </div>
+          );
         if (Array.isArray(payload.offersCreated))
           return (
             <p key={card.id} className="assistant-note is-success">

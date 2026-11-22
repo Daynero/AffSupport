@@ -56,6 +56,18 @@ export interface EngineDeps {
   choices: Record<string, string>;
   /** Rows of the card the person is looking at, by 1-based position. */
   shown: AssistantRow[];
+  /** Translates notes (a second model call); absent where no model is available. */
+  translateNotes?: (notes: NoteText[], language: string) => Promise<NoteText[] | null>;
+}
+
+export interface NoteText {
+  title: string;
+  text: string;
+}
+
+interface LaunchNoteValue extends NoteText {
+  id: string;
+  color?: string | null;
 }
 
 export interface Card {
@@ -257,7 +269,9 @@ function references(plan: AssistantPlan): RefKey[] {
   };
   for (const action of plan.actions) {
     if (action.offer) add(`offer:${action.offer}`);
-    for (const account of action.accounts) add(`account:${account}`);
+    if (action.notesFrom) add(`offer:${action.notesFrom}`);
+    if (action.type !== 'create_account')
+      for (const account of action.accounts) add(`account:${account}`);
     fields(action.fields);
     for (const override of action.overrides) {
       add(`account:${override.account}`);
@@ -280,6 +294,12 @@ export interface Resolution {
   offerSets: Map<string, string[]>;
   /** «*any», «g18*any»: ad accounts to take one by one, free first, then the least loaded. */
   pools: Map<string, AgentCandidate[]>;
+  /** Accounts this command created, with the ad accounts added to them. */
+  createdAccounts: Array<{ name: string; agents: string[] }>;
+  /** Offers of the space, for notes taken from another offer. */
+  offerList: AssistantCandidate[];
+  /** Notes each action carries from another offer, read and translated once. */
+  notes: Map<string, LaunchNoteValue[] | null>;
 }
 
 /** Answers of the «no such offer» question. */
@@ -344,6 +364,158 @@ function creativeGeo(plan: AssistantPlan, offer: string): string | null {
   return geos.size === 1 ? [...geos][0]! : null;
 }
 
+/**
+ * An account and its ad accounts, written «g20#4371698153094046». An account that exists takes
+ * the new ad accounts; an ad account already there is reported, not added twice.
+ */
+async function createAccounts(
+  action: AssistantAction,
+  deps: EngineDeps,
+  names: Names,
+  resolution: Resolution
+): Promise<void> {
+  const wanted = new Map<string, string[]>();
+  for (const entry of action.accounts) {
+    const [rawName, ...ids] = entry.split('#');
+    const name = (rawName ?? '').normalize('NFC').trim().replace(/\s+/gu, ' ');
+    if (!name || name.length > 80 || /[[\]]/u.test(name)) {
+      resolution.missing.push({ field: 'account', written: entry, code: 'INVALID_VALUE' });
+      continue;
+    }
+    const list = wanted.get(name) ?? [];
+    for (const id of ids.join('#').split(/[\s,#]+/u)) if (id) list.push(id);
+    wanted.set(name, list);
+  }
+  for (const [name, ids] of wanted) {
+    const existing = names.accounts.find(
+      agent => assistantKey(agent.account) === assistantKey(name)
+    );
+    let accountId = existing ? await accountIdOf(deps, name) : null;
+    const created: string[] = [];
+    try {
+      if (!accountId) {
+        const row = await call(deps.callerRpc, 'create_team_account', {
+          p_team: deps.teamId,
+          p_name: name,
+          p_timezone: deps.timezone
+        });
+        accountId = isRecord(row) && typeof row.id === 'string' ? row.id : null;
+        if (!accountId) throw new EngineRefusal('UNAVAILABLE');
+      }
+      for (const agentId of ids) {
+        const added = await deps.callerRpc('add_team_account_agent', {
+          p_team: deps.teamId,
+          p_account: accountId,
+          p_agent_id: agentId,
+          p_note: null,
+          p_timezone: deps.timezone
+        });
+        const rowId =
+          !added.error && isRecord(added.data) && typeof added.data.id === 'string'
+            ? added.data.id
+            : null;
+        if (!rowId) {
+          // Already in the space, or refused: said for this ad account, the rest go on.
+          resolution.missing.push({
+            field: 'account',
+            written: agentId,
+            code: added.error ? rpcCode(added.error) : 'UNAVAILABLE'
+          });
+          continue;
+        }
+        const label = `${name}-${agentId.slice(-3)}`;
+        names.accounts.push({ id: rowId, name: label, account: name, label, free: true, load: 0 });
+        created.push(label);
+      }
+    } catch (error) {
+      if (!(error instanceof EngineRefusal)) throw error;
+      resolution.missing.push({
+        field: 'account',
+        written: name,
+        code: error.code === 'PERMISSION_DENIED' ? 'ACCOUNT_CREATE_FORBIDDEN' : error.code
+      });
+      continue;
+    }
+    resolution.createdAccounts.push({ name, agents: created });
+  }
+}
+
+async function accountIdOf(deps: EngineDeps, name: string): Promise<string | null> {
+  const accounts = await call(deps.callerRpc, 'list_team_accounts', { p_team: deps.teamId });
+  if (!Array.isArray(accounts)) return null;
+  const found = accounts.find(
+    account =>
+      isRecord(account) &&
+      typeof account.name === 'string' &&
+      assistantKey(account.name) === assistantKey(name)
+  );
+  return isRecord(found) && typeof found.id === 'string' ? found.id : null;
+}
+
+/**
+ * The notes an action takes from another offer («тайтл як у Туреччині»): that offer's default
+ * notes, translated when a language is named. Read once per action; a failure is reported and the
+ * rest of the action goes on without notes.
+ */
+async function actionNotes(
+  action: AssistantAction,
+  deps: EngineDeps,
+  resolution: Resolution,
+  problems: Array<{ field: string; written: string; code: string }>
+): Promise<LaunchNoteValue[] | null> {
+  if (!action.notesFrom) return null;
+  // The same notes in the same language are read and translated once per command.
+  const cacheKey = `${action.notesFrom}|${action.notesLanguage ?? ''}`;
+  if (resolution.notes.has(cacheKey)) return resolution.notes.get(cacheKey) ?? null;
+  const settle = (value: LaunchNoteValue[] | null, code?: string) => {
+    if (code) problems.push({ field: 'notes', written: action.notesFrom ?? '', code });
+    resolution.notes.set(cacheKey, value);
+    return value;
+  };
+  const sourceId = resolution.ids.get(`offer:${action.notesFrom}`);
+  if (!sourceId) return settle(null, 'NOTES_NOT_FOUND');
+  const profile = await call(deps.callerRpc, 'get_launch_offer_defaults', {
+    p_team: deps.teamId,
+    p_offer: sourceId
+  });
+  const config = isRecord(profile) && isRecord(profile.config) ? profile.config : {};
+  const source = Array.isArray(config.notes)
+    ? (config.notes as unknown[]).flatMap(note =>
+        isRecord(note) && typeof note.text === 'string'
+          ? [
+              {
+                title: typeof note.title === 'string' ? note.title : '',
+                text: note.text,
+                color: typeof note.color === 'string' ? note.color : null
+              }
+            ]
+          : []
+      )
+    : [];
+  if (source.length === 0) return settle(null, 'NOTES_NOT_FOUND');
+  let texts: NoteText[] = source.map(note => ({ title: note.title, text: note.text }));
+  if (action.notesLanguage) {
+    const translated = deps.translateNotes
+      ? await deps.translateNotes(texts, action.notesLanguage)
+      : null;
+    if (!translated) return settle(null, 'NOTES_TRANSLATE_FAILED');
+    texts = translated;
+  }
+  return settle(
+    texts.map((note, index) => ({
+      id: crypto.randomUUID(),
+      title: note.title,
+      text: note.text,
+      ...(source[index]?.color ? { color: source[index]!.color } : {})
+    }))
+  );
+}
+
+/** Each draft gets the notes with ids of its own. */
+function freshNotes(notes: LaunchNoteValue[]): LaunchNoteValue[] {
+  return notes.map(note => ({ ...note, id: crypto.randomUUID() }));
+}
+
 /** Country codes that end the offers a plan names: «Urafirin MY» → MY. */
 function planGeos(plan: AssistantPlan, names: Names, resolution?: Resolution): string[] {
   const geos = new Set<string>();
@@ -377,8 +549,16 @@ export async function resolvePlan(
     missing: [],
     createdOffers: [],
     offerSets: new Map(),
-    pools: new Map()
+    pools: new Map(),
+    createdAccounts: [],
+    offerList: names.offers,
+    notes: new Map()
   };
+  // «створи g20 з РК 4371…»: the account and its ad accounts exist before anything refers to them.
+  for (const action of plan.actions) {
+    if (action.type !== 'create_account') continue;
+    await createAccounts(action, deps, names, resolution);
+  }
   // The model sometimes names a new draft's offer as an offerId field instead of the action's
   // offer: it is the same offer, resolved — and asked about — the same way. Idempotent.
   for (const action of plan.actions) {
@@ -799,6 +979,7 @@ async function createDrafts(
       })
     : [{ written: null as string | null, id: null as string | null }];
   if (accounts.length === 0) return;
+  const notes = await actionNotes(action, deps, resolution, problems);
   const dates = dateList(action, deps);
   const count = action.count ?? 1;
   const total = accounts.length * dates.length * count;
@@ -848,6 +1029,7 @@ async function createDrafts(
           draft.timezone = draft.timezone ?? deps.timezone;
         }
         draft = applyChanges(draft, action.fields, resolution, deps, problems);
+        if (notes) draft.notes = freshNotes(notes);
         for (const override of action.overrides) {
           if (account.written && sameAccount(override.account, account.written))
             draft = applyChanges(draft, override.fields, resolution, deps, problems);
@@ -922,6 +1104,8 @@ async function updateRows(
     }
     const before = detail.draft as Draft;
     let next = applyChanges(before, changes, resolution, deps, problems);
+    const notes = await actionNotes(action, deps, resolution, problems);
+    if (notes) next = { ...next, notes: freshNotes(notes) };
     for (const override of action.overrides) {
       if (target.account && sameAccount(override.account, target.account))
         next = applyChanges(next, override.fields, resolution, deps, problems);
@@ -1018,6 +1202,23 @@ async function proposeDefaults(
       field: change.field,
       from: current === undefined ? null : JSON.stringify(shown(current)),
       to: JSON.stringify(shown(path === change.field ? value : change.value))
+    });
+  }
+  // Notes taken from another offer («тайтл як у Туреччині») become this offer's default notes.
+  const notes = await actionNotes(action, deps, resolution, []);
+  if (notes) {
+    const label = (note: { title: string; text: string }) =>
+      (note.title.trim() || note.text.trim().replace(/\s+/gu, ' ')).slice(0, 60);
+    const current = Array.isArray(stored.notes)
+      ? (stored.notes as Array<{ title: string; text: string }>)
+      : [];
+    if (!mask.includes('notes')) mask.push('notes');
+    if (stored.notes !== undefined) before.notes = stored.notes;
+    values.notes = freshNotes(notes);
+    changes.push({
+      field: 'notes',
+      from: current.length ? JSON.stringify(current.map(label)) : null,
+      to: JSON.stringify(notes.map(label))
     });
   }
   if (!mask.length) throw new EngineRefusal('FIELD_NOT_SUPPORTED');
@@ -1207,6 +1408,12 @@ export async function executePlan(
         createdOffers: resolution.createdOffers
       }
     });
+  }
+  if (resolution.createdAccounts.length > 0) {
+    cards.unshift({ kind: 'status', payload: { accountsCreated: resolution.createdAccounts } });
+  }
+  if (ids.length > 0) {
+    /* the result card above already lists the drafts */
   } else if (resolution.createdOffers.length > 0) {
     cards.unshift({ kind: 'status', payload: { offersCreated: resolution.createdOffers } });
     if (problems.length > 0)
