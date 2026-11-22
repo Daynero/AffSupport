@@ -57,6 +57,36 @@ export class ToolRefusal extends Error {
   }
 }
 
+/** Words that name ad accounts as such, not one of them: «ad accounts», «РК», «акаунти». */
+const AD_ACCOUNT_WORDS = new Set([
+  'ad accounts',
+  'ad account',
+  'adaccounts',
+  'accounts',
+  'account',
+  'рк',
+  'рекламні акаунти',
+  'рекламні кабінети',
+  'кабінети',
+  'акаунти',
+  'акаунт'
+]);
+
+/**
+ * The ad accounts a step names, wherever the model put them: «scope», «accounts», «account» or
+ * «ad_accounts» (found on next 2026-11-22: scope «ad accounts» beside accounts «g18» listed none).
+ * A word that only says «ad accounts» is no reference.
+ */
+function adScope(args: Args): string[] {
+  return [
+    ...new Set(
+      ['scope', 'accounts', 'account', 'ad_accounts']
+        .flatMap(name => list(args, name))
+        .filter(written => !AD_ACCOUNT_WORDS.has(fold(written)))
+    )
+  ];
+}
+
 /** The bounds every tool keeps, so one message can never touch the whole space by accident. */
 export const TOOL_LIMITS = { rows: 200, days: 366 } as const;
 
@@ -321,7 +351,7 @@ async function financeReport(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const by = text(args, 'by') ?? 'total';
   if (!['total', 'account', 'ad_account', 'tag', 'day'].includes(by))
     throw new ToolRefusal('INVALID_INPUT', by);
-  const scope = list(args, 'scope');
+  const scope = adScope(args);
   const [snap, agents] = await Promise.all([
     snapshot(deps, from, to),
     adAccounts(deps, { from, to })
@@ -398,7 +428,7 @@ async function financeReport(args: Args, deps: ToolDeps): Promise<ToolCard> {
 async function topupStatement(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const { from, to } = period(deps, args);
   const by = text(args, 'by') === 'account' ? 'account' : 'tag';
-  const scope = list(args, 'scope');
+  const scope = adScope(args);
   const [snap, agents] = await Promise.all([
     snapshot(deps, from, to),
     adAccounts(deps, { from, to })
@@ -481,7 +511,7 @@ async function setFinance(args: Args, deps: ToolDeps): Promise<ToolCard> {
     entries.push({ refs: [match[1]!], amount: match[2]!.replace(/\s/gu, '') });
   }
   const shared = text(args, 'amount');
-  if (shared) entries.push({ refs: list(args, 'scope'), amount: shared });
+  if (shared) entries.push({ refs: adScope(args), amount: shared });
   if (entries.length === 0 || entries.some(entry => entry.refs.length === 0))
     throw new ToolRefusal('INVALID_INPUT', 'entries');
   const [snap, agents] = await Promise.all([snapshot(deps, date, date), adAccounts(deps)]);
@@ -1556,7 +1586,7 @@ async function tagAdAccounts(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const add = labelRefs(known, list(args, 'add_tags'));
   const remove = labelRefs(known, list(args, 'remove_tags')).filter(tag => tag.id !== null);
   if (!add.length && !remove.length) throw new ToolRefusal('INVALID_INPUT', 'tags');
-  const { picked, missing } = pickAdAccounts(agents, list(args, 'scope'));
+  const { picked, missing } = pickAdAccounts(agents, adScope(args));
   if (!picked.length) throw new ToolRefusal('NOT_FOUND', missing.join(', ') || 'scope');
   const items = picked
     .map(agent => {
@@ -1630,7 +1660,7 @@ async function deleteTasks(args: Args, deps: ToolDeps): Promise<ToolCard> {
  */
 async function listAdAccounts(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const all = await adAccounts(deps);
-  const scope = list(args, 'scope');
+  const scope = adScope(args);
   const chosen = scope.length ? pickAdAccounts(all, scope) : { picked: all, missing: [] };
   const state = fold(text(args, 'status') ?? 'all');
   const picked = chosen.picked.filter(agent =>
@@ -1901,7 +1931,7 @@ async function archiveAccounts(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const all = await adAccounts(deps, { from: today, to: today });
   const items: Array<Record<string, unknown> & { label: string }> = [];
   const missing: string[] = [];
-  for (const raw of list(args, 'scope')) {
+  for (const raw of adScope(args)) {
     const ref = fold(raw);
     const accountRows = all.filter(agent => fold(agent.account) === ref);
     if (accountRows.length) {

@@ -681,6 +681,16 @@ describe('catalogs, people and tasks', () => {
     expect(card.payload.copyText).toBe('g18\n1111111244\n2222222257');
   });
 
+  it('finds the accounts wherever the model put them, ignoring «ad accounts» as a name', async () => {
+    const card = await runTool(
+      'list_ad_accounts',
+      [arg('scope', 'ad accounts'), arg('status', 'all'), arg('accounts', 'g18')],
+      deps()
+    );
+    expect(card.payload.count).toBe(2);
+    expect(card.payload.missing).toEqual([]);
+  });
+
   it('lists launches with their state and narrows to launched ones', async () => {
     const launches = {
       items: [
