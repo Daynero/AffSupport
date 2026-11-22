@@ -379,10 +379,17 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
           clientKey,
           price,
           contextCardId: contextCard,
+          // The last request that did something — a question or a refusal is not what «те саме»
+          // means (found on next 2026-11-22: it picked its own «що саме повторити?»).
           previousCommandId:
             [...messages]
               .reverse()
-              .find(message => message.role === 'assistant' && message.commandId)?.commandId ?? null
+              .find(
+                message =>
+                  message.role === 'assistant' &&
+                  message.commandId &&
+                  message.cards.some(card => card.kind !== 'question' && card.kind !== 'refusal')
+              )?.commandId ?? null
         }),
       {
         id: -Date.now(),

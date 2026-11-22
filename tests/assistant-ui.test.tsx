@@ -169,6 +169,49 @@ describe('the space assistant', () => {
     expect(api.send.mock.calls[0]![0]).toMatchObject({ dialogId: 'd2' });
   });
 
+  it('sends the last request that did something as the previous one, not a question', async () => {
+    const user = userEvent.setup();
+    const report = message(
+      [
+        {
+          id: 'k1',
+          kind: 'table',
+          state: 'open',
+          commandId: 'cmd-report',
+          payload: { tool: 'finance_report', columns: [], rows: [] },
+          createdAt: '2026-11-21T10:00:00Z'
+        }
+      ],
+      'cmd-report'
+    );
+    const question = message(
+      [
+        {
+          id: 'k2',
+          kind: 'question',
+          state: 'open',
+          commandId: 'cmd-ask',
+          payload: { about: 'Що саме?', options: [] },
+          createdAt: '2026-11-21T10:01:00Z'
+        }
+      ],
+      'cmd-ask'
+    );
+    api.open.mockResolvedValue({
+      enabled: true,
+      canSaveDefaults: true,
+      ...dialog,
+      messages: [report, question],
+      credits: { ...credits, available }
+    });
+    api.send.mockResolvedValue({ commandId: 'c', replayed: false, message: message([]), credits });
+    assistant();
+    await screen.findByRole('textbox');
+    await user.type(screen.getByRole('textbox'), 'а тепер те саме за вчора{Enter}');
+    await waitFor(() => expect(api.send).toHaveBeenCalledTimes(1));
+    expect(api.send.mock.calls[0]![0]).toMatchObject({ previousCommandId: 'cmd-report' });
+  });
+
   it('shows the price on the send button and sends with Ctrl+Enter', async () => {
     const user = userEvent.setup();
     api.send.mockResolvedValue({
