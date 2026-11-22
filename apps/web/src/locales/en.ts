@@ -5207,7 +5207,6 @@ export const en = {
   aiBudgetPilot: 'Pilot spaces',
   aiBudgetOverWarning: 'Full use of grants exceeds the limit. Paid actions stop at the limit.',
   aiBudgetConsoleReminder: 'Check the spend limit of the separate workspace in the Claude Console.',
-  aiBudgetUpdated: 'Data as of {time}',
   textTranslatePrice: 'Translate · {price}',
   assistantDraftsOne: '{count} draft',
   assistantDraftsFew: '{count} drafts',
@@ -5286,5 +5285,6 @@ export const en = {
   aiBudgetPilotRemove: 'Remove',
   aiBudgetPilotAdd: 'Add',
   aiBudgetPilotEmpty: 'No space is in the pilot yet.',
-  aiBudgetPilotSearch: 'Find a space by name'
+  aiBudgetPilotSearch: 'Find a space by name',
+  aiBudgetMonthSubtitle: 'This month’s model spend · as of {time}'
 } as const;

@@ -242,10 +242,13 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     price !== null && price > 0 && available !== null && available < price ? price - available : 0;
   const tooLong = count > ASSISTANT_MESSAGE_MAX_CHARACTERS;
 
-  const toggle = (value: boolean) => {
+  // Opening puts the cursor in the field. Folding gives focus back to the corner button only
+  // from the keyboard (Escape): after a mouse click its focus ring was a stray frame.
+  const toggle = (value: boolean, fromKeyboard = false) => {
     setPanel(value);
     writeOpen(value);
-    requestAnimationFrame(() => (value ? input.current : fab.current)?.focus());
+    if (value) requestAnimationFrame(() => input.current?.focus());
+    else if (fromKeyboard) requestAnimationFrame(() => fab.current?.focus());
   };
 
   const switchDialog = async (next: string) => {
@@ -367,7 +370,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
       event.preventDefault();
       void send();
     } else if (event.key === 'Escape' && !text) {
-      toggle(false);
+      toggle(false, true);
     }
   };
 

@@ -5182,7 +5182,6 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetOverWarning:
     'Повне використання грантів перевищує ліміт. Платні дії зупиняться на ліміті.',
   aiBudgetConsoleReminder: 'Звір spend limit окремого workspace у Claude Console.',
-  aiBudgetUpdated: 'Дані на {time}',
   textTranslatePrice: 'Перекласти · {price}',
   assistantDraftsOne: '{count} чернетка',
   assistantDraftsFew: '{count} чернетки',
@@ -5261,5 +5260,6 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetPilotRemove: 'Прибрати',
   aiBudgetPilotAdd: 'Додати',
   aiBudgetPilotEmpty: 'Жоден простір ще не в пілоті.',
-  aiBudgetPilotSearch: 'Знайти простір за назвою'
+  aiBudgetPilotSearch: 'Знайти простір за назвою',
+  aiBudgetMonthSubtitle: 'Витрати на моделі цього місяця · дані на {time}'
 };

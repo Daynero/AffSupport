@@ -14,6 +14,7 @@ import {
   EmptyState,
   FormField,
   Input,
+  InputNumber,
   Switch,
   Table,
   TableCell,
@@ -47,18 +48,18 @@ export function AiBudgetPanel() {
   const [overview, setOverview] = useState<AiBudgetOverview | null>(null);
   const [spaces, setSpaces] = useState<AiPilotSpace[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [limit, setLimit] = useState('');
-  const [base, setBase] = useState('');
+  const [limit, setLimit] = useState(Number.NaN);
+  const [base, setBase] = useState(Number.NaN);
   const [email, setEmail] = useState('');
-  const [grant, setGrant] = useState('');
-  const [bonus, setBonus] = useState('');
+  const [grant, setGrant] = useState(Number.NaN);
+  const [bonus, setBonus] = useState(Number.NaN);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
 
   const apply = useCallback((next: AiBudgetOverview) => {
     setOverview(next);
-    setLimit(String(next.limitUsd));
-    setBase(String(next.baseDailyGrant));
+    setLimit(next.limitUsd);
+    setBase(next.baseDailyGrant);
   }, []);
 
   useEffect(() => {
@@ -97,6 +98,10 @@ export function AiBudgetPanel() {
     ) : null;
 
   const over = overview.fullGrantUseUsd > overview.limitUsd;
+  const monthName = new Date(`${overview.month}-15T12:00:00Z`).toLocaleDateString(language, {
+    month: 'long',
+    year: 'numeric'
+  });
   const people = new Map<string, { grant: number | null; bonus: number }>();
   for (const row of overview.grants)
     people.set(row.email, { grant: row.dailyGrant, bonus: people.get(row.email)?.bonus ?? 0 });
@@ -127,9 +132,9 @@ export function AiBudgetPanel() {
       <Card className="admin-card" aria-labelledby={ids.month}>
         <div className="admin-card-heading">
           <div>
-            <h3 id={ids.month}>{`${t('aiBudgetTitle')} · ${overview.month}`}</h3>
+            <h3 id={ids.month}>{`${t('aiBudgetTitle')} · ${monthName}`}</h3>
             <p>
-              {t('aiBudgetUpdated', {
+              {t('aiBudgetMonthSubtitle', {
                 time: new Date(overview.updatedAt).toLocaleTimeString(language, {
                   hour: '2-digit',
                   minute: '2-digit'
@@ -193,54 +198,44 @@ export function AiBudgetPanel() {
             <p>{t('aiBudgetLimitsSubtitle')}</p>
           </div>
         </div>
-        <form
-          className="release-testers-form"
-          onSubmit={event => {
-            event.preventDefault();
-            void run('limit', () => aiBudgetApi.setMonthLimit(Number(limit)));
-          }}
-        >
-          <FormField label={t('aiBudgetLimitUsd')} htmlFor={fieldIds.limit}>
-            <Input
-              id={fieldIds.limit}
-              type="number"
-              min={1}
-              value={limit}
-              onChange={event => setLimit(event.target.value)}
-            />
-          </FormField>
-          <Button
-            type="submit"
-            loading={busy === 'limit'}
-            disabled={busy !== null || !(Number(limit) > 0)}
+        <div className="ai-budget-forms">
+          <form
+            className="release-testers-form"
+            onSubmit={event => {
+              event.preventDefault();
+              void run('limit', () => aiBudgetApi.setMonthLimit(limit));
+            }}
           >
-            {t('aiBudgetSet')}
-          </Button>
-        </form>
-        <form
-          className="release-testers-form"
-          onSubmit={event => {
-            event.preventDefault();
-            void run('base', () => aiBudgetApi.setBaseGrant(Number(base)));
-          }}
-        >
-          <FormField label={t('aiBudgetBaseGrant')} htmlFor={fieldIds.base}>
-            <Input
-              id={fieldIds.base}
-              type="number"
-              min={0}
-              value={base}
-              onChange={event => setBase(event.target.value)}
-            />
-          </FormField>
-          <Button
-            type="submit"
-            loading={busy === 'base'}
-            disabled={busy !== null || !(Number(base) >= 0)}
+            <FormField label={t('aiBudgetLimitUsd')} htmlFor={fieldIds.limit}>
+              <InputNumber id={fieldIds.limit} min={1} value={limit} onChange={setLimit} />
+            </FormField>
+            <Button
+              type="submit"
+              loading={busy === 'limit'}
+              disabled={busy !== null || !(limit > 0)}
+            >
+              {t('aiBudgetSet')}
+            </Button>
+          </form>
+          <form
+            className="release-testers-form"
+            onSubmit={event => {
+              event.preventDefault();
+              void run('base', () => aiBudgetApi.setBaseGrant(base));
+            }}
           >
-            {t('aiBudgetSet')}
-          </Button>
-        </form>
+            <FormField label={t('aiBudgetBaseGrant')} htmlFor={fieldIds.base}>
+              <InputNumber id={fieldIds.base} min={0} step={1} value={base} onChange={setBase} />
+            </FormField>
+            <Button
+              type="submit"
+              loading={busy === 'base'}
+              disabled={busy !== null || !(base >= 0)}
+            >
+              {t('aiBudgetSet')}
+            </Button>
+          </form>
+        </div>
       </Card>
 
       <Card className="admin-card" aria-labelledby={ids.people}>
@@ -261,73 +256,66 @@ export function AiBudgetPanel() {
             />
           </FormField>
         </div>
-        <form
-          className="release-testers-form"
-          onSubmit={event => {
-            event.preventDefault();
-            void run('grant', () => aiBudgetApi.setUserGrant(email, Number(grant)));
-          }}
-        >
-          <FormField label={t('aiBudgetUserGrant')} htmlFor={fieldIds.grant}>
-            <Input
-              id={fieldIds.grant}
-              type="number"
-              min={0}
-              value={grant}
-              onChange={event => setGrant(event.target.value)}
-            />
-          </FormField>
-          <Button
-            type="submit"
-            loading={busy === 'grant'}
-            disabled={busy !== null || !email || grant === ''}
+        <div className="ai-budget-forms">
+          <form
+            className="release-testers-form"
+            onSubmit={event => {
+              event.preventDefault();
+              void run('grant', () => aiBudgetApi.setUserGrant(email, grant));
+            }}
           >
-            {t('aiBudgetSet')}
-          </Button>
-          <Button
-            variant="ghost"
-            loading={busy === 'reset'}
-            disabled={busy !== null || !email}
-            onClick={() => void run('reset', () => aiBudgetApi.setUserGrant(email, null))}
+            <FormField label={t('aiBudgetUserGrant')} htmlFor={fieldIds.grant}>
+              <InputNumber id={fieldIds.grant} min={0} step={1} value={grant} onChange={setGrant} />
+            </FormField>
+            <Button
+              type="submit"
+              loading={busy === 'grant'}
+              disabled={busy !== null || !email || !(grant >= 0)}
+            >
+              {t('aiBudgetSet')}
+            </Button>
+            <Button
+              variant="ghost"
+              loading={busy === 'reset'}
+              disabled={busy !== null || !email}
+              onClick={() => void run('reset', () => aiBudgetApi.setUserGrant(email, null))}
+            >
+              {t('aiBudgetReset')}
+            </Button>
+          </form>
+          <form
+            className="release-testers-form"
+            onSubmit={event => {
+              event.preventDefault();
+              void run('bonus', async () => {
+                const next = await aiBudgetApi.grantBonus(email, Math.trunc(bonus), null);
+                setBonus(Number.NaN);
+                // When it was the administrator's own balance, the header shows it at once.
+                void refreshCredits();
+                return next;
+              });
+            }}
           >
-            {t('aiBudgetReset')}
-          </Button>
-        </form>
-        <form
-          className="release-testers-form"
-          onSubmit={event => {
-            event.preventDefault();
-            void run('bonus', async () => {
-              const next = await aiBudgetApi.grantBonus(email, Math.trunc(Number(bonus)), null);
-              setBonus('');
-              // When it was the administrator's own balance, the header shows it at once.
-              void refreshCredits();
-              return next;
-            });
-          }}
-        >
-          <FormField
-            label={t('aiBudgetBonus')}
-            hint={t('aiBudgetBonusHint')}
-            htmlFor={fieldIds.bonus}
-          >
-            <Input
-              id={fieldIds.bonus}
-              type="number"
-              value={bonus}
-              onChange={event => setBonus(event.target.value)}
-            />
-          </FormField>
-          <Button
-            type="submit"
-            loading={busy === 'bonus'}
-            disabled={busy !== null || !email || !Number(bonus)}
-          >
-            {t('aiBudgetBonusGive')}
-          </Button>
-        </form>
+            <FormField label={t('aiBudgetBonus')} htmlFor={fieldIds.bonus}>
+              <InputNumber id={fieldIds.bonus} step={1} value={bonus} onChange={setBonus} />
+            </FormField>
+            <Button
+              type="submit"
+              loading={busy === 'bonus'}
+              disabled={busy !== null || !email || !bonus}
+            >
+              {t('aiBudgetBonusGive')}
+            </Button>
+          </form>
+        </div>
+        <p className="ai-budget-note">{t('aiBudgetBonusHint')}</p>
         {people.size > 0 ? (
-          <Table className="admin-table" aria-label={t('aiBudgetPeopleTitle')}>
+          <Table
+            size="sm"
+            className="admin-table"
+            columns="minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr)"
+            label={t('aiBudgetPeopleTitle')}
+          >
             <TableHeader>
               <TableHeaderCell>{t('aiBudgetEmail')}</TableHeaderCell>
               <TableHeaderCell>{t('aiBudgetUserGrant')}</TableHeaderCell>
