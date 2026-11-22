@@ -113,7 +113,9 @@ const STATUS: Readonly<Record<string, TranslationKey>> = {
 function period(payload: Record<string, unknown>, language: string): string {
   const from = typeof payload.from === 'string' ? payload.from : null;
   const to = typeof payload.to === 'string' ? payload.to : null;
-  const scope = Array.isArray(payload.scope) ? (payload.scope as string[]).join(', ') : '';
+  const scope = Array.isArray(payload.scope)
+    ? (payload.scope as string[]).map(item => item.replace(/^tag:/u, '')).join(', ')
+    : '';
   if (!from) return scope;
   const day = (value: string) =>
     new Date(`${value}T12:00:00Z`).toLocaleDateString(language, {
@@ -329,7 +331,14 @@ export function ToolReviewCard({
         {title
           ? t(title, {
               count: active.length,
-              date: String(payload.date ?? ''),
+              date:
+                typeof payload.date === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(payload.date)
+                  ? new Date(`${payload.date}T12:00:00Z`).toLocaleDateString(language, {
+                      day: 'numeric',
+                      month: 'short',
+                      timeZone: 'UTC'
+                    })
+                  : String(payload.date ?? ''),
               role: ROLE[String(payload.role)] ? t(ROLE[String(payload.role)]!) : '',
               metric: payload.metric
                 ? t(METRIC[String(payload.metric)] ?? 'assistantColTopup')

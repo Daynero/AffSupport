@@ -62,8 +62,25 @@ export const TOOL_LIMITS = { rows: 200, days: 366 } as const;
 
 type Args = Map<string, AssistantToolArg['value']>;
 
+/** The arguments a selection of files or catalogs is made of. */
+const SELECTION_ARGS = ['items', 'query', 'kind', 'in_folder', 'tag', 'offer', 'geo', 'scope'];
+
+/**
+ * Arguments by name. A model that folds a selection into one argument («selection: "kind: video,
+ * in_folder: Creatives"» — found on next 2026-11-22) is read as if it had written them apart.
+ */
 function argMap(args: AssistantToolArg[]): Args {
-  return new Map(args.map(arg => [arg.name, arg.value]));
+  const map: Args = new Map(args.map(arg => [arg.name, arg.value]));
+  const folded = map.get('selection');
+  if (typeof folded === 'string') {
+    for (const part of folded.split(/[,;]\s*(?=[a-z_]+\s*[:=])/u)) {
+      const match = part.match(/^\s*([a-z_]+)\s*[:=]\s*(.+?)\s*$/u);
+      if (match && SELECTION_ARGS.includes(match[1]!) && !map.has(match[1]!))
+        map.set(match[1]!, match[2]!);
+    }
+    map.delete('selection');
+  }
+  return map;
 }
 
 function text(args: Args, name: string): string | null {
@@ -1635,13 +1652,13 @@ export const TOOL_GUIDE = [
   'tag_ad_accounts — tags on ad accounts, creating missing tags: args: scope (ad accounts/accounts/tags), add_tags, remove_tags.',
   'find_materials — find files/creatives: args: items (names), or query, kind (video|image|folder|…), in_folder, tag, offer, geo.',
   'create_folders — args: names, parent (folder name or path; omit for the root).',
-  'move_materials — move files (not folders: Soty moves files only) into a folder (made if missing): args: items or query/kind/in_folder/tag/offer/geo, destination (folder name or path), parent (where a new destination goes).',
-  'rename_materials — rename many files: args: pairs (["тр16=TR_16_final"]), or a selection (items/query/kind/in_folder…) with one rule: prefix, suffix, find+replace, or template with {n} {name} {offer} {geo} and start.',
-  'edit_materials — tags and fields of files: args: selection, add_tags, remove_tags, set_offer, set_geo.',
-  'trash_materials — delete files/folders into the Drive trash: args: selection (items or query/kind/in_folder/tag/offer/geo).',
+  'move_materials — move files (not folders: Soty moves files only) into a folder (made if missing): args: the files by items (file names) or query (a piece of the names), kind, in_folder, tag, offer, geo; destination (folder name or path), parent (where a new destination goes).',
+  'rename_materials — rename many files: args: pairs (["тр16=TR_16_final"]), or the files by items (file names) or query (a piece of the names), kind (video|image|folder|…), in_folder, tag, offer, geo, with one rule: prefix, suffix, find + replace, or template with {n} {name} {offer} {geo} and start.',
+  'edit_materials — tags and fields of files: args: the files by items (file names) or query (a piece of the names), kind (video|image|folder|…), in_folder, tag, offer, geo; add_tags, remove_tags, set_offer, set_geo.',
+  'trash_materials — delete files/folders into the Drive trash: args: the files by items (file names) or query (a piece of the names), kind (video|image|folder|…), in_folder, tag, offer, geo.',
   'list_catalogs — product catalogs: args: items (names or video names), scope (all|errors), in_folder.',
   'trash_catalogs — delete catalogs into the Drive trash: «видали всі каталоги» → scope all; or items; scope errors; in_folder.',
-  'update_catalogs — refresh catalogs now: same selection as trash_catalogs.',
+  'update_catalogs — refresh catalogs now: args: items, scope (all|errors), in_folder — as trash_catalogs.',
   'list_members — the people of the space.',
   'invite_members — args: emails, role (admin|editor|viewer; default editor).',
   'change_members — args: people (names or emails), role (admin|editor|viewer) or remove true.',

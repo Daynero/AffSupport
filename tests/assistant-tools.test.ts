@@ -496,6 +496,15 @@ describe('files and folders', () => {
     expect((card.payload.items as unknown[]).length).toBe(4);
   });
 
+  it('reads a selection folded into one argument', async () => {
+    const card = await runTool(
+      'rename_materials',
+      [arg('selection', 'kind: video, in_folder: TR'), arg('template', 'CR_{n}')],
+      deps()
+    );
+    expect((card.payload.items as unknown[]).length).toBe(4);
+  });
+
   it('says what an empty selection asked for', async () => {
     const card = await runTool(
       'trash_materials',
