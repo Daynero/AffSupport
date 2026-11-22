@@ -17,7 +17,6 @@ import {
   ChevronDown,
   Minus,
   Play,
-  Sparkle,
   Sparkles,
   SquarePen,
   Trash2,
@@ -53,7 +52,7 @@ import { agentReleaseApi } from '../../api/team-agent-release';
 import { TeamApiError } from '../../api/team';
 import { CreditsButton } from '../../credits/CreditsButton';
 import { Button, DropdownMenu, IconButton, Spinner } from '../../components/ui/index.js';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
+import { CreditIcon, ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
 import { kyivTime, setCredits, useCredits } from '../../credits/store';
 import { assistantDraftsKey, useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
@@ -1095,7 +1094,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             price !== null &&
             price > 0 && (
               <span className="assistant-price" aria-hidden="true">
-                <Sparkle size={12} strokeWidth={ICON_STROKE} />
+                <CreditIcon size={13} />
                 {price}
               </span>
             )

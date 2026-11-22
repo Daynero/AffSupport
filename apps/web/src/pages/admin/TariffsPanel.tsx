@@ -36,7 +36,7 @@ import {
 import { AI_CREDIT_USD } from '@video-compressor/shared';
 import { aiBudgetApi, type AiPersonCredits } from '../../api/ai-budget';
 import { refreshCredits } from '../../credits/store';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { CreditIcon, ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../../team/errors';
 import { formatTariffDay, formatTariffShortDay } from '../../team/tariffs/format';
@@ -718,6 +718,7 @@ function CreditsCell({
           bonus: credits.bonus
         })}
       >
+        <CreditIcon size={14} />
         {credits.available}
         {credits.bonus > 0 && <span className="admin-credits-bonus">{` · +${credits.bonus}`}</span>}
       </span>

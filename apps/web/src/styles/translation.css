@@ -137,11 +137,12 @@
   font-size: var(--text-caption);
 }
 .translate-launcher-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   white-space: nowrap;
   color: var(--color-text-muted);
   font-size: var(--text-caption);
-  text-decoration: underline dotted;
-  text-underline-offset: var(--space-1);
   font-variant-numeric: tabular-nums;
 }
 

@@ -4,11 +4,10 @@
  * part renews tonight, which part is bonus and stays. No price list: the price of every paid
  * action is on its own button, before it is pressed.
  */
-import { Sparkle } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useOptionalAuth } from '../auth/AuthContext';
 import { Button, Popover, Progress } from '../components/ui/index.js';
-import { ICON_STROKE } from '../components/icons.js';
+import { CreditIcon } from '../components/icons.js';
 import { creditsCountKey, useI18n } from '../i18n';
 import { useBrowserRoute } from '../lib/navigation';
 import { parseTeamRoute } from '../team/routes';
@@ -49,7 +48,7 @@ export function CreditsButton({ compact = false, offerAssistant = true }: Credit
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={label}
-        leading={<Sparkle size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+        leading={<CreditIcon size={16} />}
         onClick={() => setOpen(value => !value)}
       >
         {compact ? (available ?? '—') : label}

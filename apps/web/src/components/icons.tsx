@@ -140,5 +140,35 @@ export function FitStretchIcon() {
   );
 }
 
+/**
+ * 064: the mark of чарунки, the AI credits — an AI sparkle held in a honeycomb cell (owner,
+ * 2026-11-22). No letters, so it reads the same in every language; the cell makes it Soty's and
+ * a currency, where a free sparkle stays the assistant's own icon. The frame weighs 2 to sit with
+ * the semibold numbers beside it; the sparkle is filled so it does not close into a cross at 14 px.
+ */
+export function CreditIcon({ size = 16, className }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M11 3.05a2 2 0 0 1 2 0l6.25 3.61a2 2 0 0 1 1 1.73v7.22a2 2 0 0 1-1 1.73L13 20.95a2 2 0 0 1-2 0l-6.25-3.61a2 2 0 0 1-1-1.73V8.39a2 2 0 0 1 1-1.73Z" />
+      <path
+        d="M12 5.8C12.93 11.07 12.93 11.07 18.2 12C12.93 12.93 12.93 12.93 12 18.2C11.07 12.93 11.07 12.93 5.8 12C11.07 11.07 11.07 11.07 12 5.8Z"
+        fill="currentColor"
+        stroke="none"
+      />
+    </svg>
+  );
+}
+
 export const ICON_SIZE = 20;
 export const ICON_STROKE = 1.75;

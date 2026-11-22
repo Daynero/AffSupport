@@ -6,7 +6,7 @@ import {
 import { Languages, Plus } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Alert, Button, IconButton, Popover, Spinner } from '../components/ui/index';
-import { ICON_SIZE, ICON_STROKE } from '../components/icons';
+import { CreditIcon, ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { creditsCountKey, useI18n } from '../i18n';
 import { LanguageCombobox } from '../transcription/LanguageCombobox';
 import { languageDisplayName } from '../transcription/language';
@@ -155,6 +155,7 @@ export function TranslateLauncher({
         )}
         <div className="translate-launcher-row">
           <span className="translate-launcher-cost">
+            <CreditIcon size={14} />
             {t(creditsCountKey(language, balance.available), { count: balance.available })}
           </span>
           <Button
