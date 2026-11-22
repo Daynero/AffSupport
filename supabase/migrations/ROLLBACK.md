@@ -3442,7 +3442,7 @@ done. Rolling back: put the old check back only after deleting `table` cards (th
 nothing depends on them); the old `assistant_card_confirmed` refuses tool cards, which then stay
 open in the window — every action they performed is already done.
 
-## 20261223260000 — «Не треба» on an assistant card (064)
+## 20261223280000 — «Не треба» on an assistant card (064)
 
 Additive: one RPC. Dropping it removes the «Не треба» button's effect (the web shows the card
 cancelled until a reload, then open again); cards already cancelled stay cancelled.
