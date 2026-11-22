@@ -1083,6 +1083,7 @@ export function WorkspaceShell({
                   <TariffBanner teamId={teamId} />
                   <UpdaterResumeNotice teamId={teamId} onResumed={catalogUpdater.reload} />
                   <BackgroundRecoveryNotice
+                    teamId={teamId}
                     status={restitchPreparer.backgroundStatus}
                     errorCode={restitchPreparer.setupErrorCode}
                   />

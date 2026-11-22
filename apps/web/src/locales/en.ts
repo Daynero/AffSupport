@@ -1,5 +1,9 @@
 export const en = {
   backgroundRecoveryAttention: 'Background work is waiting.',
+  backgroundRecoveryLost:
+    'Soty on this computer lost its permission for background work, so restitching and catalog updates are stopped. Set it up again — it takes a few seconds.',
+  backgroundRecoveryRepair: 'Set up again',
+  backgroundRecoveryRepairing: 'Setting up…',
   launchesBulkWork: 'Bulk launches',
   launchesBulkSubmitting: 'Accepting {count} launches…',
   launchesBulkReconnecting: 'Reconnecting. Showing the last confirmed progress.',
@@ -3214,7 +3218,8 @@ export const en = {
   catalogBackgroundStalled:
     ' · Background work on this computer has stopped, so the video is not being prepared.',
   catalogBackgroundStalledRetry: 'Resume',
-  catalogBackgroundStalledRetried: ' · Waiting for automatic recovery…',
+  catalogBackgroundStalledRetried:
+    ' · Soty is not taking this job. Restart Soty: quit it from the menu (Quit) and open it again.',
   catalogBackgroundStalledSettings: 'Open settings',
   catalogRunVideoRetryWaiting: 'Video preparation failed · details',
   catalogRunFailed: 'Update failed · open details',

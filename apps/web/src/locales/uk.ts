@@ -2,6 +2,10 @@ import type { en } from './en';
 
 export const uk: Record<keyof typeof en, string> = {
   backgroundRecoveryAttention: 'Фонова робота очікує.',
+  backgroundRecoveryLost:
+    'Soty на цьому комп’ютері втратив дозвіл на фонову роботу, тому перезашивка й оновлення каталогів стоять. Налаштуйте її заново — це займе кілька секунд.',
+  backgroundRecoveryRepair: 'Налаштувати заново',
+  backgroundRecoveryRepairing: 'Налаштовуємо…',
   launchesBulkWork: 'Масові запуски',
   launchesBulkSubmitting: 'Приймаємо {count} запусків…',
   launchesBulkReconnecting: 'Відновлюємо зв’язок. Показано останній підтверджений прогрес.',
@@ -3202,7 +3206,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogBackgroundStalled:
     ' · Фонова робота на цьому комп’ютері зупинилась, тому відео не готується.',
   catalogBackgroundStalledRetry: 'Відновити',
-  catalogBackgroundStalledRetried: ' · Очікуємо автоматичного відновлення…',
+  catalogBackgroundStalledRetried:
+    ' · Soty не бере це завдання. Перезапустіть Soty: закрийте його через меню (Quit) і відкрийте знову.',
   catalogBackgroundStalledSettings: 'Відкрити налаштування',
   catalogRunVideoRetryWaiting: 'Не вдалося підготувати відео · деталі',
   catalogRunFailed: 'Помилка оновлення · відкрийте деталі',
