@@ -973,6 +973,31 @@ describe('064 assistant — what the 19 November batch taught', () => {
     expect(JSON.stringify(draft!.draft)).toContain(id(61));
   });
 
+  it('lets the creatives choose between offers of different countries', async () => {
+    const world = space();
+    world.offers.splice(0, world.offers.length);
+    world.offers.push(
+      { id: id(397), value: 'ProCaps TR', updatedAt: 'x' },
+      { id: id(396), value: 'ProCaps BG', updatedAt: 'x' }
+    );
+    const reply = await world.send(
+      'прокапс тр16',
+      model(
+        plan(
+          action({
+            offer: 'прокапс',
+            accounts: ['G1'],
+            fields: [{ field: 'creatives', op: 'set', value: ['TR 16'] }]
+          })
+        )
+      )
+    );
+    expect(firstCard(reply).kind).toBe('result');
+    expect([...world.launches.values()][0]!.draft.offerId).toBe(id(397));
+    // the card counts; the model's sentence about it is not shown
+    expect((reply.message as { text: string }).text).toBe('');
+  });
+
   it('picks drafts by creative and lets a filter cover every offer the name fits', async () => {
     const world = space();
     world.offers.push({ id: id(398), value: 'ProCaps BG', updatedAt: 'x' });

@@ -306,6 +306,23 @@ async function createOffer(deps: EngineDeps, written: string, n: number): Promis
   return data.id;
 }
 
+/** The one country code of the creatives given with an offer: «тр25», «TR_23» → TR. */
+function creativeGeo(plan: AssistantPlan, offer: string): string | null {
+  const geos = new Set<string>();
+  for (const action of plan.actions) {
+    if (action.offer !== offer) continue;
+    for (const change of action.fields) {
+      if (change.field !== 'creatives') continue;
+      for (const item of Array.isArray(change.value) ? change.value : [change.value]) {
+        if (typeof item !== 'string') continue;
+        const letters = /^([a-z]{2,3})[0-9]+$/u.exec(assistantKey(item))?.[1];
+        if (letters) geos.add(letters.toUpperCase());
+      }
+    }
+  }
+  return geos.size === 1 ? [...geos][0]! : null;
+}
+
 /** Country codes that end the offers a plan names: «Urafirin MY» → MY. */
 function planGeos(plan: AssistantPlan, names: Names): string[] {
   const geos = new Set<string>();
@@ -414,7 +431,17 @@ export async function resolvePlan(
       if (picked.kind === 'many') return { ok: false, ref, options: picked.candidates };
       if (picked.kind === 'one') id = picked.candidate.id;
     } else {
-      const result = matchAssistantName(written, candidates);
+      let result = matchAssistantName(written, candidates);
+      // «прокапс тр25»: the creatives' country picks ProCaps TR out of ProCaps TR and ProCaps BG.
+      if (result.kind === 'many' && kind === 'offer') {
+        const geo = creativeGeo(plan, written);
+        const fit = geo
+          ? result.candidates.filter(candidate =>
+              candidate.name.trim().toUpperCase().endsWith(` ${geo}`)
+            )
+          : [];
+        if (fit.length === 1) result = { kind: 'one', candidate: fit[0]! };
+      }
       if (result.kind === 'many' && kind === 'offer' && !offerWanted(plan, written)) {
         resolution.offerSets.set(
           written,

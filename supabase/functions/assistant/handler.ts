@@ -417,7 +417,15 @@ async function runPlan(
   }
   const saved: StoredPlan = { ...stored, deferred: outcome.deferred };
   await status(deps, commandId, outcome.status, null, model, saved);
-  return { text: stored.plan.reply, cards: outcome.cards, status: outcome.status };
+  // A card with drafts says what was done, counted by Soty; the model's own sentence about it
+  // only miscounted («п'ять» over six cards). It stays where it is the answer: questions, defaults.
+  const counted = outcome.cards.some(
+    card =>
+      (card.kind === 'result' || card.kind === 'review') &&
+      Array.isArray(card.payload.rows) &&
+      (card.payload.rows as unknown[]).length > 0
+  );
+  return { text: counted ? '' : stored.plan.reply, cards: outcome.cards, status: outcome.status };
 }
 
 async function quick(
