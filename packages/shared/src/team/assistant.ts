@@ -566,6 +566,12 @@ function stem(name: string): string {
   return name.replace(/\.[A-Za-z0-9]{1,5}$/u, '');
 }
 
+/** «ProCaps TR» → «TR»: the country a name ends with, when it has one. */
+function countryOf(name: string): string | null {
+  const match = /\S\s+([A-Za-z]{2,3})$/u.exec(name.trim());
+  return match ? match[1]!.toUpperCase() : null;
+}
+
 /**
  * Matches what a person wrote against names in the space: exact key first, then a material alias
  * by its number («TR 16», «16», «шістнадцяте» against «TR_16.mp4»), then a unique prefix.
@@ -599,6 +605,18 @@ export function matchAssistantName(
     if (byNumber.length > 1)
       return { kind: 'many', candidates: byNumber.map(item => item.candidate).slice(0, 5) };
   }
+  // Past an exact key, a name that ends with a country never stands for another country's name:
+  // «ProCaps TN» is a new offer, not ProCaps TR one letter away (found in review 2026-11-22).
+  const country = countryOf(written);
+  if (country)
+    keyed.splice(
+      0,
+      keyed.length,
+      ...keyed.filter(item => {
+        const other = countryOf(stem(item.candidate.name));
+        return other === null || other === country;
+      })
+    );
   const prefixed = keyed.filter(item => key.length >= 3 && item.key.startsWith(key));
   if (prefixed.length === 1) return { kind: 'one', candidate: prefixed[0]!.candidate };
   if (prefixed.length > 1)

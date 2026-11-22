@@ -506,11 +506,11 @@ async function setFinance(args: Args, deps: ToolDeps): Promise<ToolCard> {
   if (!['topup', 'spend', 'balance'].includes(metric))
     throw new ToolRefusal('INVALID_INPUT', metric);
   const date = day(deps, text(args, 'date'), dayInZone(deps.now, deps.timezone));
-  const entries: Array<{ refs: string[]; amount: string }> = [];
+  const entries: Array<{ refs: string[]; amount: string; single?: boolean }> = [];
   for (const entry of list(args, 'entries')) {
     const match = entry.match(/^(.+?)\s*[=:]\s*\$?\s*([\d.,\s]+)$/u);
     if (!match) throw new ToolRefusal('INVALID_INPUT', entry);
-    entries.push({ refs: [match[1]!], amount: match[2]!.replace(/\s/gu, '') });
+    entries.push({ refs: [match[1]!], amount: match[2]!.replace(/\s/gu, ''), single: true });
   }
   const shared = text(args, 'amount');
   if (shared) entries.push({ refs: adScope(args), amount: shared });
@@ -523,8 +523,13 @@ async function setFinance(args: Args, deps: ToolDeps): Promise<ToolCard> {
   for (const entry of entries) {
     const value = parseFinanceMoney(entry.amount);
     if (typeof value !== 'bigint') throw new ToolRefusal('INVALID_AMOUNT', entry.amount);
-    const { picked, missing: lost } = pickAdAccounts(agents, entry.refs);
+    const { picked: matched, missing: lost } = pickAdAccounts(agents, entry.refs);
     missing.push(...lost);
+    // «g18-244=100» names one cell. «g18=100» or «#2=100» would set 100 on each of many — that is
+    // the amount + scope form, said outright (review 2026-11-22).
+    if (entry.single && matched.length > 1)
+      throw new ToolRefusal('AMBIGUOUS_TARGET', `${entry.refs[0]} (${matched.length})`);
+    const picked = matched;
     for (const agent of picked) {
       if (seen.has(agent.id)) throw new ToolRefusal('DUPLICATE_TARGET', agent.label);
       seen.add(agent.id);
@@ -732,10 +737,15 @@ async function pickMaterials(
   let truncated = false;
   if (!names.length && (query || kinds.length || inFolder || tag || offer || geo)) {
     let folder: Folder | null = null;
+    let rootOnly: Set<string> | null = null;
     if (inFolder) {
-      const chosen = pickFolder(tree ?? (await folders(deps)), inFolder);
+      const all = tree ?? (await folders(deps));
+      const chosen = pickFolder(all, inFolder);
       if (chosen === null) throw new ToolRefusal('FOLDER_NOT_FOUND', inFolder);
       folder = chosen === 'root' ? null : chosen;
+      // «з кореня» means what lies at the top, never everything in the space (review 2026-11-22:
+      // «видали всі картинки з кореня» listed images from every folder).
+      if (chosen === 'root') rootOnly = new Set(all.map(item => item.driveId));
     }
     const filters: Record<string, string[]> = {};
     if (offer) filters.offer = [offer];
@@ -749,6 +759,7 @@ async function pickMaterials(
     for (const item of items) {
       if (tag && !item.tags.some(t => fold(t) === fold(tag))) continue;
       if (folder && item.id === folder.id) continue;
+      if (rootOnly && item.parentFolderId !== null && rootOnly.has(item.parentFolderId)) continue;
       picked.set(item.id, item);
     }
     truncated = total > items.length;
@@ -1136,8 +1147,13 @@ async function catalogs(deps: ToolDeps): Promise<Catalog[]> {
 /** «всі», by name, by its video («каталоги тр16»), by folder, or the ones with an error. */
 async function pickCatalogs(deps: ToolDeps, args: Args) {
   const all = await catalogs(deps);
-  const names = list(args, 'items');
-  const scope = fold(text(args, 'scope') ?? (names.length ? 'named' : 'all'));
+  const rawScope = text(args, 'scope');
+  // Only «all» and «errors» are selections; any other scope is names (review 2026-11-22: an
+  // unknown scope listed every catalog on a red card).
+  const known =
+    rawScope === null || ['all', 'errors', 'error', 'named', 'всі', 'усі'].includes(fold(rawScope));
+  const names = [...list(args, 'items'), ...(known ? [] : list(args, 'scope'))];
+  const scope = known ? fold(rawScope ?? (names.length ? 'named' : 'all')) : 'named';
   const inFolder = text(args, 'in_folder');
   const missing: string[] = [];
   let picked: Catalog[];
@@ -2130,10 +2146,10 @@ export const TOOLS: Record<string, Tool> = {
 
 /** The tool names the model may write, with one line each for its prompt. */
 export const TOOL_GUIDE = [
-  'finance_report — money of ad accounts: «скільки витрат за вчора», «поповнення за тиждень по акаунтах». args: from, to (YYYY-MM-DD, or date for one day), by (total|account|ad_account|tag|day), scope (optional list of ad accounts/accounts/tags «tag:#2»).',
+  'finance_report — money of ad accounts: «скільки витрат за вчора», «поповнення за тиждень по акаунтах». args: from, to (YYYY-MM-DD, or date for one day), by (total|account|ad_account|tag|day), scope (optional: the ad accounts as written: ["g6"] (an account), ["g18-244"] (one ad account), ["tag:#2"] (a tag); never the word «accounts»).',
   'topup_statement — a statement of top-ups for a period grouped by tags (by: tag) or by accounts (by: account), with text to copy. args: from, to, by, scope.',
-  'set_finance — record money for a day: «простав поповнення 100 на g18-244 і 50 на g18-257». args: metric (topup|spend|balance), date, entries (["g18-244=100","g18-257=50"]) or amount + scope (the same sum for each).',
-  'tag_ad_accounts — tags on ad accounts, creating missing tags: args: scope (ad accounts/accounts/tags), add_tags, remove_tags.',
+  'set_finance — record money for a day: «простав поповнення 100 на g18-244 і 50 на g18-257». args: metric (topup|spend|balance), date, entries (["g18-244=100","g18-257=50"]) or amount + scope (the ad accounts as written: ["g6"] (an account), ["g18-244"] (one ad account), ["tag:#2"] (a tag); never the word «accounts»; the same sum for each).',
+  'tag_ad_accounts — tags on ad accounts, creating missing tags: args: scope (the ad accounts as written: ["g6"] (an account), ["g18-244"] (one ad account), ["tag:#2"] (a tag); never the word «accounts»), add_tags, remove_tags.',
   'find_materials — find files/creatives: args: items (names), or query, kind (video|image|folder|…), in_folder, tag, offer, geo.',
   'create_folders — args: names, parent (folder name or path; omit for the root).',
   'move_materials — move files (not folders: Soty moves files only) into a folder (made if missing): args: the files by items (file names) or query (a piece of the names), kind, in_folder, tag, offer, geo; destination (folder name or path), parent (where a new destination goes).',
@@ -2150,7 +2166,7 @@ export const TOOL_GUIDE = [
   'create_tasks — args: tasks, each one line «title | assignee | date | tag1, tag2 | file1, file2» (empty parts stay empty; date YYYY-MM-DD or tomorrow).',
   'update_tasks — args: items (task titles) or with_status (todo|in_progress|done), and status, date, assignee, add_tags.',
   'delete_tasks — delete tasks: args: items (task titles) or with_status (todo|in_progress|done).',
-  'list_ad_accounts — ad accounts with their full IDs, free or busy, tags («напиши ID РК з g18», «які РК вільні»): args: scope (accounts, ad accounts, tags), status (free|busy|all).',
+  'list_ad_accounts — ad accounts with their full IDs, free or busy, tags («напиши ID РК з g18», «які РК вільні»): args: scope (the ad accounts as written: ["g6"] (an account), ["g18-244"] (one ad account), ["tag:#2"] (a tag); never the word «accounts»; omit for all), status (free|busy|all).',
   'list_launches — launches of a period, drafts and launched ones («що запущено сьогодні», «які запуски на завтра»): args: date or from/to (YYYY-MM-DD, today, tomorrow, yesterday), offer, account, status (draft|launched|all), query.',
   'list_trash — what is in the trash.',
   'restore_materials — restore files from the trash: args: items (names).',
@@ -2175,7 +2191,13 @@ export async function runTool(
     return await found.run(argMap(args), deps);
   } catch (error) {
     if (error instanceof ToolRefusal) return problem(tool, error.code, error.written);
-    throw error;
+    // A plain error inside a tool (the shared report's INVALID_RESPONSE) is this step's problem,
+    // not the whole message's: the other steps' cards still come back.
+    const code =
+      error instanceof Error && /^[A-Z][A-Z0-9_]{3,60}$/u.test(error.message)
+        ? error.message
+        : 'UNAVAILABLE';
+    return problem(tool, code, '');
   }
 }
 

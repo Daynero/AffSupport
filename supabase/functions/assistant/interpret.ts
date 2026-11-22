@@ -67,7 +67,7 @@ export function assistantSystemPrompt(): string {
     'R2: «відео в R2», «скопіюй у R2» sets catalog.copyVideoToR2 true; «вимкни R2» false.',
     'Fields you may use:',
     launchFieldGuide(),
-    'Reply: one short Ukrainian sentence describing what you understood, without counting launches (Soty shows the count). Use null and empty lists for everything not mentioned.'
+    'Reply: one short sentence in the language of the message (Ukrainian unless the person wrote another language; no English words such as «launches» in a Ukrainian reply) describing what you understood, without counting launches (Soty shows the count). Use null and empty lists for everything not mentioned.'
   ].join('\n');
 }
 

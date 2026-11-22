@@ -637,6 +637,11 @@ export async function sendMessage(
     };
   }
   const opKey = `${FEATURE}:${commandId}`;
+  // A command of this person that died after its debit (a killed function) gives its credits back
+  // before the next one is taken. Best effort: it never stops a message.
+  await service(deps, 'service_assistant_sweep_stuck', { p_user: deps.userId }).catch(
+    () => undefined
+  );
   try {
     await debitCredits(deps.serviceRpc, {
       userId: deps.userId,
@@ -799,9 +804,33 @@ async function storedPlanOf(deps: AssistantDeps, commandId: string): Promise<Sto
   };
 }
 
+/**
+ * An answer that failed after its question was marked answered puts the question back, so it can
+ * be answered again (review 2026-11-22: one failure locked it for good). Only what this call moved.
+ */
 export async function answerQuestion(
   command: Extract<AssistantCommand, { action: 'answer' }>,
   deps: AssistantDeps
+): Promise<AssistantResponse> {
+  const moved = { answered: false };
+  try {
+    return await answerQuestionOnce(command, deps, moved);
+  } catch (error) {
+    if (moved.answered)
+      await service(deps, 'service_assistant_card_state', {
+        p_card: command.cardId,
+        p_from: 'answered',
+        p_to: 'open',
+        p_patch: {}
+      }).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function answerQuestionOnce(
+  command: Extract<AssistantCommand, { action: 'answer' }>,
+  deps: AssistantDeps,
+  moved: { answered: boolean }
 ): Promise<AssistantResponse> {
   const card = await loadCard(deps, command.teamId, command.cardId, 'question');
   const payload = card.payload as Record<string, unknown>;
@@ -827,13 +856,14 @@ export async function answerQuestion(
       message: started.reply,
       credits: await credits(deps)
     };
-  const moved = await service(deps, 'service_assistant_card_state', {
+  const answered = await service(deps, 'service_assistant_card_state', {
     p_card: command.cardId,
     p_from: 'open',
     p_to: 'answered',
     p_patch: { answer: option.id }
   });
-  if (moved !== true) {
+  moved.answered = answered === true;
+  if (answered !== true) {
     await status(deps, started.commandId, 'rejected', 'REVIEW_CHANGED', null, null);
     return {
       commandId: started.commandId,
@@ -973,6 +1003,23 @@ export async function confirmProfile(
       credits: await credits(deps)
     };
   const commandId = started.commandId;
+  // The card is taken before the save, so an undone or stale card cannot save again (review
+  // 2026-11-22); a save that fails gives it back.
+  const taken = await service(deps, 'service_assistant_card_state', {
+    p_card: command.cardId,
+    p_from: 'open',
+    p_to: 'confirmed',
+    p_patch: {}
+  });
+  if (taken !== true) {
+    await status(deps, commandId, 'rejected', 'REVIEW_CHANGED', null, null);
+    return {
+      commandId,
+      replayed: false,
+      message: await reply(deps, commandId, '', [refusal('REVIEW_CHANGED')]),
+      credits: await credits(deps)
+    };
+  }
   const { data, error } = await deps.callerRpc('save_launch_offer_defaults_masked', {
     p_team: command.teamId,
     p_offer: payload.offerId,
@@ -989,6 +1036,12 @@ export async function confirmProfile(
         : code === 'PERMISSION_DENIED'
           ? 'DEFAULTS_FORBIDDEN'
           : 'UNAVAILABLE';
+    await service(deps, 'service_assistant_card_state', {
+      p_card: command.cardId,
+      p_from: 'confirmed',
+      p_to: 'open',
+      p_patch: {}
+    }).catch(() => undefined);
     await status(deps, commandId, 'rejected', reason === 'UNAVAILABLE' ? null : reason, null, null);
     return {
       commandId,
@@ -1011,12 +1064,6 @@ export async function confirmProfile(
       before: isRecord(payload.before) ? (payload.before[path] ?? null) : null,
       after: isRecord(payload.values) ? (payload.values[path] ?? null) : null
     }))
-  });
-  await service(deps, 'service_assistant_card_state', {
-    p_card: command.cardId,
-    p_from: 'open',
-    p_to: 'confirmed',
-    p_patch: {}
   });
   const cards: Card[] = [
     { kind: 'status', payload: { profileSaved: payload.offer, changes: payload.changes } }

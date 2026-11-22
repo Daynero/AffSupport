@@ -18,7 +18,12 @@ const team = vi.hoisted(() => ({
   detachAgentLabel: vi.fn(async () => ({})),
   listMembers: vi.fn(async () => [{ userId: 'u1', permissionOverrides: { delete: true } }]),
   updateMembership: vi.fn(async () => ({})),
-  trashMaterial: vi.fn(async () => ({})),
+  trashMaterial: vi.fn(async () => ({
+    operationId: 'op-1',
+    state: 'succeeded',
+    reused: false,
+    materialId: 'c1'
+  })),
   createTask: vi.fn(async () => ({ id: 't1' })),
   updateTask: vi.fn(async () => ({})),
   attachTaskLabel: vi.fn(async () => []),

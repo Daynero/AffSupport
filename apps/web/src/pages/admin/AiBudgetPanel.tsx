@@ -273,7 +273,11 @@ export function AiBudgetPanel() {
             className="release-testers-form"
             onSubmit={event => {
               event.preventDefault();
-              void run('grant', () => aiBudgetApi.setUserGrant(email, grant));
+              void run('grant', async () => {
+                const next = await aiBudgetApi.setUserGrant(email, grant);
+                void refreshCredits();
+                return next;
+              });
             }}
           >
             <FormField label={t('aiBudgetUserGrant')} htmlFor={fieldIds.grant}>
@@ -290,7 +294,13 @@ export function AiBudgetPanel() {
               variant="ghost"
               loading={busy === 'reset'}
               disabled={busy !== null || !email}
-              onClick={() => void run('reset', () => aiBudgetApi.setUserGrant(email, null))}
+              onClick={() =>
+                void run('reset', async () => {
+                  const next = await aiBudgetApi.setUserGrant(email, null);
+                  void refreshCredits();
+                  return next;
+                })
+              }
             >
               {t('aiBudgetReset')}
             </Button>

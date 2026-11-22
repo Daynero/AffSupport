@@ -53,13 +53,24 @@ import { TeamApiError } from '../../api/team';
 import { CreditsButton } from '../../credits/CreditsButton';
 import { Button, DropdownMenu, IconButton, Spinner } from '../../components/ui/index.js';
 import { CreditIcon, ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
-import { kyivTime, setCredits, useCredits } from '../../credits/store';
+import { kyivTime, refreshCredits, setCredits, useCredits } from '../../credits/store';
 import { assistantDraftsKey, useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { observeAssistant } from './analytics';
 import { launchRows, notifyLaunchesChanged, openLaunch } from './bridge';
 import { runToolCard } from './tool-runner';
 import { TableCard, ToolReviewCard } from './ToolCards';
+
+/** Refusals that mean the card's rows changed after it was shown: asking again shows them fresh. */
+const STALE_CODES = new Set([
+  'FINANCE_CONFLICT',
+  'PLACEMENT_CONFLICT',
+  'SOURCE_CHANGED',
+  'REVIEW_CHANGED',
+  'LAUNCH_VERSION_CONFLICT',
+  'ACCOUNT_LIFECYCLE_CONFLICT',
+  'VERSION_CONFLICT'
+]);
 
 const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
   INSUFFICIENT_CREDITS: 'aiInsufficientCredits',
@@ -106,6 +117,7 @@ const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
   INVALID_EMAIL: 'assistantInvalidEmail',
   PERMISSION_DENIED: 'assistantPermissionDenied',
   OWNER_TRANSFER_REQUIRED: 'assistantOwnerRole',
+  AMBIGUOUS_TARGET: 'assistantAmbiguousTarget',
   FOLDER_MOVE_UNSUPPORTED: 'assistantFolderMoveUnsupported',
   INVALID_INPUT: 'assistantInvalidValue'
 };
@@ -285,6 +297,8 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
   };
 
   const switchDialog = async (next: string) => {
+    // A reply on its way belongs to the dialog it was sent from.
+    if (busy) return;
     setSwitching(true);
     try {
       apply(
@@ -359,11 +373,47 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
       return true;
     } catch (caught) {
       setError(teamErrorMessageFor(caught, t));
+      // Not sent: the text stays in the field, not as a message that looks delivered.
+      if (optimistic)
+        setMessages(current => current.filter(message => message.id !== optimistic.id));
+      void refreshCredits();
       return false;
     } finally {
       if (cardId) setPending(null);
       else setThinking(false);
     }
+  };
+
+  /**
+   * Claims an action card before anything runs. Refused — run in another tab, cancelled, already
+   * done — the dialog is read again so it shows what really happened, and nothing runs.
+   */
+  const claim = async (card: AssistantCard) => {
+    try {
+      await assistantApi.cardClaim(card.id);
+      return true;
+    } catch (caught) {
+      const code = caught instanceof TeamApiError ? caught.code : null;
+      setError(
+        code === 'REVIEW_CHANGED' ? t('assistantCardHandled') : teamErrorMessageFor(caught, t)
+      );
+      if (dialogId)
+        void assistantApi
+          .open(teamId, dialogId)
+          .then(apply)
+          .catch(() => undefined);
+      return false;
+    }
+  };
+
+  /** Where a claimed card ends, with its counts, so a reload shows the same as now. */
+  const finish = (
+    card: AssistantCard,
+    state: 'confirmed' | 'open' | 'stale',
+    result: Record<string, number>
+  ) => {
+    markCard(card.id, { state, payload: { ...card.payload, ...result } });
+    void assistantApi.cardFinish(card.id, state, result).catch(() => undefined);
   };
 
   const send = async () => {
@@ -404,6 +454,8 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
       }
     );
     flow.finish(ok ? 'success' : 'failure');
+    // The field takes the next message, whether the button or a key sent this one.
+    requestAnimationFrame(() => input.current?.focus());
     if (ok) {
       pendingKey.current = null;
       setText('');
@@ -435,11 +487,15 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     if (!rows.length || busy) return;
     const batchKey =
       typeof card.payload.batchKey === 'string' ? card.payload.batchKey : crypto.randomUUID();
+    // The key lives on the card from the first press: a retry sends the same batch, not a new one.
+    markCard(card.id, { payload: { ...card.payload, batchKey } });
     const flow = observeAssistant('launch');
     setPending(card.id);
     setError(null);
+    let claimed = false;
     try {
       await assistantApi.reviewLaunched(card.id, batchKey);
+      claimed = true;
       await launchRows(
         teamId,
         rows.map(item => ({ launchId: item.launchId, version: item.version })),
@@ -449,6 +505,11 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
       flow.finish('success');
     } catch (caught) {
       flow.finish('failure');
+      // The batch was not accepted: the card must not go on saying «Передано в генерацію».
+      if (claimed) {
+        markCard(card.id, { state: 'open', payload: { ...card.payload, batchKey } });
+        void assistantApi.cardFinish(card.id, 'open', null).catch(() => undefined);
+      }
       // A card from earlier in the dialog shows drafts as they were; changed or removed since,
       // they are not launched, and the person is told how to get a current card.
       const code = caught instanceof TeamApiError ? caught.code : null;
@@ -468,6 +529,10 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     if (!rows.length || busy) return;
     setPending(card.id);
     setError(null);
+    if (!(await claim(card))) {
+      setPending(null);
+      return;
+    }
     let failed = 0;
     for (const item of rows) {
       try {
@@ -476,14 +541,9 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         failed++;
       }
     }
-    try {
-      if (failed < rows.length) await assistantApi.cardConfirmed(card.id);
-    } catch {
-      /* the drafts are gone either way; the card only remembers it */
-    }
-    markCard(card.id, {
-      state: failed < rows.length ? 'confirmed' : card.state,
-      payload: { ...card.payload, archived: rows.length - failed, failed }
+    finish(card, failed < rows.length ? 'confirmed' : 'open', {
+      archived: rows.length - failed,
+      failed
     });
     if (failed) setError(t('assistantArchiveFailed', { count: failed }));
     notifyLaunchesChanged(teamId);
@@ -496,6 +556,10 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     if (!agents.length || busy) return;
     setPending(card.id);
     setError(null);
+    if (!(await claim(card))) {
+      setPending(null);
+      return;
+    }
     let failed = 0;
     for (const agent of agents) {
       try {
@@ -510,14 +574,9 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         failed++;
       }
     }
-    try {
-      if (failed < agents.length) await assistantApi.cardConfirmed(card.id);
-    } catch {
-      /* released either way; the card only remembers it */
-    }
-    markCard(card.id, {
-      state: failed < agents.length ? 'confirmed' : card.state,
-      payload: { ...card.payload, released: agents.length - failed }
+    finish(card, failed < agents.length ? 'confirmed' : 'open', {
+      released: agents.length - failed,
+      failed
     });
     if (failed) setError(t('assistantReleaseFailed', { count: failed }));
     notifyLaunchesChanged(teamId);
@@ -529,21 +588,26 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     if (busy) return;
     setPending(card.id);
     setError(null);
+    if (!(await claim(card))) {
+      setPending(null);
+      return;
+    }
     try {
       const outcome = await runToolCard(
         teamId,
         card.id,
         card.payload as Parameters<typeof runToolCard>[2]
       );
-      if (outcome.done > 0) {
-        await assistantApi.cardConfirmed(card.id).catch(() => undefined);
-        markCard(card.id, {
-          state: 'confirmed',
-          payload: { ...card.payload, done: outcome.done, failed: outcome.failed }
-        });
+      const counts = { done: outcome.done, failed: outcome.failed };
+      // Nothing went because what the card showed has changed since: the card is spent — pressing
+      // again would fail the same way — and the person is told to ask again for a fresh one.
+      const stale = outcome.done === 0 && outcome.code !== null && STALE_CODES.has(outcome.code);
+      finish(card, outcome.done > 0 ? 'confirmed' : stale ? 'stale' : 'open', counts);
+      if (stale) {
+        setError(t('assistantToolStale'));
       }
       // Why it failed, in the words the screens use for the same refusal.
-      if (outcome.failed > 0)
+      else if (outcome.failed > 0)
         setError(
           [
             t('assistantToolFailedShort', { count: outcome.failed }),
@@ -556,6 +620,8 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         );
       notifyLaunchesChanged(teamId);
     } catch (caught) {
+      // Nothing is known to have run: the card is open again for another try.
+      finish(card, 'open', { done: 0, failed: 0 });
       setError(teamErrorMessageFor(caught, t));
     } finally {
       setPending(null);
@@ -638,7 +704,9 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
 
   const answer = (card: AssistantCard, optionId: string) => {
     markCard(card.id, { state: 'answered', payload: { ...card.payload, answer: optionId } });
-    void take(() => assistantApi.answer(teamId, dialogId, card.id, optionId, key()));
+    void take(() => assistantApi.answer(teamId, dialogId, card.id, optionId, key())).then(ok => {
+      if (!ok) markCard(card.id, { state: 'open', payload: { ...card.payload } });
+    });
   };
 
   // «Кампаній: — → 3», not «campaignCount: — → 3»: the words of the form, values without JSON.

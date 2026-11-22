@@ -69,6 +69,9 @@ const api = vi.hoisted(() => ({
   confirmProfile: vi.fn(),
   reviewLaunched: vi.fn(async () => undefined),
   cardConfirmed: vi.fn(async () => undefined),
+  cardClaim: vi.fn(async () => undefined),
+  cardFinish: vi.fn(async () => undefined),
+  cardDismissed: vi.fn(async () => undefined),
   launchMarks: vi.fn(async () => new Set())
 }));
 vi.mock('../apps/web/src/api/assistant', () => ({
@@ -358,9 +361,91 @@ describe('the space assistant', () => {
     expect(launches.archive.mock.calls.map(call => [call[1], call[2]])).toEqual(
       rows.map(row => [row.launchId, '1'])
     );
-    expect(api.cardConfirmed).toHaveBeenCalledWith('card-archive');
+    // Claimed before anything ran, settled with its counts after.
+    expect(api.cardClaim).toHaveBeenCalledWith('card-archive');
+    expect(api.cardFinish).toHaveBeenCalledWith(
+      'card-archive',
+      'confirmed',
+      expect.objectContaining({ failed: 0 })
+    );
     expect(await screen.findByText('Removed: 2')).toBeTruthy();
   });
+
+  it('runs nothing when the card was already claimed in another tab', async () => {
+    const user = userEvent.setup();
+    const archiveCard = {
+      enabled: true,
+      canSaveDefaults: true,
+      ...dialog,
+      credits,
+      messages: [
+        message([
+          {
+            id: 'card-archive',
+            kind: 'review' as const,
+            state: 'open' as const,
+            commandId: 'cmd-1',
+            payload: { purpose: 'archive', rows, ready: 2 },
+            createdAt: 'x'
+          }
+        ])
+      ]
+    };
+    api.open.mockResolvedValue(archiveCard);
+    api.cardClaim.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'REVIEW_CHANGED' }));
+    assistant();
+    await user.click(await screen.findByRole('button', { name: 'Remove 2' }));
+    await waitFor(() => expect(api.cardClaim).toHaveBeenCalledWith('card-archive'));
+    expect(launches.archive).not.toHaveBeenCalled();
+    expect(api.cardFinish).not.toHaveBeenCalled();
+  });
+
+  it(
+    'opens a question again when the answer failed, and drops a message that was not sent',
+    {
+      timeout: 15_000
+    },
+    async () => {
+      const user = userEvent.setup();
+      api.open.mockResolvedValue({
+        enabled: true,
+        canSaveDefaults: true,
+        ...dialog,
+        credits,
+        messages: [
+          message([
+            {
+              id: 'q1',
+              kind: 'question' as const,
+              state: 'open' as const,
+              commandId: 'cmd-1',
+              payload: { about: 'Який офер?', options: [{ id: 'o1', label: 'ProCaps TR' }] },
+              createdAt: 'x'
+            }
+          ])
+        ]
+      });
+      api.answer.mockRejectedValueOnce(new Error('NETWORK'));
+      api.send.mockRejectedValueOnce(new Error('NETWORK'));
+      assistant();
+      const option = await screen.findByRole('button', { name: 'ProCaps TR' });
+      await user.click(option);
+      await waitFor(() => expect(api.answer).toHaveBeenCalled());
+      await waitFor(
+        () =>
+          expect(screen.getByRole('button', { name: 'ProCaps TR' }).hasAttribute('disabled')).toBe(
+            false
+          ),
+        { timeout: 1500 }
+      );
+      await user.type(screen.getByRole('textbox'), 'не дійде{Enter}');
+      await waitFor(() => expect(api.send).toHaveBeenCalled(), { timeout: 1500 });
+      // The text stays in the field for another try; no message bubble pretends it was delivered.
+      await waitFor(() =>
+        expect(document.querySelectorAll('.assistant-message.is-user')).toHaveLength(0)
+      );
+    }
+  );
 
   it('says when it created an offer', async () => {
     api.open.mockResolvedValueOnce({

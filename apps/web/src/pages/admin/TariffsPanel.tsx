@@ -118,6 +118,8 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
   // people: extend a tariff, give credits, switch the assistant on for a space.
   const [credits, setCredits] = useState<Map<string, AiPersonCredits>>(new Map());
   const [pilot, setPilot] = useState<Map<string, boolean>>(new Map());
+  // Unread, the switch shows a dash, never «off» for a space that is on.
+  const [aiRead, setAiRead] = useState(false);
   const [pilotNames, setPilotNames] = useState<Map<string, string>>(new Map());
   const [aiBusy, setAiBusy] = useState<string | null>(null);
 
@@ -130,6 +132,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
       setCredits(people);
       setPilot(new Map(spaces.map(space => [space.teamId, space.pilot])));
       setPilotNames(new Map(spaces.map(space => [space.teamId, space.name])));
+      setAiRead(true);
     } catch {
       /* the tariffs stay usable; the two AI columns show a dash */
     }
@@ -413,7 +416,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
                 onEnd={() => setEnding(row)}
                 onHistory={() => setHistory(row)}
                 credits={credits.get(row.ownerEmail.toLowerCase()) ?? null}
-                pilot={row.teamId ? (pilot.get(row.teamId) ?? false) : null}
+                pilot={row.teamId && aiRead ? (pilot.get(row.teamId) ?? false) : null}
                 aiBusy={aiBusy}
                 onBonus={amount => void giveBonus(row, amount)}
                 onPilot={enabled => row.teamId && void switchPilot(row.teamId, enabled)}

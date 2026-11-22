@@ -127,6 +127,20 @@ describe('064 assistant contract', () => {
     expect(matchAssistantName('TR 17', materials)).toEqual({ kind: 'none' });
   });
 
+  it("never takes another country's offer for a near name (review 2026-11-22)", () => {
+    const offers = [
+      { id: 'tr', name: 'ProCaps TR' },
+      { id: 'my', name: 'ProCaps MY' },
+      { id: 'pi', name: 'Prostavia ID' }
+    ];
+    expect(matchAssistantName('ProCaps TN', offers)).toEqual({ kind: 'none' });
+    expect(matchAssistantName('ProCaps MX', offers)).toEqual({ kind: 'none' });
+    expect(matchAssistantName('Prostavia IN', offers)).toEqual({ kind: 'none' });
+    // The country is still what picks among the same product, and the product alone still asks.
+    expect(matchAssistantName('ProCaps MY', offers)).toEqual({ kind: 'one', candidate: offers[1] });
+    expect(matchAssistantName('ProCaps', offers).kind).toBe('many');
+  });
+
   it('keeps pasted links out of the model text and puts them back only by marker', () => {
     const { text, urls } = extractAssistantUrls(
       'ось посилання https://ex.com/a?b=1, і ще https://ex.com/a?b=1.'

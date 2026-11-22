@@ -195,6 +195,31 @@ export const assistantApi = {
     throwRpc(error);
   },
   /** The drafts of an «archive» card were removed: the card shows it as done from now on. */
+  /**
+   * Claims an action card before it runs: open → confirmed, or REVIEW_CHANGED when another tab ran
+   * it, it was cancelled, or it is already done — so a card can never run twice.
+   */
+  async cardClaim(cardId: string): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('assistant_card_claim', { p_card: cardId })
+    );
+    throwRpc(error);
+  },
+  /** What a claimed card did (counts), and where it ends: done, back to open, or stale. */
+  async cardFinish(
+    cardId: string,
+    state: 'confirmed' | 'open' | 'stale',
+    result: Record<string, number> | null
+  ): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('assistant_card_finish', {
+        p_card: cardId,
+        p_state: state,
+        p_result: result
+      })
+    );
+    throwRpc(error);
+  },
   /** «Не треба»: an open card the person decided against stays in the dialog, without a button. */
   async cardDismissed(cardId: string): Promise<void> {
     const { error } = await withFreshSession(() =>

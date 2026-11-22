@@ -5351,6 +5351,11 @@ export const uk: Record<keyof typeof en, string> = {
     'Доступ до простору зникне; файли, які вони відкривали на Drive напряму, лишаться в них.',
   assistantToolDone: 'Готово: {count}',
   assistantToolFailed: 'Не вийшло: {count}. Онови сторінку й спробуй ще раз.',
+  assistantAmbiguousTarget: '«{written}» — це кілька РК. Назви одну або скажи «по N на всі РК …»',
+  assistantCardHandled:
+    'Цю картку вже виконано або скасовано — можливо, в іншій вкладці. Показую, як є зараз.',
+  assistantToolStale:
+    'Дані змінилися після того, як я показав картку, тож нічого не змінено. Попроси ще раз — покажу актуальні.',
   assistantStateArchived: 'В архіві',
   assistantToolListAdAccounts: 'РК: {count}',
   assistantToolListLaunches: 'Запуски · {period}: {count}',

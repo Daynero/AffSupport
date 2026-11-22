@@ -5376,6 +5376,12 @@ export const en = {
     'They lose access to the space; files they opened on Drive directly stay with them.',
   assistantToolDone: 'Done: {count}',
   assistantToolFailed: 'Failed: {count}. Refresh the page and try again.',
+  assistantAmbiguousTarget:
+    '«{written}» is several ad accounts. Name one, or say «N on each ad account of …»',
+  assistantCardHandled:
+    'This card was already run or cancelled, perhaps in another tab. Showing it as it is now.',
+  assistantToolStale:
+    'The data changed after the card was shown, so nothing was changed. Ask again and I will show it as it is now.',
   assistantStateArchived: 'Archived',
   assistantToolListAdAccounts: 'Ad accounts: {count}',
   assistantToolListLaunches: 'Launches · {period}: {count}',

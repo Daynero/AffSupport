@@ -11,7 +11,12 @@ import { teamFinanceApi } from '../../api/team-finance';
 import { accountsWorkspaceApi } from '../../api/team-accounts-workspace';
 import { launchApi } from '../../api/launches';
 import { moveWorkspaceMaterials } from '../explorer/moveCoordinator';
-import { renameMaterialWithTail, trashMaterialWithTail } from '../materials/tail';
+import {
+  copyMaterialWithTail,
+  renameMaterialWithTail,
+  trashMaterialWithTail
+} from '../materials/tail';
+import { requireCompletedFileOperation } from '../materials/file-operation-outcome';
 import type { FinanceMetric, MaterialMetadataPatch } from '@video-compressor/shared';
 
 export interface ToolOutcome {
@@ -166,11 +171,13 @@ export async function runToolCard(
       return each(
         rows,
         (row, index) =>
-          teamApi.restoreMaterial({
-            teamId,
-            materialId: String(row.id),
-            idempotencyKey: `${cardId}:restore:${index}`
-          }),
+          teamApi
+            .restoreMaterial({
+              teamId,
+              materialId: String(row.id),
+              idempotencyKey: `${cardId}:restore:${index}`
+            })
+            .then(requireCompletedFileOperation),
         3
       );
     case 'copy_materials': {
@@ -191,13 +198,13 @@ export async function runToolCard(
       } else if (!target.root) destination = target.driveId ?? null;
       return each(
         rows,
-        (row, index) =>
-          teamApi.copyMaterial({
+        row =>
+          copyMaterialWithTail({
             teamId,
-            materialId: String(row.id),
+            material: material(row),
             destinationFolderId: destination,
-            idempotencyKey: `${cardId}:copy:${index}`
-          }),
+            client: teamApi
+          }).then(requireCompletedFileOperation),
         3
       );
     }
@@ -331,11 +338,13 @@ export async function runToolCard(
       return each(
         rows,
         (row, index) =>
-          teamApi.trashMaterial({
-            teamId,
-            materialId: String(row.id),
-            idempotencyKey: `${cardId}:catalog:${index}`
-          }),
+          teamApi
+            .trashMaterial({
+              teamId,
+              materialId: String(row.id),
+              idempotencyKey: `${cardId}:catalog:${index}`
+            })
+            .then(requireCompletedFileOperation),
         3
       );
     case 'update_catalogs': {
@@ -379,28 +388,36 @@ export async function runToolCard(
         'task',
         rows.flatMap(row => (row.tags as Array<{ id: string | null; name: string }>) ?? [])
       );
-      return each(rows, async row => {
+      // A task counts as made once it exists: pressing again must not make it twice. A day, tag
+      // or file that did not attach is reported, not retried by making another task.
+      let finishing: string | null = null;
+      const made = await each(rows, async row => {
         const task = await teamApi.createTask({
           teamId,
           title: String(row.title),
           assigneeId: typeof row.assigneeId === 'string' ? row.assigneeId : null
         });
-        if (typeof row.date === 'string')
-          await teamApi.updateTask(teamId, task.id, { dateOn: row.date });
-        for (const tag of (row.tags as Array<{ name: string }>) ?? [])
-          await teamApi.attachTaskLabel({
-            teamId,
-            taskId: task.id,
-            labelId: ids.get(tag.name.toLocaleLowerCase('uk'))!
-          });
-        const files = (row.materials as Array<{ id: string }>) ?? [];
-        if (files.length)
-          await teamApi.attachTaskMaterials({
-            teamId,
-            taskId: task.id,
-            materialIds: files.map(file => file.id)
-          });
+        try {
+          if (typeof row.date === 'string')
+            await teamApi.updateTask(teamId, task.id, { dateOn: row.date });
+          for (const tag of (row.tags as Array<{ name: string }>) ?? [])
+            await teamApi.attachTaskLabel({
+              teamId,
+              taskId: task.id,
+              labelId: ids.get(tag.name.toLocaleLowerCase('uk'))!
+            });
+          const files = (row.materials as Array<{ id: string }>) ?? [];
+          if (files.length)
+            await teamApi.attachTaskMaterials({
+              teamId,
+              taskId: task.id,
+              materialIds: files.map(file => file.id)
+            });
+        } catch (error) {
+          finishing ??= codeOf(error);
+        }
       });
+      return { ...made, code: made.code ?? finishing };
     }
     case 'update_tasks': {
       const ids = await labelIds(

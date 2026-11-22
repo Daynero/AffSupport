@@ -474,7 +474,7 @@ describe('files and folders', () => {
   it('renames a selection by a template, keeping the extension', async () => {
     const card = await runTool(
       'rename_materials',
-      [arg('query', 'TR'), arg('in_folder', '/'), arg('template', 'ProCaps_{n}'), arg('start', 3)],
+      [arg('query', 'TR'), arg('template', 'ProCaps_{n}'), arg('start', 3)],
       deps()
     );
     expect(
@@ -521,10 +521,23 @@ describe('files and folders', () => {
     ]);
   });
 
+  it('takes «з кореня» as the top level, not the whole space', async () => {
+    const card = await runTool(
+      'trash_materials',
+      [arg('query', 'TR'), arg('in_folder', 'корінь')],
+      deps()
+    );
+    // TR_23 lies in TR and «TR 25» in old: only the two at the top are offered.
+    expect((card.payload.items as Array<{ id: string }>).map(item => item.id).sort()).toEqual([
+      'm16',
+      'm25a'
+    ]);
+  });
+
   it('refuses a rule that gives two files the same name', async () => {
     const card = await runTool(
       'rename_materials',
-      [arg('query', 'TR'), arg('in_folder', '/'), arg('template', 'same')],
+      [arg('query', 'TR'), arg('template', 'same')],
       deps()
     );
     expect((card.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('NAME_CONFLICT');
@@ -798,6 +811,20 @@ describe('catalogs, people and tasks', () => {
       }
     ]);
     expect(offers.payload.missing).toEqual(['Nope']);
+  });
+
+  it('takes a catalog scope that is not all or errors as names, never as all', async () => {
+    const card = await runTool('trash_catalogs', [arg('scope', 'TR_16')], deps());
+    expect((card.payload.items as Array<{ id: string }>).map(item => item.id)).toEqual(['c1']);
+  });
+
+  it('refuses one money entry that names many ad accounts', async () => {
+    const card = await runTool(
+      'set_finance',
+      [arg('date', '2026-11-21'), arg('entries', ['g18=100'])],
+      deps()
+    );
+    expect((card.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('AMBIGUOUS_TARGET');
   });
 
   it('sets the catalog refresh, or turns it off', async () => {

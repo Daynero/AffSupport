@@ -241,8 +241,11 @@ function pickAgent(
 /** «g4» names the account of «g4-257»; the full label names that ad account. */
 function sameAccount(written: string, label: string): boolean {
   const key = assistantKey(written);
+  // The account is the label without its last «-NNN»: «g18-old-244» belongs to «g18-old», never
+  // to «g18» (the first dash cut it there before).
   return (
-    Boolean(key) && (assistantKey(label) === key || assistantKey(label.split('-')[0] ?? '') === key)
+    Boolean(key) &&
+    (assistantKey(label) === key || assistantKey(label.replace(/-[^-]+$/u, '')) === key)
   );
 }
 
@@ -720,6 +723,14 @@ export async function resolvePlan(
       if (picked.kind === 'one') id = picked.candidate.id;
     } else {
       let result = matchAssistantName(written, candidates);
+      // An offer the plan creates by this very name is that name or nothing — never a near one.
+      if (
+        kind === 'offer' &&
+        result.kind === 'one' &&
+        plan.actions.some(a => a.type === 'create_offer' && a.offer === written) &&
+        assistantKey(result.candidate.name) !== assistantKey(written)
+      )
+        result = { kind: 'none' };
       // «прокапс тр25»: the creatives' country picks ProCaps TR out of ProCaps TR and ProCaps BG.
       if (result.kind === 'many' && kind === 'offer') {
         const geo = creativeGeo(plan, written);
@@ -949,6 +960,26 @@ export async function cardRows(
   /** A removal by day sees launched launches too; a review or a launch never offers them. */
   withLaunched = false
 ): Promise<{ rows: AssistantRow[]; truncated: boolean }> {
+  // The database reads at most 101 ids at a time; a command that touched more (or its undo) is
+  // read in parts rather than failing after its writes.
+  if (ids && ids.length > ASSISTANT_MAX_DRAFTS) {
+    const parts: AssistantRow[] = [];
+    for (let start = 0; start < ids.length; start += ASSISTANT_MAX_DRAFTS) {
+      const part = await cardRows(
+        deps,
+        ids.slice(start, start + ASSISTANT_MAX_DRAFTS),
+        date,
+        withLaunched
+      );
+      parts.push(...part.rows);
+    }
+    return {
+      rows: parts
+        .slice(0, ASSISTANT_MAX_DRAFTS * 4)
+        .map((row, index) => ({ ...row, n: index + 1 })),
+      truncated: parts.length > ASSISTANT_MAX_DRAFTS * 4
+    };
+  }
   const data = withLaunched
     ? await call(deps.serviceRpc, 'service_assistant_rows_v2', {
         p_user: deps.userId,
@@ -1039,7 +1070,8 @@ async function createDrafts(
   const dates = dateList(action, deps);
   const count = action.count ?? 1;
   const total = accounts.length * dates.length * count;
-  if (total > ASSISTANT_MAX_DRAFTS) throw new EngineRefusal('PLAN_TOO_LARGE');
+  // The bound holds for the whole message, not each step: sixteen steps of sixty were 960 drafts.
+  if (total + created.length > ASSISTANT_MAX_DRAFTS) throw new EngineRefusal('PLAN_TOO_LARGE');
   let base: Draft;
   if (action.base === 'copy_of_row' && action.baseRow) {
     const row = deps.shown[action.baseRow - 1];

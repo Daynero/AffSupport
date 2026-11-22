@@ -3478,3 +3478,10 @@ cancelled until a reload, then open again); cards already cancelled stay cancell
 Additive: `service_assistant_rows_v2` beside the unchanged `service_assistant_rows`. Dropping it
 makes the assistant's removal cards fail with an error until the function release is rolled back
 too; nothing is stored by it.
+
+## 20261223300000 — claimed action cards, launch retry, command sweep (064)
+
+Additive: `assistant_card_claim`, `assistant_card_finish`, `service_assistant_sweep_stuck` and two
+indexes. Dropping the claim and finish functions makes the assistant's action buttons refuse with
+an error until the web is rolled back too; nothing is lost. Dropping the sweep leaves a command
+that died after its debit unrefunded, as before.
