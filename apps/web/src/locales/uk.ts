@@ -5351,6 +5351,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Доступ до простору зникне; файли, які вони відкривали на Drive напряму, лишаться в них.',
   assistantToolDone: 'Готово: {count}',
   assistantToolFailed: 'Не вийшло: {count}. Онови сторінку й спробуй ще раз.',
+  assistantArchiveTitleLaunches: 'Видалити запуски: {count}',
   assistantGeneratingRow: 'Генерується зараз',
   assistantArchiveLaunchedIncluded:
     'Серед них уже запущені: {count}. Видаляється лише запуск у Soty — кампанії й каталог лишаються.',

@@ -759,7 +759,14 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             )}
             {[
               removing
-                ? t('assistantArchiveTitle', { count: rows.length })
+                ? t(
+                    launchedIncluded > 0
+                      ? 'assistantArchiveTitleLaunches'
+                      : 'assistantArchiveTitle',
+                    {
+                      count: rows.length
+                    }
+                  )
                 : t(assistantDraftsKey(language, rows.length), { count: rows.length }),
               date
             ]

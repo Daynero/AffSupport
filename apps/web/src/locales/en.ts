@@ -5376,6 +5376,7 @@ export const en = {
     'They lose access to the space; files they opened on Drive directly stay with them.',
   assistantToolDone: 'Done: {count}',
   assistantToolFailed: 'Failed: {count}. Refresh the page and try again.',
+  assistantArchiveTitleLaunches: 'Delete launches: {count}',
   assistantGeneratingRow: 'Generating now',
   assistantArchiveLaunchedIncluded:
     'Already launched among them: {count}. Only the launch in Soty goes — campaigns and the catalog stay.',
