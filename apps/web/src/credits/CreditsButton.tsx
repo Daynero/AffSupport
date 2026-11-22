@@ -48,7 +48,9 @@ export function CreditsButton({ compact = false, offerAssistant = true }: Credit
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={label}
-        leading={<CreditIcon size={16} />}
+        // Larger than the 16 px of a plain icon: the cell's frame takes room, and at 16 the sparkle
+        // inside read as a dot next to the number (owner, 2026-11-22).
+        leading={<CreditIcon size={19} />}
         onClick={() => setOpen(value => !value)}
       >
         {compact ? (available ?? '—') : label}

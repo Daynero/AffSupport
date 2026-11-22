@@ -1160,7 +1160,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             aria-expanded={menu}
             onClick={() => setMenu(value => !value)}
           >
-            <Sparkles size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <CreditIcon size={18} />
             <span className="assistant-dialog-title">{currentTitle}</span>
             <ChevronDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </button>
@@ -1275,7 +1275,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             price !== null &&
             price > 0 && (
               <span className="assistant-price" aria-hidden="true">
-                <CreditIcon size={13} />
+                <CreditIcon size={15} />
                 {price}
               </span>
             )
