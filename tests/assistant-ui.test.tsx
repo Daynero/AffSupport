@@ -209,7 +209,7 @@ describe('the space assistant', () => {
     await screen.findByRole('textbox');
     await user.type(screen.getByRole('textbox'), 'а тепер те саме за вчора{Enter}');
     await waitFor(() => expect(api.send).toHaveBeenCalledTimes(1));
-    expect(api.send.mock.calls[0]![0]).toMatchObject({ previousCommandId: 'cmd-report' });
+    expect(api.send.mock.calls[0]![0]).toMatchObject({ previousCommandIds: ['cmd-report'] });
   });
 
   it('shows the price on the send button and sends with Ctrl+Enter', async () => {

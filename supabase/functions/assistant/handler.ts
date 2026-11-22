@@ -76,8 +76,8 @@ export type AssistantCommand = (
       expectedPrice: number;
       priceVersion: string;
       contextCardId: string | null;
-      /** The dialog's previous command, for «те саме за вчора», «а тепер по тегах». */
-      previousCommandId: string | null;
+      /** The dialog's last commands, newest first, for «те саме за вчора», «як перед тим». */
+      previousCommandIds: string[];
       timezone: string;
     }
   | {
@@ -141,6 +141,7 @@ export function parseAssistantCommand(body: unknown): AssistantCommand {
           'priceVersion',
           'contextCardId',
           'previousCommandId',
+          'previousCommandIds',
           'timezone'
         ]);
         if (
@@ -159,7 +160,17 @@ export function parseAssistantCommand(body: unknown): AssistantCommand {
           expectedPrice: body.expectedPrice,
           priceVersion: body.priceVersion,
           contextCardId: body.contextCardId == null ? null : id(body.contextCardId),
-          previousCommandId: body.previousCommandId == null ? null : id(body.previousCommandId),
+          // One id (the first window that sent it) or up to three, newest first.
+          previousCommandIds: [
+            ...new Set([
+              ...(Array.isArray(body.previousCommandIds)
+                ? (body.previousCommandIds as unknown[]).slice(0, 3).map(id)
+                : body.previousCommandIds == null
+                  ? []
+                  : invalid()),
+              ...(body.previousCommandId == null ? [] : [id(body.previousCommandId)])
+            ])
+          ].slice(0, 3),
           timezone
         };
       }
@@ -527,7 +538,7 @@ async function interpretFor(
     text: string;
     contextCardId: string | null;
     timezone: string;
-    previous?: string | null;
+    previous?: string[] | null;
   }
 ) {
   const shown = await shownRows(deps, input.teamId, input.contextCardId);
@@ -689,9 +700,9 @@ export async function sendMessage(
       text: masked.text,
       contextCardId: command.contextCardId,
       timezone: command.timezone,
-      previous: command.previousCommandId
-        ? await previousRequest(deps, command.previousCommandId)
-        : null
+      previous: (
+        await Promise.all(command.previousCommandIds.map(id => previousRequest(deps, id)))
+      ).filter((line): line is string => line !== null)
     });
     if (!interpreted.ok) {
       await giveBack();

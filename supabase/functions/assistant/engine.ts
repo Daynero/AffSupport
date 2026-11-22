@@ -945,14 +945,24 @@ function budgetText(config: Draft): string | null {
 export async function cardRows(
   deps: Pick<EngineDeps, 'serviceRpc' | 'userId' | 'teamId'>,
   ids: string[] | null,
-  date: string | null
+  date: string | null,
+  /** A removal by day sees launched launches too; a review or a launch never offers them. */
+  withLaunched = false
 ): Promise<{ rows: AssistantRow[]; truncated: boolean }> {
-  const data = await call(deps.serviceRpc, 'service_assistant_rows', {
-    p_user: deps.userId,
-    p_team: deps.teamId,
-    p_ids: ids,
-    p_date: date
-  });
+  const data = withLaunched
+    ? await call(deps.serviceRpc, 'service_assistant_rows_v2', {
+        p_user: deps.userId,
+        p_team: deps.teamId,
+        p_ids: ids,
+        p_date: date,
+        p_with_launched: true
+      })
+    : await call(deps.serviceRpc, 'service_assistant_rows', {
+        p_user: deps.userId,
+        p_team: deps.teamId,
+        p_ids: ids,
+        p_date: date
+      });
   const list = Array.isArray(data) ? data : [];
   const truncated = list.length > ASSISTANT_MAX_DRAFTS;
   const rows = list.slice(0, ASSISTANT_MAX_DRAFTS).flatMap((item, index): AssistantRow[] => {
@@ -1293,7 +1303,8 @@ async function selectRows(
   action: AssistantAction,
   deps: EngineDeps,
   resolution: Resolution,
-  created: string[]
+  created: string[],
+  withLaunched = false
 ): Promise<{ rows: AssistantRow[]; truncated: boolean; date: string | null }> {
   if (action.rows.length > 0) {
     const ids = action.rows.flatMap(n => (deps.shown[n - 1] ? [deps.shown[n - 1]!.launchId] : []));
@@ -1323,7 +1334,7 @@ async function selectRows(
   let rows: AssistantRow[] = [];
   let truncated = false;
   for (const day of days.slice(0, 7)) {
-    const part = await cardRows(deps, null, day);
+    const part = await cardRows(deps, null, day, withLaunched);
     rows.push(...part.rows);
     truncated ||= part.truncated;
   }
@@ -1435,7 +1446,7 @@ export async function executePlan(
         // as the Launches tab deletes them (their catalog stays in the space) — owner, 2026-11-22:
         // «видали всі запуски на завтра» that kept two launched ones read as a failure. Only a
         // launch still being generated is left, and the card says why.
-        const picked = await selectRows(action, deps, resolution, created);
+        const picked = await selectRows(action, deps, resolution, created, true);
         const generating = picked.rows.filter(row =>
           row.blocked.some(entry => entry.code === 'GENERATING')
         ).length;

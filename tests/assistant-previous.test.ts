@@ -26,7 +26,20 @@ describe('the previous request of a dialog', () => {
       previousCommandId: PREVIOUS,
       timezone: 'Europe/Kyiv'
     });
-    expect(command).toMatchObject({ action: 'send', previousCommandId: PREVIOUS });
+    expect(command).toMatchObject({ action: 'send', previousCommandIds: [PREVIOUS] });
+    expect(
+      parseAssistantCommand({
+        action: 'send',
+        teamId: TEAM,
+        text: 'як два запити тому',
+        clientKey: 'key-00000001',
+        expectedPrice: 1,
+        priceVersion: 'v1',
+        contextCardId: null,
+        previousCommandIds: [PREVIOUS, TEAM, PREVIOUS],
+        timezone: 'Europe/Kyiv'
+      })
+    ).toMatchObject({ previousCommandIds: [PREVIOUS, TEAM] });
     expect(() =>
       parseAssistantCommand({
         action: 'send',
@@ -39,6 +52,22 @@ describe('the previous request of a dialog', () => {
         timezone: 'Europe/Kyiv'
       })
     ).toThrow();
+  });
+
+  it('names up to three, newest first', () => {
+    const prompt = assistantUserPrompt({
+      today: '2026-11-22',
+      timezone: 'Europe/Kyiv',
+      offers: [],
+      buyers: [],
+      accounts: [],
+      shownRows: [],
+      lastOffer: null,
+      previous: ['use_tool finance_report(by=tag)', 'use_tool finance_report(by=account)'],
+      message: 'як два запити тому'
+    });
+    expect(prompt).toContain('1. use_tool finance_report(by=tag)');
+    expect(prompt).toContain('2. use_tool finance_report(by=account)');
   });
 
   it('reaches the model beside the message, with the rule to repeat it with the change', () => {

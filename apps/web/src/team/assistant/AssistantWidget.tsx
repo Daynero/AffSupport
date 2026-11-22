@@ -382,15 +382,16 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
           contextCardId: contextCard,
           // The last request that did something — a question or a refusal is not what «те саме»
           // means (found on next 2026-11-22: it picked its own «що саме повторити?»).
-          previousCommandId:
-            [...messages]
-              .reverse()
-              .find(
-                message =>
-                  message.role === 'assistant' &&
-                  message.commandId &&
-                  message.cards.some(card => card.kind !== 'question' && card.kind !== 'refusal')
-              )?.commandId ?? null
+          previousCommandIds: [...messages]
+            .reverse()
+            .filter(
+              message =>
+                message.role === 'assistant' &&
+                message.commandId &&
+                message.cards.some(card => card.kind !== 'question' && card.kind !== 'refusal')
+            )
+            .slice(0, 3)
+            .map(message => message.commandId!)
         }),
       {
         id: -Date.now(),

@@ -233,10 +233,18 @@ function space(
         return ok({ id: launch.id });
       }
       case 'service_assistant_rows':
+      case 'service_assistant_rows_v2':
+        // As in the database: a day lists launched launches only for a removal (v2).
         if (args.p_date)
           return ok(
             [...launches.values()]
               .filter(launch => !launch.archived && launch.draft.launchDate === args.p_date)
+              .filter(
+                launch =>
+                  args.p_with_launched === true ||
+                  !launch.generationState ||
+                  ['failed', 'canceled'].includes(launch.generationState)
+              )
               .map(rowOf)
           );
         return ok(((args.p_ids as string[] | null) ?? []).map(key => rowOf(launches.get(key)!)));

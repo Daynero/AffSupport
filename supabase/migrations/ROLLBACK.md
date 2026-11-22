@@ -3472,3 +3472,9 @@ for those two ids); their desktops then show the same notice as before.
 
 Additive: one RPC. Dropping it removes the «Не треба» button's effect (the web shows the card
 cancelled until a reload, then open again); cards already cancelled stay cancelled.
+
+## 20261223290000 — removal by day sees launched launches (064)
+
+Additive: `service_assistant_rows_v2` beside the unchanged `service_assistant_rows`. Dropping it
+makes the assistant's removal cards fail with an error until the function release is rolled back
+too; nothing is stored by it.

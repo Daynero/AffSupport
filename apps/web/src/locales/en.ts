@@ -5245,7 +5245,7 @@ export const en = {
   assistantArchive: 'Remove {count}',
   assistantArchived: 'Removed: {count}',
   assistantArchiveFailed: 'Could not remove {count}. They may have changed — refresh the list.',
-  assistantArchiveEmpty: 'No drafts to remove.',
+  assistantArchiveEmpty: 'Found nothing to delete.',
   assistantArchiveKeptLaunched:
     'Launched ones stay: {count}. To remove them too, write «delete launches», not «drafts».',
   aiBudgetBonus: 'Bonus credits',

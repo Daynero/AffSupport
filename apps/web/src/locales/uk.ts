@@ -5220,7 +5220,7 @@ export const uk: Record<keyof typeof en, string> = {
   assistantArchive: 'Видалити {count}',
   assistantArchived: 'Видалено: {count}',
   assistantArchiveFailed: 'Не вдалося видалити: {count}. Можливо, їх уже змінили — онови список.',
-  assistantArchiveEmpty: 'Чернеток для видалення не знайшов.',
+  assistantArchiveEmpty: 'Нічого для видалення не знайшов.',
   assistantArchiveKeptLaunched:
     'Уже запущені не чіпаю: {count}. Щоб прибрати і їх, напиши «видали запуски», а не «чернетки».',
   aiBudgetBonus: 'Бонусні чарунки',

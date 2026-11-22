@@ -124,7 +124,7 @@ export const assistantApi = {
       clientKey: string;
       price: number;
       contextCardId: string | null;
-      previousCommandId?: string | null;
+      previousCommandIds?: string[];
     },
     signal?: AbortSignal
   ) {
@@ -138,7 +138,7 @@ export const assistantApi = {
         expectedPrice: input.price,
         priceVersion: AI_PRICE_VERSION,
         contextCardId: input.contextCardId,
-        previousCommandId: input.previousCommandId ?? null,
+        previousCommandIds: input.previousCommandIds ?? [],
         timezone: browserTimezone()
       },
       signal
