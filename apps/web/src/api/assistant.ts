@@ -124,6 +124,7 @@ export const assistantApi = {
       clientKey: string;
       price: number;
       contextCardId: string | null;
+      previousCommandId?: string | null;
     },
     signal?: AbortSignal
   ) {
@@ -137,6 +138,7 @@ export const assistantApi = {
         expectedPrice: input.price,
         priceVersion: AI_PRICE_VERSION,
         contextCardId: input.contextCardId,
+        previousCommandId: input.previousCommandId ?? null,
         timezone: browserTimezone()
       },
       signal
@@ -193,6 +195,13 @@ export const assistantApi = {
     throwRpc(error);
   },
   /** The drafts of an «archive» card were removed: the card shows it as done from now on. */
+  /** «Не треба»: an open card the person decided against stays in the dialog, without a button. */
+  async cardDismissed(cardId: string): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('assistant_card_dismissed', { p_card: cardId })
+    );
+    throwRpc(error);
+  },
   async cardConfirmed(cardId: string): Promise<void> {
     const { error } = await withFreshSession(() =>
       requireSupabaseClient().rpc('assistant_card_confirmed', { p_card: cardId })

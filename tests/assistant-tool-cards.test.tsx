@@ -154,6 +154,37 @@ describe('the space tools’ cards', () => {
     expect(screen.getAllByRole('button', { name: /20/u })).toHaveLength(2);
   });
 
+  it('«Не треба» disarms a card: it stays, says so, and has no button', async () => {
+    const onDismiss = vi.fn();
+    const open = card('review', {
+      purpose: 'tool',
+      tool: 'rename_materials',
+      items: [{ label: 'a', from: 'a', to: 'b' }]
+    });
+    const { rerender } = render(
+      <ToolReviewCard
+        card={open}
+        pending={false}
+        disabled={false}
+        onRun={vi.fn()}
+        onDismiss={onDismiss}
+      />
+    );
+    screen.getByRole('button', { name: /Не треба|Not needed/u }).click();
+    expect(onDismiss).toHaveBeenCalled();
+    rerender(
+      <ToolReviewCard
+        card={{ ...open, state: 'stale' }}
+        pending={false}
+        disabled={false}
+        onRun={vi.fn()}
+        onDismiss={onDismiss}
+      />
+    );
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getByText(/Скасовано|Cancelled/u)).toBeTruthy();
+  });
+
   it('makes a removal red and says where things go', () => {
     const { container } = render(
       <ToolReviewCard

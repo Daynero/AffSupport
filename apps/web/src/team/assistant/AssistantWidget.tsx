@@ -378,7 +378,11 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
           text: trimmed,
           clientKey,
           price,
-          contextCardId: contextCard
+          contextCardId: contextCard,
+          previousCommandId:
+            [...messages]
+              .reverse()
+              .find(message => message.role === 'assistant' && message.commandId)?.commandId ?? null
         }),
       {
         id: -Date.now(),
@@ -880,6 +884,10 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
               pending={pending === card.id}
               disabled={busy && pending !== card.id}
               onRun={() => void runTool(card)}
+              onDismiss={() => {
+                markCard(card.id, { state: 'stale' });
+                void assistantApi.cardDismissed(card.id).catch(() => undefined);
+              }}
             />
           );
         return rowsCard(card, message);

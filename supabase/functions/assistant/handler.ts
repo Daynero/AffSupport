@@ -76,6 +76,8 @@ export type AssistantCommand = (
       expectedPrice: number;
       priceVersion: string;
       contextCardId: string | null;
+      /** The dialog's previous command, for «те саме за вчора», «а тепер по тегах». */
+      previousCommandId: string | null;
       timezone: string;
     }
   | {
@@ -138,6 +140,7 @@ export function parseAssistantCommand(body: unknown): AssistantCommand {
           'expectedPrice',
           'priceVersion',
           'contextCardId',
+          'previousCommandId',
           'timezone'
         ]);
         if (
@@ -156,6 +159,7 @@ export function parseAssistantCommand(body: unknown): AssistantCommand {
           expectedPrice: body.expectedPrice,
           priceVersion: body.priceVersion,
           contextCardId: body.contextCardId == null ? null : id(body.contextCardId),
+          previousCommandId: body.previousCommandId == null ? null : id(body.previousCommandId),
           timezone
         };
       }
@@ -481,6 +485,38 @@ async function quick(
   return { text: '', cards: [refusal('USE_BUTTONS')] };
 }
 
+/**
+ * What the dialog's previous command asked for, in a line the model can repeat with a change
+ * («а тепер те саме за вчора» — found on next 2026-11-22: without it the model asked what «те саме»
+ * was). Only the person's own command is read; anything else is no context, never an error.
+ */
+async function previousRequest(deps: AssistantDeps, commandId: string): Promise<string | null> {
+  try {
+    const stored = await storedPlanOf(deps, commandId);
+    const value = (raw: unknown) => (typeof raw === 'string' ? raw : JSON.stringify(raw));
+    const line = stored.plan.actions
+      .map(action =>
+        action.type === 'use_tool'
+          ? `use_tool ${action.tool}(${action.args.map(arg => `${arg.name}=${value(arg.value)}`).join(', ')})`
+          : [
+              action.type,
+              action.offer ? `offer=${action.offer}` : null,
+              action.accounts.length ? `accounts=${action.accounts.join(',')}` : null,
+              action.dates ? `dates=${JSON.stringify(action.dates)}` : null,
+              action.fields.length
+                ? `fields=${action.fields.map(change => `${change.field}=${value(change.value)}`).join(';')}`
+                : null
+            ]
+              .filter(Boolean)
+              .join(' ')
+      )
+      .join(' | ');
+    return line ? Array.from(line).slice(0, 800).join('') : null;
+  } catch {
+    return null;
+  }
+}
+
 /** One model call for a message (masked links), with the space's names and the shown card. */
 async function interpretFor(
   deps: AssistantDeps,
@@ -491,6 +527,7 @@ async function interpretFor(
     text: string;
     contextCardId: string | null;
     timezone: string;
+    previous?: string | null;
   }
 ) {
   const shown = await shownRows(deps, input.teamId, input.contextCardId);
@@ -519,6 +556,7 @@ async function interpretFor(
               `${row.n}. ${row.account ?? '—'} · ${row.offer ?? '—'} · ${row.creatives.join(', ') || '—'} · ${row.launchDate ?? '—'}`
           ),
         lastOffer: shown.rows[0]?.offer ?? null,
+        previous: input.previous ?? null,
         message: input.text
       },
       {
@@ -650,7 +688,10 @@ export async function sendMessage(
       opKey,
       text: masked.text,
       contextCardId: command.contextCardId,
-      timezone: command.timezone
+      timezone: command.timezone,
+      previous: command.previousCommandId
+        ? await previousRequest(deps, command.previousCommandId)
+        : null
     });
     if (!interpreted.ok) {
       await giveBack();

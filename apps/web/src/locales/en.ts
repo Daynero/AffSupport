@@ -5374,6 +5374,8 @@ export const en = {
     'They lose access to the space; files they opened on Drive directly stay with them.',
   assistantToolDone: 'Done: {count}',
   assistantToolFailed: 'Failed: {count}. Refresh the page and try again.',
+  assistantToolDismiss: 'Not needed',
+  assistantToolDismissed: 'Cancelled — nothing was changed.',
   assistantToolNothingEntered: 'Nothing entered for this period.',
   assistantToolShowAll: 'Show all {count}',
   assistantToolCollapse: 'Collapse',

@@ -275,12 +275,15 @@ export function ToolReviewCard({
   card,
   pending,
   disabled,
-  onRun
+  onRun,
+  onDismiss
 }: {
   card: AssistantCard;
   pending: boolean;
   disabled: boolean;
   onRun: () => void;
+  /** «Не треба»: the card stays, its button goes — a test or a change of mind is not left armed. */
+  onDismiss?: () => void;
 }) {
   const { t, language } = useI18n();
   // A long list (77 catalogs) shows its first rows; the button stays in sight.
@@ -307,6 +310,7 @@ export function ToolReviewCard({
   const missing = (payload.missing as string[]) ?? [];
   const danger = payload.danger === true;
   const done = card.state === 'confirmed';
+  const dismissed = card.state === 'stale' || card.state === 'undone';
   const active = items.filter(item => !item.exists && !item.unchanged);
   const money = tool === 'set_finance';
   const show = (value: string | null | undefined) =>
@@ -432,7 +436,8 @@ export function ToolReviewCard({
       {payload.truncated === true && (
         <p className="assistant-note">{t('assistantToolTruncated')}</p>
       )}
-      {active.length > 0 && (
+      {dismissed && <p className="assistant-note">{t('assistantToolDismissed')}</p>}
+      {active.length > 0 && !dismissed && (
         <div className="assistant-card-actions">
           {done ? (
             <span className="assistant-note is-success">
@@ -452,6 +457,11 @@ export function ToolReviewCard({
               onClick={onRun}
             >
               {t(REVIEW_GO[tool] ?? 'assistantToolGoApply', { count: active.length })}
+            </Button>
+          )}
+          {!done && onDismiss && (
+            <Button size="sm" variant="ghost" disabled={pending} onClick={onDismiss}>
+              {t('assistantToolDismiss')}
             </Button>
           )}
         </div>
