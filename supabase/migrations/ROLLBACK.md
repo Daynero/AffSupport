@@ -3434,3 +3434,10 @@ TR 84_v1 did on 2026-11-20. Attempts this branch closed stay closed; nothing to 
 
 Additive: one RPC. Dropping it removes the "Delete translation" action (the web then answers
 the delete with an error toast); rows already deleted stay deleted — there is nothing to restore.
+
+## 20261223250000 — the assistant's space tools (064)
+
+Widens the card kind check with `table` and lets a `purpose: 'tool'` review card be remembered as
+done. Rolling back: put the old check back only after deleting `table` cards (they are answers,
+nothing depends on them); the old `assistant_card_confirmed` refuses tool cards, which then stay
+open in the window — every action they performed is already done.

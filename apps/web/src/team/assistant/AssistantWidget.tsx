@@ -58,6 +58,8 @@ import { assistantDraftsKey, useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { observeAssistant } from './analytics';
 import { launchRows, notifyLaunchesChanged, openLaunch } from './bridge';
+import { runToolCard } from './tool-runner';
+import { TableCard, ToolReviewCard } from './ToolCards';
 
 const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
   INSUFFICIENT_CREDITS: 'aiInsufficientCredits',
@@ -87,7 +89,24 @@ const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
   NOT_CATALOG: 'assistantNotCatalog',
   LAUNCHED: 'assistantLaunchedRow',
   CHANGED_AFTER: 'assistantChangedAfter',
-  FIELD_CHANGED: 'assistantFieldChanged'
+  FIELD_CHANGED: 'assistantFieldChanged',
+  INVALID_DATE: 'assistantInvalidDate',
+  FUTURE_FINANCE_DATE: 'assistantFutureDate',
+  PERIOD_TOO_LONG: 'assistantPeriodTooLong',
+  INVALID_AMOUNT: 'assistantInvalidAmount',
+  DUPLICATE_TARGET: 'assistantDuplicateTarget',
+  TOO_MANY: 'assistantTooMany',
+  AMBIGUOUS_FOLDER: 'assistantAmbiguousFolder',
+  FOLDER_NOT_FOUND: 'assistantFolderNotFound',
+  INVALID_NAME: 'assistantInvalidName',
+  NAME_CONFLICT: 'assistantNameConflict',
+  NOTHING_TO_CHANGE: 'assistantNothingToChange',
+  PERSON_NOT_FOUND: 'assistantPersonNotFound',
+  AMBIGUOUS_PERSON: 'assistantAmbiguousPerson',
+  INVALID_EMAIL: 'assistantInvalidEmail',
+  PERMISSION_DENIED: 'assistantPermissionDenied',
+  OWNER_TRANSFER_REQUIRED: 'assistantOwnerRole',
+  INVALID_INPUT: 'assistantInvalidValue'
 };
 
 /** What a blocked draft still needs, in words of the form. */
@@ -491,6 +510,38 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     setPending(null);
   };
 
+  // A tool card's button: the rows go through the screens' own API, then the card remembers it.
+  const runTool = async (card: AssistantCard) => {
+    if (busy) return;
+    setPending(card.id);
+    setError(null);
+    try {
+      const outcome = await runToolCard(
+        teamId,
+        card.id,
+        card.payload as Parameters<typeof runToolCard>[2]
+      );
+      if (outcome.done > 0) {
+        await assistantApi.cardConfirmed(card.id).catch(() => undefined);
+        markCard(card.id, {
+          state: 'confirmed',
+          payload: { ...card.payload, done: outcome.done, failed: outcome.failed }
+        });
+      }
+      if (outcome.failed > 0)
+        setError(
+          outcome.done === 0 && outcome.code
+            ? reasonText(outcome.code, '')
+            : t('assistantToolFailed', { count: outcome.failed })
+        );
+      notifyLaunchesChanged(teamId);
+    } catch (caught) {
+      setError(teamErrorMessageFor(caught, t));
+    } finally {
+      setPending(null);
+    }
+  };
+
   const releaseCard = (card: AssistantCard) => {
     const agents = (card.payload.agents as ReleaseAgent[]) ?? [];
     const releasable = agents.filter(agent => !agent.legacy);
@@ -809,9 +860,21 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
   const renderCard = (card: AssistantCard, message: AssistantMessage) => {
     const payload = card.payload as Record<string, unknown>;
     switch (card.kind) {
+      case 'table':
+        return <TableCard key={card.id} card={card} />;
       case 'result':
       case 'review':
         if (payload.purpose === 'release') return releaseCard(card);
+        if (payload.purpose === 'tool')
+          return (
+            <ToolReviewCard
+              key={card.id}
+              card={card}
+              pending={pending === card.id}
+              disabled={busy && pending !== card.id}
+              onRun={() => void runTool(card)}
+            />
+          );
         return rowsCard(card, message);
       case 'question': {
         const options = (payload.options as Array<{ id: string; label: string }>) ?? [];

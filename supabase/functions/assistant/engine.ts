@@ -38,6 +38,7 @@ import {
 } from '../../../packages/shared/dist/team/launches/defaults-merge.js';
 // @deno-types="../../../packages/shared/dist/team/launches/fields.d.ts"
 import { launchField } from '../../../packages/shared/dist/team/launches/fields.js';
+import { runTool } from './tools.ts';
 import type { Rpc } from '../_shared/ai-allowance.ts';
 import { isRecord } from '../_shared/validation.ts';
 
@@ -71,7 +72,7 @@ interface LaunchNoteValue extends NoteText {
 }
 
 export interface Card {
-  kind: 'result' | 'question' | 'review' | 'profile' | 'refusal' | 'status';
+  kind: 'result' | 'question' | 'review' | 'profile' | 'refusal' | 'status' | 'table';
   payload: Record<string, unknown>;
 }
 
@@ -1412,6 +1413,16 @@ export async function executePlan(
         });
       } else if (action.type === 'release_accounts') {
         cards.push(await releaseCard(action, deps));
+      } else if (action.type === 'use_tool' && action.tool) {
+        // Everything else in the space: a read answers with a table, a write prepares a card.
+        cards.push(
+          await runTool(action.tool, action.args, {
+            teamId: deps.teamId,
+            callerRpc: deps.callerRpc,
+            timezone: deps.timezone,
+            now: deps.now
+          })
+        );
       } else if (action.type === 'archive_drafts') {
         // Only a card: the drafts go away when the person presses «Видалити N» on it.
         const picked = await selectRows(action, deps, resolution, created);

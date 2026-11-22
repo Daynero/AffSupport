@@ -15,6 +15,7 @@ export const ASSISTANT_ACTIONS = [
   'create_offer',
   'create_account',
   'release_accounts',
+  'use_tool',
   'archive_drafts',
   'save_offer_defaults',
   'show_review',
@@ -69,7 +70,19 @@ export interface AssistantAction {
   notesFrom: string | null;
   /** The language to translate those notes into («Spanish (Mexico)»); null keeps them as they are. */
   notesLanguage: string | null;
+  /** use_tool: the space tool to use (search, folders, tags, finance, tasks…); null otherwise. */
+  tool: string | null;
+  /** use_tool: its arguments as written, checked by the tool itself. */
+  args: AssistantToolArg[];
 }
+
+export interface AssistantToolArg {
+  name: string;
+  value: string | number | boolean | null | Array<string | number>;
+}
+
+/** Bounds of a tool call in a plan. */
+export const ASSISTANT_TOOL_ARGS_MAX = 20;
 
 export interface AssistantPlan {
   /** One short sentence for the person (escaped plain text, ≤ 300 characters). */
@@ -169,7 +182,17 @@ export function assistantPlanSchema(): Record<string, unknown> {
               ]
             },
             notesFrom: nullableString,
-            notesLanguage: nullableString
+            notesLanguage: nullableString,
+            tool: nullableString,
+            args: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { name: { type: 'string' }, value },
+                required: ['name', 'value'],
+                additionalProperties: false
+              }
+            }
           },
           required: [
             'type',
@@ -184,7 +207,9 @@ export function assistantPlanSchema(): Record<string, unknown> {
             'overrides',
             'question',
             'notesFrom',
-            'notesLanguage'
+            'notesLanguage',
+            'tool',
+            'args'
           ],
           additionalProperties: false
         }
@@ -230,7 +255,7 @@ function parseChange(value: unknown): AssistantFieldChange | null {
   return { field, op: op as AssistantFieldOp, value: raw as AssistantValue };
 }
 
-const NOTES_KEYS = ['notesFrom', 'notesLanguage'];
+const NOTES_KEYS = ['notesFrom', 'notesLanguage', 'tool', 'args'];
 
 const ACTION_KEYS = [
   'type',
@@ -269,9 +294,23 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
       return null;
     const notesFrom = item.notesFrom ?? null;
     const notesLanguage = item.notesLanguage ?? null;
-    if (notesFrom !== null && (typeof notesFrom !== 'string' || notesFrom.length > 200)) return null;
+    if (notesFrom !== null && (typeof notesFrom !== 'string' || notesFrom.length > 200))
+      return null;
     if (notesLanguage !== null && (typeof notesLanguage !== 'string' || notesLanguage.length > 60))
       return null;
+    const tool = item.tool ?? null;
+    if (tool !== null && (typeof tool !== 'string' || !/^[a-z_]{2,40}$/u.test(tool))) return null;
+    const rawArgs = item.args ?? [];
+    if (!Array.isArray(rawArgs) || rawArgs.length > ASSISTANT_TOOL_ARGS_MAX) return null;
+    const args: AssistantToolArg[] = [];
+    for (const arg of rawArgs) {
+      if (!isRecord(arg) || !exactKeys(arg, ['name', 'value']) || typeof arg.name !== 'string')
+        return null;
+      const change = parseChange({ field: arg.name, op: 'set', value: arg.value });
+      if (!change || arg.name.length > 40) return null;
+      args.push({ name: arg.name, value: change.value });
+    }
+    if (item.type === 'use_tool' && tool === null) continue;
     if (!(ASSISTANT_ACTIONS as readonly unknown[]).includes(item.type)) return null;
     if (item.offer !== null && (typeof item.offer !== 'string' || item.offer.length > 200))
       return null;
@@ -373,7 +412,9 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
       overrides,
       question,
       notesFrom: notesFrom as string | null,
-      notesLanguage: notesLanguage as string | null
+      notesLanguage: notesLanguage as string | null,
+      tool: tool as string | null,
+      args
     });
   }
   return { reply: reply.slice(0, ASSISTANT_REPLY_MAX), actions: parsed };
@@ -686,7 +727,15 @@ export interface AssistantRefusalPayload {
   details?: Record<string, unknown>;
 }
 
-export type AssistantCardKind = 'result' | 'question' | 'review' | 'status' | 'profile' | 'refusal';
+export type AssistantCardKind =
+  | 'result'
+  | 'question'
+  | 'review'
+  | 'status'
+  | 'profile'
+  | 'refusal'
+  /** An answer read from the space: a title, columns, rows, an optional total. */
+  | 'table';
 
 export interface AssistantCard {
   id: string;
@@ -713,7 +762,8 @@ const CARD_KINDS: readonly AssistantCardKind[] = [
   'review',
   'status',
   'profile',
-  'refusal'
+  'refusal',
+  'table'
 ];
 const CARD_STATES = ['open', 'answered', 'confirmed', 'launched', 'stale', 'undone'];
 

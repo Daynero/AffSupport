@@ -398,3 +398,57 @@ body:has(.next-channel-badge) .assistant-dock {
   align-items: center;
   gap: var(--space-1);
 }
+
+/* 064: space tools — an answer read from the space, and a removal that says so. */
+.assistant-card.is-danger {
+  border-color: var(--color-error-border);
+}
+.assistant-table-wrap {
+  max-height: calc(var(--space-6) * 12);
+  overflow: auto;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.assistant-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+.assistant-table th,
+.assistant-table td {
+  padding: var(--space-1) var(--space-2);
+  text-align: start;
+  border-bottom: var(--border-width) solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+.assistant-table th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-weight: var(--weight-emphasis);
+}
+.assistant-table .is-numeric {
+  text-align: end;
+  white-space: nowrap;
+}
+.assistant-table tfoot td {
+  border-bottom: 0;
+  font-weight: var(--weight-emphasis);
+}
+.assistant-table-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+}
+.assistant-table-totals dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.assistant-table-totals dd {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-emphasis);
+}
