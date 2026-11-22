@@ -5270,5 +5270,8 @@ export const uk: Record<keyof typeof en, string> = {
     'Не вдалося перекласти замітки з «{written}» — решту зроблено без них.',
   assistantFieldNotes: 'Замітки',
   assistantAccountCreated: 'Створено акаунт {name} · РК {agents}',
-  assistantAccountCreatedEmpty: 'Акаунт {name} готовий, але РК не додано.'
+  assistantAccountCreatedEmpty: 'Акаунт {name} готовий, але РК не додано.',
+  assistantProfileUrl: 'Посилання',
+  assistantProfileBuyer: 'Баєр',
+  assistantProfileDate: 'Дата'
 };

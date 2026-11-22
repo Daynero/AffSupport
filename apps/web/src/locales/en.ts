@@ -5295,5 +5295,8 @@ export const en = {
     'Could not translate the notes of «{written}»; the rest is done without them.',
   assistantFieldNotes: 'Notes',
   assistantAccountCreated: 'Account {name} created · ad accounts {agents}',
-  assistantAccountCreatedEmpty: 'Account {name} is ready, but no ad account was added.'
+  assistantAccountCreatedEmpty: 'Account {name} is ready, but no ad account was added.',
+  assistantProfileUrl: 'Link',
+  assistantProfileBuyer: 'Buyer',
+  assistantProfileDate: 'Date'
 } as const;
