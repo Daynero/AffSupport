@@ -3267,7 +3267,6 @@ Additive only: the attachment cleanup guard on `team_creative_launch_events` and
 orphaned task upload can be claimed. Removing creative ranks removes the tables and the
 triggers with them.
 
-
 ## 20261221100000–20261221150000 — several creatives and images in catalog Launches (062)
 
 Forward-only in production. Every migration keeps configs without `creatives` on the
@@ -3441,3 +3440,12 @@ Widens the card kind check with `table` and lets a `purpose: 'tool'` review card
 done. Rolling back: put the old check back only after deleting `table` cards (they are answers,
 nothing depends on them); the old `assistant_card_confirmed` refuses tool cards, which then stay
 open in the window — every action they performed is already done.
+
+## 20261223260000 — the minute R2 sweep is no longer starved by trashed catalogs
+
+Patches `public.service_catalog_video_r2_reconcile_pending` (through `pg_get_functiondef`, failing
+if the text it replaces is missing): candidates are only active catalogs whose policy is neither
+held nor awaiting legacy verification, visited in random order instead of oldest first. Production
+2026-11-22: 55 of 66 candidates were trashed or missing, filled all 50 slots every minute, and no
+catalog made after 2026-11-19 got its missed copies planned. Rolling back means restoring the body
+left by 20261207399998 through a reviewed forward migration; nothing else changes state.
