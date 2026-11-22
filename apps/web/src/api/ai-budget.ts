@@ -34,6 +34,17 @@ export interface AiBudgetOverview {
   updatedAt: string;
 }
 
+/** One person's credits as the Tariffs tab shows them next to their space. */
+export interface AiPersonCredits {
+  email: string;
+  grant: number;
+  daily: number;
+  bonus: number;
+  available: number;
+  /** Null: the base grant. */
+  personalGrant: number | null;
+}
+
 export interface AiPilotSpace {
   teamId: string;
   name: string;
@@ -104,6 +115,7 @@ type AdminAiFunction =
   | 'admin_ai_set_base_grant'
   | 'admin_ai_set_user_grant'
   | 'admin_ai_grant_bonus'
+  | 'admin_ai_people_credits'
   | 'admin_ai_set_assistant_enabled'
   | 'admin_ai_assistant_spaces'
   | 'admin_ai_set_assistant_space';
@@ -145,6 +157,25 @@ export const aiBudgetApi = {
   async grantBonus(email: string, amount: number, note: string | null) {
     return overview(
       await call('admin_ai_grant_bonus', { p_email: email, p_amount: amount, p_note: note })
+    );
+  },
+  async peopleCredits(emails: string[]): Promise<Map<string, AiPersonCredits>> {
+    const unique = [...new Set(emails.filter(Boolean).map(email => email.toLowerCase()))];
+    if (!unique.length) return new Map();
+    const data = await call('admin_ai_people_credits', { p_emails: unique.slice(0, 500) });
+    const rows = Array.isArray(data) ? (data as Array<Record<string, unknown>>) : [];
+    return new Map(
+      rows.map(row => [
+        String(row.email).toLowerCase(),
+        {
+          email: String(row.email),
+          grant: num(row.grant),
+          daily: num(row.daily),
+          bonus: num(row.bonus),
+          available: num(row.available),
+          personalGrant: row.personalGrant === null ? null : num(row.personalGrant)
+        }
+      ])
     );
   },
   async setAssistantEnabled(enabled: boolean) {

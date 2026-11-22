@@ -20,6 +20,8 @@ import {
   EmptyState,
   ErrorState,
   IconButton,
+  InputNumber,
+  Popover,
   SearchField,
   SegmentedControl,
   Table,
@@ -27,9 +29,13 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
+  Switch,
   User,
   type UiColor
 } from '../../components/ui/index';
+import { AI_CREDIT_USD } from '@video-compressor/shared';
+import { aiBudgetApi, type AiPersonCredits } from '../../api/ai-budget';
+import { refreshCredits } from '../../credits/store';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../../team/errors';
@@ -108,6 +114,53 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
   const [ending, setEnding] = useState<AdminTariffRow | null>(null);
   const [history, setHistory] = useState<AdminTariffRow | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // 064: credits and the assistant pilot live next to each space's tariff, one place to manage
+  // people: extend a tariff, give credits, switch the assistant on for a space.
+  const [credits, setCredits] = useState<Map<string, AiPersonCredits>>(new Map());
+  const [pilot, setPilot] = useState<Map<string, boolean>>(new Map());
+  const [aiBusy, setAiBusy] = useState<string | null>(null);
+
+  const loadAi = useCallback(async (rows: AdminTariffRow[]) => {
+    try {
+      const [people, spaces] = await Promise.all([
+        aiBudgetApi.peopleCredits(rows.map(row => row.ownerEmail)),
+        aiBudgetApi.spaces()
+      ]);
+      setCredits(people);
+      setPilot(new Map(spaces.map(space => [space.teamId, space.pilot])));
+    } catch {
+      /* the tariffs stay usable; the two AI columns show a dash */
+    }
+  }, []);
+
+  const giveBonus = async (row: AdminTariffRow, amount: number) => {
+    setAiBusy(`bonus:${row.id}`);
+    try {
+      await aiBudgetApi.grantBonus(row.ownerEmail, Math.trunc(amount), null);
+      push({
+        tone: 'success',
+        text: t('adminCreditsGiven', { count: Math.trunc(amount), email: row.ownerEmail })
+      });
+      void refreshCredits();
+      if (data) await loadAi(data.rows);
+    } catch (error) {
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const switchPilot = async (teamId: string, enabled: boolean) => {
+    setAiBusy(`pilot:${teamId}`);
+    try {
+      const spaces = await aiBudgetApi.setSpace(teamId, enabled);
+      setPilot(new Map(spaces.map(space => [space.teamId, space.pilot])));
+    } catch (error) {
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    } finally {
+      setAiBusy(null);
+    }
+  };
 
   const load = useCallback(async () => {
     setFailed(false);
@@ -120,10 +173,11 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
         client.getSettings()
       ]);
       setData({ rows, plans, requests, legacy, settings });
+      void loadAi(rows);
     } catch {
       setFailed(true);
     }
-  }, [client]);
+  }, [client, loadAi]);
 
   useEffect(() => {
     void load();
@@ -328,7 +382,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
           <Table
             size="sm"
             className="admin-table admin-tariff-table"
-            columns="minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(10rem, 1.8fr)"
+            columns="minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(10rem, 1.8fr)"
             label={t('adminTabTariffs')}
           >
             <TableHeader>
@@ -339,6 +393,8 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
               <TableHeaderCell>{t('adminTariffUntil')}</TableHeaderCell>
               <TableHeaderCell>{t('adminTariffDaysLeft')}</TableHeaderCell>
               <TableHeaderCell>{t('adminTariffState')}</TableHeaderCell>
+              <TableHeaderCell>{t('adminTariffCredits')}</TableHeaderCell>
+              <TableHeaderCell>{t('adminTariffAssistant')}</TableHeaderCell>
               <TableHeaderCell>{t('adminTariffNote')}</TableHeaderCell>
               <TableHeaderCell>
                 <span className="visually-hidden">{t('adminTariffActions')}</span>
@@ -354,6 +410,11 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
                 onEdit={() => setEditing(row)}
                 onEnd={() => setEnding(row)}
                 onHistory={() => setHistory(row)}
+                credits={credits.get(row.ownerEmail.toLowerCase()) ?? null}
+                pilot={row.teamId ? (pilot.get(row.teamId) ?? false) : null}
+                aiBusy={aiBusy}
+                onBonus={amount => void giveBonus(row, amount)}
+                onPilot={enabled => row.teamId && void switchPilot(row.teamId, enabled)}
               />
             ))}
           </Table>
@@ -464,7 +525,12 @@ function TariffRow({
   onExtend,
   onEdit,
   onEnd,
-  onHistory
+  onHistory,
+  credits,
+  pilot,
+  aiBusy,
+  onBonus,
+  onPilot
 }: {
   row: AdminTariffRow;
   plan: string;
@@ -473,6 +539,12 @@ function TariffRow({
   onEdit: () => void;
   onEnd: () => void;
   onHistory: () => void;
+  credits: AiPersonCredits | null;
+  /** Null for a grant with no space yet: there is nothing to switch on. */
+  pilot: boolean | null;
+  aiBusy: string | null;
+  onBonus: (amount: number) => void;
+  onPilot: (enabled: boolean) => void;
 }) {
   const { t, language } = useI18n();
   const menuAnchor = useRef<HTMLButtonElement>(null);
@@ -512,6 +584,26 @@ function TariffRow({
             </Badge>
           )}
         </span>
+      </TableCell>
+      <TableCell>
+        <CreditsCell
+          row={row}
+          credits={credits}
+          busy={aiBusy === `bonus:${row.id}`}
+          onBonus={onBonus}
+        />
+      </TableCell>
+      <TableCell>
+        {pilot === null ? (
+          '—'
+        ) : (
+          <Switch
+            checked={pilot}
+            disabled={aiBusy !== null}
+            aria-label={t('adminTariffAssistantFor', { space: row.teamName ?? '' })}
+            onChange={onPilot}
+          />
+        )}
       </TableCell>
       <TableCell>
         {row.note ? (
@@ -567,5 +659,91 @@ function TariffRow({
         </span>
       </TableCell>
     </TableRow>
+  );
+}
+
+/** The owner's credits and a «+» that gives bonus credits right there. */
+function CreditsCell({
+  row,
+  credits,
+  busy,
+  onBonus
+}: {
+  row: AdminTariffRow;
+  credits: AiPersonCredits | null;
+  busy: boolean;
+  onBonus: (amount: number) => void;
+}) {
+  const { t } = useI18n();
+  const anchor = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(Number.NaN);
+  if (!credits) return <span className="text-ink-muted">—</span>;
+  return (
+    <span className="admin-credits-cell">
+      <span
+        className="numeric"
+        title={t('adminTariffCreditsHint', {
+          daily: credits.daily,
+          grant: credits.grant,
+          bonus: credits.bonus
+        })}
+      >
+        {credits.available}
+        {credits.bonus > 0 && <span className="admin-credits-bonus">{` · +${credits.bonus}`}</span>}
+      </span>
+      <IconButton
+        ref={anchor}
+        size="xs"
+        variant="ghost"
+        label={t('adminTariffGiveCredits', { email: row.ownerEmail })}
+        loading={busy}
+        onClick={() => setOpen(value => !value)}
+      >
+        <Plus size={14} strokeWidth={ICON_STROKE} />
+      </IconButton>
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={anchor}
+        placement="bottom-end"
+        label={t('adminTariffGiveCredits', { email: row.ownerEmail })}
+      >
+        <form
+          className="admin-credits-form"
+          onSubmit={event => {
+            event.preventDefault();
+            if (!amount) return;
+            onBonus(amount);
+            setOpen(false);
+            setAmount(Number.NaN);
+          }}
+        >
+          <p className="admin-credits-form-title">{row.ownerEmail}</p>
+          <p className="ai-budget-note">
+            {t('adminTariffCreditsHint', {
+              daily: credits.daily,
+              grant: credits.grant,
+              bonus: credits.bonus
+            })}
+          </p>
+          <InputNumber
+            aria-label={t('aiBudgetBonus')}
+            step={1}
+            value={amount}
+            onChange={setAmount}
+          />
+          {amount ? (
+            <p className="ai-budget-note">
+              {t('adminCreditsMoney', { usd: (Math.abs(amount) * AI_CREDIT_USD).toFixed(3) })}
+            </p>
+          ) : null}
+          <p className="ai-budget-note">{t('aiBudgetBonusHint')}</p>
+          <Button type="submit" size="sm" color="primary" disabled={!amount}>
+            {t('aiBudgetBonusGive')}
+          </Button>
+        </form>
+      </Popover>
+    </span>
   );
 }

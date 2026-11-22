@@ -5169,7 +5169,7 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetFree: 'Доступно для нових викликів',
   aiBudgetForecast: 'Прогноз на кінець місяця',
   aiBudgetForecastUnknown: 'Недостатньо даних',
-  aiBudgetFullGrant: 'Повне використання грантів активними',
+  aiBudgetFullGrant: 'Найгірший випадок місяця',
   aiBudgetCoverage: 'Покриття ціною',
   aiBudgetUnknown: 'Виклики без usage',
   aiBudgetBaseGrant: 'Базовий денний грант',
@@ -5282,5 +5282,25 @@ export const uk: Record<keyof typeof en, string> = {
   assistantReleaseRunsNote: 'Ручні позначки на цих РК теж приберуться, як і в «Акаунтах».',
   assistantRelease: 'Звільнити {count}',
   assistantReleased: 'Звільнено: {count}',
-  assistantReleaseFailed: 'Не вдалося звільнити: {count}. Онови «Акаунти» і спробуй ще раз.'
+  assistantReleaseFailed: 'Не вдалося звільнити: {count}. Онови «Акаунти» і спробуй ще раз.',
+  adminTariffCredits: 'Чарунки',
+  adminTariffAssistant: 'Помічник',
+  adminTariffAssistantFor: 'Помічник у просторі {space}',
+  adminTariffGiveCredits: 'Нарахувати чарунки {email}',
+  adminTariffCreditsHint: 'Сьогодні {daily} з {grant} · бонусних {bonus}',
+  adminCreditsGiven: 'Нараховано {count} чарунок · {email}',
+  aiBudgetPeopleMoved:
+    'Чарунки людей і помічник для кожного простору — у вкладці «Тарифи», поряд із тарифом.',
+  aiBudgetMineTitle: 'Мої чарунки',
+  aiBudgetMineAvailable: 'Можна витратити',
+  aiBudgetRate: 'Курс',
+  aiBudgetRateValue: '1 чарунка ≈ {usd}',
+  aiBudgetFullGrantHint:
+    'Найгірший випадок: якщо кожен, хто користувався AI за останні 30 днів, до кінця місяця щодня витрачатиме весь свій денний грант. Реально витрачають набагато менше.',
+  aiBudgetCoverageValue: 'ціна покриває витрати ×{times}',
+  aiBudgetUnknownValue: 'без даних про вартість: {count}',
+  aiBudgetBaseMoney:
+    '{count} чарунок ≈ {day} на людину на день · ≈ {month} на місяць, якщо витрачати все.',
+  aiBudgetMineMoney: 'У грошах',
+  adminCreditsMoney: '≈ ${usd}'
 };

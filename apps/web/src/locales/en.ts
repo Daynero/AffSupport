@@ -5195,7 +5195,7 @@ export const en = {
   aiBudgetFree: 'Available for new calls',
   aiBudgetForecast: 'Forecast for the month',
   aiBudgetForecastUnknown: 'Not enough data',
-  aiBudgetFullGrant: 'Full use of active grants',
+  aiBudgetFullGrant: 'Worst case this month',
   aiBudgetCoverage: 'Price coverage',
   aiBudgetUnknown: 'Calls without usage',
   aiBudgetBaseGrant: 'Base daily grant',
@@ -5307,5 +5307,25 @@ export const en = {
   assistantReleaseRunsNote: 'Manual marks on these ad accounts are cleared too, as in Accounts.',
   assistantRelease: 'Free {count}',
   assistantReleased: 'Freed: {count}',
-  assistantReleaseFailed: 'Could not free {count}. Refresh Accounts and try again.'
+  assistantReleaseFailed: 'Could not free {count}. Refresh Accounts and try again.',
+  adminTariffCredits: 'Credits',
+  adminTariffAssistant: 'Assistant',
+  adminTariffAssistantFor: 'Assistant in {space}',
+  adminTariffGiveCredits: 'Give credits to {email}',
+  adminTariffCreditsHint: 'Today {daily} of {grant} · bonus {bonus}',
+  adminCreditsGiven: '{count} credits given · {email}',
+  aiBudgetPeopleMoved:
+    'People’s credits and the assistant for each space are in Tariffs, next to the tariff.',
+  aiBudgetMineTitle: 'My credits',
+  aiBudgetMineAvailable: 'Can spend',
+  aiBudgetRate: 'Rate',
+  aiBudgetRateValue: '1 credit ≈ {usd}',
+  aiBudgetFullGrantHint:
+    'Worst case: if everyone who used AI in the last 30 days spends their whole daily grant every day until the month ends. Real use is far lower.',
+  aiBudgetCoverageValue: 'prices cover cost ×{times}',
+  aiBudgetUnknownValue: 'without cost data: {count}',
+  aiBudgetBaseMoney:
+    '{count} credits ≈ {day} per person a day · ≈ {month} a month if all of it is spent.',
+  aiBudgetMineMoney: 'In money',
+  adminCreditsMoney: '≈ ${usd}'
 } as const;

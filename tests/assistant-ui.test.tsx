@@ -568,11 +568,12 @@ describe('the AI budget panel', () => {
     expect(await screen.findByText('$60.00')).toBeTruthy();
     expect(screen.getByText('$120.00')).toBeTruthy();
     expect(screen.getByText(/Full use of grants exceeds the limit/u)).toBeTruthy();
-    expect(screen.getByText(/Price coverage 1.2/u)).toBeTruthy();
-    // people with a bonus are listed in the table, the pilot is a list with «Remove»
-    expect(screen.getByText('a@example.com')).toBeTruthy();
-    expect(screen.getByText('40')).toBeTruthy();
-    expect(screen.getByText('Goor')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Remove' })).toBeTruthy();
+    expect(screen.getByText(/prices cover cost ×1.20/u)).toBeTruthy();
+    // plain words: the rate, the worst case explained, the daily grant in money
+    expect(screen.getByText('1 credit ≈ $0.001')).toBeTruthy();
+    expect(screen.getByText('Worst case this month')).toBeTruthy();
+    expect(screen.getByText(/100 credits ≈ \$0.100 per person a day/u)).toBeTruthy();
+    // people and the pilot moved to Tariffs
+    expect(screen.queryByText('a@example.com')).toBeNull();
   });
 });
