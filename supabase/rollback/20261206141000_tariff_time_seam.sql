@@ -847,5 +847,25 @@ AS $function$
 $function$;
 
 alter table public.space_tariffs alter column starts_at set default now();
+-- Functions written after the seam (064's credits and assistant dialogs, and any later one) read
+-- the time through it too. They are rewritten onto now() here rather than listed above, so this
+-- rollback never leaves a function calling a dropped one, whatever was added since.
+do $rewrite$
+declare
+  fn record;
+begin
+  for fn in
+    select p.oid
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname in ('private', 'public')
+      and p.prokind = 'f'
+      and p.proname <> 'tariff_now'
+      and p.prosrc like '%private.tariff_now(%'
+  loop
+    execute replace(pg_get_functiondef(fn.oid), 'private.tariff_now()', 'now()');
+  end loop;
+end;
+$rewrite$;
 drop function private.tariff_now();
 commit;
