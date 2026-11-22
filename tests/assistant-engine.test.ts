@@ -918,3 +918,102 @@ describe('064 assistant — offers, removal and selection', () => {
     expect(rows.map(row => row.account)).toEqual(['G2']);
   });
 });
+
+describe('064 assistant — what the 19 November batch taught', () => {
+  const plan = (...actions: unknown[]) => ({ reply: 'Готово.', actions });
+  const tomorrow = { kind: 'tomorrow', date: null, days: null };
+
+  it('takes the least loaded ad account of a plain account name instead of asking', async () => {
+    const world = space({
+      accounts: [
+        {
+          id: 'acc',
+          name: 'g18',
+          agents: [
+            {
+              id: id(946),
+              agent_id: '111046',
+              availability: { status: 'busy', assignmentCount: 3 }
+            },
+            {
+              id: id(944),
+              agent_id: '222244',
+              availability: { status: 'busy', assignmentCount: 1 }
+            }
+          ]
+        }
+      ]
+    });
+    const reply = await world.send(
+      'на g18',
+      model(plan(action({ accounts: ['g18'], dates: tomorrow })))
+    );
+    expect(firstCard(reply).kind).toBe('result');
+    expect([...world.launches.values()][0]!.draft.agentRowId).toBe(id(944));
+  });
+
+  it('reads «май1» next to an offer ending in MY as MY_1', async () => {
+    const world = space({
+      materials: [...MATERIALS, { id: id(61), name: 'MY_1.mp4' }]
+    });
+    world.offers.push({ id: id(399), value: 'Urafirin MY', updatedAt: 'x' });
+    await world.send(
+      'урафірин май1',
+      model(
+        plan(
+          action({
+            offer: 'Urafirin MY',
+            accounts: ['G1'],
+            fields: [{ field: 'creatives', op: 'set', value: ['май1'] }]
+          })
+        )
+      )
+    );
+    const [draft] = [...world.launches.values()];
+    expect(JSON.stringify(draft!.draft)).toContain(id(61));
+  });
+
+  it('picks drafts by creative and lets a filter cover every offer the name fits', async () => {
+    const world = space();
+    world.offers.push({ id: id(398), value: 'ProCaps BG', updatedAt: 'x' });
+    await world.send(
+      'три',
+      model(
+        plan(
+          action({
+            offer: 'ProCaps',
+            accounts: ['G1'],
+            dates: tomorrow,
+            fields: [{ field: 'creatives', op: 'set', value: ['TR 16'] }]
+          }),
+          action({
+            offer: 'ProCaps BG',
+            accounts: ['G2'],
+            dates: tomorrow,
+            fields: [{ field: 'creatives', op: 'set', value: ['TR 25'] }]
+          })
+        )
+      )
+    );
+    const both = await world.send(
+      'покажи прокапс на завтра',
+      model(plan(action({ type: 'show_review', offer: 'Proca', dates: tomorrow })))
+    );
+    expect(firstCard(both).kind).toBe('review');
+    expect((firstCard(both).payload.rows as unknown[]).length).toBe(2);
+    const one = await world.send(
+      'запусти той, що з тр25',
+      model(
+        plan(
+          action({
+            type: 'show_review',
+            dates: tomorrow,
+            fields: [{ field: 'creatives', op: 'set', value: ['TR 25'] }]
+          })
+        )
+      )
+    );
+    const rows = firstCard(one).payload.rows as Array<{ creatives: string[] }>;
+    expect(rows.map(row => row.creatives)).toEqual([['TR_25.mp4']]);
+  });
+});

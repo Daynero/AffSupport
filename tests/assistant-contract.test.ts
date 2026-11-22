@@ -54,8 +54,21 @@ describe('064 assistant contract', () => {
         actions: [{ ...action, fields: [{ field: 'a', op: 'set', value: { url: 'x' } }] }]
       })
     ).toBeNull();
-    // ask without a question
-    expect(parseAssistantPlan({ reply: 'x', actions: [{ ...action, type: 'ask' }] })).toBeNull();
+    // ask without a question is dropped, an overlong one is cut, never the whole plan
+    expect(
+      parseAssistantPlan({ reply: 'x', actions: [{ ...action, type: 'ask' }, action] })?.actions
+    ).toHaveLength(1);
+    const many = parseAssistantPlan({
+      reply: 'x',
+      actions: [
+        {
+          ...action,
+          type: 'ask',
+          question: { about: 'Який баєр?', options: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] }
+        }
+      ]
+    });
+    expect(many?.actions[0]?.question?.options).toEqual(['a', 'b', 'c', 'd', 'e']);
     expect(parseAssistantPlan({ reply: 'x', actions: Array(17).fill(action) })).toBeNull();
   });
 

@@ -54,6 +54,10 @@ registerPrivateCache(() => {
   if (timer) clearTimeout(timer);
   timer = null;
   emit({ status: null, error: false });
+  // The private scope also turns over on a move between a space and the rest of the app; a chip
+  // still on screen reads its balance again instead of staying blank. After a sign-out nothing
+  // watches, so nothing is read.
+  if (watchers > 0) setTimeout(() => void refreshCredits(), 0);
 });
 
 function subscribe(listener: () => void) {

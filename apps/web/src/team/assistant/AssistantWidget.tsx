@@ -89,6 +89,24 @@ const FIELD_COPY: ReadonlyArray<[RegExp, TranslationKey]> = [
   [/^catalog/u, 'assistantFieldCatalog']
 ];
 
+const PROFILE_FIELD_COPY: Readonly<Record<string, TranslationKey>> = {
+  campaignCount: 'assistantFieldCampaignCount',
+  adsCount: 'assistantFieldAdsCount',
+  minBudget: 'assistantFieldMinBudget',
+  maxBudget: 'assistantFieldMaxBudget',
+  budgetMode: 'assistantFieldBudgetMode',
+  budgets: 'assistantFieldBudgets',
+  'catalog.productCount': 'assistantFieldProducts',
+  'catalog.copyVideoToR2': 'assistantFieldR2',
+  'catalog.restitchEnabled': 'assistantFieldRestitch',
+  originalUrl: 'assistantFieldUrl',
+  buyerId: 'assistantFieldBuyer',
+  launchDate: 'assistantFieldDate',
+  'subConfig.sub1': 'assistantFieldSub1',
+  'subConfig.sub2': 'assistantFieldSub2',
+  'subConfig.sub3': 'assistantFieldSub3'
+};
+
 const OPEN_KEY = 'soty.assistant.open';
 
 function readOpen(): boolean {
@@ -407,6 +425,29 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     void take(() => assistantApi.answer(teamId, dialogId, card.id, optionId, key()));
   };
 
+  // «Кампаній: — → 3», not «campaignCount: — → 3»: the words of the form, values without JSON.
+  const fieldName = (path: string) => {
+    const key = PROFILE_FIELD_COPY[path];
+    return key ? t(key) : path;
+  };
+  const fieldValue = (raw: string | null) => {
+    if (raw === null) return '—';
+    let value: unknown = raw;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      /* a plain string */
+    }
+    if (value === true) return t('assistantValueYes');
+    if (value === false) return t('assistantValueNo');
+    if (value === null || value === '') return '—';
+    if (value === 'auto') return t('assistantBudgetRange');
+    if (value === 'single') return t('assistantBudgetSingle');
+    if (value === 'manual') return t('assistantBudgetManual');
+    if (Array.isArray(value)) return value.join(', ');
+    return String(value);
+  };
+
   const row = (item: AssistantRow) => {
     const need = missing(item);
     const facts = [
@@ -423,40 +464,48 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
           className="assistant-row"
           onClick={() => openLaunch(teamId, item.launchId)}
         >
-          <span className={`assistant-chip${item.account ? '' : ' is-missing'}`}>
-            {item.account ?? t('assistantFieldAccount')}
-          </span>
-          {item.offer && <span className="assistant-row-offer">{item.offer}</span>}
-          {item.creatives.map(name => (
-            <span key={name} className="assistant-chip is-creative">
-              {stem(name)}
+          <span className="assistant-row-line">
+            <span className={`assistant-chip${item.account ? '' : ' is-missing'}`}>
+              {item.account ?? t('assistantFieldAccount')}
             </span>
-          ))}
-          <span className="assistant-row-facts">{facts.join(' · ')}</span>
-          {item.url && (
-            <Tooltip label={t('assistantLinkSet')}>
-              <Link2
-                className="assistant-row-icon"
-                size={16}
-                strokeWidth={ICON_STROKE}
-                aria-label={t('assistantLinkSet')}
-              />
-            </Tooltip>
-          )}
-          {item.r2 && (
-            <Tooltip label={t('assistantR2On')}>
-              <Cloud
-                className="assistant-row-icon"
-                size={16}
-                strokeWidth={ICON_STROKE}
-                aria-label={t('assistantR2On')}
-              />
-            </Tooltip>
-          )}
-          {need && (
-            <span className="assistant-row-need">
-              <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              {need}
+            {item.offer && <span className="assistant-row-offer">{item.offer}</span>}
+            {item.creatives.map(name => (
+              <span key={name} className="assistant-chip is-creative">
+                {stem(name)}
+              </span>
+            ))}
+            <span className="assistant-row-icons">
+              {item.url && (
+                <Tooltip label={t('assistantLinkSet')}>
+                  <Link2
+                    className="assistant-row-icon"
+                    size={14}
+                    strokeWidth={ICON_STROKE}
+                    aria-label={t('assistantLinkSet')}
+                  />
+                </Tooltip>
+              )}
+              {item.r2 && (
+                <Tooltip label={t('assistantR2On')}>
+                  <Cloud
+                    className="assistant-row-icon"
+                    size={14}
+                    strokeWidth={ICON_STROKE}
+                    aria-label={t('assistantR2On')}
+                  />
+                </Tooltip>
+              )}
+            </span>
+          </span>
+          {(facts.length > 0 || need) && (
+            <span className="assistant-row-line is-sub">
+              {facts.length > 0 && <span className="assistant-row-facts">{facts.join(' · ')}</span>}
+              {need && (
+                <span className="assistant-row-need">
+                  <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {need}
+                </span>
+              )}
             </span>
           )}
         </button>
@@ -480,12 +529,16 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     return (
       <section
         key={card.id}
-        className={`assistant-card${contextCard === card.id ? ' is-context' : ''}`}
+        className={`assistant-card${contextCard === card.id ? ' is-context' : ''}${card.state === 'undone' ? ' is-undone' : ''}`}
         onClick={() => setFocusedCard(card.id)}
       >
         {rows.length > 0 && (
           <p className="assistant-card-title">
-            <CheckCircle2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {removing ? (
+              <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            ) : (
+              <CheckCircle2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            )}
             {[
               removing
                 ? t('assistantArchiveTitle', { count: rows.length })
@@ -547,7 +600,13 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             )}
           </div>
         )}
-        {rows.length > 0 && !removing && (
+        {rows.length > 0 && !removing && card.state === 'undone' && (
+          <p className="assistant-note">
+            <Undo2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t('assistantCardUndone')}
+          </p>
+        )}
+        {rows.length > 0 && !removing && card.state !== 'undone' && (
           <div className="assistant-card-actions">
             {launched ? (
               <span className="assistant-note is-success">
@@ -574,7 +633,11 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
                 disabled={busy}
                 leading={<Undo2 size={16} strokeWidth={ICON_STROKE} />}
                 onClick={() =>
-                  void take(() => assistantApi.undo(teamId, dialogId, message.commandId!, key()))
+                  void take(() =>
+                    assistantApi.undo(teamId, dialogId, message.commandId!, key())
+                  ).then(ok => {
+                    if (ok) markCard(card.id, { state: 'undone' });
+                  })
                 }
               >
                 {t('assistantUndo')}
@@ -626,7 +689,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
             <div className="assistant-card-actions">
               {changes.map((change, index) => (
                 <span key={index} className="assistant-chip">
-                  {`${change.field}: ${change.from ?? '—'} → ${change.to}`}
+                  {`${fieldName(change.field)}: ${fieldValue(change.from)} → ${fieldValue(change.to)}`}
                 </span>
               ))}
             </div>
@@ -637,7 +700,11 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
                   variant="primary"
                   disabled={busy}
                   onClick={() =>
-                    void take(() => assistantApi.confirmProfile(teamId, dialogId, card.id, key()))
+                    void take(() =>
+                      assistantApi.confirmProfile(teamId, dialogId, card.id, key())
+                    ).then(ok => {
+                      if (ok) markCard(card.id, { state: 'confirmed' });
+                    })
                   }
                 >
                   {t('assistantProfileSave')}

@@ -5205,7 +5205,7 @@ export const en = {
   aiBudgetEmail: 'Email',
   aiBudgetSet: 'Set',
   aiBudgetReset: 'Reset',
-  aiBudgetAssistant: 'Launch assistant enabled',
+  aiBudgetAssistant: 'Assistant enabled',
   aiBudgetPilot: 'Pilot spaces',
   aiBudgetEstimate: 'estimate from the price list',
   aiBudgetOverWarning: 'Full use of grants exceeds the limit. Paid actions stop at the limit.',
@@ -5256,5 +5256,23 @@ export const en = {
   aiBudgetBonusHint:
     'For the email above. They don’t expire; a negative number takes back unspent ones.',
   aiBudgetBonusGive: 'Give',
-  aiBudgetBonusRow: '{email} · bonus {count}'
+  aiBudgetBonusRow: '{email} · bonus {count}',
+  assistantCardUndone: 'Undone — these changes are gone.',
+  assistantFieldCampaignCount: 'Campaigns',
+  assistantFieldAdsCount: 'Ads',
+  assistantFieldMinBudget: 'Budget from',
+  assistantFieldMaxBudget: 'Budget to',
+  assistantFieldBudgetMode: 'Budget',
+  assistantFieldBudgets: 'Budgets',
+  assistantFieldProducts: 'Products',
+  assistantFieldR2: 'Video in R2',
+  assistantFieldRestitch: 'Restitch',
+  assistantFieldSub1: 'SUB1',
+  assistantFieldSub2: 'SUB2',
+  assistantFieldSub3: 'SUB3',
+  assistantValueYes: 'yes',
+  assistantValueNo: 'no',
+  assistantBudgetRange: 'range',
+  assistantBudgetSingle: 'same for all',
+  assistantBudgetManual: 'by hand'
 } as const;

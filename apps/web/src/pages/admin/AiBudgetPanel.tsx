@@ -4,6 +4,7 @@
  * prices cover the real cost, and the grants and the assistant pilot that drive it.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { refreshCredits } from '../../credits/store';
 import { Alert, Button, Card, FormField, Input, Switch } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { aiBudgetApi, type AiBudgetOverview, type AiPilotSpace } from '../../api/ai-budget';
@@ -194,7 +195,7 @@ export function AiBudgetPanel() {
           </ul>
         )}
         <div className="ai-budget-grid">
-          <FormField label={t('aiBudgetBonus')} hint={t('aiBudgetBonusHint')}>
+          <FormField label={t('aiBudgetBonus')}>
             <Input type="number" value={bonus} onChange={event => setBonus(event.target.value)} />
           </FormField>
           <Button
@@ -204,6 +205,8 @@ export function AiBudgetPanel() {
               void run(async () => {
                 const next = await aiBudgetApi.grantBonus(email, Math.trunc(Number(bonus)), null);
                 setBonus('');
+                // When it was the administrator's own balance, the header shows it at once.
+                void refreshCredits();
                 return next;
               })
             }
@@ -211,6 +214,7 @@ export function AiBudgetPanel() {
             {t('aiBudgetBonusGive')}
           </Button>
         </div>
+        <p className="ai-budget-note">{t('aiBudgetBonusHint')}</p>
         {overview.bonuses.length > 0 && (
           <ul className="ai-budget-list">
             {overview.bonuses.map(row => (

@@ -238,7 +238,8 @@ const ACTION_KEYS = [
 export function parseAssistantPlan(value: unknown): AssistantPlan | null {
   if (!isRecord(value) || !exactKeys(value, ['reply', 'actions'])) return null;
   const { reply, actions } = value;
-  if (typeof reply !== 'string' || reply.length > ASSISTANT_REPLY_MAX * 2) return null;
+  // The reply is cut to its length below; only its type matters here.
+  if (typeof reply !== 'string') return null;
   if (!Array.isArray(actions) || actions.length > ASSISTANT_MAX_ACTIONS) return null;
   const parsed: AssistantAction[] = [];
   for (const item of actions) {
@@ -315,15 +316,22 @@ export function parseAssistantPlan(value: unknown): AssistantPlan | null {
       if (changes.some(change => change === null)) return null;
       overrides.push({ account: override.account, fields: changes as AssistantFieldChange[] });
     }
+    // A question is only words on buttons: an overlong one is cut, one without two real options
+    // is dropped — it never cost the person a plan that was otherwise fine.
     let question: AssistantAction['question'] = null;
     if (item.question !== null) {
       const q = item.question;
       if (!isRecord(q) || !exactKeys(q, ['about', 'options'])) return null;
-      if (typeof q.about !== 'string' || q.about.length === 0 || q.about.length > 300) return null;
-      if (!stringList(q.options, 5, 120) || q.options.length < 2) return null;
-      question = { about: q.about, options: q.options };
+      if (typeof q.about !== 'string' || !Array.isArray(q.options)) return null;
+      if (!q.options.every(option => typeof option === 'string')) return null;
+      const options = (q.options as string[])
+        .map(option => option.trim().slice(0, 120))
+        .filter(Boolean)
+        .slice(0, 5);
+      if (q.about.trim() && options.length >= 2)
+        question = { about: q.about.trim().slice(0, 300), options };
     }
-    if (item.type === 'ask' && question === null) return null;
+    if (item.type === 'ask' && question === null) continue;
     parsed.push({
       type: item.type as AssistantActionType,
       offer: item.offer as string | null,

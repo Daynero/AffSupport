@@ -81,7 +81,7 @@ const bridge = vi.hoisted(() => ({
   notifyLaunchesChanged: vi.fn()
 }));
 vi.mock('../apps/web/src/team/assistant/bridge', () => bridge);
-const launches = vi.hoisted(() => ({ archive: vi.fn(async () => ({})) }));
+const launches = vi.hoisted(() => ({ archive: vi.fn(async (..._args: unknown[]) => ({})) }));
 vi.mock('../apps/web/src/api/launches', () => ({ launchApi: launches }));
 vi.mock('../apps/web/src/auth/AuthContext', () => ({
   useOptionalAuth: () => ({ user: { id: 'u' } })
@@ -335,6 +335,67 @@ describe('the space assistant', () => {
     });
     assistant();
     expect(await screen.findByText('Offer «Flexi TR» created')).toBeTruthy();
+  });
+
+  it('names default fields in words and closes the card once saved', async () => {
+    const user = userEvent.setup();
+    api.open.mockResolvedValueOnce({
+      enabled: true,
+      canSaveDefaults: true,
+      ...dialog,
+      credits,
+      messages: [
+        message([
+          {
+            id: 'card-profile',
+            kind: 'profile',
+            state: 'open',
+            commandId: 'cmd-1',
+            payload: {
+              offer: 'Soty QA TR',
+              changes: [
+                { field: 'campaignCount', from: null, to: '3' },
+                { field: 'budgetMode', from: null, to: '"auto"' }
+              ]
+            },
+            createdAt: 'x'
+          }
+        ])
+      ]
+    });
+    api.confirmProfile.mockResolvedValue({ commandId: 'c', replayed: false, message: null, credits });
+    assistant();
+    expect(await screen.findByText('Campaigns: — → 3')).toBeTruthy();
+    expect(screen.getByText('Budget: — → range')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Save' })).toBeNull());
+  });
+
+  it('marks a result card undone and stops offering its actions', async () => {
+    const user = userEvent.setup();
+    api.open.mockResolvedValueOnce({
+      enabled: true,
+      canSaveDefaults: true,
+      ...dialog,
+      credits,
+      messages: [
+        message([
+          {
+            id: 'card-result',
+            kind: 'result',
+            state: 'open',
+            commandId: 'cmd-1',
+            payload: { rows, campaigns: 4, date: '2026-11-21', differences: [], unresolved: [] },
+            createdAt: 'x'
+          }
+        ])
+      ]
+    });
+    api.undo.mockResolvedValue({ commandId: 'u', replayed: false, message: null, credits });
+    assistant();
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    expect(await screen.findByText(/Undone — these changes are gone/u)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Launch 2' })).toBeNull();
   });
 
   it('stays hidden where the assistant is not enabled', async () => {

@@ -114,8 +114,11 @@ const CASES: Record<string, () => void> = {
   adsCount: () =>
     expect(assistant(base(), 'adsCount', 'set', 5)).toEqual({ ...base(), adsCount: 5 }),
   budgetMode: () => {
+    // LaunchEditor: changed({ budgetMode: 'single', budgets: null, minBudget: undefined }).
+    const withoutMin = base();
+    delete withoutMin.minBudget;
     expect(assistant(base(), 'budgetMode', 'set', 'single')).toEqual({
-      ...base(),
+      ...withoutMin,
       budgetMode: 'single',
       budgets: null
     });

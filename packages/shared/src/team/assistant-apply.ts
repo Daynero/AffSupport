@@ -219,6 +219,8 @@ export function applyAssistantChange(
         if (value === undefined) delete next[head];
         else (next as Record<string, unknown>)[head] = value;
         if (head === 'budgetMode' && value !== 'manual') next.budgets = null;
+        // As the form: one sum per campaign has no lower bound.
+        if (head === 'budgetMode' && value === 'single') delete next.minBudget;
         if (head === 'budgets' && value !== undefined) next.budgetMode = 'manual';
         return { ok: true, draft: next };
       }

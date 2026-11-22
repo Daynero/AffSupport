@@ -3,6 +3,10 @@
   position: fixed;
   right: var(--space-5);
   bottom: var(--space-5);
+}
+/* The test-build badge sits in the same corner on next; the assistant stands above it. */
+body:has(.next-channel-badge) .assistant-dock {
+  bottom: calc(var(--space-5) + var(--space-6) + var(--space-3));
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -141,9 +145,9 @@
 }
 .assistant-row {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1-5) var(--space-2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
   width: 100%;
   padding: var(--space-1-5) var(--space-2);
   border: 0;
@@ -185,6 +189,21 @@
 }
 .assistant-row-icon {
   color: var(--color-text-muted);
+}
+.assistant-row-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.assistant-row-line.is-sub {
+  font-size: var(--text-caption);
+}
+.assistant-row-icons {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-left: auto;
 }
 .assistant-row-need {
   display: inline-flex;
@@ -311,5 +330,13 @@
   margin: 0;
   padding: 0;
   list-style: none;
+  font-size: var(--text-caption);
+}
+.assistant-card.is-undone .assistant-rows {
+  opacity: 0.55;
+}
+.ai-budget-note {
+  margin: 0;
+  color: var(--color-text-muted);
   font-size: var(--text-caption);
 }

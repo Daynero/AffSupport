@@ -5179,7 +5179,7 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetEmail: 'Пошта',
   aiBudgetSet: 'Встановити',
   aiBudgetReset: 'Скинути',
-  aiBudgetAssistant: 'Помічник запусків увімкнено',
+  aiBudgetAssistant: 'Помічник увімкнено',
   aiBudgetPilot: 'Простори пілоту',
   aiBudgetEstimate: 'оцінка за тарифом',
   aiBudgetOverWarning:
@@ -5230,5 +5230,23 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetBonus: 'Бонусні чарунки',
   aiBudgetBonusHint: 'Для пошти вище. Не згорають; від’ємне число забирає невитрачені.',
   aiBudgetBonusGive: 'Нарахувати',
-  aiBudgetBonusRow: '{email} · бонусних {count}'
+  aiBudgetBonusRow: '{email} · бонусних {count}',
+  assistantCardUndone: 'Скасовано — цих змін уже немає.',
+  assistantFieldCampaignCount: 'Кампаній',
+  assistantFieldAdsCount: 'Оголошень',
+  assistantFieldMinBudget: 'Бюджет від',
+  assistantFieldMaxBudget: 'Бюджет до',
+  assistantFieldBudgetMode: 'Бюджет',
+  assistantFieldBudgets: 'Бюджети',
+  assistantFieldProducts: 'Товарів',
+  assistantFieldR2: 'Відео в R2',
+  assistantFieldRestitch: 'Перезашивка',
+  assistantFieldSub1: 'SUB1',
+  assistantFieldSub2: 'SUB2',
+  assistantFieldSub3: 'SUB3',
+  assistantValueYes: 'так',
+  assistantValueNo: 'ні',
+  assistantBudgetRange: 'діапазон',
+  assistantBudgetSingle: 'однаковий',
+  assistantBudgetManual: 'вручну'
 };

@@ -10,6 +10,7 @@
 // @deno-types="../../../packages/shared/dist/team/assistant.d.ts"
 import {
   assistantKey,
+  assistantNumber,
   ASSISTANT_MAX_CAMPAIGNS,
   ASSISTANT_MAX_DRAFTS,
   assistantUrlSlot,
@@ -76,6 +77,8 @@ interface AgentCandidate extends AssistantCandidate {
   /** As the launch list shows it: «g4-257». */
   label: string;
   free: boolean;
+  /** Launches currently on it; the least loaded is taken when none is free. */
+  load: number;
 }
 
 interface Names {
@@ -137,7 +140,9 @@ export async function loadNames(deps: Pick<EngineDeps, 'callerRpc' | 'teamId'>):
             name: label,
             account: accountName,
             label,
-            free: availability.status === 'free'
+            free: availability.status === 'free',
+            load:
+              typeof availability.assignmentCount === 'number' ? availability.assignmentCount : 0
           });
         }
       }
@@ -201,6 +206,14 @@ function pickAgent(
   const pool = ofAccount.length ? ofAccount : exact.length ? exact : byId.length === 1 ? byId : [];
   if (pool.length === 0) return { kind: 'none' };
   if (pool.length === 1) return { kind: 'one', candidate: pool[0]! };
+  // An account written without its ad account: a free one, else the least loaded — the card shows
+  // which, and «на g18-244» changes it. Asking here only slowed every batch down.
+  if (ofAccount.length > 1) {
+    const ranked = [...pool].sort(
+      (a, b) => Number(b.free) - Number(a.free) || a.load - b.load || a.label.localeCompare(b.label)
+    );
+    return { kind: 'one', candidate: ranked[0]! };
+  }
   const free = pool.filter(agent => agent.free);
   if (free.length >= 1) return { kind: 'one', candidate: free[0]! };
   return { kind: 'many', candidates: pool.slice(0, 5) };
@@ -263,6 +276,8 @@ export interface Resolution {
   missing: Array<{ field: string; written: string; code: string }>;
   /** Offers this command created, as named. */
   createdOffers: string[];
+  /** A filter's offer that names several («прокапс» → ProCaps TR and ProCaps BG): all of them. */
+  offerSets: Map<string, string[]>;
 }
 
 /** Answers of the «no such offer» question. */
@@ -291,6 +306,19 @@ async function createOffer(deps: EngineDeps, written: string, n: number): Promis
   return data.id;
 }
 
+/** Country codes that end the offers a plan names: «Urafirin MY» → MY. */
+function planGeos(plan: AssistantPlan, names: Names): string[] {
+  const geos = new Set<string>();
+  for (const action of plan.actions) {
+    if (!action.offer) continue;
+    const found = matchAssistantName(action.offer, names.offers);
+    const name = found.kind === 'one' ? found.candidate.name : action.offer;
+    const geo = /(?:^|\s)([A-Za-z]{2,3})$/u.exec(name.trim())?.[1];
+    if (geo) geos.add(geo.toUpperCase());
+  }
+  return [...geos].slice(0, 4);
+}
+
 /** Resolves every reference, or returns the first ambiguous one as a question. */
 export async function resolvePlan(
   plan: AssistantPlan,
@@ -305,7 +333,8 @@ export async function resolvePlan(
     names: new Map(),
     materials: new Map(),
     missing: [],
-    createdOffers: []
+    createdOffers: [],
+    offerSets: new Map()
   };
   for (const ref of references(plan)) {
     const [kind, ...rest] = ref.split(':') as [RefKind, ...string[]];
@@ -321,7 +350,7 @@ export async function resolvePlan(
             : null;
     if (kind === 'material') {
       const candidates = await searchMaterials(deps, written);
-      const match = chosen
+      let match = chosen
         ? candidates.find(c => c.id === chosen)
         : (() => {
             const result = matchAssistantName(written, candidates);
@@ -341,6 +370,18 @@ export async function resolvePlan(
             return result.kind === 'one' ? result.candidate : null;
           })();
       if (Array.isArray(match)) return { ok: false, ref, options: match };
+      if (!match) {
+        // «май1» next to «Urafirin MY» is MY_1: creatives are named by the offer's country code.
+        const number = assistantNumber(written);
+        for (const geo of number === null ? [] : planGeos(plan, names)) {
+          const guess = `${geo}_${number}`;
+          const result = matchAssistantName(guess, await searchMaterials(deps, guess));
+          if (result.kind === 'one') {
+            match = result.candidate;
+            break;
+          }
+        }
+      }
       if (!match) {
         resolution.missing.push({ field: 'creatives', written, code: 'MATERIAL_NOT_FOUND' });
         continue;
@@ -374,6 +415,13 @@ export async function resolvePlan(
       if (picked.kind === 'one') id = picked.candidate.id;
     } else {
       const result = matchAssistantName(written, candidates);
+      if (result.kind === 'many' && kind === 'offer' && !offerWanted(plan, written)) {
+        resolution.offerSets.set(
+          written,
+          result.candidates.map(candidate => candidate.name)
+        );
+        continue;
+      }
       if (result.kind === 'many' && chosen !== NEW_OFFER)
         return { ok: false, ref, options: result.candidates };
       if (result.kind === 'one' && chosen !== NEW_OFFER) id = result.candidate.id;
@@ -868,7 +916,18 @@ async function selectRows(
     return { ...(await cardRows(deps, ids, null)), date: null };
   }
   const accounts = action.accounts.map(a => a.split('*')[0]!).filter(Boolean);
-  const filtered = Boolean(action.offer) || accounts.length > 0 || action.dates !== null;
+  // «той, що з тр25»: creatives named in a selection narrow it to drafts that carry them.
+  const creativeKeys = new Set(
+    action.fields
+      .filter(change => change.field === 'creatives')
+      .flatMap(change => (Array.isArray(change.value) ? change.value : [change.value]))
+      .flatMap(written => {
+        const found = typeof written === 'string' ? resolution.materials.get(written) : undefined;
+        return found ? [assistantKey(found.name.replace(/\.[A-Za-z0-9]{1,5}$/u, ''))] : [];
+      })
+  );
+  const filtered =
+    Boolean(action.offer) || accounts.length > 0 || action.dates !== null || creativeKeys.size > 0;
   if (!filtered) {
     const ids = created.length ? created : deps.shown.map(row => row.launchId);
     if (ids.length) return { ...(await cardRows(deps, ids, null)), date: null };
@@ -886,11 +945,18 @@ async function selectRows(
   if (action.offer) {
     const id = resolution.ids.get(`offer:${action.offer}`);
     const name = id ? resolution.names.get(id) : null;
-    rows = name ? rows.filter(row => row.offer === name) : [];
+    const names = name ? [name] : (resolution.offerSets.get(action.offer) ?? []);
+    rows = rows.filter(row => row.offer !== null && names.includes(row.offer));
   }
   if (accounts.length)
     rows = rows.filter(
       row => row.account !== null && accounts.some(written => sameAccount(written, row.account!))
+    );
+  if (creativeKeys.size)
+    rows = rows.filter(row =>
+      row.creatives.some(name =>
+        creativeKeys.has(assistantKey(name.replace(/\.[A-Za-z0-9]{1,5}$/u, '')))
+      )
     );
   rows = rows.slice(0, ASSISTANT_MAX_DRAFTS).map((row, index) => ({ ...row, n: index + 1 }));
   return { rows, truncated, date: days.length === 1 ? days[0]! : null };
@@ -1003,7 +1069,7 @@ export async function executePlan(
         createdOffers: resolution.createdOffers
       }
     });
-  } else if (resolution.createdOffers.length > 0 && !cards.some(card => card.kind === 'profile')) {
+  } else if (resolution.createdOffers.length > 0) {
     cards.unshift({ kind: 'status', payload: { offersCreated: resolution.createdOffers } });
     if (problems.length > 0)
       cards.push({

@@ -840,7 +840,8 @@ export async function answerQuestion(
   return {
     commandId: started.commandId,
     replayed: false,
-    message: await reply(deps, started.commandId, result.text, result.cards),
+    // The plan's sentence is already above the question; the answer shows only what it did.
+    message: await reply(deps, started.commandId, '', result.cards),
     credits: await credits(deps)
   };
 }
@@ -1138,7 +1139,10 @@ export async function undoCommand(
     });
     undone++;
   }
-  if (kept.length === 0) await status(deps, target, 'undone', null, null, null);
+  if (kept.length === 0) {
+    await status(deps, target, 'undone', null, null, null);
+    await service(deps, 'service_assistant_cards_undone', { p_command: target });
+  }
   return { kind: 'status', payload: { undone, kept } };
 }
 
