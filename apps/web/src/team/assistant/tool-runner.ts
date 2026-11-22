@@ -8,6 +8,8 @@
  */
 import { teamApi } from '../../api/team';
 import { teamFinanceApi } from '../../api/team-finance';
+import { accountsWorkspaceApi } from '../../api/team-accounts-workspace';
+import { launchApi } from '../../api/launches';
 import { moveWorkspaceMaterials } from '../explorer/moveCoordinator';
 import { renameMaterialWithTail, trashMaterialWithTail } from '../materials/tail';
 import type { FinanceMetric, MaterialMetadataPatch } from '@video-compressor/shared';
@@ -160,6 +162,108 @@ export async function runToolCard(
           })
       );
     }
+    case 'restore_materials':
+      return each(
+        rows,
+        (row, index) =>
+          teamApi.restoreMaterial({
+            teamId,
+            materialId: String(row.id),
+            idempotencyKey: `${cardId}:restore:${index}`
+          }),
+        3
+      );
+    case 'copy_materials': {
+      const target = payload.destination as {
+        root?: boolean;
+        driveId?: string;
+        create?: string;
+        parentId?: string | null;
+      };
+      let destination: string | null = null;
+      if (target.create) {
+        const made = await teamApi.ensureUploadFolder(teamId, {
+          name: target.create,
+          parentMaterialId: target.parentId ?? null,
+          idempotencyKey: `${cardId}:destination`
+        });
+        destination = made.folderId;
+      } else if (!target.root) destination = target.driveId ?? null;
+      return each(
+        rows,
+        (row, index) =>
+          teamApi.copyMaterial({
+            teamId,
+            materialId: String(row.id),
+            destinationFolderId: destination,
+            idempotencyKey: `${cardId}:copy:${index}`
+          }),
+        3
+      );
+    }
+    case 'rename_accounts':
+      return each(rows, row =>
+        teamApi.renameAccount({ teamId, accountId: String(row.id), name: String(row.to) })
+      );
+    case 'add_ad_accounts': {
+      const account = payload.account as { id: string };
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      return each(
+        rows.filter(row => !row.exists),
+        row =>
+          teamApi.addAccountAgent({
+            teamId,
+            accountId: account.id,
+            agentId: String(row.agentId),
+            timezone
+          })
+      );
+    }
+    case 'change_ad_account_ids':
+      return each(rows, row =>
+        teamApi.updateAccountAgent({ teamId, agentRowId: String(row.id), agentId: String(row.to) })
+      );
+    case 'archive_accounts':
+    case 'restore_accounts': {
+      // As Accounts does it: read the entity's lifecycle and token, then change it with them.
+      const archived = payload.tool === 'archive_accounts';
+      return each(rows, async row => {
+        const kind = row.kind === 'social' ? 'social' : 'agent';
+        const state = await accountsWorkspaceApi.preflight(teamId, kind, String(row.id));
+        await accountsWorkspaceApi.archive(
+          teamId,
+          kind,
+          String(row.id),
+          archived,
+          state.lifecycleVersion,
+          state.token,
+          uuid()
+        );
+      });
+    }
+    case 'catalog_interval': {
+      try {
+        await teamApi.setCatalogUpdateInterval(
+          teamId,
+          rows.map(row => String(row.id)),
+          (payload.interval as Parameters<typeof teamApi.setCatalogUpdateInterval>[2]) ?? null
+        );
+        return { done: rows.length, failed: 0, code: null };
+      } catch (error) {
+        return { done: 0, failed: rows.length, code: codeOf(error) };
+      }
+    }
+    case 'edit_offers':
+      return each(rows, row =>
+        launchApi.editDictionary(
+          teamId,
+          'offers',
+          { id: String(row.id), value: row.label, updatedAt: String(row.updatedAt) },
+          row.operation as 'rename' | 'archive' | 'restore',
+          row.operation === 'rename' ? String(row.to) : row.label,
+          uuid()
+        )
+      );
     case 'delete_tasks':
       return each(rows, row => teamApi.deleteTask({ teamId, taskId: String(row.id) }));
     case 'move_materials': {

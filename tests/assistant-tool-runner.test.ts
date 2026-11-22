@@ -23,8 +23,18 @@ const team = vi.hoisted(() => ({
   updateTask: vi.fn(async () => ({})),
   attachTaskLabel: vi.fn(async () => []),
   attachTaskMaterials: vi.fn(async () => ({})),
-  deleteTask: vi.fn(async () => true as const)
+  deleteTask: vi.fn(async () => true as const),
+  addAccountAgent: vi.fn(async () => ({})),
+  restoreMaterial: vi.fn(async () => ({})),
+  setCatalogUpdateInterval: vi.fn(async () => ({}))
 }));
+const workspace = vi.hoisted(() => ({
+  preflight: vi.fn(async () => ({ lifecycleVersion: '7', token: 'tok' })),
+  archive: vi.fn(async () => ({}))
+}));
+const launchesApi = vi.hoisted(() => ({ editDictionary: vi.fn(async () => ({})) }));
+vi.mock('../apps/web/src/api/team-accounts-workspace', () => ({ accountsWorkspaceApi: workspace }));
+vi.mock('../apps/web/src/api/launches', () => ({ launchApi: launchesApi }));
 const finance = vi.hoisted(() => ({ set: vi.fn(async () => ({})) }));
 const move = vi.hoisted(() =>
   vi.fn(async (input: { items: unknown[] }) => ({
@@ -208,6 +218,73 @@ describe('tool cards in the browser', () => {
     });
     expect(outcome.done).toBe(1);
     expect(team.deleteTask).toHaveBeenCalledWith({ teamId: 'team', taskId: 't1' });
+  });
+
+  it('archives an account through its lifecycle token, as Accounts does', async () => {
+    await runToolCard('team', 'card', {
+      tool: 'archive_accounts',
+      items: [{ label: 'g4', kind: 'social', id: 'acc-4' }]
+    });
+    expect(workspace.preflight).toHaveBeenCalledWith('team', 'social', 'acc-4');
+    expect(workspace.archive).toHaveBeenCalledWith(
+      'team',
+      'social',
+      'acc-4',
+      true,
+      '7',
+      'tok',
+      expect.any(String)
+    );
+  });
+
+  it('adds only the ad accounts the account lacks', async () => {
+    await runToolCard('team', 'card', {
+      tool: 'add_ad_accounts',
+      account: { id: 'acc-4', label: 'g4' },
+      items: [
+        { label: 'g4-999', agentId: '3333333999', exists: true },
+        { label: 'g4-123', agentId: '5555555123', exists: false }
+      ]
+    });
+    expect(team.addAccountAgent).toHaveBeenCalledTimes(1);
+    expect(team.addAccountAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: 'acc-4', agentId: '5555555123' })
+    );
+  });
+
+  it('turns the catalog refresh off for all the listed catalogs at once', async () => {
+    await runToolCard('team', 'card', {
+      tool: 'catalog_interval',
+      interval: null,
+      items: [
+        { label: 'a', id: 'c1' },
+        { label: 'b', id: 'c2' }
+      ]
+    });
+    expect(team.setCatalogUpdateInterval).toHaveBeenCalledWith('team', ['c1', 'c2'], null);
+  });
+
+  it('renames an offer with the version it was read at', async () => {
+    await runToolCard('team', 'card', {
+      tool: 'edit_offers',
+      items: [
+        {
+          label: 'ProCaps TR',
+          id: 'o1',
+          updatedAt: 'u1',
+          operation: 'rename',
+          to: 'ProCaps TR old'
+        }
+      ]
+    });
+    expect(launchesApi.editDictionary).toHaveBeenCalledWith(
+      'team',
+      'offers',
+      { id: 'o1', value: 'ProCaps TR', updatedAt: 'u1' },
+      'rename',
+      'ProCaps TR old',
+      expect.any(String)
+    );
   });
 
   it('creates a task with its day, tags and files', async () => {

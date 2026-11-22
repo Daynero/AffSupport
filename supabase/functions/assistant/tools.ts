@@ -171,6 +171,11 @@ interface AdAccount {
   accountId: string;
   label: string;
   tags: string[];
+  /** As Accounts shows it: free, or busy with this many launches. */
+  status?: string;
+  load?: number;
+  archived?: boolean;
+  accountArchived?: boolean;
 }
 
 /**
@@ -210,13 +215,21 @@ async function adAccounts(
             isRecord(label) && typeof label.name === 'string' ? [label.name] : []
           )
         : [];
+      const availability = isRecord(agent.availability) ? agent.availability : {};
       out.push({
         id: agent.id,
         agentId: agent.agent_id,
         account: name,
         accountId: account.id,
         label: name ? `${name}-${agent.agent_id.slice(-3)}` : agent.agent_id,
-        tags
+        tags,
+        status: typeof availability.status === 'string' ? availability.status : undefined,
+        load:
+          typeof availability.assignmentCount === 'number'
+            ? availability.assignmentCount
+            : undefined,
+        archived: Boolean(agent.archived_at),
+        accountArchived: Boolean(account.archived_at)
       });
     }
   }
@@ -1609,6 +1622,424 @@ async function deleteTasks(args: Args, deps: ToolDeps): Promise<ToolCard> {
   };
 }
 
+// ───────────────────────── accounts, launches, files: round two ─────────────────────────
+
+/**
+ * «напиши мені ID РК з g18», «які РК вільні»: every ad account with its full ID, as the Accounts
+ * tab lists them, with a text to copy — owner, 2026-11-22: the assistant had no way to say them.
+ */
+async function listAdAccounts(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const all = await adAccounts(deps);
+  const scope = list(args, 'scope');
+  const chosen = scope.length ? pickAdAccounts(all, scope) : { picked: all, missing: [] };
+  const state = fold(text(args, 'status') ?? 'all');
+  const picked = chosen.picked.filter(agent =>
+    state === 'free' ? agent.status === 'free' : state === 'busy' ? agent.status === 'busy' : true
+  );
+  const ordered = [...picked].sort(
+    (a, b) => naturally.compare(a.account, b.account) || naturally.compare(a.label, b.label)
+  );
+  const groups = new Map<string, AdAccount[]>();
+  for (const agent of ordered)
+    groups.set(agent.account, [...(groups.get(agent.account) ?? []), agent]);
+  const copyText = ordered.length
+    ? [...groups.entries()]
+        .map(([account, agents]) => [account, ...agents.map(agent => agent.agentId)].join('\n'))
+        .join('\n\n')
+    : null;
+  return {
+    kind: 'table',
+    payload: {
+      tool: 'list_ad_accounts',
+      columns: ['adAccount', 'adId', 'state', 'tags'],
+      rows: ordered.map(agent => [
+        agent.label,
+        agent.agentId,
+        agent.status === 'busy' ? `busy:${agent.load ?? 0}` : (agent.status ?? null),
+        agent.tags.join(', ') || null
+      ]),
+      total: null,
+      count: ordered.length,
+      copyText,
+      scope,
+      missing: chosen.missing,
+      truncated: false
+    }
+  };
+}
+
+const LAUNCH_STATE: Record<string, string> = {
+  succeeded: 'launched',
+  failed: 'failed',
+  canceled: 'canceled'
+};
+
+/** «які запуски на завтра», «що вже запущено сьогодні»: drafts and launched ones, as Launches lists. */
+async function listLaunches(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const today = dayInZone(deps.now, deps.timezone);
+  const from = text(args, 'from') ?? text(args, 'date') ?? today;
+  const to = text(args, 'to') ?? text(args, 'date') ?? from;
+  const resolve = (value: string) =>
+    /^(today|сьогодні)$/iu.test(value)
+      ? today
+      : /^(tomorrow|завтра)$/iu.test(value)
+        ? dayInZone(deps.now, deps.timezone, 1)
+        : /^(yesterday|вчора|учора)$/iu.test(value)
+          ? dayInZone(deps.now, deps.timezone, -1)
+          : value;
+  const [a, b] = [resolve(from), resolve(to)];
+  if (!validFinanceDate(a) || !validFinanceDate(b))
+    throw new ToolRefusal('INVALID_DATE', `${a}…${b}`);
+  const data = await call(deps, 'list_launches', {
+    p_filter: {
+      search: text(args, 'query') ?? '',
+      sort: 'created',
+      from: a <= b ? a : b,
+      to: a <= b ? b : a
+    },
+    p_limit: 100
+  });
+  const items = isRecord(data) && Array.isArray(data.items) ? data.items : [];
+  const offer = text(args, 'offer');
+  const account = text(args, 'account');
+  const status = fold(text(args, 'status') ?? 'all');
+  const rows = items.flatMap(item => {
+    if (!isRecord(item) || typeof item.id !== 'string') return [];
+    const generation = typeof item.generationState === 'string' ? item.generationState : null;
+    const state = generation === null ? 'draft' : (LAUNCH_STATE[generation] ?? 'generating');
+    if (status === 'draft' && state !== 'draft') return [];
+    if (status === 'launched' && state !== 'launched') return [];
+    const offerName = typeof item.offer === 'string' ? item.offer : '';
+    const social = typeof item.social === 'string' ? item.social : '';
+    if (offer && !fold(offerName).includes(fold(offer))) return [];
+    if (account && !fold(social).includes(fold(account))) return [];
+    return [
+      [
+        typeof item.launchDate === 'string' ? item.launchDate : null,
+        offerName || null,
+        social || null,
+        typeof item.creativeAlias === 'string' ? item.creativeAlias || null : null,
+        `launch:${state}`
+      ]
+    ];
+  });
+  return {
+    kind: 'table',
+    payload: {
+      tool: 'list_launches',
+      from: a <= b ? a : b,
+      to: a <= b ? b : a,
+      columns: ['date', 'offer', 'account', 'creative', 'state'],
+      rows,
+      total: null,
+      count: rows.length,
+      missing: [],
+      truncated: items.length >= 100
+    }
+  };
+}
+
+/** «що в кошику», before restoring. */
+async function listTrash(_args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const data = await call(deps, 'list_team_trashed_materials_v2', { p_limit: 100 });
+  const rows = (Array.isArray(data) ? data : []).flatMap(row =>
+    isRecord(row) && typeof row.name === 'string'
+      ? [
+          [
+            row.name,
+            typeof row.kind === 'string' ? row.kind : null,
+            typeof row.trashed_at === 'string' ? row.trashed_at : null
+          ]
+        ]
+      : []
+  );
+  return {
+    kind: 'table',
+    payload: {
+      tool: 'list_trash',
+      columns: ['name', 'kind', 'updated'],
+      rows,
+      total: null,
+      count: rows.length,
+      missing: [],
+      truncated: rows.length >= 100
+    }
+  };
+}
+
+async function trashed(deps: ToolDeps) {
+  const data = await call(deps, 'list_team_trashed_materials_v2', { p_limit: 100 });
+  return (Array.isArray(data) ? data : []).flatMap(row =>
+    isRecord(row) && typeof row.id === 'string' && typeof row.name === 'string'
+      ? [{ id: row.id, name: row.name, kind: typeof row.kind === 'string' ? row.kind : 'other' }]
+      : []
+  );
+}
+
+/** «віднови тр16 з кошика». */
+async function restoreMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const all = await trashed(deps);
+  const names = list(args, 'items');
+  const missing: string[] = [];
+  const picked = new Map<string, { id: string; name: string; kind: string }>();
+  for (const name of names) {
+    const hits = all.filter(
+      item => fold(item.name) === fold(name) || loose(item.name) === loose(name)
+    );
+    if (hits.length === 1) picked.set(hits[0]!.id, hits[0]!);
+    else missing.push(hits.length ? `${name} (${hits.length})` : name);
+  }
+  if (!picked.size) throw new ToolRefusal('NOT_FOUND', missing.join(', ') || 'trash');
+  return {
+    kind: 'review',
+    payload: {
+      purpose: 'tool',
+      tool: 'restore_materials',
+      items: [...picked.values()].map(item => ({ id: item.id, label: item.name })),
+      missing
+    }
+  };
+}
+
+/** «скопіюй тр16 і тр23 в папку TR» — files only, a folder is made when missing. */
+async function copyMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const card = await moveMaterials(args, deps);
+  if (card.kind !== 'review') return card;
+  return { kind: 'review', payload: { ...card.payload, tool: 'copy_materials', already: 0 } };
+}
+
+/** «перейменуй акаунт g18 на g18-old». */
+async function renameAccounts(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const all = await adAccounts(deps);
+  const accounts = new Map(all.map(agent => [agent.accountId, agent.account]));
+  const data = await call(deps, 'list_team_accounts', {});
+  for (const row of Array.isArray(data) ? data : [])
+    if (isRecord(row) && typeof row.id === 'string' && typeof row.name === 'string')
+      accounts.set(row.id, row.name);
+  const missing: string[] = [];
+  const items = list(args, 'pairs').flatMap(pair => {
+    const match = pair.match(/^(.+?)\s*(?:=>|->|→|=)\s*(.+)$/u);
+    if (!match) throw new ToolRefusal('INVALID_INPUT', pair);
+    const [from, to] = [match[1]!.trim(), match[2]!.trim()];
+    if (!to || to.length > 40 || /[[\]]/u.test(to)) throw new ToolRefusal('INVALID_NAME', to);
+    const found = [...accounts.entries()].filter(([, name]) => fold(name) === fold(from));
+    if (found.length !== 1) {
+      missing.push(from);
+      return [];
+    }
+    return [{ id: found[0]![0], label: found[0]![1], from: found[0]![1], to }];
+  });
+  if (!items.length) throw new ToolRefusal('NOT_FOUND', missing.join(', '));
+  return { kind: 'review', payload: { purpose: 'tool', tool: 'rename_accounts', items, missing } };
+}
+
+/** «додай в g18 РК 1234567890 і 2345678901». */
+async function addAdAccounts(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const written = text(args, 'account');
+  if (!written) throw new ToolRefusal('INVALID_INPUT', 'account');
+  const data = await call(deps, 'list_team_accounts', {});
+  const rows = (Array.isArray(data) ? data : []).filter(
+    (row): row is Record<string, unknown> =>
+      isRecord(row) && typeof row.id === 'string' && typeof row.name === 'string'
+  );
+  const account = rows.find(row => fold(String(row.name)) === fold(written));
+  if (!account) throw new ToolRefusal('ACCOUNT_NOT_FOUND', written);
+  const existing = new Set(
+    (Array.isArray(account.agents) ? account.agents : []).flatMap(agent =>
+      isRecord(agent) && typeof agent.agent_id === 'string' ? [agent.agent_id] : []
+    )
+  );
+  const ids = list(args, 'ids').map(id => id.replace(/\s+/gu, ''));
+  if (!ids.length || ids.some(id => !id || id.length > 64))
+    throw new ToolRefusal('INVALID_INPUT', 'ids');
+  return {
+    kind: 'review',
+    payload: {
+      purpose: 'tool',
+      tool: 'add_ad_accounts',
+      account: { id: account.id, label: account.name },
+      items: [...new Set(ids)].map(id => ({
+        label: `${String(account.name)}-${id.slice(-3)}`,
+        agentId: id,
+        note: id,
+        exists: existing.has(id)
+      }))
+    }
+  };
+}
+
+/** «зміни ID РК g18-244 на 1234567890244». */
+async function changeAdAccountIds(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const all = await adAccounts(deps);
+  const missing: string[] = [];
+  const items = list(args, 'pairs').flatMap(pair => {
+    const match = pair.match(/^(.+?)\s*(?:=>|->|→|=)\s*(.+)$/u);
+    if (!match) throw new ToolRefusal('INVALID_INPUT', pair);
+    const to = match[2]!.replace(/\s+/gu, '');
+    if (!to || to.length > 64) throw new ToolRefusal('INVALID_INPUT', pair);
+    const { picked } = pickAdAccounts(all, [match[1]!.trim()]);
+    if (picked.length !== 1) {
+      missing.push(match[1]!.trim());
+      return [];
+    }
+    return [{ id: picked[0]!.id, label: picked[0]!.label, from: picked[0]!.agentId, to }];
+  });
+  if (!items.length) throw new ToolRefusal('NOT_FOUND', missing.join(', '));
+  return {
+    kind: 'review',
+    payload: { purpose: 'tool', tool: 'change_ad_account_ids', items, missing }
+  };
+}
+
+/**
+ * «заархівуй g9», «прибери в архів РК g18-244», «віднови g9 з архіву». An account name means the
+ * account with its ad accounts; an ad account label means that one. Money stays, as in Accounts.
+ */
+async function archiveAccounts(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const restore = args.get('restore') === true || fold(text(args, 'restore') ?? '') === 'true';
+  const today = dayInZone(deps.now, deps.timezone);
+  const all = await adAccounts(deps, { from: today, to: today });
+  const items: Array<Record<string, unknown> & { label: string }> = [];
+  const missing: string[] = [];
+  for (const raw of list(args, 'scope')) {
+    const ref = fold(raw);
+    const accountRows = all.filter(agent => fold(agent.account) === ref);
+    if (accountRows.length) {
+      const first = accountRows[0]!;
+      if (Boolean(first.accountArchived) !== restore) {
+        missing.push(raw);
+        continue;
+      }
+      items.push({
+        kind: 'social',
+        id: first.accountId,
+        label: first.account,
+        note: accountRows.map(agent => agent.agentId).join(', ')
+      });
+      continue;
+    }
+    const { picked } = pickAdAccounts(all, [raw]);
+    const fitting = picked.filter(
+      agent => Boolean(agent.archived) === restore && !agent.accountArchived
+    );
+    if (fitting.length !== 1) {
+      missing.push(raw);
+      continue;
+    }
+    items.push({
+      kind: 'agent',
+      id: fitting[0]!.id,
+      label: fitting[0]!.label,
+      note: fitting[0]!.agentId
+    });
+  }
+  if (!items.length) throw new ToolRefusal('NOT_FOUND', missing.join(', ') || 'scope');
+  return {
+    kind: 'review',
+    payload: {
+      purpose: 'tool',
+      tool: restore ? 'restore_accounts' : 'archive_accounts',
+      items,
+      missing
+    }
+  };
+}
+
+const INTERVALS = ['1h', '1d', '1w'];
+
+/** «онови каталоги тр16 щогодини», «вимкни автооновлення каталогів з помилками». */
+async function catalogInterval(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const raw = fold(text(args, 'interval') ?? '');
+  const interval = ['off', 'none', 'вимкни', 'null', ''].includes(raw)
+    ? null
+    : INTERVALS.includes(raw) || /^\d{1,3}h$/u.test(raw)
+      ? raw
+      : null;
+  if (interval === null && !['off', 'none', 'вимкни', 'null'].includes(raw))
+    throw new ToolRefusal('INVALID_INPUT', raw);
+  if (interval && /^\d+h$/u.test(interval) && Number(interval.slice(0, -1)) > 720)
+    throw new ToolRefusal('INVALID_INPUT', raw);
+  const { picked, missing } = await pickCatalogs(deps, args);
+  if (!picked.length) throw new ToolRefusal('NOT_FOUND', missing.join(', ') || 'catalogs');
+  return {
+    kind: 'review',
+    payload: {
+      purpose: 'tool',
+      tool: 'catalog_interval',
+      interval,
+      items: picked.slice(0, 500).map(catalog => ({
+        id: catalog.id,
+        label: catalog.name,
+        from: catalog.interval,
+        to: interval
+      })),
+      missing
+    }
+  };
+}
+
+/** «перейменуй офер Proveliq TR на Proveliq TR old», «заархівуй офер ProCaps BG». */
+async function editOffers(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const data = await call(deps, 'list_launch_dictionaries', {});
+  const offers = (isRecord(data) && Array.isArray(data.offers) ? data.offers : []).flatMap(row =>
+    isRecord(row) &&
+    typeof row.id === 'string' &&
+    typeof row.value === 'string' &&
+    typeof row.updatedAt === 'string'
+      ? [
+          {
+            id: row.id,
+            value: row.value,
+            updatedAt: row.updatedAt,
+            archived: Boolean(row.archivedAt ?? row.archived_at)
+          }
+        ]
+      : []
+  );
+  const find = (name: string) => offers.filter(offer => fold(offer.value) === fold(name));
+  const missing: string[] = [];
+  const items: Array<Record<string, unknown> & { label: string }> = [];
+  for (const pair of list(args, 'rename')) {
+    const match = pair.match(/^(.+?)\s*(?:=>|->|→|=)\s*(.+)$/u);
+    if (!match) throw new ToolRefusal('INVALID_INPUT', pair);
+    const hits = find(match[1]!.trim());
+    if (hits.length !== 1) missing.push(match[1]!.trim());
+    else
+      items.push({
+        id: hits[0]!.id,
+        updatedAt: hits[0]!.updatedAt,
+        operation: 'rename',
+        label: hits[0]!.value,
+        from: hits[0]!.value,
+        to: match[2]!.trim()
+      });
+  }
+  for (const name of list(args, 'archive')) {
+    const hits = find(name).filter(offer => !offer.archived);
+    if (hits.length !== 1) missing.push(name);
+    else
+      items.push({
+        id: hits[0]!.id,
+        updatedAt: hits[0]!.updatedAt,
+        operation: 'archive',
+        label: hits[0]!.value
+      });
+  }
+  for (const name of list(args, 'restore')) {
+    const hits = find(name).filter(offer => offer.archived);
+    if (hits.length !== 1) missing.push(name);
+    else
+      items.push({
+        id: hits[0]!.id,
+        updatedAt: hits[0]!.updatedAt,
+        operation: 'restore',
+        label: hits[0]!.value
+      });
+  }
+  if (!items.length) throw new ToolRefusal('NOT_FOUND', missing.join(', ') || 'offers');
+  return { kind: 'review', payload: { purpose: 'tool', tool: 'edit_offers', items, missing } };
+}
+
 /** After a rename card, the names it gives point back to the files, for the steps after it. */
 export function rememberRenames(card: ToolCard, renamed: Map<string, string>): void {
   if (card.kind !== 'review' || card.payload.tool !== 'rename_materials') return;
@@ -1641,7 +2072,18 @@ export const TOOLS: Record<string, Tool> = {
   list_tasks: { kind: 'read', run: listTasks },
   create_tasks: { kind: 'write', run: createTasks },
   update_tasks: { kind: 'write', run: updateTasks },
-  delete_tasks: { kind: 'write', run: deleteTasks }
+  delete_tasks: { kind: 'write', run: deleteTasks },
+  list_ad_accounts: { kind: 'read', run: listAdAccounts },
+  list_launches: { kind: 'read', run: listLaunches },
+  list_trash: { kind: 'read', run: listTrash },
+  restore_materials: { kind: 'write', run: restoreMaterials },
+  copy_materials: { kind: 'write', run: copyMaterials },
+  rename_accounts: { kind: 'write', run: renameAccounts },
+  add_ad_accounts: { kind: 'write', run: addAdAccounts },
+  change_ad_account_ids: { kind: 'write', run: changeAdAccountIds },
+  archive_accounts: { kind: 'write', run: archiveAccounts },
+  catalog_interval: { kind: 'write', run: catalogInterval },
+  edit_offers: { kind: 'write', run: editOffers }
 };
 
 /** The tool names the model may write, with one line each for its prompt. */
@@ -1665,7 +2107,18 @@ export const TOOL_GUIDE = [
   'list_tasks — args: status (todo|in_progress|done), query, assignee.',
   'create_tasks — args: tasks, each one line «title | assignee | date | tag1, tag2 | file1, file2» (empty parts stay empty; date YYYY-MM-DD or tomorrow).',
   'update_tasks — args: items (task titles) or with_status (todo|in_progress|done), and status, date, assignee, add_tags.',
-  'delete_tasks — delete tasks: args: items (task titles) or with_status (todo|in_progress|done).'
+  'delete_tasks — delete tasks: args: items (task titles) or with_status (todo|in_progress|done).',
+  'list_ad_accounts — ad accounts with their full IDs, free or busy, tags («напиши ID РК з g18», «які РК вільні»): args: scope (accounts, ad accounts, tags), status (free|busy|all).',
+  'list_launches — launches of a period, drafts and launched ones («що запущено сьогодні», «які запуски на завтра»): args: date or from/to (YYYY-MM-DD, today, tomorrow, yesterday), offer, account, status (draft|launched|all), query.',
+  'list_trash — what is in the trash.',
+  'restore_materials — restore files from the trash: args: items (names).',
+  'copy_materials — copy files into a folder (made if missing): args: the files by items or query, kind, in_folder, tag, offer, geo; destination.',
+  'rename_accounts — rename accounts: args: pairs (["g18=g18 old"]).',
+  'add_ad_accounts — add ad accounts to an existing account: args: account (its name), ids (the ad account IDs).',
+  'change_ad_account_ids — change the ID of ad accounts: args: pairs (["g18-244=1234567890244"]).',
+  'archive_accounts — archive accounts or ad accounts (money stays), or restore them: args: scope (account names or ad accounts like g18-244), restore (true to bring back).',
+  'catalog_interval — how often catalogs refresh: args: the catalogs by items, scope (all|errors), in_folder; interval (1h|1d|1w|Nh, or off).',
+  'edit_offers — offers: args: rename (["Old=New"]), archive (names), restore (names).'
 ].join('\n');
 
 /** One tool step of a plan → its card; a refusal becomes the same «не вийшло» card as elsewhere. */

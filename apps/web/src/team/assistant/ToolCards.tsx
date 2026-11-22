@@ -16,7 +16,10 @@ const TABLE_TITLE: Readonly<Record<string, TranslationKey>> = {
   find_materials: 'assistantToolFindMaterials',
   list_catalogs: 'assistantToolListCatalogs',
   list_members: 'assistantToolListMembers',
-  list_tasks: 'assistantToolListTasks'
+  list_tasks: 'assistantToolListTasks',
+  list_ad_accounts: 'assistantToolListAdAccounts',
+  list_launches: 'assistantToolListLaunches',
+  list_trash: 'assistantToolListTrash'
 };
 
 const COLUMN: Readonly<Record<string, TranslationKey>> = {
@@ -37,7 +40,12 @@ const COLUMN: Readonly<Record<string, TranslationKey>> = {
   title: 'assistantColTitle',
   status: 'assistantColStatus',
   date: 'assistantColDate',
-  assignee: 'assistantColAssignee'
+  assignee: 'assistantColAssignee',
+  adAccount: 'assistantColAdAccount',
+  adId: 'assistantColAdId',
+  state: 'assistantColState',
+  account: 'assistantColAccount',
+  creative: 'assistantColCreative'
 };
 
 const REVIEW_TITLE: Readonly<Record<string, TranslationKey>> = {
@@ -55,7 +63,16 @@ const REVIEW_TITLE: Readonly<Record<string, TranslationKey>> = {
   remove_members: 'assistantToolRemoveMembers',
   create_tasks: 'assistantToolCreateTasks',
   update_tasks: 'assistantToolUpdateTasks',
-  delete_tasks: 'assistantToolDeleteTasks'
+  delete_tasks: 'assistantToolDeleteTasks',
+  restore_materials: 'assistantToolRestoreMaterials',
+  copy_materials: 'assistantToolCopyMaterials',
+  rename_accounts: 'assistantToolRenameAccounts',
+  add_ad_accounts: 'assistantToolAddAdAccounts',
+  change_ad_account_ids: 'assistantToolChangeAdIds',
+  archive_accounts: 'assistantToolArchiveAccounts',
+  restore_accounts: 'assistantToolRestoreAccounts',
+  catalog_interval: 'assistantToolCatalogInterval',
+  edit_offers: 'assistantToolEditOffers'
 };
 
 const REVIEW_GO: Readonly<Record<string, TranslationKey>> = {
@@ -73,7 +90,16 @@ const REVIEW_GO: Readonly<Record<string, TranslationKey>> = {
   remove_members: 'assistantToolGoRemove',
   create_tasks: 'assistantToolGoCreate',
   update_tasks: 'assistantToolGoApply',
-  delete_tasks: 'assistantToolGoDelete'
+  delete_tasks: 'assistantToolGoDelete',
+  restore_materials: 'assistantToolGoRestore',
+  copy_materials: 'assistantToolGoCopy',
+  rename_accounts: 'assistantToolGoRename',
+  add_ad_accounts: 'assistantToolGoAdd',
+  change_ad_account_ids: 'assistantToolGoApply',
+  archive_accounts: 'assistantToolGoArchive',
+  restore_accounts: 'assistantToolGoRestore',
+  catalog_interval: 'assistantToolGoApply',
+  edit_offers: 'assistantToolGoApply'
 };
 
 const MONEY_COLUMNS = new Set(['spend', 'topup']);
@@ -93,6 +119,14 @@ const KIND: Readonly<Record<string, TranslationKey>> = {
   shortcut: 'teamExplorerKindShortcut',
   file: 'teamExplorerKindOther',
   other: 'teamExplorerKindOther'
+};
+
+const LAUNCH_STATE: Readonly<Record<string, TranslationKey>> = {
+  draft: 'assistantLaunchDraft',
+  launched: 'assistantLaunchLaunched',
+  generating: 'assistantGeneratingRow',
+  failed: 'assistantLaunchFailed',
+  canceled: 'assistantLaunchCanceled'
 };
 
 /** Roles in the words of the People tab. */
@@ -162,6 +196,12 @@ export function TableCard({ card }: { card: AssistantCard }) {
     if (column === 'status' && STATUS[value]) return t(STATUS[value]);
     if (column === 'role' && ROLE[value]) return t(ROLE[value]);
     if (column === 'kind' && KIND[value]) return t(KIND[value]);
+    // «вільний», «зайнятий: 3», «запущено» — the words of Accounts and Launches.
+    if (column === 'state' && value === 'free') return t('assistantStateFree');
+    if (column === 'state' && value.startsWith('busy:'))
+      return t('assistantStateBusy', { count: Number(value.slice(5)) });
+    if (column === 'state' && value.startsWith('launch:') && LAUNCH_STATE[value.slice(7)])
+      return t(LAUNCH_STATE[value.slice(7)]!);
     // A day row of «по днях»: «пн, 16 лист.».
     if (column === 'group' && payload.by === 'day' && /^\d{4}-\d{2}-\d{2}$/u.test(value))
       return new Date(`${value}T12:00:00Z`).toLocaleDateString(language, {

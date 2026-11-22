@@ -26,7 +26,12 @@ const accounts = [
     id: G18,
     name: 'g18',
     agents: [
-      { id: A1, agent_id: '1111111244', labels: [{ id: 'l2', name: '#2' }] },
+      {
+        id: A1,
+        agent_id: '1111111244',
+        labels: [{ id: 'l2', name: '#2' }],
+        availability: { status: 'busy', assignmentCount: 3 }
+      },
       {
         id: A2,
         agent_id: '2222222257',
@@ -665,6 +670,134 @@ describe('catalogs, people and tasks', () => {
     expect(card.payload.items).toEqual([
       expect.objectContaining({ assigneeId: 'u-owner', assignee: 'Roman' })
     ]);
+  });
+
+  it('says the ad accounts with their full IDs and a text to copy by account', async () => {
+    const card = await runTool('list_ad_accounts', [arg('scope', ['g18'])], deps());
+    expect(card.payload.rows).toEqual([
+      ['g18-244', '1111111244', 'busy:3', '#2'],
+      ['g18-257', '2222222257', null, '#2, #1']
+    ]);
+    expect(card.payload.copyText).toBe('g18\n1111111244\n2222222257');
+  });
+
+  it('lists launches with their state and narrows to launched ones', async () => {
+    const launches = {
+      items: [
+        {
+          id: 'l1',
+          launchDate: '2026-11-23',
+          offer: 'ProCaps TR',
+          social: 'g18-244',
+          creativeAlias: 'TR_16',
+          generationState: 'succeeded'
+        },
+        {
+          id: 'l2',
+          launchDate: '2026-11-23',
+          offer: 'ProCaps TR',
+          social: '',
+          creativeAlias: 'TR_21',
+          generationState: null
+        }
+      ]
+    };
+    const all = await runTool(
+      'list_launches',
+      [arg('date', 'tomorrow')],
+      deps({ list_launches: () => launches })
+    );
+    expect(all.payload.rows).toEqual([
+      ['2026-11-23', 'ProCaps TR', 'g18-244', 'TR_16', 'launch:launched'],
+      ['2026-11-23', 'ProCaps TR', null, 'TR_21', 'launch:draft']
+    ]);
+    const launched = await runTool(
+      'list_launches',
+      [arg('date', 'tomorrow'), arg('status', 'launched')],
+      deps({ list_launches: () => launches })
+    );
+    expect(launched.payload.count).toBe(1);
+  });
+
+  it('adds ad accounts to an account, leaving out the ones it has', async () => {
+    const card = await runTool(
+      'add_ad_accounts',
+      [arg('account', 'G4'), arg('ids', ['3333333999', '5555 555 123'])],
+      deps()
+    );
+    expect(card.payload).toMatchObject({ account: { id: G4, label: 'g4' } });
+    expect(card.payload.items).toEqual([
+      { label: 'g4-999', agentId: '3333333999', note: '3333333999', exists: true },
+      { label: 'g4-123', agentId: '5555555123', note: '5555555123', exists: false }
+    ]);
+  });
+
+  it('archives an account by name and one ad account by its label', async () => {
+    const card = await runTool('archive_accounts', [arg('scope', ['g4', 'g18-257'])], deps());
+    expect(card.payload).toMatchObject({ tool: 'archive_accounts' });
+    expect(card.payload.items).toEqual([
+      { kind: 'social', id: G4, label: 'g4', note: '3333333999' },
+      { kind: 'agent', id: A2, label: 'g18-257', note: '2222222257' }
+    ]);
+    const back = await runTool(
+      'archive_accounts',
+      [arg('scope', ['g9']), arg('restore', true)],
+      deps()
+    );
+    expect(back.payload).toMatchObject({
+      tool: 'restore_accounts',
+      items: [{ kind: 'social', id: G9, label: 'g9' }]
+    });
+  });
+
+  it('restores from the trash by name and renames an offer only when it is one', async () => {
+    const restore = await runTool(
+      'restore_materials',
+      [arg('items', ['TR_16'])],
+      deps({
+        list_team_trashed_materials_v2: () => [
+          { id: 'm16', name: 'TR_16.mp4', kind: 'video', trashed_at: '2026-11-22T10:00:00Z' }
+        ]
+      })
+    );
+    expect(restore.payload.items).toEqual([{ id: 'm16', label: 'TR_16.mp4' }]);
+    const offers = await runTool(
+      'edit_offers',
+      [arg('rename', ['ProCaps TR=ProCaps TR old']), arg('archive', ['Nope'])],
+      deps({
+        list_launch_dictionaries: () => ({
+          offers: [{ id: 'o1', value: 'ProCaps TR', updatedAt: '2026-11-01T00:00:00Z' }]
+        })
+      })
+    );
+    expect(offers.payload.items).toEqual([
+      {
+        id: 'o1',
+        updatedAt: '2026-11-01T00:00:00Z',
+        operation: 'rename',
+        label: 'ProCaps TR',
+        from: 'ProCaps TR',
+        to: 'ProCaps TR old'
+      }
+    ]);
+    expect(offers.payload.missing).toEqual(['Nope']);
+  });
+
+  it('sets the catalog refresh, or turns it off', async () => {
+    const hourly = await runTool(
+      'catalog_interval',
+      [arg('scope', 'all'), arg('interval', '1h')],
+      deps()
+    );
+    expect(hourly.payload).toMatchObject({ interval: '1h' });
+    const off = await runTool(
+      'catalog_interval',
+      [arg('scope', 'errors'), arg('interval', 'off')],
+      deps()
+    );
+    expect(off.payload).toMatchObject({ interval: null, items: [{ id: 'c2' }] });
+    const wrong = await runTool('catalog_interval', [arg('interval', '5 years')], deps());
+    expect((wrong.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('INVALID_INPUT');
   });
 
   it('answers an unknown tool with a problem, not a crash', async () => {
