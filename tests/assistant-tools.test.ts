@@ -555,6 +555,60 @@ describe('files and folders', () => {
   });
 });
 
+describe('creative ranks', () => {
+  const ranks = () =>
+    deps({
+      list_creative_ranks: () => [
+        {
+          materialId: 'm16',
+          launchCount: 13,
+          rankCredit: 13,
+          lastLaunchedAt: '2026-11-21T10:00:00Z',
+          version: 1,
+          demotion: null
+        },
+        {
+          materialId: 'm23',
+          launchCount: 4,
+          rankCredit: 4,
+          lastLaunchedAt: '2026-11-20T10:00:00Z',
+          version: 1,
+          demotion: null
+        }
+      ]
+    });
+
+  it('answers «топ креативів» best first, with the league the explorer shows', async () => {
+    const card = await runTool('creative_ranks', [arg('query', 'TR')], ranks());
+    expect(card.kind).toBe('table');
+    const rows = card.payload.rows as Array<Array<string | null>>;
+    expect(rows[0]).toEqual(['TR_16.mp4', 'gold', '13', '2026-11-21T10:00:00Z']);
+    expect(rows[1]).toEqual(['TR_23.mp4', 'bronze', '4', '2026-11-20T10:00:00Z']);
+    // Never launched: no league, still listed.
+    expect(rows.slice(2).every(row => row[1] === null && row[2] === '0')).toBe(true);
+  });
+
+  it('keeps one league when asked «які відео золоті»', async () => {
+    const card = await runTool(
+      'creative_ranks',
+      [arg('query', 'TR'), arg('league', 'gold')],
+      ranks()
+    );
+    expect((card.payload.rows as Array<Array<string | null>>).map(row => row[0])).toEqual([
+      'TR_16.mp4'
+    ]);
+  });
+
+  it('refuses a league that does not exist instead of showing everything', async () => {
+    const card = await runTool(
+      'creative_ranks',
+      [arg('query', 'TR'), arg('league', 'platinum')],
+      ranks()
+    );
+    expect((card.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('INVALID_INPUT');
+  });
+});
+
 describe('catalogs, people and tasks', () => {
   it('«видали всі каталоги» lists every catalog on a red card', async () => {
     const card = await runTool('trash_catalogs', [arg('scope', 'all')], deps());

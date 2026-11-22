@@ -868,6 +868,80 @@ async function findMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
   };
 }
 
+/**
+ * 059 leagues by league credit, lowest first — the same steps as the web's creativeRanks.ts
+ * (Віск 1 · Бронза 3 · Срібло 6 · Золото 12 · Алмаз 25).
+ */
+const RANK_LEAGUES = [
+  { id: 'wax', min: 1 },
+  { id: 'bronze', min: 3 },
+  { id: 'silver', min: 6 },
+  { id: 'gold', min: 12 },
+  { id: 'diamond', min: 25 }
+] as const;
+
+function leagueOf(credit: number): string | null {
+  let league: string | null = null;
+  for (const step of RANK_LEAGUES) if (credit >= step.min) league = step.id;
+  return league;
+}
+
+/** «який ранг у TR_16», «які відео золоті», «топ креативів»: the leagues the explorer shows. */
+async function creativeRanks(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const scoped: Args = new Map(args);
+  if (!scoped.has('kind')) scoped.set('kind', 'video');
+  const tree = text(scoped, 'in_folder') ? await folders(deps) : null;
+  const picked = await pickMaterials(deps, scoped, tree);
+  const ids = picked.items.map(item => item.id);
+  const ranks = new Map<string, { launches: number; credit: number; last: string | null }>();
+  for (let start = 0; start < ids.length; start += 500) {
+    const data = await call(deps, 'list_creative_ranks', {
+      p_materials: ids.slice(start, start + 500)
+    });
+    for (const row of Array.isArray(data) ? data : []) {
+      if (!isRecord(row) || typeof row.materialId !== 'string') continue;
+      ranks.set(row.materialId, {
+        launches: typeof row.launchCount === 'number' ? row.launchCount : 0,
+        credit: typeof row.rankCredit === 'number' ? row.rankCredit : 0,
+        last: typeof row.lastLaunchedAt === 'string' ? row.lastLaunchedAt : null
+      });
+    }
+  }
+  const wanted = text(args, 'league');
+  const league = wanted
+    ? (RANK_LEAGUES.find(step => step.id === fold(wanted))?.id ??
+      (() => {
+        throw new ToolRefusal('INVALID_INPUT', wanted);
+      })())
+    : null;
+  const rows = picked.items
+    .map(item => ({ item, rank: ranks.get(item.id) ?? { launches: 0, credit: 0, last: null } }))
+    .filter(entry => !league || leagueOf(entry.rank.credit) === league)
+    .sort(
+      (a, b) =>
+        b.rank.credit - a.rank.credit ||
+        b.rank.launches - a.rank.launches ||
+        a.item.name.localeCompare(b.item.name)
+    );
+  return {
+    kind: 'table',
+    payload: {
+      tool: 'creative_ranks',
+      columns: ['name', 'rank', 'launches', 'lastLaunch'],
+      rows: rows.map(({ item, rank }) => [
+        item.name,
+        leagueOf(rank.credit),
+        String(rank.launches),
+        rank.last
+      ]),
+      total: null,
+      count: rows.length,
+      missing: picked.missing,
+      truncated: picked.truncated
+    }
+  };
+}
+
 /** «створи папку TR у Креативах», several at once. */
 async function createFolders(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const names = list(args, 'names').length ? list(args, 'names') : list(args, 'name');
@@ -2134,6 +2208,7 @@ export const TOOLS: Record<string, Tool> = {
   list_ad_accounts: { kind: 'read', run: listAdAccounts },
   list_launches: { kind: 'read', run: listLaunches },
   list_trash: { kind: 'read', run: listTrash },
+  creative_ranks: { kind: 'read', run: creativeRanks },
   restore_materials: { kind: 'write', run: restoreMaterials },
   copy_materials: { kind: 'write', run: copyMaterials },
   rename_accounts: { kind: 'write', run: renameAccounts },
@@ -2169,6 +2244,7 @@ export const TOOL_GUIDE = [
   'list_ad_accounts — ad accounts with their full IDs, free or busy, tags («напиши ID РК з g18», «які РК вільні»): args: scope (the ad accounts as written: ["g6"] (an account), ["g18-244"] (one ad account), ["tag:#2"] (a tag); never the word «accounts»; omit for all), status (free|busy|all).',
   'list_launches — launches of a period, drafts and launched ones («що запущено сьогодні», «які запуски на завтра»): args: date or from/to (YYYY-MM-DD, today, tomorrow, yesterday), offer, account, status (draft|launched|all), query.',
   'list_trash — what is in the trash.',
+  'creative_ranks — ranks (leagues) of creatives earned by launches: «який ранг у TR_16», «які відео золоті», «топ креативів ProCaps»: args: the files by items or query, kind (default video), in_folder, tag, offer, geo; league (wax|bronze|silver|gold|diamond: only that league).',
   'restore_materials — restore files from the trash: args: items (names).',
   'copy_materials — copy files into a folder (made if missing): args: the files by items or query, kind, in_folder, tag, offer, geo; destination.',
   'rename_accounts — rename accounts: args: pairs (["g18=g18 old"]).',

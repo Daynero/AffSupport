@@ -19,7 +19,8 @@ const TABLE_TITLE: Readonly<Record<string, TranslationKey>> = {
   list_tasks: 'assistantToolListTasks',
   list_ad_accounts: 'assistantToolListAdAccounts',
   list_launches: 'assistantToolListLaunches',
-  list_trash: 'assistantToolListTrash'
+  list_trash: 'assistantToolListTrash',
+  creative_ranks: 'assistantToolCreativeRanks'
 };
 
 const COLUMN: Readonly<Record<string, TranslationKey>> = {
@@ -45,7 +46,18 @@ const COLUMN: Readonly<Record<string, TranslationKey>> = {
   adId: 'assistantColAdId',
   state: 'assistantColState',
   account: 'assistantColAccount',
-  creative: 'assistantColCreative'
+  creative: 'assistantColCreative',
+  rank: 'assistantColRank',
+  launches: 'assistantColLaunches',
+  lastLaunch: 'assistantColLastLaunch'
+};
+
+const LEAGUE: Readonly<Record<string, TranslationKey>> = {
+  wax: 'creativeRankLeagueWax',
+  bronze: 'creativeRankLeagueBronze',
+  silver: 'creativeRankLeagueSilver',
+  gold: 'creativeRankLeagueGold',
+  diamond: 'creativeRankLeagueDiamond'
 };
 
 const REVIEW_TITLE: Readonly<Record<string, TranslationKey>> = {
@@ -211,7 +223,8 @@ export function TableCard({ card }: { card: AssistantCard }) {
         month: 'short',
         timeZone: 'UTC'
       });
-    if (column === 'updated' && /^\d{4}-\d{2}-\d{2}T/u.test(value))
+    if (column === 'rank' && LEAGUE[value]) return t(LEAGUE[value]);
+    if ((column === 'updated' || column === 'lastLaunch') && /^\d{4}-\d{2}-\d{2}T/u.test(value))
       return new Date(value).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
     return value;
   };
