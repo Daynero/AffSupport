@@ -118,6 +118,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
   // people: extend a tariff, give credits, switch the assistant on for a space.
   const [credits, setCredits] = useState<Map<string, AiPersonCredits>>(new Map());
   const [pilot, setPilot] = useState<Map<string, boolean>>(new Map());
+  const [pilotNames, setPilotNames] = useState<Map<string, string>>(new Map());
   const [aiBusy, setAiBusy] = useState<string | null>(null);
 
   const loadAi = useCallback(async (rows: AdminTariffRow[]) => {
@@ -128,6 +129,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
       ]);
       setCredits(people);
       setPilot(new Map(spaces.map(space => [space.teamId, space.pilot])));
+      setPilotNames(new Map(spaces.map(space => [space.teamId, space.name])));
     } catch {
       /* the tariffs stay usable; the two AI columns show a dash */
     }
@@ -382,7 +384,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
           <Table
             size="sm"
             className="admin-table admin-tariff-table"
-            columns="minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(10rem, 1.8fr)"
+            columns="minmax(0, 1.8fr) minmax(0, 1.2fr) minmax(0, 0.7fr) minmax(0, 0.6fr) minmax(0, 0.7fr) minmax(4.5rem, 0.8fr) minmax(7rem, 1.2fr) minmax(5rem, 0.8fr) minmax(5.5rem, 0.8fr) minmax(0, 1fr) minmax(10rem, 1.6fr)"
             label={t('adminTabTariffs')}
           >
             <TableHeader>
@@ -420,8 +422,35 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
           </Table>
         )}
 
+        {(() => {
+          // Spaces with the assistant on that are in neither list (a staff space like Goor):
+          // still switched here, so nothing about the pilot hides on another tab.
+          const listed = new Set([
+            ...data.rows.map(row => row.teamId).filter(Boolean),
+            ...data.legacy.map(space => space.teamId)
+          ]);
+          const outside = [...pilot.entries()].filter(([teamId, on]) => on && !listed.has(teamId));
+          if (!outside.length) return null;
+          return (
+            <div className="admin-pilot-outside">
+              <span className="ai-budget-note">{t('adminTariffPilotOutside')}</span>
+              {outside.map(([teamId]) => (
+                <Switch
+                  key={teamId}
+                  checked
+                  disabled={aiBusy !== null}
+                  label={pilotNames.get(teamId) ?? teamId}
+                  onChange={enabled => void switchPilot(teamId, enabled)}
+                />
+              ))}
+            </div>
+          );
+        })()}
         {filter === 'legacy' && (
           <TariffLegacySpaces
+            pilot={pilot}
+            pilotBusy={aiBusy !== null}
+            onPilot={(teamId, enabled) => void switchPilot(teamId, enabled)}
             spaces={data.legacy}
             onGrant={space =>
               setGranting({

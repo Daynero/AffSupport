@@ -5327,5 +5327,6 @@ export const en = {
   aiBudgetBaseMoney:
     '{count} credits ≈ {day} per person a day · ≈ {month} a month if all of it is spent.',
   aiBudgetMineMoney: 'In money',
-  adminCreditsMoney: '≈ ${usd}'
+  adminCreditsMoney: '≈ ${usd}',
+  adminTariffPilotOutside: 'The assistant is also on outside tariffs:'
 } as const;

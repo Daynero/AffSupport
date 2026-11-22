@@ -5302,5 +5302,6 @@ export const uk: Record<keyof typeof en, string> = {
   aiBudgetBaseMoney:
     '{count} чарунок ≈ {day} на людину на день · ≈ {month} на місяць, якщо витрачати все.',
   aiBudgetMineMoney: 'У грошах',
-  adminCreditsMoney: '≈ ${usd}'
+  adminCreditsMoney: '≈ ${usd}',
+  adminTariffPilotOutside: 'Помічник також увімкнено поза тарифами:'
 };
