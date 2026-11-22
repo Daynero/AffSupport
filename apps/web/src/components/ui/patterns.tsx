@@ -1,9 +1,10 @@
-import { type ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Alert } from './Alert';
 import { Button } from './Button';
 import { HoldToConfirmButton } from './HoldToConfirmButton';
 import { Empty, Skeleton } from './Feedback';
 import { Modal } from './Overlay';
+import { Toolbar } from './Navigation';
 import { uiClasses } from './types';
 
 /**
@@ -142,8 +143,15 @@ export function ConfirmDialog({
   nested = false,
   initialFocus
 }: ConfirmDialogProps) {
+  const bodyId = useId();
   return (
+    /* The question is announced with its body (024, T032). It stays a
+       `dialog` rather than becoming an `alertdialog`: the workspace's keyboard
+       guards (explorer, tasks, launches, accounts) recognise an open overlay by
+       `[role="dialog"]`, and a confirmation they did not recognise would let a
+       shortcut act on the page behind it. */
     <Modal
+      describedBy={bodyId}
       open={open}
       onClose={onCancel}
       title={title}
@@ -221,7 +229,9 @@ export function ConfirmDialog({
         )
       }
     >
-      <p className="prose">{body}</p>
+      <p className="prose" id={bodyId}>
+        {body}
+      </p>
     </Modal>
   );
 }
@@ -248,16 +258,14 @@ export function SelectionBar({
 }: SelectionBarProps) {
   if (count === 0) return null;
   return (
-    <div
-      className={uiClasses('selection-bar', { className })}
-      role="toolbar"
-      aria-label={clearLabel}
-    >
+    /* On the inventory's Toolbar (024, T032): one Tab stop, the arrows walk the
+       actions, and the count is read as the bar's own text. */
+    <Toolbar label={clearLabel} className={uiClasses('selection-bar', { className })}>
       <span className="ui-selection-count">{label}</span>
       <div className="ui-selection-actions">{actions}</div>
       <Button size="sm" color="neutral" variant="ghost" onClick={onClear}>
         {clearLabel}
       </Button>
-    </div>
+    </Toolbar>
   );
 }

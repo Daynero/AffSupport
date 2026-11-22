@@ -7,6 +7,8 @@ import {
   type ReactNode
 } from 'react';
 import { Breadcrumbs as HeroBreadcrumbs } from '@heroui/react/breadcrumbs';
+import { Pagination as HeroPagination } from '@heroui/react/pagination';
+import { Toolbar as HeroToolbar } from '@heroui/react/toolbar';
 import { uiClasses, type UiSize } from './types';
 
 /**
@@ -315,17 +317,65 @@ export function Pagination({
   className
 }: PaginationProps) {
   if (pageCount <= 1) return null;
+  /* On the library's pagination (024, T030): a real list of controls inside a
+     `navigation` landmark, whose buttons are React Aria's — press, keyboard and
+     disabled handled the one way every other control here handles them. The
+     product's shape stays: back, where you are, forward. */
   return (
-    <nav className={uiClasses('pagination', { className })} aria-label={label}>
-      <button type="button" disabled={page <= 1} onClick={() => onChange(page - 1)}>
-        {previousLabel}
-      </button>
-      <span className="ui-pagination-position numeric">
-        {page} / {pageCount}
-      </span>
-      <button type="button" disabled={page >= pageCount} onClick={() => onChange(page + 1)}>
-        {nextLabel}
-      </button>
-    </nav>
+    <HeroPagination className={uiClasses('pagination', { className })} aria-label={label}>
+      <HeroPagination.Content className="ui-pagination-content">
+        <HeroPagination.Item>
+          <HeroPagination.Previous
+            className="ui-pagination-step"
+            isDisabled={page <= 1}
+            onPress={() => onChange(page - 1)}
+          >
+            {previousLabel}
+          </HeroPagination.Previous>
+        </HeroPagination.Item>
+        <HeroPagination.Item>
+          <span className="ui-pagination-position numeric" aria-current="page">
+            {page} / {pageCount}
+          </span>
+        </HeroPagination.Item>
+        <HeroPagination.Item>
+          <HeroPagination.Next
+            className="ui-pagination-step"
+            isDisabled={page >= pageCount}
+            onPress={() => onChange(page + 1)}
+          >
+            {nextLabel}
+          </HeroPagination.Next>
+        </HeroPagination.Item>
+      </HeroPagination.Content>
+    </HeroPagination>
+  );
+}
+
+export interface ToolbarProps {
+  /** What the row of controls is for — "Selection actions". */
+  label: string;
+  children: ReactNode;
+  orientation?: 'horizontal' | 'vertical';
+  className?: string;
+}
+
+/**
+ * A row of controls that is one stop for Tab (024, T030).
+ *
+ * The library's toolbar: Tab reaches it once and the arrows walk its
+ * controls, which is what a selection bar, an editor's tool row or a strip of
+ * section addresses wants. A row of buttons without it is as many Tab stops as
+ * it has buttons on the way to the page.
+ */
+export function Toolbar({ label, children, orientation = 'horizontal', className }: ToolbarProps) {
+  return (
+    <HeroToolbar
+      aria-label={label}
+      orientation={orientation}
+      className={uiClasses('toolbar', { className })}
+    >
+      {children}
+    </HeroToolbar>
   );
 }

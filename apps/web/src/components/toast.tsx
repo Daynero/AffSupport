@@ -10,7 +10,9 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../i18n';
-import { Progress } from './ui/index';
+import { X } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from './icons';
+import { Button, IconButton, Progress } from './ui/index';
 
 /**
  * A toast says one of four things, and each one is a colour role (021, T024):
@@ -226,8 +228,13 @@ function ToastRegion({
           </div>
           <div className="ui-toast-controls">
             {toast.action && (
-              <button
-                type="button"
+              /* The inventory's controls (024, T035): the toast stays ours —
+                 its tones, lifetimes, action and progress — but what is
+                 pressed in it is the same button as everywhere else. */
+              <Button
+                size="sm"
+                variant="ghost"
+                color="primary"
                 className="ui-toast-action"
                 onClick={() => {
                   const run = toast.action?.run;
@@ -239,16 +246,16 @@ function ToastRegion({
                 }}
               >
                 {toast.action.label}
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
+            <IconButton
+              size="sm"
               className="ui-toast-dismiss"
-              aria-label={t('toastDismiss')}
+              label={t('toastDismiss')}
               onClick={() => onDismiss(toast.id)}
             >
-              ×
-            </button>
+              <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </IconButton>
           </div>
         </div>
       ))}

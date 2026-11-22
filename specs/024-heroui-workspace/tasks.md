@@ -152,9 +152,17 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       edit with no visible result, so the legacy shell is deleted where its screens migrate
       instead — T134 owns the last of them. New code uses the inventory's `Modal`, which gained
       `initialFocus` here for the rename dialog.
-- [ ] T030 [US2] `Breadcrumb`, `Link`, `Pagination`, `Tabs` onto HeroUI in
+- [x] T030 [US2] `Breadcrumb`, `Link`, `Pagination`, `Tabs` onto HeroUI in
       `apps/web/src/components/ui/Navigation.tsx` — one keyboard behaviour for both tab strips,
       link mode included; add `Toolbar`; delete the second always-rendered compact breadcrumb.
+      **Closed 2026-11-22.** `Breadcrumb` was already on HeroUI; `Pagination` now is (a list of
+      React Aria buttons in a `navigation` landmark, `aria-current` on the position); `Toolbar` is
+      new, on HeroUI's. Both tab strips already share one keyboard behaviour (arrows in button and
+      link mode). **`Tabs` stays our own markup, with the reason:** every consumer (space
+      settings, admin, finance summary) renders its panel outside the strip with
+      `aria-labelledby="tab-<id>"`, while React Aria's tabs require panels inside their root and
+      generate their own ids — the move would rewrite four screens' layout for no visible change.
+      The explorer's compact breadcrumb belongs to the explorer polish (next release, item 2).
 - [ ] T031 [US2] **Deferred to Phase 10, with a reason.** The inventory's `Table` is a CSS grid
       whose columns are ruled by the screen that uses it — the explorer, the accounts table, the
       member list and the admin lists each set their own tracks against `.ui-table-row`. HeroUI's
@@ -162,36 +170,50 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       column CSS at once. T116 rebuilds the accounts table; that is where this belongs, screen by
       screen, rather than as one change that cannot be checked in one sitting.
       `Accordion` → `DisclosureGroup` and `User` → `Avatar` are unblocked and stay here.
-- [ ] T032 [US2] Patterns in `apps/web/src/components/ui/patterns.tsx`: `EmptyState`,
+- [x] T032 [US2] Patterns in `apps/web/src/components/ui/patterns.tsx`: `EmptyState`,
       `LoadingState`, `ErrorState`, `PermissionState` as compositions; `ConfirmDialog` onto
       `AlertDialog`; `SelectionBar` onto `Toolbar`.
+      **Closed 2026-11-22.** The four states were already compositions; `SelectionBar` is now the
+      inventory's `Toolbar` (arrows walk its actions); `ConfirmDialog` announces its body through
+      `aria-describedby`. It keeps `role="dialog"` rather than `alertdialog`, deliberately: the
+      explorer, tasks, launches and accounts keyboard guards recognise an open overlay by
+      `[role="dialog"]`, and a confirmation they missed would let a shortcut act behind it.
 - [x] T033 [US2] Create `apps/web/src/components/ui/DateField.tsx` — `Calendar`, `RangeCalendar`,
       `DatePicker`, `DateField` on HeroUI, with the one adapter between `CalendarDate` and the
       product's stored string shape.
-- [ ] T034 [US2] Update the barrel `apps/web/src/components/ui/index.ts` with every new export.
+- [x] T034 [US2] Update the barrel `apps/web/src/components/ui/index.ts` with every new export.
 - [ ] T035 [US2] Restyle the product's own toast in `apps/web/src/components/toast.tsx` onto the
       new surfaces — it keeps its tones, lifetimes, action and progress bar, and stays ours.
-- [ ] T036 [US2] Retire the bespoke hover-bubble layer: `apps/web/src/components/InstantTips.tsx`
+      **Closed 2026-11-22.** Its colour was already the tone's role (C2) and its bar the
+      inventory's `Progress`; the action and the dismiss are now the inventory's `Button` and
+      `IconButton`, and their hand-written rules are gone from `styles.css`.
+- [ ] T036 [US2] **Deferred to the sweep (T140), with a reason.** Retire the bespoke hover-bubble layer: `apps/web/src/components/InstantTips.tsx`
       and the `data-tip` attribute pattern give way to the inventory's `Tooltip` with one delay
       group; delete `useAnchoredLayer.ts` and `useCompactToolbar.ts`, whose jobs React Aria now
-      does.
+      does. 22 of the `data-tip` sites are on the compressor, stitcher, landing and transcription
+      screens, which render only with the local app — the same reason T037 waits — and most sit
+      on text that is not focusable, which React Aria's tooltip needs. It goes with the pass that
+      can open those screens.
 - [ ] T037 [US2] **Deferred to the sweep (T140), with a reason.** 56 files import the shim, and
       48 of them only for `Button`, which the inventory already accepts in its legacy spelling —
       so the repoint is mechanical. What is not mechanical is the checking: most of those files
       are outside the team workspace, and three of those screens cannot render at all without the
       local app, which is exactly the finding (021, S8) that says a screen nothing can open is a
       screen nothing has checked. It goes in the pass that walks them, not before it.
-- [ ] T038 [US2] Rewrite `tests/design-components.test.tsx` from the deleted shim's literal
+- [ ] T038 [US2] **Deferred with T037.** Rewrite `tests/design-components.test.tsx` from the deleted shim's literal
       classes onto the inventory's marker grammar.
-- [ ] T039 [US2] Extend `apps/web/src/dev/DesignSystemPage.tsx` to every new component and the
+- [x] T039 [US2] Extend `apps/web/src/dev/DesignSystemPage.tsx` to every new component and the
       new dates group, generated from the type unions as it already is.
+      **Closed 2026-11-22:** the calendar group was there; `Toolbar` and `Link` were the missing rows.
 - [ ] T040 [US2] Delete from `apps/web/src/styles/components.css` every rule the adapters no
       longer need; confirm `node scripts/verify-styles.mjs` still reports no orphan `var()`.
+      2026-11-22: the pagination and toast-control rules went with their adapters. The rest is
+      the stylesheet deletion of T138 and is done there, once the sweep has walked the screens.
 - [x] T041 [US2] Repair the existing DOM test suite. All 113 files and 796 tests pass. 73 of the 113 `*.test.tsx` files render a
       component the swap changes; they assert on class names, roles and labels. Work through them
       in one pass, preferring role- and name-based queries to class-based ones, so the suite
       stops being coupled to markup it no longer owns.
-- [ ] T042 [US2] Walk the screens outside the team workspace — compressor, transcription,
+- [ ] T042 [US2] **Deferred to the sweep (T140).** Walk the screens outside the team workspace — compressor, transcription,
       stitcher, auth, landing viewer, 2FA, account page — and fix what the swap moved. Record
       anything deliberately left alone.
 

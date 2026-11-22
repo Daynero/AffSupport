@@ -89,14 +89,15 @@ export type {
 } from './Overlay';
 export { useDialogBehaviour } from './Overlay';
 
-export { Breadcrumb, Link, Pagination, Tabs } from './Navigation';
+export { Breadcrumb, Link, Pagination, Tabs, Toolbar } from './Navigation';
 export type {
   BreadcrumbProps,
   Crumb,
   LinkProps,
   PaginationProps,
   TabItem,
-  TabsProps
+  TabsProps,
+  ToolbarProps
 } from './Navigation';
 
 export {

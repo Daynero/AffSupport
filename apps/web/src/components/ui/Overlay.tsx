@@ -390,6 +390,8 @@ export interface ModalProps {
    * be typed into.
    */
   initialFocus?: string;
+  /** The id of the sentence that says what the dialog is asking. */
+  describedBy?: string;
 }
 
 export function Modal({
@@ -405,7 +407,8 @@ export function Modal({
   className,
   children,
   footer,
-  initialFocus
+  initialFocus,
+  describedBy
 }: ModalProps) {
   const surface = useRef<HTMLDivElement>(null);
   const generatedId = useId();
@@ -428,6 +431,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy ?? (title ? generatedId : undefined)}
+        aria-describedby={describedBy}
         aria-busy={busy || undefined}
         className={uiClasses('modal', {
           size: size === 'full' ? undefined : size,

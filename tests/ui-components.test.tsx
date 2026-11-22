@@ -17,6 +17,7 @@ import {
   IconButton,
   Input,
   Modal,
+  Pagination,
   Progress,
   RadioGroup,
   SegmentedControl,
@@ -432,6 +433,63 @@ describe('Navigation and patterns', () => {
         clearLabel="Clear selection (0)"
         onClear={() => {}}
         actions={null}
+      />
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('walks a selection bar with the arrow keys (024, T032)', async () => {
+    const user = userEvent.setup();
+    render(
+      <SelectionBar
+        count={2}
+        label="2 selected"
+        clearLabel="Clear selection (2)"
+        onClear={() => {}}
+        actions={<Button size="sm">Process</Button>}
+      />
+    );
+    const bar = screen.getByRole('toolbar', { name: 'Clear selection (2)' });
+    const process = within(bar).getByRole('button', { name: 'Process' });
+    process.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(document.activeElement).toBe(
+      within(bar).getByRole('button', { name: 'Clear selection (2)' })
+    );
+  });
+});
+
+describe('Pagination (024, T030)', () => {
+  it('steps back and forward and says where the reader is', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <Pagination
+        page={1}
+        pageCount={3}
+        onChange={onChange}
+        label="Pages"
+        previousLabel="Previous"
+        nextLabel="Next"
+      />
+    );
+    const nav = screen.getByRole('navigation', { name: 'Pages' });
+    expect(within(nav).getByText('1 / 3').getAttribute('aria-current')).toBe('page');
+    const previous = within(nav).getByRole('button', { name: 'Previous' });
+    expect(previous.hasAttribute('disabled')).toBe(true);
+    await user.click(within(nav).getByRole('button', { name: 'Next' }));
+    expect(onChange).toHaveBeenCalledWith(2);
+  });
+
+  it('renders nothing for a single page', () => {
+    const { container } = render(
+      <Pagination
+        page={1}
+        pageCount={1}
+        onChange={() => {}}
+        label="Pages"
+        previousLabel="Previous"
+        nextLabel="Next"
       />
     );
     expect(container.firstChild).toBeNull();
