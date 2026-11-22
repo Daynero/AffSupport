@@ -106,6 +106,7 @@ const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
   INVALID_EMAIL: 'assistantInvalidEmail',
   PERMISSION_DENIED: 'assistantPermissionDenied',
   OWNER_TRANSFER_REQUIRED: 'assistantOwnerRole',
+  FOLDER_MOVE_UNSUPPORTED: 'assistantFolderMoveUnsupported',
   INVALID_INPUT: 'assistantInvalidValue'
 };
 
@@ -239,7 +240,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     const last = list.current?.lastElementChild as HTMLElement | null | undefined;
     if (last && typeof last.scrollIntoView === 'function')
       last.scrollIntoView({ block: 'nearest' });
-  }, [messages.length, panel]);
+  }, [messages.length, panel, error]);
 
   // The field grows with the text, from one line to about six.
   useLayoutEffect(() => {
@@ -528,11 +529,17 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
           payload: { ...card.payload, done: outcome.done, failed: outcome.failed }
         });
       }
+      // Why it failed, in the words the screens use for the same refusal.
       if (outcome.failed > 0)
         setError(
-          outcome.done === 0 && outcome.code
-            ? reasonText(outcome.code, '')
-            : t('assistantToolFailed', { count: outcome.failed })
+          [
+            t('assistantToolFailedShort', { count: outcome.failed }),
+            outcome.code
+              ? teamErrorMessageFor(new TeamApiError(outcome.code as never, false), t)
+              : null
+          ]
+            .filter(Boolean)
+            .join(' ')
         );
       notifyLaunchesChanged(teamId);
     } catch (caught) {

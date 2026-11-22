@@ -89,8 +89,11 @@ function period(payload: Record<string, unknown>): string {
   return from === to || !to ? from : `${from} — ${to}`;
 }
 
+const UNTAGGED = '{untagged}';
+
 export function TableCard({ card }: { card: AssistantCard }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const usd = new Intl.NumberFormat(language, { style: 'currency', currency: 'USD' });
   const [copied, setCopied] = useState(false);
   const payload = card.payload as Record<string, unknown>;
   const tool = String(payload.tool ?? '');
@@ -98,10 +101,14 @@ export function TableCard({ card }: { card: AssistantCard }) {
   const rows = (payload.rows as Array<Array<string | null>>) ?? [];
   const total = (payload.total as Array<string | null> | null) ?? null;
   const missing = (payload.missing as string[]) ?? [];
-  const copyText = typeof payload.copyText === 'string' ? payload.copyText : null;
+  const copyText =
+    typeof payload.copyText === 'string'
+      ? payload.copyText.replaceAll(UNTAGGED, t('teamAgentLabelsUntagged'))
+      : null;
   const cell = (column: string, value: string | null) => {
     if (value === null || value === '') return '—';
-    if (MONEY_COLUMNS.has(column)) return `$${value}`;
+    if (value === UNTAGGED) return t('teamAgentLabelsUntagged');
+    if (MONEY_COLUMNS.has(column)) return usd.format(Number(value));
     if (column === 'status' && STATUS[value]) return t(STATUS[value]);
     if (column === 'updated' && /^\d{4}-\d{2}-\d{2}T/u.test(value))
       return new Date(value).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
@@ -213,7 +220,8 @@ export function ToolReviewCard({
   disabled: boolean;
   onRun: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const usd = new Intl.NumberFormat(language, { style: 'currency', currency: 'USD' });
   const payload = card.payload as Record<string, unknown>;
   const tool = String(payload.tool ?? '');
   const items =
@@ -231,7 +239,14 @@ export function ToolReviewCard({
   const active = items.filter(item => !item.exists && !item.unchanged);
   const money = tool === 'set_finance';
   const show = (value: string | null | undefined) =>
-    value === null || value === undefined || value === '' ? '—' : money ? `$${value}` : value;
+    value === null || value === undefined || value === ''
+      ? '—'
+      : money
+        ? usd.format(Number(value))
+        : value;
+  const parent = payload.parent as { label?: string } | null | undefined;
+  const created = (payload.created as string[]) ?? [];
+  const folders = (payload.folders as string[]) ?? [];
   const destination = payload.destination as { label?: string; create?: string } | undefined;
   const title = REVIEW_TITLE[tool];
   return (
@@ -254,6 +269,16 @@ export function ToolReviewCard({
             })
           : tool}
       </p>
+      {tool === 'create_folders' && (
+        <p className="assistant-note">
+          {parent?.label
+            ? t('assistantToolInFolder', { name: parent.label })
+            : t('assistantToolInRoot')}
+        </p>
+      )}
+      {created.length > 0 && !done && (
+        <p className="assistant-note">{t('assistantToolNewTags', { names: created.join(', ') })}</p>
+      )}
       {destination?.create && (
         <p className="assistant-note">
           {t('assistantToolNewFolder', { name: destination.create })}
@@ -263,7 +288,7 @@ export function ToolReviewCard({
         {items.slice(0, 60).map((item, index) => (
           <li key={index} className="assistant-row">
             <span className="assistant-row-line">
-              <span className="assistant-chip">{item.label}</span>
+              {item.from !== item.label && <span className="assistant-chip">{item.label}</span>}
               <span className="assistant-row-facts">
                 {item.exists
                   ? t('assistantToolExists')
@@ -281,7 +306,9 @@ export function ToolReviewCard({
         <p className="assistant-note">{t('assistantToolMore', { count: items.length - 60 })}</p>
       )}
       {typeof payload.total === 'string' && money && (
-        <p className="assistant-note">{t('assistantToolSum', { sum: `$${payload.total}` })}</p>
+        <p className="assistant-note">
+          {t('assistantToolSum', { sum: usd.format(Number(payload.total)) })}
+        </p>
       )}
       {typeof payload.overwrites === 'number' && payload.overwrites > 0 && !done && (
         <p className="assistant-note is-warning">
@@ -293,6 +320,12 @@ export function ToolReviewCard({
         <p className="assistant-note is-warning">
           <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
           {t('assistantNotFoundQuoted', { written: missing.join(', ') })}
+        </p>
+      )}
+      {folders.length > 0 && (
+        <p className="assistant-note is-warning">
+          <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          {t('assistantFolderMoveUnsupported', { written: folders.join(', ') })}
         </p>
       )}
       {danger && !done && (

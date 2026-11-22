@@ -242,6 +242,9 @@ async function snapshot(deps: ToolDeps, from: string, to: string): Promise<Finan
 
 const naturally = new Intl.Collator('uk', { numeric: true, sensitivity: 'base' });
 
+/** The group of ad accounts without a tag; the window shows it in the person's language. */
+export const UNTAGGED = '{untagged}';
+
 function tagKey(tags: readonly string[]): string {
   return [...new Set(tags)].sort(naturally.compare).join(' + ');
 }
@@ -289,7 +292,7 @@ async function financeReport(args: Args, deps: ToolDeps): Promise<ToolCard> {
         : by === 'ad_account'
           ? `${column.accountName}-${column.agentId.slice(-3)}`
           : by === 'tag'
-            ? tagKey(tags.get(column.agentRowId) ?? []) || '—'
+            ? tagKey(tags.get(column.agentRowId) ?? []) || UNTAGGED
             : 'total';
     bump(key, cents(column.totals.spend), cents(column.totals.topup));
   }
@@ -299,7 +302,7 @@ async function financeReport(args: Args, deps: ToolDeps): Promise<ToolCard> {
   );
   const ordered = [...groups.entries()]
     .filter(([, group]) => group.spend !== null || group.topup !== null)
-    .sort(([a], [b]) => (a === '—' ? 1 : b === '—' ? -1 : naturally.compare(a, b)));
+    .sort(([a], [b]) => (a === UNTAGGED ? 1 : b === UNTAGGED ? -1 : naturally.compare(a, b)));
   return {
     kind: 'table',
     payload: {
@@ -340,11 +343,12 @@ async function topupStatement(args: Args, deps: ToolDeps): Promise<ToolCard> {
   );
   const groups = new Map<string, typeof rows>();
   for (const row of rows) {
-    const key = by === 'account' ? row.accountName : tagKey(tags.get(row.agentRowId) ?? []) || '—';
+    const key =
+      by === 'account' ? row.accountName : tagKey(tags.get(row.agentRowId) ?? []) || UNTAGGED;
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
   const ordered = [...groups.entries()].sort(([a], [b]) =>
-    a === '—' ? 1 : b === '—' ? -1 : naturally.compare(a, b)
+    a === UNTAGGED ? 1 : b === UNTAGGED ? -1 : naturally.compare(a, b)
   );
   const total = rows.reduce<bigint | null>((sum, row) => add(sum, cents(row.value)), null);
   const plain = (value: string) => `$${value.replace(/\.00$/u, '')}`;
@@ -724,8 +728,16 @@ async function moveMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
   const target = text(args, 'destination');
   if (!target) throw new ToolRefusal('INVALID_INPUT', 'destination');
   const destination = pickFolder(tree, target);
-  const picked = await pickMaterials(deps, args, tree);
-  if (!picked.items.length) throw new ToolRefusal('NOT_FOUND', picked.missing.join(', '));
+  const chosen = await pickMaterials(deps, args, tree);
+  // Soty moves files, not folders — the explorer drops files on a folder, and the server's move
+  // takes a file with its transcript and catalogs. A folder named here is told, not attempted.
+  const folderNames = chosen.items.filter(item => item.kind === 'folder').map(item => item.name);
+  const picked = { ...chosen, items: chosen.items.filter(item => item.kind !== 'folder') };
+  if (!picked.items.length)
+    throw new ToolRefusal(
+      folderNames.length ? 'FOLDER_MOVE_UNSUPPORTED' : 'NOT_FOUND',
+      folderNames.length ? folderNames.join(', ') : picked.missing.join(', ')
+    );
   const parentWritten = text(args, 'parent');
   const parent = parentWritten ? pickFolder(tree, parentWritten) : 'root';
   return {
@@ -749,6 +761,7 @@ async function moveMaterials(args: Args, deps: ToolDeps): Promise<ToolCard> {
             !destination || destination === 'root' || item.parentFolderId !== destination.driveId
         )
         .map(item => fileItem(item)),
+      folders: folderNames,
       already: picked.items.filter(
         item => destination && destination !== 'root' && item.parentFolderId === destination.driveId
       ).length,
@@ -1431,7 +1444,7 @@ export const TOOL_GUIDE = [
   'tag_ad_accounts — tags on ad accounts, creating missing tags: args: scope (ad accounts/accounts/tags), add_tags, remove_tags.',
   'find_materials — find files/creatives: args: items (names), or query, kind (video|image|folder|…), in_folder, tag, offer, geo.',
   'create_folders — args: names, parent (folder name or path; omit for the root).',
-  'move_materials — move files into a folder (made if missing): args: items or query/kind/in_folder/tag/offer/geo, destination (folder name or path), parent (where a new destination goes).',
+  'move_materials — move files (not folders: Soty moves files only) into a folder (made if missing): args: items or query/kind/in_folder/tag/offer/geo, destination (folder name or path), parent (where a new destination goes).',
   'rename_materials — rename many files: args: pairs (["тр16=TR_16_final"]), or a selection (items/query/kind/in_folder…) with one rule: prefix, suffix, find+replace, or template with {n} {name} {offer} {geo} and start.',
   'edit_materials — tags and fields of files: args: selection, add_tags, remove_tags, set_offer, set_geo.',
   'trash_materials — delete files/folders into the Drive trash: args: selection (items or query/kind/in_folder/tag/offer/geo).',

@@ -5350,6 +5350,12 @@ export const uk: Record<keyof typeof en, string> = {
     'Доступ до простору зникне; файли, які вони відкривали на Drive напряму, лишаться в них.',
   assistantToolDone: 'Готово: {count}',
   assistantToolFailed: 'Не вийшло: {count}. Онови сторінку й спробуй ще раз.',
+  assistantToolInFolder: 'У папці «{name}».',
+  assistantToolInRoot: 'У корені простору.',
+  assistantToolNewTags: 'Нові теги буде створено: {names}.',
+  assistantFolderMoveUnsupported:
+    'Папки Soty не переносить — лише файли, як і провідник: {written}',
+  assistantToolFailedShort: 'Не вийшло: {count}.',
   assistantInvalidDate: 'Не зрозумів дату «{written}»',
   assistantFutureDate: 'День «{written}» ще не настав',
   assistantPeriodTooLong: 'Задовгий період «{written}» — до 92 днів',

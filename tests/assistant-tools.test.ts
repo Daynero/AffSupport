@@ -216,7 +216,7 @@ describe('reading money', () => {
     expect(card.payload.rows).toEqual([
       ['#1 + #2', '5.50', '50.00'],
       ['#2', '10.00', '100.00'],
-      ['—', '7.00', '0.00']
+      ['{untagged}', '7.00', '0.00']
     ]);
     expect(card.payload.total).toEqual(['22.50', '150.00']);
   });
@@ -343,6 +343,31 @@ describe('files and folders', () => {
     expect(card.payload).toMatchObject({ destination: { create: 'Нові', parentId: null } });
     expect((card.payload.items as Array<{ id: string }>).map(i => i.id)).toEqual(['m16']);
     expect(card.payload.missing).toEqual(['тр16', 'TR_25 (2)']);
+  });
+
+  it('does not offer to move a folder — Soty moves files only, as the explorer does', async () => {
+    const only = await runTool(
+      'move_materials',
+      [arg('items', ['old']), arg('destination', 'TR')],
+      deps({
+        search_materials: () => ({
+          items: [
+            {
+              id: 'f-old',
+              name: 'old',
+              kind: 'folder',
+              category: null,
+              parentFolderId: 'drive-root',
+              tags: []
+            }
+          ],
+          total: 1
+        })
+      })
+    );
+    expect(only.payload.unresolved).toEqual([
+      { field: 'move_materials', written: 'old', code: 'FOLDER_MOVE_UNSUPPORTED' }
+    ]);
   });
 
   it('leaves out what is already in the destination', async () => {
