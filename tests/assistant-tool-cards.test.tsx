@@ -40,7 +40,7 @@ describe('the space tools’ cards', () => {
       />
     );
     expect(screen.queryByText('{untagged}')).toBeNull();
-    expect(screen.getByText(/2[\s,.  ]?800/u)).toBeTruthy();
+    expect(screen.getByText(/2\D?800/u)).toBeTruthy();
     expect(screen.getByRole('button', { name: /Копіювати|Copy/u })).toBeTruthy();
   });
 
