@@ -33,6 +33,11 @@ export interface ToolDeps {
   teamId: string;
   /** The person writing: «на мене», «мені» name them. */
   userId: string;
+  /**
+   * Files an earlier step of the same message renames, new name → old name: «перейменуй X на Y і
+   * перенеси його в Z» names Y before it exists. The cards act on ids, so finding it as X is right.
+   */
+  renamed?: Map<string, string>;
   callerRpc: ToolRpc;
   timezone: string;
   now: Date;
@@ -613,7 +618,8 @@ async function pickMaterials(
   const geo = text(args, 'geo');
   const missing: string[] = [];
   const picked = new Map<string, Material>();
-  for (const name of names.slice(0, TOOL_LIMITS.rows)) {
+  for (const written of names.slice(0, TOOL_LIMITS.rows)) {
+    const name = deps.renamed?.get(loose(written)) ?? written;
     const { items } = await search(deps, name.replace(/\.[a-z0-9]{2,5}$/iu, ''), {
       kinds: kinds.length ? kinds : undefined
     });
@@ -625,7 +631,7 @@ async function pickMaterials(
       if (primary.length === 1) found = primary;
     }
     if (found.length === 1) picked.set(found[0]!.id, found[0]!);
-    else missing.push(found.length ? `${name} (${found.length})` : name);
+    else missing.push(found.length ? `${written} (${found.length})` : written);
   }
   let truncated = false;
   if (!names.length && (query || kinds.length || inFolder || tag || offer || geo)) {
@@ -702,15 +708,31 @@ async function createFolders(args: Args, deps: ToolDeps): Promise<ToolCard> {
   if (!names.length) throw new ToolRefusal('INVALID_INPUT', 'names');
   const tree = await folders(deps);
   const parentWritten = text(args, 'parent');
-  const parent = parentWritten ? pickFolder(tree, parentWritten) : 'root';
+  const found = parentWritten ? pickFolder(tree, parentWritten) : 'root';
+  // «створи в QA папки a і b» when QA is not there yet: QA is made first, where its path says.
+  let parent: Folder | 'root' | { create: string; within: Folder | 'root' } | null = found;
+  if (found === null && parentWritten) {
+    const parts = parentWritten
+      .split('/')
+      .map(part => part.trim())
+      .filter(Boolean);
+    const within = parts.length > 1 ? pickFolder(tree, parts.slice(0, -1).join(' / ')) : 'root';
+    if (within === null) throw new ToolRefusal('FOLDER_NOT_FOUND', parentWritten);
+    parent = { create: parts.at(-1)!, within };
+  }
   if (parent === null) throw new ToolRefusal('FOLDER_NOT_FOUND', parentWritten ?? '');
+  const known = new Set(tree.map(folder => folder.driveId));
+  // Already there: the same name under the same parent. A root folder's parent is no listed
+  // folder; a parent made by this card has nothing in it yet.
+  const under = (folder: Folder) =>
+    parent === 'root'
+      ? folder.parentDriveId === null || !known.has(folder.parentDriveId)
+      : 'driveId' in parent
+        ? folder.parentDriveId === parent.driveId
+        : false;
   const items = names.slice(0, 50).map(name => {
     if (/[\\/]/u.test(name) || name.length > 200) throw new ToolRefusal('INVALID_NAME', name);
-    const exists = tree.some(
-      folder =>
-        fold(folder.name) === fold(name) &&
-        folder.parentDriveId === (parent === 'root' ? folder.parentDriveId : parent.driveId)
-    );
+    const exists = tree.some(folder => fold(folder.name) === fold(name) && under(folder));
     return { label: name, name, exists };
   });
   return {
@@ -718,7 +740,16 @@ async function createFolders(args: Args, deps: ToolDeps): Promise<ToolCard> {
     payload: {
       purpose: 'tool',
       tool: 'create_folders',
-      parent: parent === 'root' ? null : { id: parent.id, label: parent.path },
+      parent:
+        parent === 'root'
+          ? null
+          : 'create' in parent
+            ? {
+                create: parent.create,
+                parentId: parent.within === 'root' ? null : parent.within.id,
+                label: parentWritten
+              }
+            : { id: parent.id, label: parent.path },
       items
     }
   };
@@ -1306,7 +1337,17 @@ async function createTasks(args: Args, deps: ToolDeps): Promise<ToolCard> {
       assignee: assignee?.name ?? null,
       date,
       tags,
-      materials: attach.items.map(item => ({ id: item.id, label: item.name }))
+      materials: attach.items.map(item => ({ id: item.id, label: item.name })),
+      // What the card shows under the title: who, when, tags, files.
+      note:
+        [
+          assignee?.name ?? null,
+          date,
+          ...tags.map(tag => `#${tag.name}`),
+          ...attach.items.map(item => item.name)
+        ]
+          .filter(Boolean)
+          .join(' · ') || null
     });
   }
   return { kind: 'review', payload: { purpose: 'tool', tool: 'create_tasks', items, missing } };
@@ -1357,15 +1398,21 @@ async function updateTasks(args: Args, deps: ToolDeps): Promise<ToolCard> {
     id: task.id,
     label: task.title,
     expectedUpdatedAt: task.updatedAt,
-    from: [task.status, task.date, task.assignee].filter(Boolean).join(' · '),
-    to: [
-      status ?? task.status,
-      patchDate ?? task.date,
-      assignee?.name ?? task.assignee,
-      ...addTags.map(tag => `#${tag.name}`)
-    ]
-      .filter(Boolean)
-      .join(' · '),
+    // Only what changes, each part on its own — the window says it in the person's words.
+    changes: [
+      ...(status && status !== task.status
+        ? [{ field: 'status', from: task.status, to: status }]
+        : []),
+      ...(patchDate && patchDate !== task.date
+        ? [{ field: 'date', from: task.date, to: patchDate }]
+        : []),
+      ...(assignee && assignee.name !== task.assignee
+        ? [{ field: 'assignee', from: task.assignee, to: assignee.name }]
+        : []),
+      ...(addTags.length
+        ? [{ field: 'tags', from: null, to: addTags.map(tag => `#${tag.name}`).join(', ') }]
+        : [])
+    ],
     patch: {
       ...(status ? { status } : {}),
       ...(patchDate ? { dateOn: patchDate } : {}),
@@ -1417,6 +1464,45 @@ async function tagAdAccounts(args: Args, deps: ToolDeps): Promise<ToolCard> {
   };
 }
 
+/** «видали завдання X», «прибери всі зроблені завдання». */
+async function deleteTasks(args: Args, deps: ToolDeps): Promise<ToolCard> {
+  const all = await tasks(deps, new Map());
+  const names = list(args, 'items');
+  const withStatus = text(args, 'with_status');
+  const missing: string[] = [];
+  const picked = new Map<string, TaskRow>();
+  for (const name of names) {
+    const hits = all.filter(task => fold(task.title) === fold(name));
+    const found = hits.length ? hits : all.filter(task => fold(task.title).includes(fold(name)));
+    if (found.length === 1) picked.set(found[0]!.id, found[0]!);
+    else missing.push(found.length ? `${name} (${found.length})` : name);
+  }
+  if (!names.length && withStatus)
+    all.filter(task => task.status === withStatus).forEach(task => picked.set(task.id, task));
+  if (!picked.size) throw new ToolRefusal('NOT_FOUND', missing.join(', ') || 'tasks');
+  return {
+    kind: 'review',
+    payload: {
+      purpose: 'tool',
+      tool: 'delete_tasks',
+      danger: true,
+      items: [...picked.values()].map(task => ({
+        id: task.id,
+        label: task.title,
+        note: [task.date, task.assignee].filter(Boolean).join(' · ') || null
+      })),
+      missing
+    }
+  };
+}
+
+/** After a rename card, the names it gives point back to the files, for the steps after it. */
+export function rememberRenames(card: ToolCard, renamed: Map<string, string>): void {
+  if (card.kind !== 'review' || card.payload.tool !== 'rename_materials') return;
+  for (const item of (card.payload.items as Array<{ from?: string; to?: string }>) ?? [])
+    if (item.from && item.to) renamed.set(loose(item.to), item.from);
+}
+
 interface Tool {
   kind: 'read' | 'write';
   run: (args: Args, deps: ToolDeps) => Promise<ToolCard>;
@@ -1441,7 +1527,8 @@ export const TOOLS: Record<string, Tool> = {
   change_members: { kind: 'write', run: changeMembers },
   list_tasks: { kind: 'read', run: listTasks },
   create_tasks: { kind: 'write', run: createTasks },
-  update_tasks: { kind: 'write', run: updateTasks }
+  update_tasks: { kind: 'write', run: updateTasks },
+  delete_tasks: { kind: 'write', run: deleteTasks }
 };
 
 /** The tool names the model may write, with one line each for its prompt. */
@@ -1464,7 +1551,8 @@ export const TOOL_GUIDE = [
   'change_members — args: people (names or emails), role (admin|editor|viewer) or remove true.',
   'list_tasks — args: status (todo|in_progress|done), query, assignee.',
   'create_tasks — args: tasks, each one line «title | assignee | date | tag1, tag2 | file1, file2» (empty parts stay empty; date YYYY-MM-DD or tomorrow).',
-  'update_tasks — args: items (task titles) or with_status (todo|in_progress|done), and status, date, assignee, add_tags.'
+  'update_tasks — args: items (task titles) or with_status (todo|in_progress|done), and status, date, assignee, add_tags.',
+  'delete_tasks — delete tasks: args: items (task titles) or with_status (todo|in_progress|done).'
 ].join('\n');
 
 /** One tool step of a plan → its card; a refusal becomes the same «не вийшло» card as elsewhere. */

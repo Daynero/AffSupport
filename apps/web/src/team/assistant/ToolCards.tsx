@@ -54,7 +54,8 @@ const REVIEW_TITLE: Readonly<Record<string, TranslationKey>> = {
   change_roles: 'assistantToolChangeRoles',
   remove_members: 'assistantToolRemoveMembers',
   create_tasks: 'assistantToolCreateTasks',
-  update_tasks: 'assistantToolUpdateTasks'
+  update_tasks: 'assistantToolUpdateTasks',
+  delete_tasks: 'assistantToolDeleteTasks'
 };
 
 const REVIEW_GO: Readonly<Record<string, TranslationKey>> = {
@@ -71,7 +72,8 @@ const REVIEW_GO: Readonly<Record<string, TranslationKey>> = {
   change_roles: 'assistantToolGoApply',
   remove_members: 'assistantToolGoRemove',
   create_tasks: 'assistantToolGoCreate',
-  update_tasks: 'assistantToolGoApply'
+  update_tasks: 'assistantToolGoApply',
+  delete_tasks: 'assistantToolGoDelete'
 };
 
 const MONEY_COLUMNS = new Set(['spend', 'topup']);
@@ -268,7 +270,14 @@ export function ToolReviewCard({
       note?: string | null;
       exists?: boolean;
       unchanged?: boolean;
+      changes?: Array<{ field: string; from: string | null; to: string | null }>;
     }>) ?? [];
+  const word = (field: string, value: string | null) =>
+    value === null || value === ''
+      ? '—'
+      : field === 'status' && STATUS[value]
+        ? t(STATUS[value])
+        : value;
   const missing = (payload.missing as string[]) ?? [];
   const danger = payload.danger === true;
   const done = card.state === 'confirmed';
@@ -280,7 +289,7 @@ export function ToolReviewCard({
       : money
         ? usd.format(Number(value))
         : value;
-  const parent = payload.parent as { label?: string } | null | undefined;
+  const parent = payload.parent as { label?: string; create?: string } | null | undefined;
   const created = (payload.created as string[]) ?? [];
   const folders = (payload.folders as string[]) ?? [];
   const destination = payload.destination as { label?: string; create?: string } | undefined;
@@ -305,6 +314,9 @@ export function ToolReviewCard({
             })
           : tool}
       </p>
+      {tool === 'create_folders' && parent?.create && (
+        <p className="assistant-note">{t('assistantToolNewFolder', { name: parent.create })}</p>
+      )}
       {tool === 'create_folders' && (
         <p className="assistant-note">
           {parent?.label
@@ -326,13 +338,20 @@ export function ToolReviewCard({
             <span className="assistant-row-line">
               {item.from !== item.label && <span className="assistant-chip">{item.label}</span>}
               <span className="assistant-row-facts">
-                {item.exists
-                  ? t('assistantToolExists')
-                  : item.unchanged
-                    ? t('assistantToolUnchanged')
-                    : item.to !== undefined
-                      ? `${show(item.from)} → ${show(item.to)}`
-                      : (item.note ?? '')}
+                {item.changes
+                  ? item.changes
+                      .map(
+                        change =>
+                          `${t(COLUMN[change.field] ?? 'assistantColGroup')}: ${word(change.field, change.from)} → ${word(change.field, change.to)}`
+                      )
+                      .join(' · ')
+                  : item.exists
+                    ? t('assistantToolExists')
+                    : item.unchanged
+                      ? t('assistantToolUnchanged')
+                      : item.to !== undefined
+                        ? `${show(item.from)} → ${show(item.to)}`
+                        : (item.note ?? '')}
               </span>
             </span>
           </li>
@@ -413,5 +432,6 @@ const METRIC: Readonly<Record<string, TranslationKey>> = {
 const DANGER_NOTE: Readonly<Record<string, TranslationKey>> = {
   trash_materials: 'assistantToolTrashNote',
   trash_catalogs: 'assistantToolTrashNote',
-  remove_members: 'assistantToolRemoveNote'
+  remove_members: 'assistantToolRemoveNote',
+  delete_tasks: 'assistantToolDeleteTasksNote'
 };

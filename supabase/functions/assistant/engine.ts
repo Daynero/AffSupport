@@ -38,7 +38,7 @@ import {
 } from '../../../packages/shared/dist/team/launches/defaults-merge.js';
 // @deno-types="../../../packages/shared/dist/team/launches/fields.d.ts"
 import { launchField } from '../../../packages/shared/dist/team/launches/fields.js';
-import { runTool } from './tools.ts';
+import { rememberRenames, runTool } from './tools.ts';
 import type { Rpc } from '../_shared/ai-allowance.ts';
 import { isRecord } from '../_shared/validation.ts';
 
@@ -1373,6 +1373,7 @@ export async function executePlan(
       ]
     };
   }
+  const renamed = new Map<string, string>();
   try {
     for (let step = 0; step < plan.actions.length; step++) {
       const action = plan.actions[step]!;
@@ -1415,15 +1416,16 @@ export async function executePlan(
         cards.push(await releaseCard(action, deps));
       } else if (action.type === 'use_tool' && action.tool) {
         // Everything else in the space: a read answers with a table, a write prepares a card.
-        cards.push(
-          await runTool(action.tool, action.args, {
-            teamId: deps.teamId,
-            userId: deps.userId,
-            callerRpc: deps.callerRpc,
-            timezone: deps.timezone,
-            now: deps.now
-          })
-        );
+        const card = await runTool(action.tool, action.args, {
+          teamId: deps.teamId,
+          userId: deps.userId,
+          callerRpc: deps.callerRpc,
+          timezone: deps.timezone,
+          now: deps.now,
+          renamed
+        });
+        rememberRenames(card, renamed);
+        cards.push(card);
       } else if (action.type === 'archive_drafts') {
         // Only a card: the drafts go away when the person presses «Видалити N» on it.
         const picked = await selectRows(action, deps, resolution, created);

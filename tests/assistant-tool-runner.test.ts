@@ -22,7 +22,8 @@ const team = vi.hoisted(() => ({
   createTask: vi.fn(async () => ({ id: 't1' })),
   updateTask: vi.fn(async () => ({})),
   attachTaskLabel: vi.fn(async () => []),
-  attachTaskMaterials: vi.fn(async () => ({}))
+  attachTaskMaterials: vi.fn(async () => ({})),
+  deleteTask: vi.fn(async () => true as const)
 }));
 const finance = vi.hoisted(() => ({ set: vi.fn(async () => ({})) }));
 const move = vi.hoisted(() =>
@@ -177,6 +178,36 @@ describe('tool cards in the browser', () => {
       materialId: 'c2',
       idempotencyKey: 'cat:catalog:1'
     });
+  });
+
+  it('makes the missing parent once, then the folders in it', async () => {
+    await runToolCard('team', 'card-2', {
+      tool: 'create_folders',
+      parent: { create: 'Нові', parentId: 'f-tr', label: 'TR / Нові' },
+      items: [
+        { label: 'a', name: 'a', exists: false },
+        { label: 'b', name: 'b', exists: false }
+      ]
+    });
+    expect(team.ensureUploadFolder).toHaveBeenNthCalledWith(1, 'team', {
+      name: 'Нові',
+      parentMaterialId: 'f-tr',
+      idempotencyKey: 'card-2:parent'
+    });
+    expect(team.ensureUploadFolder).toHaveBeenNthCalledWith(3, 'team', {
+      name: 'b',
+      parentMaterialId: 'm-new',
+      idempotencyKey: 'card-2:folder:1'
+    });
+  });
+
+  it('deletes each task through the Tasks client', async () => {
+    const outcome = await runToolCard('team', 'card', {
+      tool: 'delete_tasks',
+      items: [{ label: 'A', id: 't1' }]
+    });
+    expect(outcome.done).toBe(1);
+    expect(team.deleteTask).toHaveBeenCalledWith({ teamId: 'team', taskId: 't1' });
   });
 
   it('creates a task with its day, tags and files', async () => {

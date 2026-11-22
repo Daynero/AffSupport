@@ -5350,6 +5350,10 @@ export const uk: Record<keyof typeof en, string> = {
     'Доступ до простору зникне; файли, які вони відкривали на Drive напряму, лишаться в них.',
   assistantToolDone: 'Готово: {count}',
   assistantToolFailed: 'Не вийшло: {count}. Онови сторінку й спробуй ще раз.',
+  assistantToolDeleteTasks: 'Видалити завдання: {count}',
+  assistantToolGoDelete: 'Видалити {count}',
+  assistantToolDeleteTasksNote:
+    'Завдання зникнуть разом із прикріпленнями до них; самі файли лишаться.',
   assistantToolInFolder: 'У папці «{name}».',
   assistantToolInRoot: 'У корені простору.',
   assistantToolNewTags: 'Нові теги буде створено: {names}.',

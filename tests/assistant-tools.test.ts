@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { parseAssistantPlan } from '@video-compressor/shared';
-import { pickAdAccounts, runTool, type ToolDeps } from '../supabase/functions/assistant/tools';
+import {
+  pickAdAccounts,
+  rememberRenames,
+  runTool,
+  type ToolDeps
+} from '../supabase/functions/assistant/tools';
 
 /**
  * 064: the assistant's space tools. Reads answer with numbers Soty computed the way the Accounts
@@ -371,6 +376,38 @@ describe('files and folders', () => {
     ]);
   });
 
+  it('finds a file by the name an earlier step of the same message gives it', async () => {
+    const renamed = new Map<string, string>();
+    const rename = await runTool(
+      'rename_materials',
+      [arg('pairs', ['TR_16 = TR_16_final'])],
+      deps()
+    );
+    rememberRenames(rename, renamed);
+    const move = await runTool(
+      'move_materials',
+      [arg('items', ['TR_16_final.mp4']), arg('destination', 'old')],
+      { ...deps(), renamed }
+    );
+    expect((move.payload.items as Array<{ id: string }>).map(i => i.id)).toEqual(['m16']);
+  });
+
+  it('makes a missing parent first, and knows what is already at the root', async () => {
+    const nested = await runTool(
+      'create_folders',
+      [arg('names', ['a', 'b']), arg('parent', 'TR / Нові')],
+      deps()
+    );
+    expect(nested.payload.parent).toEqual({ create: 'Нові', parentId: 'f-tr', label: 'TR / Нові' });
+    const root = await runTool('create_folders', [arg('names', ['TR', 'Fresh'])], deps());
+    expect(
+      (root.payload.items as Array<{ name: string; exists: boolean }>).map(i => [i.name, i.exists])
+    ).toEqual([
+      ['TR', true],
+      ['Fresh', false]
+    ]);
+  });
+
   it('leaves out what is already in the destination', async () => {
     const card = await runTool(
       'move_materials',
@@ -477,6 +514,67 @@ describe('catalogs, people and tasks', () => {
         materials: [{ id: 'm16', label: 'TR_16.mp4' }]
       })
     ]);
+  });
+
+  it('a task change lists only what changes', async () => {
+    const card = await runTool(
+      'update_tasks',
+      [arg('items', ['Перевірити помічника']), arg('status', 'done')],
+      deps({
+        list_team_tasks: () => [
+          {
+            id: 't1',
+            title: 'Soty QA перевірити помічника',
+            status: 'todo',
+            task_date: '2026-11-23',
+            assignee_label_snapshot: 'Roman',
+            labels: [],
+            updated_at: '2026-11-22T10:00:00Z'
+          }
+        ]
+      })
+    );
+    expect(card.payload.items).toEqual([
+      expect.objectContaining({
+        id: 't1',
+        patch: { status: 'done' },
+        changes: [{ field: 'status', from: 'todo', to: 'done' }]
+      })
+    ]);
+  });
+
+  it('deletes tasks only from a red card listing them', async () => {
+    const card = await runTool(
+      'delete_tasks',
+      [arg('with_status', 'done')],
+      deps({
+        list_team_tasks: () => [
+          {
+            id: 't1',
+            title: 'A',
+            status: 'done',
+            task_date: null,
+            assignee_label_snapshot: null,
+            labels: [],
+            updated_at: ''
+          },
+          {
+            id: 't2',
+            title: 'B',
+            status: 'todo',
+            task_date: null,
+            assignee_label_snapshot: null,
+            labels: [],
+            updated_at: ''
+          }
+        ]
+      })
+    );
+    expect(card.payload).toMatchObject({
+      tool: 'delete_tasks',
+      danger: true,
+      items: [{ id: 't1', label: 'A' }]
+    });
   });
 
   it('«на мене» is the person writing', async () => {

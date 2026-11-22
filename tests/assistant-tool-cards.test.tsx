@@ -105,6 +105,36 @@ describe('the space tools’ cards', () => {
     expect(screen.getByText(/old$/u)).toBeTruthy();
   });
 
+  it('says a task change in words, and a new task with who, when and files', () => {
+    render(
+      <>
+        <ToolReviewCard
+          card={card('review', {
+            purpose: 'tool',
+            tool: 'update_tasks',
+            items: [{ label: 'Soty QA', changes: [{ field: 'status', from: 'todo', to: 'done' }] }]
+          })}
+          pending={false}
+          disabled={false}
+          onRun={vi.fn()}
+        />
+        <ToolReviewCard
+          card={card('review', {
+            purpose: 'tool',
+            tool: 'create_tasks',
+            items: [{ label: 'Нове', note: 'Roman · 2026-11-23 · #qa-test · qa-image-2.png' }]
+          })}
+          pending={false}
+          disabled={false}
+          onRun={vi.fn()}
+        />
+      </>
+    );
+    expect(screen.queryByText(/todo/u)).toBeNull();
+    expect(screen.getByText(/→/u).textContent).toMatch(/:/u);
+    expect(screen.getByText(/qa-image-2\.png/u)).toBeTruthy();
+  });
+
   it('makes a removal red and says where things go', () => {
     const { container } = render(
       <ToolReviewCard

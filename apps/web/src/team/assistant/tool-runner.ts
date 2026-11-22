@@ -136,17 +136,32 @@ export async function runToolCard(
       });
     }
     case 'create_folders': {
-      const parent = payload.parent as { id: string } | null;
+      const parent = payload.parent as {
+        id?: string;
+        create?: string;
+        parentId?: string | null;
+      } | null;
+      let parentId = parent?.id ?? null;
+      if (parent?.create) {
+        const made = await teamApi.ensureUploadFolder(teamId, {
+          name: parent.create,
+          parentMaterialId: parent.parentId ?? null,
+          idempotencyKey: `${cardId}:parent`
+        });
+        parentId = made.materialId;
+      }
       return each(
         rows.filter(row => !row.exists),
         (row, index) =>
           teamApi.ensureUploadFolder(teamId, {
             name: String(row.name),
-            parentMaterialId: parent?.id ?? null,
+            parentMaterialId: parentId,
             idempotencyKey: `${cardId}:folder:${index}`
           })
       );
     }
+    case 'delete_tasks':
+      return each(rows, row => teamApi.deleteTask({ teamId, taskId: String(row.id) }));
     case 'move_materials': {
       const target = payload.destination as {
         root?: boolean;
