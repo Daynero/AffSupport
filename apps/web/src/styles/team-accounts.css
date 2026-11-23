@@ -1534,7 +1534,7 @@
  * neighbours. Twenty pixels off each of the four fixed columns buys the line
  * back without taking a word off anything.
  */
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
   .team-account-space {
     --team-agent-id-width: var(--team-agent-identity-compact-width);
     --team-agent-status-width: 96px;
@@ -1549,7 +1549,7 @@
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   /* Between the phone and the tablet the run line still has to hold the note,
      the day, a pencil, a bin, "+ Run" and — when a task names the agent — a
      link, beside a column of buttons. It wraps here too: the note takes the
@@ -1604,7 +1604,7 @@
  * off the buttons: a nameless circled tick beside a nameless plus is the
  * guessing game this whole rework was undoing.
  */
-@media (max-width: 1000px) {
+@media (max-width: 1024px) {
   .team-accounts-columns {
     display: none;
   }
@@ -1683,7 +1683,7 @@
  * allowed to break: the note first, its controls under it. Nothing loses its
  * word — the height is the thing a phone has to spare.
  */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   /* Three chips and their counts need the whole row on a narrow phone; the
      word before them is what gives way, and the group keeps saying "agents"
      to a screen reader through its own label. */
@@ -2241,7 +2241,7 @@ button.team-task-agent-chip.is-selected {
   text-decoration: underline;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .team-account-meta > .team-account-tasks-link {
     display: inline-flex;
   }
@@ -2499,7 +2499,7 @@ button.team-task-agent-chip.is-selected {
 /* On a phone-wide window the buttons have a line of their own — under the
    account's name, under the agent's run; hidden until hover, that line was an
    empty band under every one of them. */
-@media (hover: hover) and (max-width: 560px) {
+@media (hover: hover) and (max-width: 640px) {
   .team-agent-actions-stack,
   .team-agent-menu,
   .team-account-head:not(.is-editing) .team-account-actions {
@@ -2592,7 +2592,7 @@ button.team-task-agent-chip.is-selected {
   align-items: center;
   gap: var(--space-2);
 }
-@media (min-width: 1001px) {
+@media (width > 1024px) {
   .team-account-space.is-unified .team-accounts-columns > .unified-finance-headings {
     grid-column: 6;
     grid-row: 1;
@@ -2841,7 +2841,7 @@ button.team-task-agent-chip.is-selected {
   scroll-margin-block: calc(var(--space-6) * 3) var(--space-4);
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1024px) {
   .team-account-space.is-unified .team-accounts-field {
     flex-grow: 0;
     flex-basis: min(calc(var(--space-6) * 12), calc(100vw - var(--space-6) * 4));
@@ -2976,7 +2976,7 @@ button.team-task-agent-chip.is-selected {
 .team-account-space.is-unified .team-accounts-table {
   scroll-padding-inline-start: 0;
 }
-@media (max-width: 1000px) {
+@media (max-width: 1024px) {
   .team-account-space.is-unified .team-agent-row,
   .team-account-space.is-unified .team-accounts-columns {
     grid-template-columns: var(--team-agent-rail) minmax(0, 1fr) minmax(0, 1.5fr) calc(
@@ -3023,7 +3023,7 @@ button.team-task-agent-chip.is-selected {
 .team-account-space.is-unified .team-accounts-table {
   scroll-behavior: auto;
 }
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .team-account-space.is-unified .team-account-head:not(.is-editing) {
     grid-template-columns: minmax(0, 1fr);
   }
