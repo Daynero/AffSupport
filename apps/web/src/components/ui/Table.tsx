@@ -5,6 +5,7 @@ import {
   type ReactNode,
   type ThHTMLAttributes
 } from 'react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { uiClasses, type UiSize } from './types';
 
 /**
@@ -56,14 +57,59 @@ export function TableHeader({ className, children, ...props }: HTMLAttributes<HT
   );
 }
 
+export interface TableHeaderCellProps extends ThHTMLAttributes<HTMLDivElement> {
+  /**
+   * The column's order, when the column can be sorted (070, FR-005): `none` for a
+   * sortable column that is not the one the rows follow. Said to a reader as
+   * `aria-sort` on the header — on the one sorted column only, as ARIA asks.
+   */
+  sort?: 'ascending' | 'descending' | 'none';
+  /** Present when pressing the header sorts by it; the caller decides the direction. */
+  onSort?: () => void;
+}
+
+/**
+ * A column's name, and — given `onSort` — the way to order the rows by it, as
+ * Finder's and Drive's headers are (070, FR-005). The name becomes a button, so
+ * Tab reaches it and Enter or Space sorts; the arrow says the direction on the
+ * sorted column and shows faintly on hover over the others, in a place it
+ * keeps either way, so choosing a column moves no other header.
+ */
 export function TableHeaderCell({
   className,
   children,
+  sort,
+  onSort,
   ...props
-}: ThHTMLAttributes<HTMLDivElement>) {
+}: TableHeaderCellProps) {
+  if (!onSort) {
+    return (
+      <div {...props} role="columnheader" className={uiClasses('table-header-cell', { className })}>
+        {children}
+      </div>
+    );
+  }
+  const sorted = sort === 'ascending' || sort === 'descending';
   return (
-    <div {...props} role="columnheader" className={uiClasses('table-header-cell', { className })}>
-      {children}
+    <div
+      {...props}
+      role="columnheader"
+      aria-sort={sorted ? sort : undefined}
+      className={uiClasses('table-header-cell', {
+        states: { sortable: true, sorted },
+        className
+      })}
+    >
+      <button type="button" className="ui-table-sort" onClick={onSort}>
+        <span className="ui-table-sort-label">{children}</span>
+        <span className="ui-table-sort-arrow" aria-hidden="true">
+          {sort === 'descending' ? (
+            <ArrowDown size={14} strokeWidth={2} />
+          ) : (
+            <ArrowUp size={14} strokeWidth={2} />
+          )}
+        </span>
+      </button>
     </div>
   );
 }

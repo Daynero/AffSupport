@@ -1,7 +1,20 @@
 import { teamMaterialTagRank, type TeamMaterialRow } from '@video-compressor/shared';
 import type { CreativeRank } from '../ranks/creativeRanks';
 
-export type SortKey = 'name' | 'modified' | 'tag' | 'rank';
+export type SortKey = 'name' | 'kind' | 'modified' | 'size' | 'tag' | 'rank';
+
+/** The order a column starts in when it is first chosen (070): dates and sizes newest and
+ *  largest first, as Finder's do; names and kinds from A. */
+export function firstDirection(key: SortKey): SortDirection {
+  return key === 'modified' || key === 'size' || key === 'rank' ? 'desc' : 'asc';
+}
+
+/** A press on a column's header (070, FR-005): the same column turns, another one starts. */
+export function sortByColumn(current: ExplorerSort, key: SortKey): ExplorerSort {
+  return current.key === key
+    ? { ...current, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+    : { ...current, key, direction: firstDirection(key) };
+}
 export type SortDirection = 'asc' | 'desc';
 
 export interface ExplorerSort {
@@ -31,7 +44,9 @@ export const compareNames = (a: string, b: string): number => nameCollator.compa
 export function sortRows(
   rows: readonly TeamMaterialRow[],
   sort: ExplorerSort,
-  ranks: ReadonlyMap<string, CreativeRank> = new Map()
+  ranks: ReadonlyMap<string, CreativeRank> = new Map(),
+  /** A kind's name in the reader's language: by kind is by what the reader sees, as Finder's is. */
+  kindName: (kind: TeamMaterialRow['kind']) => string = kind => kind
 ): TeamMaterialRow[] {
   const factor = sort.direction === 'asc' ? 1 : -1;
   const compare = (a: TeamMaterialRow, b: TeamMaterialRow): number => {
@@ -44,6 +59,17 @@ export function sortRows(
       const at = a.modifiedAt ? Date.parse(a.modifiedAt) : 0;
       const bt = b.modifiedAt ? Date.parse(b.modifiedAt) : 0;
       if (at !== bt) return (at - bt) * factor;
+    }
+    if (sort.key === 'kind' && a.kind !== b.kind) {
+      return compareNames(kindName(a.kind), kindName(b.kind)) * factor;
+    }
+    /* By size (070), like by tag: what has no size — a folder, a file Drive never measured —
+       goes last whichever way, rather than reading as the smallest thing in the folder. */
+    if (sort.key === 'size') {
+      const as = a.kind === 'folder' ? null : (a.sizeBytes ?? null);
+      const bs = b.kind === 'folder' ? null : (b.sizeBytes ?? null);
+      if ((as === null) !== (bs === null)) return as === null ? 1 : -1;
+      if (as !== null && bs !== null && as !== bs) return (as - bs) * factor;
     }
     /* By tag, the untagged rows go last whichever way the direction points:
        "no tag" is the absence of a value, not the far end of the scale, and a
@@ -84,7 +110,11 @@ export function readRememberedSort(): ExplorerSort {
     const parsed = JSON.parse(raw) as Partial<ExplorerSort>;
     return {
       key:
-        parsed.key === 'modified' || parsed.key === 'tag' || parsed.key === 'rank'
+        parsed.key === 'kind' ||
+        parsed.key === 'modified' ||
+        parsed.key === 'size' ||
+        parsed.key === 'tag' ||
+        parsed.key === 'rank'
           ? parsed.key
           : 'name',
       direction: parsed.direction === 'desc' ? 'desc' : 'asc',

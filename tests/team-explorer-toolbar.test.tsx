@@ -167,3 +167,77 @@ describe('the way back and what is true about the folder (T015)', () => {
     ]);
   });
 });
+
+function fileRow(index: number, overrides: Partial<TeamMaterialRow> = {}): TeamMaterialRow {
+  return {
+    id: `id-${index}`,
+    teamId: team.id,
+    name: `file-${index}.png`,
+    category: 'image',
+    mimeType: 'image/png',
+    fileExtension: 'png',
+    sizeBytes: 100 * index,
+    kind: 'image',
+    driveFileId: `drive-${index}`,
+    parentFolderId: 'root',
+    modifiedAt: `2026-11-0${index}T10:00:00Z`,
+    driveVersion: '1',
+    previewState: 'pending',
+    thumbnailReady: false,
+    ...overrides
+  } as TeamMaterialRow;
+}
+
+const names = () =>
+  Array.from(document.querySelectorAll('.team-explorer-row .team-explorer-row-open')).map(
+    node => node.textContent
+  );
+const header = (name: string) => screen.getByRole('columnheader', { name });
+
+describe('the list headers sort (T016)', () => {
+  it('sorts by a column on a press, turns it on the next, and says so with aria-sort', async () => {
+    localStorage.removeItem('soty.team.explorer.sort');
+    renderExplorer({ client: makeClient([fileRow(2), fileRow(1), fileRow(3)]) });
+    await screen.findByText('file-1.png');
+    expect(header('Name').getAttribute('aria-sort')).toBe('ascending');
+    expect(header('Last modified').getAttribute('aria-sort')).toBeNull();
+    expect(names()).toEqual(['file-1.png', 'file-2.png', 'file-3.png']);
+
+    // A date starts newest first, as Finder's does.
+    fireEvent.click(within(header('Last modified')).getByRole('button', { name: 'Last modified' }));
+    expect(header('Last modified').getAttribute('aria-sort')).toBe('descending');
+    expect(header('Name').getAttribute('aria-sort')).toBeNull();
+    expect(names()).toEqual(['file-3.png', 'file-2.png', 'file-1.png']);
+
+    fireEvent.click(within(header('Last modified')).getByRole('button', { name: 'Last modified' }));
+    expect(header('Last modified').getAttribute('aria-sort')).toBe('ascending');
+    expect(names()).toEqual(['file-1.png', 'file-2.png', 'file-3.png']);
+
+    // The order is the menu's own: remembered as the menu remembers it.
+    expect(JSON.parse(localStorage.getItem('soty.team.explorer.sort')!)).toMatchObject({
+      key: 'modified',
+      direction: 'asc'
+    });
+  });
+
+  it('is reachable from the keyboard: the header is a button', async () => {
+    renderExplorer({ client: makeClient([fileRow(1), fileRow(2)]) });
+    await screen.findByText('file-1.png');
+    const size = within(header('Size')).getByRole('button', { name: 'Size' });
+    size.focus();
+    expect(document.activeElement).toBe(size);
+    fireEvent.click(size);
+    expect(header('Size').getAttribute('aria-sort')).toBe('descending');
+    expect(names()).toEqual(['file-2.png', 'file-1.png']);
+  });
+
+  it('leaves the sort menu to the grid, where there are no headers', async () => {
+    renderExplorer({ client: makeClient([fileRow(1)]) });
+    await screen.findByText('file-1.png');
+    expect(document.querySelector('.team-explorer-list-controls .team-explorer-sort')).toBeNull();
+    cleanup();
+    renderExplorer({ client: makeClient([fileRow(1)]), query: { view: 'grid' } });
+    await screen.findAllByText('file-1.png');
+    expect(document.querySelector('.team-explorer-list-controls .team-explorer-sort')).toBeTruthy();
+  });
+});

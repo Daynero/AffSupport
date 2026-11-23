@@ -19,6 +19,7 @@ import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { useExplorer } from './ExplorerProvider';
 import { MorePages } from './MorePages';
+import { sortByColumn, type ExplorerSort, type SortKey } from './sort';
 import type { FolderPageState } from './useFolderPage';
 import { KindIcon } from './KindIcon';
 import { KindNote } from './KindNote';
@@ -62,7 +63,9 @@ export function ContentList({
   openedCompanions,
   onToggleCompanions,
   onDropMaterials,
-  ranks
+  ranks,
+  sort,
+  onSortChange
 }: {
   /** The folder's rows, held by the shell so one listing serves everything. */
   page: FolderPageState;
@@ -101,11 +104,26 @@ export function ContentList({
   onDropMaterials?: (folderDriveId: string, materialIds: string[]) => void;
   /** 059 — the videos' honey leagues; a row shows one only once the video was launched. */
   ranks?: CreativeRanksState;
+  /** The order the rows are in, and the way to change it from a header (070, FR-005). */
+  sort?: ExplorerSort;
+  onSortChange?: (sort: ExplorerSort) => void;
 }) {
   const { t } = useI18n();
   const { openFolder, selectedId, selectedIds, toggleSelected } = useExplorer();
   const drag = useMaterialDrag({ selectedIds, rows, onDropMaterials });
   const press = useRowPress(rows);
+  const sortable = (key: SortKey) =>
+    sort && onSortChange
+      ? {
+          sort:
+            sort.key !== key
+              ? ('none' as const)
+              : sort.direction === 'asc'
+                ? ('ascending' as const)
+                : ('descending' as const),
+          onSort: () => onSortChange(sortByColumn(sort, key))
+        }
+      : {};
   /*
    * The page comes from the shell, which is the only place that can hold it:
    * this component used to run its own `useFolderPage` with the same arguments,
@@ -159,17 +177,19 @@ export function ContentList({
                 which column that is. */}
             <TableHeader>
               <TableHeaderCell className="team-explorer-row-check" />
-              <TableHeaderCell className="team-explorer-row-name">
+              {/* The names sort the list (070, FR-005), through the same order the sort menu
+                  sets: pressed, a column sorts; pressed again, the other way. */}
+              <TableHeaderCell className="team-explorer-row-name" {...sortable('name')}>
                 {t('teamExplorerSortName')}
               </TableHeaderCell>
               <TableHeaderCell className="team-explorer-row-rank" />
-              <TableHeaderCell className="team-explorer-row-kind">
+              <TableHeaderCell className="team-explorer-row-kind" {...sortable('kind')}>
                 {t('teamExplorerPaneKind')}
               </TableHeaderCell>
-              <TableHeaderCell className="team-explorer-row-date">
+              <TableHeaderCell className="team-explorer-row-date" {...sortable('modified')}>
                 {t('teamExplorerSortModified')}
               </TableHeaderCell>
-              <TableHeaderCell className="team-explorer-row-meta">
+              <TableHeaderCell className="team-explorer-row-meta" {...sortable('size')}>
                 {t('teamExplorerPaneSize')}
               </TableHeaderCell>
               {actions && (

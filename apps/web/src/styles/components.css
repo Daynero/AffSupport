@@ -3246,6 +3246,51 @@
   z-index: var(--layer-sticky);
   background: var(--color-neutral-surface);
 }
+/* A sortable column's name (070): the header's own type, as a button. The arrow keeps its
+   place whether or not it shows, so sorting by another column moves no header. */
+.ui-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.ui-table-sort-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-table-sort:hover,
+.ui-table-header-cell.is-sorted .ui-table-sort {
+  color: var(--color-neutral-text);
+}
+.ui-table-sort:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.ui-table-sort-arrow {
+  display: inline-flex;
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-out-curve);
+}
+.ui-table-sort:hover .ui-table-sort-arrow,
+.ui-table-sort:focus-visible .ui-table-sort-arrow {
+  opacity: 0.5;
+}
+.ui-table-header-cell.is-sorted .ui-table-sort-arrow {
+  opacity: 1;
+}
 .ui-table-row {
   border-top: 1px solid var(--color-neutral-border);
 }

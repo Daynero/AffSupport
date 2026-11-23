@@ -133,11 +133,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+type DemoSort = { key: 'name' | 'size'; dir: 'ascending' | 'descending' };
+
+/** The same column again turns the order; another column starts it ascending. */
+function sortNext(current: DemoSort, key: DemoSort['key']): DemoSort {
+  return current.key === key
+    ? { key, dir: current.dir === 'ascending' ? 'descending' : 'ascending' }
+    : { key, dir: 'ascending' };
+}
+
 export default function DesignSystemPage() {
   const [tab, setTab] = useState<
     'foundation' | 'buttons' | 'forms' | 'dates' | 'data' | 'overlays'
   >('foundation');
   const [segment, setSegment] = useState<'all' | 'free'>('all');
+  const [demoSort, setDemoSort] = useState<DemoSort>({ key: 'name', dir: 'ascending' });
   const [radio, setRadio] = useState<'optimal' | 'custom'>('optimal');
   const [picto, setPicto] = useState<'fit' | 'fill' | 'blur'>('fit');
   const [checked, setChecked] = useState(true);
@@ -492,9 +502,20 @@ export default function DesignSystemPage() {
           <Row title="table">
             <Table columns="minmax(0, 2fr) 1fr 1fr auto" label="Example" size="sm">
               <TableHeader>
-                <TableHeaderCell>Name</TableHeaderCell>
+                {/* Sortable headers (070): pressed, the name sorts; again, the other way. */}
+                <TableHeaderCell
+                  sort={demoSort.key === 'name' ? demoSort.dir : 'none'}
+                  onSort={() => setDemoSort(sortNext(demoSort, 'name'))}
+                >
+                  Name
+                </TableHeaderCell>
                 <TableHeaderCell>Status</TableHeaderCell>
-                <TableHeaderCell>Size</TableHeaderCell>
+                <TableHeaderCell
+                  sort={demoSort.key === 'size' ? demoSort.dir : 'none'}
+                  onSort={() => setDemoSort(sortNext(demoSort, 'size'))}
+                >
+                  Size
+                </TableHeaderCell>
                 <TableHeaderCell>Actions</TableHeaderCell>
               </TableHeader>
               <TableRow interactive>

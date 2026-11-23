@@ -63,6 +63,7 @@ import { explorerRowActions } from './explorerRowActions';
 import { ExplorerResults } from './ExplorerResults';
 import { ExplorerToolbar } from './ExplorerToolbar';
 import { KindFilterMenu } from './KindFilterMenu';
+import { KIND_LABEL } from './rowKinds';
 import { SortMenu } from './SortMenu';
 import { ExplorerSelection } from './ExplorerSelection';
 import { ExplorerDropZone } from './ExplorerDropZone';
@@ -236,6 +237,11 @@ function ExplorerBody({
     rememberSort(next);
     setSortState(next);
   };
+  const changeSort = (next: ExplorerSort) => {
+    // Another order is the same folder: only the list dissolves (058).
+    crossfadePart(mainRef.current);
+    setSort(next);
+  };
   /*
    * A tag is a shared judgement about a file, so it is the space owner's to
    * make and everyone else's to read (011). The database refuses anyone else
@@ -286,8 +292,8 @@ function ExplorerBody({
   const rankedIds = useMemo(() => page.rows.filter(carriesRank).map(row => row.id), [page.rows]);
   const ranks = useCreativeRanks(teamId, rankedIds, ranksRevision, client);
   const allRows = useMemo(
-    () => sortRows(page.rows, sort, ranks.ranks),
-    [page.rows, sort, ranks.ranks]
+    () => sortRows(page.rows, sort, ranks.ranks, kind => t(KIND_LABEL[kind])),
+    [page.rows, sort, ranks.ranks, t]
   );
   const { folded, openedCompanions, toggleCompanions } = useCompanionFold(
     allRows,
@@ -644,14 +650,11 @@ function ExplorerBody({
           <div className="team-explorer-list-controls">
             <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
             {/* Re-sorting is one move, not a reshuffle in a single frame (058). */}
-            <SortMenu
-              sort={sort}
-              onChange={next => {
-                // Another order is the same folder: only the list dissolves (058).
-                crossfadePart(mainRef.current);
-                setSort(next);
-              }}
-            />
+            {/* The grid has no headers, so its order is the menu's; the list's headers sort it,
+                and the menu stays there only for an order no column shows (tag, rank). */}
+            {(view === 'grid' || sort.key === 'tag' || sort.key === 'rank') && (
+              <SortMenu sort={sort} onChange={changeSort} />
+            )}
           </div>
         )}
         {trash ? (
@@ -709,6 +712,8 @@ function ExplorerBody({
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
                 emptyState={emptyState}
+                sort={sort}
+                onSortChange={changeSort}
               />
             )}
           </div>

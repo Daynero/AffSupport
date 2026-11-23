@@ -124,6 +124,7 @@ export {
 export type {
   AccordionItem,
   AccordionProps,
+  TableHeaderCellProps,
   TableProps,
   TableRowProps,
   TimelineEntry,

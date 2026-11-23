@@ -56,14 +56,14 @@ size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
 ## Data
 
-| Component     | Notes                                                                        | Replaces today                                                                              |
-| ------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Table**     | header, row, cell, dense (`xs`/`sm`), sticky header, selectable, row actions | accounts table, member list, audit list, invitation list                                    |
-| **Empty**     | icon + title + sentence + action                                             | `.team-empty-state`, `.team-task-picker-empty`, `.team-space-lobby-empty`, `.catalog-empty` |
-| **Accordion** | single/multiple                                                              | `details` usages, `.team-role-guide`                                                        |
-| **Tree**      | node, expand, select, drop-target                                            | `FolderTree`, `LandingTree`                                                                 |
-| **Timeline**  | entry, marker, meta                                                          | `TeamAuditPanel` list                                                                       |
-| **User**      | avatar + name + meta                                                         | member rows, assignee display                                                               |
+| Component     | Notes                                                                                                                                                                                                                               | Replaces today                                                                              |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Table**     | header, row, cell, dense (`xs`/`sm`), sticky header, selectable, row actions; sortable header (070: `TableHeaderCell sort` + `onSort` — the name is a button, `aria-sort` on the sorted column only, an arrow that keeps its place) | accounts table, member list, audit list, invitation list                                    |
+| **Empty**     | icon + title + sentence + action                                                                                                                                                                                                    | `.team-empty-state`, `.team-task-picker-empty`, `.team-space-lobby-empty`, `.catalog-empty` |
+| **Accordion** | single/multiple                                                                                                                                                                                                                     | `details` usages, `.team-role-guide`                                                        |
+| **Tree**      | node, expand, select, drop-target                                                                                                                                                                                                   | `FolderTree`, `LandingTree`                                                                 |
+| **Timeline**  | entry, marker, meta                                                                                                                                                                                                                 | `TeamAuditPanel` list                                                                       |
+| **User**      | avatar + name + meta                                                                                                                                                                                                                | member rows, assignee display                                                               |
 
 ## Navigation
 
