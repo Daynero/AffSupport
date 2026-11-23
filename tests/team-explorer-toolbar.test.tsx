@@ -137,3 +137,33 @@ describe('how much of the toolbar fits (T014)', () => {
     expect(names).toEqual(expect.arrayContaining(['Search files', 'List', 'Tiles', 'Trash']));
   });
 });
+
+describe('the way back and what is true about the folder (T015)', () => {
+  it('puts the way back to the task in the path group, as a link', async () => {
+    renderExplorer({ query: { back: 'task-7' } });
+    const link = await screen.findByRole('link', { name: 'To the task' });
+    expect(link.getAttribute('href')).toContain('task-7');
+    expect(link.closest('.team-explorer-location')).toBeTruthy();
+    expect(link.className).toContain('ui-link--standalone');
+  });
+
+  it('says «view only» as an inventory alert over the list, with no way to change anything', async () => {
+    renderExplorer({ readOnly: true });
+    const note = (await screen.findByText('View only')).closest('.ui-alert')!;
+    expect(note).toBeTruthy();
+    expect(note.closest('.team-explorer-list-header')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Upload' })).toBeNull();
+  });
+
+  it('turns the retry notice into an alert whose action is choosing the files again', async () => {
+    renderExplorer({ retryGroupId: 'retry-me' });
+    const note = (await screen.findByText('The upload stopped')).closest('.ui-alert')!;
+    expect(within(note as HTMLElement).getByRole('button', { name: 'Close' })).toBeTruthy();
+    fireEvent.click(within(note as HTMLElement).getByRole('button', { name: 'Choose again' }));
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent?.trim())).toEqual([
+      'Files…',
+      'Folder…',
+      'New folder'
+    ]);
+  });
+});

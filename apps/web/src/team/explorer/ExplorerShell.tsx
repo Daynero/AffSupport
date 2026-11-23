@@ -6,7 +6,9 @@ import type {
   TeamPermissions
 } from '@video-compressor/shared';
 import type { DriveCatalogResyncResult, TeamMaterialSummary } from '../../api/team';
-import { Button } from '../../components/ui';
+import { Eye, RotateCcw } from 'lucide-react';
+import { Alert, Button } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { usePaneArrival } from './usePaneArrival';
 import { crossfadePart } from '../../lib/auto-crossfade';
 import { BeforeChange } from '../../lib/before-change';
@@ -583,14 +585,6 @@ function ExplorerBody({
             onDismiss={folderResync.dismiss}
           />
         )}
-        {retryGroupId && (
-          <div role="status">
-            {t('teamWorkspaceReselect')}{' '}
-            <Button type="button" variant="secondary" onClick={onRetryComplete}>
-              {t('teamOperationClose')}
-            </Button>
-          </div>
-        )}
       </div>
       <ExplorerDropZone
         zoneRef={mainRef}
@@ -599,11 +593,49 @@ function ExplorerBody({
         onDropSources={workspaceOperations ? sources => void uploadDrop(sources) : undefined}
         onDropFiles={files => void upload(files)}
       >
+        {/* What is true about this folder right now, said as the inventory says it, over the
+            list (070, FR-009): «Лише перегляд» was a paragraph in an empty header row, and the
+            retry notice a bare `role="status"` with a Close beside it. */}
         <div ref={explorerListHeaderRef} className="team-explorer-list-header">
           {readOnly && (
-            <p className="team-explorer-readonly" role="status">
+            <Alert
+              color="warning"
+              icon={<Eye size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+              title={t('teamExplorerReadOnlyTitle')}
+            >
               {t('teamStorageReadOnly')}
-            </p>
+            </Alert>
+          )}
+          {retryGroupId && (
+            <Alert
+              color="info"
+              icon={<RotateCcw size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+              title={t('teamExplorerRetryTitle')}
+              action={
+                <div className="team-explorer-alert-actions">
+                  {/* The door the notice asks for: the same choice of files or a folder. */}
+                  {permissions?.upload && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      aria-haspopup="menu"
+                      aria-expanded={addMenuOpen}
+                      onClick={event => {
+                        addMenuAnchor.current = event.currentTarget;
+                        setAddMenuOpen(true);
+                      }}
+                    >
+                      {t('teamExplorerRetryChoose')}
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={onRetryComplete}>
+                    {t('teamOperationClose')}
+                  </Button>
+                </div>
+              }
+            >
+              {t('teamWorkspaceReselect')}
+            </Alert>
           )}
         </div>
         {/* What arranges the list sits on the list (070, FR-002), as Drive's filter chips do:

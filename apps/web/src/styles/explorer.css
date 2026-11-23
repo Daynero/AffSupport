@@ -1304,12 +1304,10 @@
     display: none;
   }
 }
-.team-explorer-readonly {
-  margin: 0;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-warning);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
+.team-explorer-alert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 /* The list row's kind glyph, at text size. */
