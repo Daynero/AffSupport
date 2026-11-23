@@ -857,13 +857,19 @@ processed copy from the attachment, and see all three on the task without it clo
       `Table`, `Select`, `Checkbox`, `FormField` — replacing the raw selects and checkbox grids.
 - [x] T125 [US8] (benchmark round 8: pending/accepted/declined/revoked/expired each a word; resend and revoke in one menu only while pending) Make an invitation state its own state in words and offer only the actions that
       state allows.
-- [ ] T126 [US8] Page the space history, which today stops at fifty with no way to ask for more.
+- [x] T126 [US8] Page the space history, which today stops at fifty with no way to ask for more.
+      **Closed 2026-11-23 (audit).** `workspace/HistoryDialog.tsx` reads pages of 50 and offers
+      "more" with `before` = the last event's time; `tests/space-history.test.tsx` covers the
+      second page.
 - [ ] T127 [US8] Put the settings panels on the inventory —
       `workspace/TeamPreferencesSection.tsx` (which also stops failing silently),
       `product-catalog/ProductCatalogSettingsSection.tsx`, `labels/TaskLabelsSection.tsx`,
       `drive/DriveConnectionPanel.tsx`, `workspace/RestitchDefaultsSection.tsx`.
 - [ ] T128 [US8] Make read-only actions available to anyone who may read.
-- [ ] T129 [US8] Remove the `aria-controls` that names a list which is never hidden.
+- [x] T129 [US8] Remove the `aria-controls` that names a list which is never hidden.
+      **Closed 2026-11-23 (audit).** No `aria-controls` is left under `team/accounts/`; the three
+      left in `team/` (AddToTask, WorkspacePalette, SpaceSwitcher) name a popup list that does
+      hide, which is what the attribute is for.
 - [ ] T130 [US8] Update `scripts/check-accounts-layout.mjs` for the new markup. Its invariant —
       every run line's `scrollWidth` equals its cell's width, at both sides of 560 / 1000 / 1200 —
       is the right invariant and must keep holding; only the selectors change.
