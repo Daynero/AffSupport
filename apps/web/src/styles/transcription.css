@@ -37,7 +37,7 @@
   font-size: var(--text-caption);
   font-weight: 700;
 }
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .transcription-settings-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -501,7 +501,7 @@
 }
 /* A card too narrow for three named actions keeps the icons and drops the words — in CSS,
    so the measurement that decides it cannot oscillate. */
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   .transcription-row-quiet-actions .action-label {
     display: none;
   }
@@ -513,7 +513,7 @@
     justify-content: center;
   }
 }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .job-row.transcription-row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -695,7 +695,7 @@
   color: var(--color-text-muted);
 }
 /* The volume control is not dropped on a narrow player; it just shrinks. */
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .transcript-player-volume {
     display: flex;
   }
@@ -752,7 +752,7 @@
   line-height: 1.4;
 }
 /* Where the actions sit at the left edge, the menu opens to the right instead of off-screen. */
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .transcription-row-actions .transcription-export-popover {
     right: auto;
     left: 0;

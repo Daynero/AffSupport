@@ -113,3 +113,13 @@
 | ---------- | -------------------- | -------------------- | --------------------------------------------------- | ------- |
 | 47         | `(min-width: 640px)` | `(width > 640px)`    | `.launch-editor-compact .launch-editor-source-grid` | запуски |
 | 53         | `(max-width: 639px)` | `(max-width: 640px)` | `.launch-editor-compact .launch-editor-refresh`     | запуски |
+
+### `styles/transcription.css`
+
+| Рядок (до) | Було                  | Стало                 | Правила                                                                                                           | Екрани       |
+| ---------- | --------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------ |
+| 40         | `(max-width: 760px)`  | `(max-width: 768px)`  | `.transcription-settings-grid`                                                                                    | транскрипція |
+| 504        | `(max-width: 1180px)` | `(max-width: 1280px)` | `.transcription-row-quiet-actions .action-label`, `.transcription-row-quiet-actions .soty-button`                 | транскрипція |
+| 516        | `(max-width: 900px)`  | `(max-width: 1024px)` | `.job-row.transcription-row`, `.transcription-row .job-row-header`, `.transcription-row .transcription-row-title` | транскрипція |
+| 698        | `(max-width: 900px)`  | `(max-width: 1024px)` | `.transcript-player-volume`, `.transcript-player-volume input`, `.transcript-player-controls`                     | транскрипція |
+| 755        | `(max-width: 900px)`  | `(max-width: 1024px)` | `.transcription-row-actions .transcription-export-popover`                                                        | транскрипція |
