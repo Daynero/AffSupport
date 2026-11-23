@@ -201,3 +201,7 @@
 Перебір для T005 ішов по оригінальному порядку (до T004) з трьома групами — `styles.css`, `explorer.css`, `space-shell.css`, — тож перевірено й пари «рамка простору ↔ провідник». Класи інвентаря (`ui-chip`, `ui-tab` …) тут уже не вважались «будь-якими»: такий клас ділить елемент лише з класами, переданими в `className` відповідного компонента (`<Chip className=…>`). Із 44 737 кандидатів після відсіву лишилось 254, переглянуто вручну; окрім картки — різні елементи або однакові значення (`align-content: start` в обох правилах `.team-space-shell-body :is(.team-panel, .team-space-settings)` і `.team-space-settings .team-panel`).
 
 Тест `tests/shell-and-modal-layout.test.ts` читає тепер і `explorer.css`, і `space-shell.css`; очікування ті самі.
+
+## T008 · Сирі контроли в `team/`
+
+`tests/team-raw-controls.test.ts` у режимі звіту (`GATE = false`, ворота — T065): на базі після T007 — **146 сирих контролів у 60 файлах** (без коментарів і прози). Найбільше: `catalog-updater/CatalogUpdaterDialog.tsx` 9, `accounts/AgentRow.tsx` 7, `tasks/TaskDateFilter.tsx`, `tasks/TaskAttachmentPicker.tsx`, `library/BulkUploadDialog.tsx`, `explorer/Breadcrumb.tsx` по 6, `explorer/ExplorerShell.tsx` і `explorer/ContentGrid.tsx` по 5. Повний список друкує сам тест. Задачі 070 закривають лише частину з них (провідник, акаунти, учасники, налаштування, менеджер каталогів, діалоги); файли задач (`team/tasks/*`, 3x), запусків (`team/launches/*`), помічника й палітри в жодній задачі 070 не названі — до T065 їм потрібні власні задачі, інакше ворота не ввімкнуться.
