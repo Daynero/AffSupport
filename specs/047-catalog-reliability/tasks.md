@@ -558,13 +558,13 @@
       **Evidence:** —
       **Аудит 2026-11-23:** Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047 (пункт «Пакетна бета точного коміту»).
 
-- [ ] T059 скласти конкретний release candidate і звіт — `specs/047-catalog-reliability/reviews/release-candidate.md`. Залежності: T058.
+- [x] T059 скласти конкретний release candidate і звіт — `specs/047-catalog-reliability/reviews/release-candidate.md`. Залежності: T058.
       Перелік commit/migrations/capabilities, завершені A-scenarios, material risks,
       accepted limitations і recovery runbook. Shared/agent/functions не видавати
       за mini web release. Publication тільки за окремо авторизованим production intent.
       Для проміжного пакета явно вказати subset; решта T-задач лишаються відкритими.
       **Evidence:** —
-      **Аудит 2026-11-23:** не потрібна окремо, реліз уже відбувся (1.4.0). Лишається відкритою до рішення власника, чи закривати її заднім числом.
+      **Аудит 2026-11-23:** застаріла, закрито без виконання: реліз уже вийшов (1.4.0, `00c82e4`), звіт заднім числом не пишемо.
 
 - [ ] T060 перевірити ефект після авторизованого релізу — `specs/047-catalog-reliability/reviews/post-release.md`. Залежності: T059 і фактичний реліз.
       Fixed as-of CLI для Руслана/нових контрольних спроб; denominator + freshness +
