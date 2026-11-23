@@ -520,7 +520,7 @@ describe('who may sync, and where the space scan shows (028)', () => {
         </TeamProvider>
       </ToastProvider>
     );
-    expect(await screen.findByRole('button', { name: 'Add files' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Upload' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Sync now' })).toBeNull();
   });
 

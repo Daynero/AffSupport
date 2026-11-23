@@ -60,6 +60,8 @@ import { useExplorerMeasure } from './useExplorerMeasure';
 import { explorerRowActions } from './explorerRowActions';
 import { ExplorerResults } from './ExplorerResults';
 import { ExplorerToolbar } from './ExplorerToolbar';
+import { KindFilterMenu } from './KindFilterMenu';
+import { SortMenu } from './SortMenu';
 import { ExplorerSelection } from './ExplorerSelection';
 import { ExplorerDropZone } from './ExplorerDropZone';
 import { ExplorerProcessStack } from './ExplorerProcessStack';
@@ -446,7 +448,7 @@ function ExplorerBody({
           setAddMenuOpen(true);
         }}
       >
-        {t('teamExplorerAddFiles')}
+        {t('teamExplorerUpload')}
       </Button>
     ) : undefined;
 
@@ -505,6 +507,7 @@ function ExplorerBody({
       <div ref={explorerHeaderRef} className="team-explorer-header">
         <ExplorerToolbar
           teamId={teamId}
+          treeAsDrawer
           treeOpen={treeOpen}
           onToggleTree={() => setTreeOpen(open => !open)}
           trash={trash}
@@ -512,20 +515,10 @@ function ExplorerBody({
           onLeaveTrash={() => onQueryChange({ trash: false })}
           backToTask={query.back}
           searching={searching}
-          onOpenSearch={() => onQueryChange({ scope: 'space' })}
+          onOpenSearch={text => onQueryChange({ q: text, scope: 'space' })}
           onCloseSearch={() => onQueryChange({ q: '', scope: 'folder', filters: undefined })}
-          kinds={query.kinds}
-          onKindsChange={kinds => onQueryChange({ kinds })}
-          sort={sort}
-          onSortChange={next => {
-            // Another order is the same folder: only the list dissolves (058).
-            crossfadePart(mainRef.current);
-            setSort(next);
-          }}
           canUpload={Boolean(permissions?.upload)}
-          onPickFiles={files =>
-            void uploadDrop(Array.from(files, file => ({ kind: 'file', file })))
-          }
+          onPickFiles={files => void uploadDrop(files.map(file => ({ kind: 'file', file })))}
           onPickFolder={() => void pickFolder()}
           onCreateFolder={() => setCreatingFolder(true)}
           addMenuOpen={addMenuOpen}
@@ -612,6 +605,22 @@ function ExplorerBody({
             </p>
           )}
         </div>
+        {/* What arranges the list sits on the list (070, FR-002), as Drive's filter chips do:
+            in the toolbar they were two more controls on a row that already wrapped. */}
+        {!trash && !searching && (
+          <div className="team-explorer-list-controls">
+            <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
+            {/* Re-sorting is one move, not a reshuffle in a single frame (058). */}
+            <SortMenu
+              sort={sort}
+              onChange={next => {
+                // Another order is the same folder: only the list dissolves (058).
+                crossfadePart(mainRef.current);
+                setSort(next);
+              }}
+            />
+          </div>
+        )}
         {trash ? (
           <TrashView key={`trash:${teamId}`} teamId={teamId} />
         ) : searching ? (

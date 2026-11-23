@@ -1,16 +1,24 @@
 import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { ArrowLeft, ChevronDown, FolderTree, LayoutGrid, List } from 'lucide-react';
 
-import { Button } from '../../components/ui';
-import { DropdownMenu, Popover, SegmentedControl } from '../../components/ui/index';
+import {
+  Button,
+  DropdownMenu,
+  FileTrigger,
+  IconButton,
+  Link,
+  Popover,
+  SearchField,
+  SegmentedControl,
+  type FileTriggerHandle
+} from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
-import { buildTeamRoute, type ExplorerView, type TeamRouteQuery } from '../routes';
+import { buildTeamRoute, type ExplorerView } from '../routes';
 import { formatShortcut, shortcutOf } from '../palette/shortcuts';
-import { Breadcrumb } from './Breadcrumb';
+import { Breadcrumb, FolderHistoryButtons, useFolderHistory } from './Breadcrumb';
 import type { ProcessableFolder } from './FolderScopeDialog';
-import { KindFilterMenu } from './KindFilterMenu';
-import { SortMenu } from './SortMenu';
-import type { ExplorerSort } from './sort';
 
 /** The folder-wide work the toolbar offers, when the reader may process. */
 export type ExplorerToolbarProcess = {
@@ -29,14 +37,25 @@ export type ExplorerToolbarResync = {
   onStart: () => void;
 };
 
+/** Marks the toolbar's search box, so the `/` shortcut can put the caret in it. */
+export const EXPLORER_SEARCH_ATTRIBUTE = 'data-explorer-search';
+
 /**
- * The explorer's toolbar (070, FR-001, out of `ExplorerShell`): the folder toggle, the way back
- * (to the files from the trash, to the task that sent you here), the path, and the actions —
- * how the list is shown, the search, adding files and folders, the Drive scan, processing, and
- * list or grid. The selection bar sits at its end (`children`).
+ * The explorer's toolbar (070, US1): one row, the way Finder and Drive draw theirs.
+ *
+ * Left, where you are — the folder tree's toggle on a narrow window, Back and Forward, the way
+ * back to the task that sent you, the path. Then the search box. Right, what you do here: the
+ * one primary, «Завантажити ▾» (files, a folder, a new folder), and how the list is shown.
+ *
+ * It used to hold eleven controls and wrap onto three lines: a kind filter and a sort menu
+ * that arrange the list (they live above the list now, and the list's own headers sort it),
+ * two primaries side by side («Нова папка» and «Додати файли»), a Search button that opened
+ * a different screen, and a hidden `<input type="file">` — the explorer's one raw control,
+ * now the inventory's `FileTrigger`. The selection bar sits over it (`children`).
  */
 export function ExplorerToolbar({
   teamId,
+  treeAsDrawer,
   treeOpen,
   onToggleTree,
   trash,
@@ -46,10 +65,6 @@ export function ExplorerToolbar({
   searching,
   onOpenSearch,
   onCloseSearch,
-  kinds,
-  onKindsChange,
-  sort,
-  onSortChange,
   canUpload,
   onPickFiles,
   onPickFolder,
@@ -65,6 +80,8 @@ export function ExplorerToolbar({
   children
 }: {
   teamId: string;
+  /** The tree is a drawer on this window (up to 1024 px), opened from here. */
+  treeAsDrawer: boolean;
   treeOpen: boolean;
   onToggleTree: () => void;
   trash: boolean;
@@ -73,17 +90,14 @@ export function ExplorerToolbar({
   /** The task that sent the reader here, if one did (024, FR-080). */
   backToTask?: string | null;
   searching: boolean;
-  onOpenSearch: () => void;
+  /** Opens the search of the space with what was typed (until T021 puts results in place). */
+  onOpenSearch: (text: string) => void;
   onCloseSearch: () => void;
-  kinds: TeamRouteQuery['kinds'];
-  onKindsChange: (kinds: TeamRouteQuery['kinds']) => void;
-  sort: ExplorerSort;
-  onSortChange: (sort: ExplorerSort) => void;
   canUpload: boolean;
-  onPickFiles: (files: FileList) => void;
+  onPickFiles: (files: File[]) => void;
   onPickFolder: () => void;
   onCreateFolder: () => void;
-  /** The "Add files" menu, shared with the empty folder's own button. */
+  /** The upload menu, shared with the empty folder's own button. */
   addMenuOpen: boolean;
   addMenuAnchor: MutableRefObject<HTMLButtonElement | null>;
   onOpenAddMenu: (anchor: HTMLButtonElement) => void;
@@ -95,128 +109,117 @@ export function ExplorerToolbar({
   children?: ReactNode;
 }) {
   const { t } = useI18n();
-  const fileInput = useRef<HTMLInputElement>(null);
+  const filePicker = useRef<FileTriggerHandle>(null);
+  const history = useFolderHistory();
+  const [draft, setDraft] = useState('');
+  const taskRoute = backToTask
+    ? buildTeamRoute({ spaceId: teamId, section: 'tasks', query: { taskId: backToTask } })
+    : null;
+  const shortcut = formatShortcut(shortcutOf('search')!.keys);
+
   return (
     <div className="team-explorer-toolbar">
-      <Button
-        type="button"
-        variant="ghost"
-        className="team-explorer-folders-toggle"
-        aria-pressed={treeOpen}
-        onClick={onToggleTree}
-      >
-        {t('teamExplorerFoldersToggle')}
-      </Button>
-      {trash ? (
-        <Button type="button" variant="ghost" onClick={onLeaveTrash}>
-          ← {trashReturnLabel ?? t('teamExplorerBackToFiles')}
-        </Button>
-      ) : (
-        <>
-          {/* The task that sent you here, one press away (024, FR-080). */}
-          {backToTask && (
-            <a
-              className="team-explorer-back-to-task"
-              href={buildTeamRoute({
-                spaceId: teamId,
-                section: 'tasks',
-                query: { taskId: backToTask }
-              })}
-              onClick={event =>
-                internalLink(
-                  event,
-                  buildTeamRoute({
-                    spaceId: teamId,
-                    section: 'tasks',
-                    query: { taskId: backToTask }
-                  })
-                )
-              }
-            >
-              ← {t('teamExplorerBackToTask')}
-            </a>
-          )}
-          <Breadcrumb />
-        </>
+      {treeAsDrawer && (
+        <IconButton
+          className="team-explorer-folders-toggle"
+          label={t('teamExplorerFoldersToggle')}
+          pressed={treeOpen}
+          onClick={onToggleTree}
+        >
+          <FolderTree size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </IconButton>
       )}
-      <div className="team-explorer-toolbar-actions">
-        {/* In the actions' group, so they wrap with the buttons, and first in it, at the
-              left edge behind a rule (owner, 2026-10-10): how the list is shown, apart
-              from what to do to it. */}
-        {!trash && !searching && (
-          <div className="team-explorer-list-controls">
-            <KindFilterMenu kinds={kinds} onChange={onKindsChange} />
-            {/* Re-sorting is one move, not a reshuffle in a single frame (058). */}
-            <SortMenu sort={sort} onChange={onSortChange} />
-          </div>
-        )}
-        {!trash && (
+      {trash ? (
+        <div className="team-explorer-location">
           <Button
-            type="button"
-            variant="secondary"
-            aria-pressed={searching}
-            /* The key that does the same thing, on the control that does it
-                 (024, FR-054): a shortcut nobody is told about is a shortcut
-                 only the person who wrote it uses. */
-            title={
-              searching
-                ? undefined
-                : `${t('teamExplorerSearchOpen')} · ${formatShortcut(shortcutOf('search')!.keys)}`
-            }
-            onClick={() => (searching ? onCloseSearch() : onOpenSearch())}
+            variant="ghost"
+            leading={<ArrowLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+            onClick={onLeaveTrash}
           >
-            {searching ? t('teamExplorerSearchClose') : t('teamExplorerSearchOpen')}
+            {trashReturnLabel ?? t('teamExplorerBackToFiles')}
           </Button>
-        )}
-        {canUpload && !trash && (
-          <>
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              hidden
-              onChange={event => {
-                if (event.target.files) onPickFiles(event.target.files);
-                event.target.value = '';
+        </div>
+      ) : (
+        <Breadcrumb
+          before={
+            <>
+              <FolderHistoryButtons history={history} />
+              {/* The task that sent you here, one press away (024, FR-080): a navigation
+                  control of the row, not a chip of its own colour beside the path. */}
+              {taskRoute && (
+                <Link
+                  variant="standalone"
+                  className="team-explorer-back-to-task"
+                  href={taskRoute}
+                  leading={<ArrowLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+                  onClick={event => internalLink(event, taskRoute)}
+                >
+                  {t('teamExplorerBackToTask')}
+                </Link>
+              )}
+            </>
+          }
+        />
+      )}
+      {!trash &&
+        (searching ? (
+          <Button variant="secondary" className="team-explorer-search" onClick={onCloseSearch}>
+            {t('teamExplorerSearchClose')}
+          </Button>
+        ) : (
+          <div className="team-explorer-search" {...{ [EXPLORER_SEARCH_ATTRIBUTE]: '' }}>
+            <SearchField
+              aria-label={t('teamExplorerSearchOpen')}
+              placeholder={t('teamExplorerSearchPlaceholder', { shortcut })}
+              value={draft}
+              onChange={setDraft}
+              onSubmit={text => {
+                setDraft('');
+                onOpenSearch(text.trim());
               }}
             />
-            <Button type="button" variant="secondary" onClick={onCreateFolder}>
-              {t('teamExplorerCreateFolder')}
-            </Button>
+          </div>
+        ))}
+      <div className="team-explorer-toolbar-actions">
+        {canUpload && !trash && (
+          <>
+            {/* The picker for files; the menu item opens it through the ref. */}
+            <FileTrigger ref={filePicker} onSelect={onPickFiles} />
             <Button
-              type="button"
               variant="primary"
+              aria-haspopup="menu"
+              aria-expanded={addMenuOpen}
+              trailing={<ChevronDown size={16} strokeWidth={ICON_STROKE} />}
               onClick={event => onOpenAddMenu(event.currentTarget)}
             >
-              {t('teamExplorerAddFiles')}
+              {t('teamExplorerUpload')}
             </Button>
             <DropdownMenu
               open={addMenuOpen}
               onClose={onCloseAddMenu}
               anchor={addMenuAnchor}
-              label={t('teamExplorerAddFiles')}
+              label={t('teamExplorerUpload')}
               items={[
                 {
                   id: 'files',
-                  label: t('teamExplorerAddFiles'),
-                  onSelect: () => fileInput.current?.click()
+                  label: t('teamExplorerUploadFiles'),
+                  onSelect: () => filePicker.current?.open()
                 },
                 {
                   id: 'folder',
-                  label: t('teamExplorerAddFolder'),
+                  label: t('teamExplorerUploadFolder'),
                   onSelect: onPickFolder
+                },
+                'separator',
+                {
+                  id: 'create-folder',
+                  label: t('teamExplorerCreateFolder'),
+                  onSelect: onCreateFolder
                 }
               ]}
             />
             {resync && (
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={resync.busy}
-                aria-busy={resync.busy || undefined}
-                onClick={resync.onStart}
-              >
-                {resync.busy && <span className="ui-spinner" aria-hidden="true" />}
+              <Button variant="secondary" disabled={resync.busy} onClick={resync.onStart}>
                 {resync.busy
                   ? t('teamFolderResyncRunning')
                   : resync.inFolder
@@ -226,18 +229,9 @@ export function ExplorerToolbar({
             )}
           </>
         )}
-        {/*
-         * Processing a whole folder or a whole space was reachable only
-         * through an unlabelled ▶ that appeared after something was selected
-         * — and that button then ignored the selection anyway. It is a door
-         * in the toolbar now, open before anything is chosen, and it names
-         * the two scopes that actually exist.
-         */}
         {process && !trash && !searching && <ProcessMenu {...process} />}
         {!trash && (
-          /* A choice of two, told as one: it was a pair of `aria-pressed`
-               toggles, which says "this button is down" twice rather than
-               "this is the one of two that is chosen" (021, T088). */
+          /* A choice of two, told as one (021, T088). */
           <SegmentedControl<'list' | 'grid'>
             className="team-explorer-view-toggle"
             label={t('teamExplorerViewLabel')}
@@ -246,12 +240,12 @@ export function ExplorerToolbar({
             options={[
               {
                 value: 'list',
-                label: <ListViewIcon />,
+                label: <List size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
                 title: t('teamExplorerViewList')
               },
               {
                 value: 'grid',
-                label: <GridViewIcon />,
+                label: <LayoutGrid size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
                 title: t('teamExplorerViewGrid')
               }
             ]}
@@ -260,25 +254,6 @@ export function ExplorerToolbar({
       </div>
       {children}
     </div>
-  );
-}
-
-function ListViewIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-      <path
-        fill="currentColor"
-        d="M4 5h2v2H4zm4 .25h12v1.5H8zM4 11h2v2H4zm4 .25h12v1.5H8zM4 17h2v2H4zm4 .25h12v1.5H8z"
-      />
-    </svg>
-  );
-}
-
-function GridViewIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-      <path fill="currentColor" d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z" />
-    </svg>
   );
 }
 

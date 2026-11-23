@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
 import { useI18n } from '../../i18n';
 import { useExplorer } from './ExplorerProvider';
-import { Popover } from '../../components/ui/index';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button, DropdownMenu, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 
 /**
@@ -15,9 +15,22 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
  */
 const VISIBLE_TAIL = 2;
 
-export function Breadcrumb() {
-  const { t } = useI18n();
-  const { currentFolderId, pathTo, openFolder } = useExplorer();
+/** The folders visited in this explorer, and where in that list the reader is. */
+export type FolderHistory = {
+  canBack: boolean;
+  canForward: boolean;
+  back: () => void;
+  forward: () => void;
+};
+
+/**
+ * The explorer's own Back and Forward (011), as Finder keeps them: the folders
+ * this explorer visited, not the browser's history — a browser Back from the
+ * first folder would leave the space. Owned by the toolbar, which also offers
+ * the two steps in its "…" when the row is too narrow for the arrows.
+ */
+export function useFolderHistory(): FolderHistory {
+  const { currentFolderId, openFolder } = useExplorer();
   const [history, setHistory] = useState<{ entries: (string | null)[]; index: number }>(() => ({
     entries: [currentFolderId],
     index: 0
@@ -31,12 +44,57 @@ export function Breadcrumb() {
       };
     });
   }, [currentFolderId]);
-  const moveHistory = (step: -1 | 1) => {
+  const move = (step: -1 | 1) => {
     const index = history.index + step;
     if (index < 0 || index >= history.entries.length) return;
     setHistory(previous => ({ ...previous, index }));
     openFolder(history.entries[index] ?? null);
   };
+  return {
+    canBack: history.index > 0,
+    canForward: history.index < history.entries.length - 1,
+    back: () => move(-1),
+    forward: () => move(1)
+  };
+}
+
+/** The two arrows, as one group of the row's own plates (070, T012). */
+export function FolderHistoryButtons({ history }: { history: FolderHistory }) {
+  const { t } = useI18n();
+  return (
+    <div className="team-explorer-history" role="group" aria-label={t('teamExplorerHistoryLabel')}>
+      {/* Obvious arrows carry no tooltip (docs/DESIGN.md, «Кнопки дій»); the name stays. */}
+      <IconButton
+        label={t('teamExplorerHistoryBack')}
+        title=""
+        disabled={!history.canBack}
+        onClick={history.back}
+      >
+        <ChevronLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </IconButton>
+      <IconButton
+        label={t('teamExplorerHistoryForward')}
+        title=""
+        disabled={!history.canForward}
+        onClick={history.forward}
+      >
+        <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </IconButton>
+    </div>
+  );
+}
+
+/**
+ * Where you are (011): the root, the open folder's ancestors and the open folder, on one line.
+ *
+ * The steps are the inventory's ghost buttons (070, T012) — they were bare `<button>`s with
+ * their own height, colour and focus ring, the only links in the toolbar that did not look
+ * like its other controls. The folded middle is the inventory's menu, which brings the arrows,
+ * typeahead and focus return its hand-written popover was re-deriving.
+ */
+export function Breadcrumb({ before }: { before?: ReactNode } = {}) {
+  const { t } = useI18n();
+  const { currentFolderId, pathTo, openFolder } = useExplorer();
   const path = pathTo(currentFolderId);
   const folded = path.length > VISIBLE_TAIL + 1 ? path.slice(0, path.length - VISIBLE_TAIL) : [];
   const shown = folded.length > 0 ? path.slice(path.length - VISIBLE_TAIL) : path;
@@ -53,30 +111,7 @@ export function Breadcrumb() {
 
   return (
     <div className="team-explorer-location">
-      <div
-        className="team-explorer-history"
-        role="group"
-        aria-label={t('teamExplorerHistoryLabel')}
-      >
-        <button
-          type="button"
-          className="team-explorer-history-button"
-          aria-label={t('teamExplorerHistoryBack')}
-          disabled={history.index === 0}
-          onClick={() => moveHistory(-1)}
-        >
-          <ChevronLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="team-explorer-history-button"
-          aria-label={t('teamExplorerHistoryForward')}
-          disabled={history.index === history.entries.length - 1}
-          onClick={() => moveHistory(1)}
-        >
-          <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
-      </div>
+      {before}
       <nav className="team-explorer-breadcrumb" aria-label={t('teamExplorerBreadcrumbLabel')}>
         <ol>
           {path.length > 0 && (
@@ -94,11 +129,11 @@ export function Breadcrumb() {
           )}
           <li className="team-explorer-breadcrumb-step">
             {path.length === 0 ? (
-              <span aria-current="page">{t('teamExplorerRootLabel')}</span>
-            ) : (
-              <button type="button" onClick={() => openFolder(null)}>
+              <span aria-current="page" className="team-explorer-crumb-here">
                 {t('teamExplorerRootLabel')}
-              </button>
+              </span>
+            ) : (
+              <Crumb name={t('teamExplorerRootLabel')} onOpen={() => openFolder(null)} />
             )}
           </li>
           {folded.length > 0 && (
@@ -120,23 +155,34 @@ export function Breadcrumb() {
                 className={index === shown.length - 1 ? 'team-explorer-breadcrumb-step' : ''}
               />
               {index === shown.length - 1 ? (
-                <span aria-current="page" title={node.name}>
+                /* The open folder, cut with an ellipsis when it must be: the whole name is
+                   its tooltip and what a screen reader hears (spec, Edge Cases). */
+                <span aria-current="page" className="team-explorer-crumb-here" title={node.name}>
                   {node.name}
                 </span>
               ) : (
-                <button
-                  type="button"
-                  title={node.name}
-                  onClick={() => openFolder(node.driveFileId)}
-                >
-                  {node.name}
-                </button>
+                <Crumb name={node.name} onOpen={() => openFolder(node.driveFileId)} />
               )}
             </li>
           ))}
         </ol>
       </nav>
     </div>
+  );
+}
+
+function Crumb({ name, onOpen }: { name: string; onOpen: () => void }) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="team-explorer-crumb"
+      /* A name cut by the ellipsis is still readable on hover. */
+      title={name}
+      onClick={onOpen}
+    >
+      {name}
+    </Button>
   );
 }
 
@@ -159,90 +205,31 @@ function FoldedPath({
   label: string;
 }) {
   const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement | null>(null);
   const button = useRef<HTMLButtonElement | null>(null);
-  const list = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const frame = requestAnimationFrame(() => {
-      list.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
-
-  const onListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Tab') {
-      button.current?.focus();
-      setOpen(false);
-      return;
-    }
-    const items = Array.from(
-      list.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []
-    );
-    if (items.length === 0) return;
-    const at = items.indexOf(document.activeElement as HTMLButtonElement);
-    const go = (index: number) => {
-      event.preventDefault();
-      items[(index + items.length) % items.length]?.focus();
-    };
-    if (event.key === 'ArrowDown') go(at + 1);
-    else if (event.key === 'ArrowUp') go(at - 1);
-    else if (event.key === 'Home') go(0);
-    else if (event.key === 'End') go(items.length - 1);
-  };
-
   return (
-    <div className="team-explorer-breadcrumb-folded" ref={box}>
-      <button
-        type="button"
+    <div className="team-explorer-breadcrumb-folded">
+      <IconButton
         ref={button}
-        className="team-explorer-breadcrumb-more"
+        size="sm"
+        label={label}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={label}
-        title={label}
         onClick={() => setOpen(value => !value)}
       >
-        …
-      </button>
-      <Popover
+        <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </IconButton>
+      <DropdownMenu
         open={open}
-        onClose={() => {
-          setOpen(false);
-          button.current?.focus();
-        }}
-        anchor={box}
+        onClose={() => setOpen(false)}
+        anchor={button}
         placement="bottom-start"
-        frequent
         label={label}
-        surface="none"
-        className="team-explorer-menu"
-      >
-        <div
-          className="team-explorer-menu-items"
-          role="menu"
-          aria-label={label}
-          ref={list}
-          onKeyDown={onListKeyDown}
-        >
-          {nodes.map(node => (
-            <button
-              key={node.id}
-              type="button"
-              role="menuitem"
-              className="team-explorer-menu-item"
-              onClick={() => {
-                setOpen(false);
-                button.current?.focus();
-                onOpen(node.driveFileId);
-              }}
-            >
-              {node.name}
-            </button>
-          ))}
-        </div>
-      </Popover>
+        items={nodes.map(node => ({
+          id: node.id,
+          label: node.name,
+          onSelect: () => onOpen(node.driveFileId)
+        }))}
+      />
     </div>
   );
 }

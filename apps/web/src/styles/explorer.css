@@ -183,59 +183,18 @@
   gap: var(--space-3);
   min-width: 0;
 }
+/* Where you are: the way back, the arrows and the path, on one line that gives way first
+   (070, T012). The path is what shrinks; the controls before it keep their size. */
 .team-explorer-location {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
-  flex: 1 1 20rem;
+  flex: 1 1 auto;
 }
 .team-explorer-history {
   display: inline-flex;
   flex: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface-muted);
-  padding: 2px;
-  gap: 2px;
-  overflow: hidden;
-}
-.team-explorer-history-button {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 30px;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-text);
-  cursor: pointer;
-}
-.team-explorer-history-button + .team-explorer-history-button::before {
-  content: '';
-  position: absolute;
-  left: -2px;
-  top: var(--space-2);
-  bottom: var(--space-2);
-  border-left: 1px solid var(--color-border);
-}
-.team-explorer-history-button:hover:not(:disabled),
-.team-explorer-history-button:focus-visible {
-  background: var(--color-surface-muted);
-}
-.team-explorer-history-button:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
-}
-.team-explorer-history-button:disabled {
-  color: var(--color-text-muted);
-  cursor: default;
-}
-.team-explorer-history-button:disabled svg {
-  opacity: 0.45;
 }
 .team-explorer-breadcrumb {
   min-width: 0;
@@ -305,24 +264,32 @@
 }
 /* Ancestors give way first, and the open folder keeps the most room: it is the
    one a person is reading. */
-.team-explorer-breadcrumb button,
+.team-explorer-breadcrumb .team-explorer-crumb,
 .team-explorer-breadcrumb [aria-current] {
   /* `min-width: 0` on both the item and the thing inside it, or the flex row
      hands each name its full intrinsic width and the ellipsis never fires —
      the row just overflows, which is where the mid-word cut came from. */
-  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.team-explorer-breadcrumb li:not(:last-child) button {
+/* An ancestor is the inventory's ghost button (070, T012); its label is what shrinks. */
+.team-explorer-breadcrumb .team-explorer-crumb {
   max-width: 10rem;
+}
+.team-explorer-breadcrumb .team-explorer-crumb .ui-button-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 /* Any `aria-current`: the markup says "page", and a rule written for
    "location" left "Нові аккаунти" free to break onto a second line. */
 .team-explorer-breadcrumb [aria-current] {
+  display: block;
   min-width: 3rem;
+  padding: 0 var(--space-1);
+  font-weight: var(--weight-label);
 }
 .team-explorer-breadcrumb-separator {
   flex: none;
@@ -330,27 +297,9 @@
 }
 /* The folded middle: a target of its own, not a decoration. */
 .team-explorer-breadcrumb-folded {
-  position: relative;
   display: inline-flex;
 }
-.team-explorer-breadcrumb-more {
-  min-width: 28px;
-  padding: 0 var(--space-1);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  line-height: 1;
-  cursor: pointer;
-}
-.team-explorer-breadcrumb-more:hover,
-.team-explorer-breadcrumb-more[aria-expanded='true'] {
-  border-color: var(--color-border);
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-}
-.team-explorer-breadcrumb-folded /* The menus' own element inside the shared popover surface; it takes no space
+/* The menus' own element inside the shared popover surface; it takes no space
    of its own. */
 .team-explorer-menu-items {
   display: contents;
@@ -359,25 +308,6 @@
 .team-explorer-menu {
   min-width: max-content;
   max-width: min(320px, calc(100vw - 2 * var(--space-4)));
-}
-/* A path segment is a link, not one of the page's large controls: at the
-   global 44px the row was taller whenever an ancestor was clickable, so
-   stepping into a folder moved every file below it. */
-.team-explorer-breadcrumb button {
-  min-height: 26px;
-  border: 0;
-  background: transparent;
-  color: var(--color-accent);
-  font: inherit;
-  cursor: pointer;
-  padding: 0 var(--space-1);
-  border-radius: var(--radius-sm);
-}
-.team-explorer-breadcrumb [aria-current] {
-  font-weight: 600;
-}
-.team-explorer-breadcrumb-separator {
-  color: var(--color-text-muted);
 }
 /* An empty folder is an answer, given once and in the middle of the space it is
    about — not a muted line hugging the top-left corner of a card that shrank to
@@ -611,105 +541,47 @@
      rows whose names shrank to "be…" while the kind and size stayed whole. */
   grid-template-columns: minmax(200px, 280px) minmax(380px, 1fr) minmax(240px, 340px);
 }
+/* One row at every width (070, FR-002): nothing here wraps. What does not fit leaves for the
+   "…" with its name (T014); the path shrinks with an ellipsis before anything else moves. */
 .team-explorer-toolbar {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
-  flex-wrap: wrap;
-  /* The row's own height, independent of how deep the open folder is. */
-  min-height: 40px;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-height-md);
 }
-@media (max-width: 640px) {
-  /* Where you are, on one line: the folders toggle opens the tree and the path
-     says what it would show, so they belong together rather than each taking a
-     line of a five-line toolbar. */
-  .team-explorer-folders-toggle {
-    order: -2;
-    flex: none;
-  }
-  .team-explorer-location {
-    flex: 1 1 8rem;
-    order: -1;
-  }
-  .team-explorer-breadcrumb {
-    padding-right: 0;
-  }
-  .team-explorer-toolbar-actions {
-    flex: 1 1 100%;
-    margin-left: 0;
-  }
-  /* Natural widths that wrap, not equal thirds: three Ukrainian labels do not
-     fit across 320px, and forcing them to share it made the buttons overlap
-     each other's text. */
-  .team-explorer-toolbar-actions {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
-  .team-explorer-toolbar-actions > .soty-button,
-  .team-explorer-toolbar-actions > .team-explorer-process-menu {
-    flex: 0 1 auto;
-  }
-  .team-explorer-view-toggle {
-    flex: none;
-    margin-left: auto;
-  }
-}
-
 .team-explorer-breadcrumb li {
   flex: 0 0 auto;
 }
-/* Takes the rest of the row so the view control can sit at its far end; when
-   the breadcrumb wraps to its own line the actions still span the width. */
+/* What you do here, at the far end of the row: the one primary, then how the list is shown. */
 .team-explorer-toolbar-actions {
   display: flex;
-  /* Packed into the top-right corner (owner, 2026-08-30): search, add-files
-     and the view toggle sit together, clear of a long breadcrumb.
-     `0 1 auto`, not `0 0 auto`: refusing to shrink meant the group kept its
-     full width on a phone and pushed the whole document out to 551px, so every
-     page scrolled sideways. It may now give way, and its own wrap does the
-     rest. */
-  flex: 0 1 auto;
-  min-width: 0;
-  margin-left: auto;
-  flex-wrap: wrap;
+  flex: none;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
-}
-/* Sits at the end of the toolbar, reads as one control rather than two loose
-   buttons wedged between the actions. */
-.team-explorer-view-toggle {
-  display: inline-flex;
   margin-left: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface-muted);
-  padding: 2px;
-  gap: 2px;
 }
-.team-explorer-view-toggle button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 30px;
+/* The search box, between where you are and what you do. It gives way before the path does
+   not: a box narrower than its placeholder is a box nobody reads. */
+.team-explorer-search {
+  flex: 0 1 18rem;
+  min-width: 12rem;
+}
+/* The box is the row's height, like every control beside it — its input is 38 px and its
+   frame added two more, so the row stood a pixel taller around it. */
+.team-explorer-search .ui-search-field-group {
+  box-sizing: border-box;
+  height: var(--control-height-md);
+}
+.team-explorer-search .ui-search-field-group input {
   min-height: 0;
-  /* The shared control pads for a word; this one holds an icon, and the
-     inherited padding left the glyph a 2px column to draw in. */
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
 }
-.team-explorer-view-toggle button:hover {
-  color: var(--color-text);
-}
-.team-explorer-view-toggle button.is-selected {
-  background: var(--color-surface);
-  color: var(--color-text);
-  box-shadow: var(--shadow-sm);
+.team-explorer-folders-toggle,
+.team-explorer-back-to-task {
+  flex: none;
+  white-space: nowrap;
 }
 .team-explorer-grid {
   list-style: none;
@@ -1194,38 +1066,13 @@
 }
 
 /* Explorer kinds, scope, selection bar, settings dialog (011, US3). */
+/* What arranges the list, on the list (070, FR-002): the kind filter, and in the grid the sort
+   (the list's own headers sort it). A strip of quiet controls, as Drive's chips are. */
 .team-explorer-list-controls {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-}
-/* At the left edge of the actions, set off by a rule: they arrange the list,
-   the buttons after them act on the space. The group takes the rest of the row
-   so the controls sit left and the buttons right, on one line or on their own. */
-.team-explorer-toolbar-actions:has(> .team-explorer-list-controls) {
-  flex-grow: 1;
-  /* A wrapped second row of buttons lines up under the first, at the right. */
-  justify-content: flex-end;
-}
-.team-explorer-toolbar-actions:has(> .team-explorer-list-controls) > .team-explorer-view-toggle {
-  margin-left: 0;
-}
-.team-explorer-toolbar-actions > .team-explorer-list-controls {
-  margin-right: auto;
-  padding-right: var(--space-3);
-  border-right: 1px solid var(--color-border);
-}
-@media (max-width: 640px) {
-  .team-explorer-toolbar-actions:has(> .team-explorer-list-controls) {
-    justify-content: flex-start;
-  }
-  .team-explorer-toolbar-actions > .team-explorer-list-controls {
-    flex: 1 1 100%;
-    margin-right: 0;
-    padding-right: 0;
-    border-right: 0;
-  }
 }
 .team-explorer-filter,
 .team-explorer-sort {
@@ -1254,49 +1101,6 @@
   left: auto;
   min-width: max-content;
   max-width: min(360px, calc(100vw - 2 * var(--space-4)));
-}
-.team-explorer-filter-button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 34px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-.team-explorer-filter-button:hover {
-  border-color: var(--color-accent);
-}
-.team-explorer-filter-button.is-active {
-  border-color: var(--color-accent);
-  background: var(--color-accent-softer);
-  color: var(--color-accent);
-}
-.team-explorer-filter-caret,
-.team-explorer-sort-icon {
-  font-size: 0.8em;
-  color: var(--color-text-muted);
-}
-.team-explorer-filter-clear {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-.team-explorer-filter-clear:hover {
-  color: var(--color-text);
-  border-color: var(--color-accent);
 }
 /* Placed by the component (021): portalled past the toolbar and flipped when
    the window is short. */
@@ -1674,23 +1478,6 @@
     grid-column: 1;
     grid-row: auto;
   }
-}
-
-/* The way back to the task that opened this folder (024, FR-080): a chip,
-   because it is a place you came from, not a step of the breadcrumb. */
-.team-explorer-back-to-task {
-  flex: 0 0 auto;
-  padding: 2px var(--space-2);
-  font-size: var(--text-label);
-  color: var(--color-accent);
-  text-decoration: none;
-  white-space: nowrap;
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-full);
-  background: var(--color-surface);
-}
-.team-explorer-back-to-task:hover {
-  background: var(--color-accent-softer);
 }
 
 /* A kind's fact as a quiet mark beside the name (024, FR-095). */

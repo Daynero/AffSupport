@@ -41,7 +41,7 @@ describe('content-first workspace shell', () => {
 
     // Empty space → zero facet controls until a search is opened; search itself is one click away.
     expect(screen.queryByText('GEO')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Search files' })).toBeTruthy();
+    expect(screen.getByRole('searchbox', { name: 'Search files' })).toBeTruthy();
 
     // Management is not shown beside the content by default.
     expect(screen.queryByRole('heading', { name: 'Google Drive storage' })).toBeNull();
@@ -94,6 +94,6 @@ describe('content-first workspace shell', () => {
       screen.getByText('Read-only until storage is reconnected — nothing here is lost.')
     ).toBeTruthy();
     // The writes are the only thing that goes away.
-    expect(screen.queryByRole('button', { name: 'Add files' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Upload' })).toBeNull();
   });
 });

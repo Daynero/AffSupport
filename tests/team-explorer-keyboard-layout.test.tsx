@@ -343,11 +343,12 @@ describe('explorer keyboard, second pass', () => {
     expect(screen.queryByRole('region', { name: 'What to do with the selection' })).toBeNull();
   }, 20_000);
 
-  it('opens the search on `/` before the search bar exists', async () => {
+  it('puts the caret in the toolbar search box on `/` (070, T012)', async () => {
     const { onQueryChange } = renderWithActions([row(1)]);
     await screen.findByText('file-1.png');
     fireEvent.keyDown(document.body, { key: '/' });
-    expect(onQueryChange).toHaveBeenCalledWith({ scope: 'space' });
+    expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search files' }));
+    expect(onQueryChange).not.toHaveBeenCalledWith({ scope: 'space' });
   });
 
   it('leaves `/` and Cmd+V alone while another section hides it', async () => {

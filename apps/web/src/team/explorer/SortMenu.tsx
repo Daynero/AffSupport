@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { useI18n } from '../../i18n';
-import { DropdownMenu, type MenuEntry } from '../../components/ui/index';
+import { ArrowDown, ArrowUp, ChevronDown } from 'lucide-react';
+import { Button, DropdownMenu, type MenuEntry } from '../../components/ui/index';
+import { ICON_STROKE } from '../../components/icons';
 import type { ExplorerSort, SortKey } from './sort';
 
 /**
@@ -58,19 +60,24 @@ export function SortMenu({
 
   return (
     <div className="team-explorer-sort">
-      <button
+      <Button
         ref={trigger}
-        type="button"
-        className="team-explorer-filter-button"
+        variant="outline"
+        size="sm"
         aria-expanded={open}
         aria-haspopup="menu"
+        leading={
+          sort.direction === 'asc' ? (
+            <ArrowUp size={16} strokeWidth={ICON_STROKE} />
+          ) : (
+            <ArrowDown size={16} strokeWidth={ICON_STROKE} />
+          )
+        }
+        trailing={<ChevronDown size={16} strokeWidth={ICON_STROKE} />}
         onClick={() => setOpen(value => !value)}
       >
-        <span className="team-explorer-sort-icon" aria-hidden="true">
-          {sort.direction === 'asc' ? '↑' : '↓'}
-        </span>
         {keyLabel(sort.key)}
-      </button>
+      </Button>
       <DropdownMenu
         open={open}
         onClose={() => setOpen(false)}

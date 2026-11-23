@@ -7,6 +7,7 @@ import type { ExplorerView, TeamRouteQuery } from '../routes';
 import type { useExplorer } from './ExplorerProvider';
 import type { useExplorerClipboard } from './useExplorerClipboard';
 import { summaryOf } from './summary';
+import { EXPLORER_SEARCH_ATTRIBUTE } from './ExplorerToolbar';
 
 /**
  * The explorer's keys, out of `ExplorerShell` (070, FR-001): the content area's own, and the
@@ -128,11 +129,16 @@ export function useExplorerKeyboard({
       if (!onScreen()) return;
       if (isEditableTarget(event.target instanceof HTMLElement ? event.target : null)) return;
       event.preventDefault();
-      onQueryChange({ scope: 'space' });
+      // The toolbar's box takes the caret (070, T012); without one, the search opens.
+      const box = surfaceRef.current?.querySelector<HTMLInputElement>(
+        `[${EXPLORER_SEARCH_ATTRIBUTE}] input`
+      );
+      if (box) box.focus();
+      else onQueryChange({ scope: 'space' });
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onQueryChange, searching, trash]);
+  }, [onQueryChange, searching, surfaceRef, trash]);
 
   // Cmd/Ctrl+C copies, +X cuts, +V pastes into the open folder — from anywhere
   // on the folder screen, because focus rarely sits inside the list. The batch

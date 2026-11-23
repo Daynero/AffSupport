@@ -86,14 +86,20 @@ afterEach(() => {
 });
 
 async function chooseFolder() {
-  fireEvent.click((await screen.findAllByRole('button', { name: 'Add files' })).at(-1)!);
-  fireEvent.click(await screen.findByRole('menuitem', { name: 'Add folder' }));
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Upload' })).at(-1)!);
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Folder…' }));
+}
+
+/** "New folder" lives in the Upload menu (070, FR-003). */
+async function openCreateFolder() {
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Upload' }))[0]!);
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'New folder' }));
 }
 
 describe('Add files chooser', () => {
   it('creates a folder in the open directory', async () => {
     render(shell());
-    fireEvent.click(await screen.findByRole('button', { name: 'New folder' }));
+    await openCreateFolder();
     fireEvent.change(await screen.findByRole('textbox', { name: 'Folder name' }), {
       target: { value: 'Campaign' }
     });
@@ -122,7 +128,7 @@ describe('Add files chooser', () => {
     ]);
     render(shell('parent-drive'));
     await waitFor(() => expect(client.listFolderTree).toHaveBeenCalled());
-    fireEvent.click(await screen.findByRole('button', { name: 'New folder' }));
+    await openCreateFolder();
     fireEvent.change(await screen.findByRole('textbox', { name: 'Folder name' }), {
       target: { value: 'Inside' }
     });
@@ -135,14 +141,25 @@ describe('Add files chooser', () => {
     );
   });
 
-  it('offers file and folder modes from one inventory action', async () => {
+  it('offers files, a folder and a new folder from one primary, and nothing else as primary', async () => {
     render(shell());
-    expect(screen.queryByRole('button', { name: 'Add folder' })).toBeNull();
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Add files' })).at(-1)!);
+    expect(screen.queryByRole('button', { name: 'Folder…' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New folder' })).toBeNull();
+    const upload = (await screen.findAllByRole('button', { name: 'Upload' }))[0]!;
+    expect(upload.closest('.team-explorer-toolbar')).toBeTruthy();
+    expect(
+      document.querySelectorAll('.team-explorer-toolbar .ui-color-primary.ui-button--solid')
+    ).toHaveLength(1);
     const fileInput = document.querySelector<HTMLInputElement>('input[type="file"]');
     if (!fileInput) throw new Error('file input missing');
     const click = vi.spyOn(fileInput, 'click');
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Add files' }));
+    fireEvent.click(upload);
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent?.trim())).toEqual([
+      'Files…',
+      'Folder…',
+      'New folder'
+    ]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Files…' }));
     expect(click).toHaveBeenCalledOnce();
   });
 

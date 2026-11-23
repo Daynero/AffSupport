@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import type { TeamMaterialRowKind } from '@video-compressor/shared';
 import { useI18n } from '../../i18n';
-import { DropdownMenu } from '../../components/ui/index';
+import { ChevronDown, X } from 'lucide-react';
+import { Button, DropdownMenu, IconButton } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { KIND_LABEL } from './rowKinds';
 
 const FILTER_KINDS: TeamMaterialRowKind[] = [
@@ -44,29 +46,25 @@ export function KindFilterMenu({
 
   return (
     <div className="team-explorer-filter">
-      <button
+      {/* The inventory's quiet button, at the strip's size (070, T012): it was a bare `<button>`
+          with its own pill, and the clear beside it a bare "✕". */}
+      <Button
         ref={trigger}
-        type="button"
-        className={`team-explorer-filter-button${kinds.length > 0 ? ' is-active' : ''}`}
+        /* A narrowed list says so in the selection colour, as a chosen tab does. */
+        color={kinds.length > 0 ? 'secondary' : 'neutral'}
+        variant={kinds.length > 0 ? 'soft' : 'outline'}
+        size="sm"
         aria-expanded={open}
         aria-haspopup="menu"
+        trailing={<ChevronDown size={16} strokeWidth={ICON_STROKE} />}
         onClick={() => setOpen(value => !value)}
       >
         {label}
-        <span aria-hidden="true" className="team-explorer-filter-caret">
-          ▾
-        </span>
-      </button>
+      </Button>
       {kinds.length > 0 && (
-        <button
-          type="button"
-          className="team-explorer-filter-clear"
-          aria-label={t('teamExplorerFilterClear')}
-          title={t('teamExplorerFilterClear')}
-          onClick={() => onChange([])}
-        >
-          ✕
-        </button>
+        <IconButton size="sm" label={t('teamExplorerFilterClear')} onClick={() => onChange([])}>
+          <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </IconButton>
       )}
       <DropdownMenu
         open={open}
