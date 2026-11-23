@@ -14,6 +14,11 @@ five surfaces, zero raw controls, no menu over seven ungrouped items — so they
 tests rather than checked by eye. The part that cannot be mechanised, "clean and gorgeous", is
 the visual sweep in Phase 12.
 
+**Рішення власника 2026-11-23:** решта 024, тобто перебудова акаунтів, менеджера каталогів і
+діалогів, а також відкриті задачі фаз 3, 4, 7, 8, 9I, 9J, 9O, 11 і 12, робиться разом із
+поліруванням особистого кабінету (пункт 5 плану 1.6), а не окремо зараз. Задачі лишаються
+відкритими тут, доки їх не закриє та робота.
+
 **Organization**: by user story. Each phase leaves the app working and is verifiable on the beta
 against the matching checkpoint in [quickstart.md](./quickstart.md).
 
