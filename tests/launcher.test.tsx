@@ -105,8 +105,8 @@ describe('Soty product launcher', () => {
       readFile('apps/web/public/_redirects', 'utf8')
     ]);
     expect(styles).toContain(':focus-visible');
-    expect(styles).toContain('@media (max-width: 760px)');
-    expect(styles).toContain('@media (max-width: 500px)');
+    expect(styles).toContain('@media (max-width: 768px)');
+    expect(styles).toContain('@media (max-width: 480px)');
     expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
     expect(redirects).toContain('/* /index.html 200');
   });

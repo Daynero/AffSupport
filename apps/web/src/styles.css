@@ -355,7 +355,7 @@ a {
   min-width: 0;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .topbar {
     /* The wordmark is what does not fit on a phone: the controls together need
        about 245px, and the lockup at its full height needs more than the rest
@@ -517,13 +517,13 @@ a {
  * a phone and kept squeezing the bar it was supposed to leave — which is the
  * exact failure the ladder was written for.
  */
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .support-trigger .support-trigger-label {
     display: none;
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1024px) {
   .support-trigger {
     display: none;
   }
@@ -2827,7 +2827,7 @@ input.is-invalid {
   background: var(--color-surface-muted);
 }
 
-@media (max-width: 520px) {
+@media (max-width: 480px) {
   .release-update-notice {
     right: var(--space-3);
     bottom: var(--space-3);
@@ -3065,13 +3065,13 @@ input.is-invalid {
 /* ============================================================
    Responsive
    ============================================================ */
-@media (max-width: 1040px) {
+@media (max-width: 1024px) {
   .custom-settings {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   :root {
     --app-header-height: 55px;
     --app-header-padding-inline: 12px;
@@ -3211,7 +3211,7 @@ input.is-invalid {
   }
 }
 
-@media (max-width: 500px) {
+@media (max-width: 480px) {
   :root {
     --app-header-padding-inline: var(--space-3);
   }
@@ -3300,7 +3300,7 @@ input.is-invalid {
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 480px) {
   .topbar-lead .brand-link .soty-wordmark {
     display: none;
   }
@@ -4936,7 +4936,7 @@ body:has(.public-home) {
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 480px) {
   .legal-content h1 {
     font-size: var(--text-8xl);
   }
@@ -4997,7 +4997,7 @@ body:has(.public-home) {
   border-top: 1px solid var(--color-border);
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
   .metric-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -5007,7 +5007,7 @@ body:has(.public-home) {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .public-home-content {
     padding: 24px 0;
   }
@@ -5058,7 +5058,7 @@ body:has(.public-home) {
   }
 }
 
-@media (max-width: 500px) {
+@media (max-width: 480px) {
   .login-topbar,
   .legal-topbar {
     min-height: var(--app-header-height);
@@ -5222,7 +5222,7 @@ body:has(.public-home) {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .landing-settings-primary-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -6434,7 +6434,7 @@ body:has(.public-home) {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 768px) {
   .landing-batch-header {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
@@ -6491,7 +6491,7 @@ body:has(.public-home) {
   }
 }
 
-@media (max-width: 500px) {
+@media (max-width: 480px) {
   .landing-batch-toggle {
     grid-template-columns: 44px minmax(0, 1fr) auto;
     align-items: start;
@@ -7563,7 +7563,7 @@ body:has(.public-home) {
   white-space: nowrap;
   border: 0;
 }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .transcript-split-body {
     grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: minmax(0, 1fr);
@@ -7572,12 +7572,12 @@ body:has(.public-home) {
     grid-template-columns: auto auto minmax(70px, 1fr) auto auto auto;
   }
 }
-@media (max-width: 1120px) {
+@media (max-width: 1280px) {
   .transcript-modal-header {
     flex-wrap: wrap;
   }
 }
-@media (max-width: 620px) {
+@media (max-width: 640px) {
   .transcript-modal-backdrop {
     padding: 6px;
   }
@@ -8181,7 +8181,7 @@ body:has(.public-home) {
    they shrink and end in an ellipsis (the full text is one press away) — while "Find" and
    the space menu never shrink, and figures keep one width so a ticking timer cannot nudge
    the row. */
-@media (min-width: 561px) {
+@media (width > 640px) {
   .team-space-shell-header {
     flex-wrap: nowrap;
     /* A grid item sizes to its content unless told otherwise; the row could not give way
@@ -8276,7 +8276,7 @@ body:has(.public-home) {
 .team-space-tabs-next {
   display: none;
 }
-@media (max-width: 639px) {
+@media (max-width: 640px) {
   .team-space-tabs-next {
     display: inline-flex;
     align-items: center;
@@ -8733,7 +8733,7 @@ button,
    a phone, and squeezed onto one they collide. They stack, and the row's own
    controls go under them. The audit row's header line has the same shape and
    the same width to work in, so it takes the same breakpoint. */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .team-member-list li,
   .team-audit-list li,
   .team-invitation-list li {
@@ -9256,7 +9256,7 @@ button,
   background: var(--color-surface-subtle);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .landing-full-view-toolbar {
     padding: var(--space-2) var(--space-3);
   }
@@ -9442,13 +9442,13 @@ button,
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 1179px) {
+@media (max-width: 1280px) {
   .team-invite-form {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1024px) {
   .team-catalog-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -9458,7 +9458,7 @@ button,
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .team-panel,
   .team-empty-state {
     padding: var(--space-4);
@@ -9637,7 +9637,7 @@ button,
   margin: 0;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .team-operation-overlay,
   .team-text-editor,
   .team-process-dialog {
@@ -9676,12 +9676,6 @@ button,
   margin: 0 0 0 var(--space-3);
   color: var(--color-text-muted);
   font-size: var(--text-caption);
-}
-@media (max-width: 900px) {
-}
-@media (max-width: 1120px) {
-}
-@media (max-width: 620px) {
 }
 
 /* ============================================================
@@ -11163,7 +11157,7 @@ body {
   margin-top: var(--space-1);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .task-date-filter {
     align-items: stretch;
     flex-direction: column;
@@ -11622,7 +11616,7 @@ body {
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .creative-library-upload {
     min-width: 0;
   }
@@ -11728,7 +11722,7 @@ button.team-landing-tile:hover {
   font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .landing-viewer-controls {
     align-items: stretch;
   }
@@ -11774,7 +11768,7 @@ button.team-landing-tile:hover {
  * `bottom` survived, `top` stayed, and a fixed box with both became a column
  * down the middle of the screen covering the toolbar and a tile.
  */
-@media (max-width: 1200px) {
+@media (max-width: 1280px) {
   .environment-badge {
     inset: auto auto 0.5rem 0.5rem;
     transform: none;
@@ -13379,7 +13373,7 @@ button.team-landing-tile:hover {
   gap: var(--space-2);
   list-style: none;
 }
-@media (max-width: 1023px) {
+@media (max-width: 1024px) {
   .team-explorer {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -13413,7 +13407,7 @@ button.team-landing-tile:hover {
  * the actions share the next as equal thirds, and the view toggle sits with
  * them instead of below.
  */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   /* Where you are, on one line: the folders toggle opens the tree and the path
      says what it would show, so they belong together rather than each taking a
      line of a five-line toolbar. */
@@ -13950,7 +13944,7 @@ button.team-landing-tile:hover {
   --pane-from-x: var(--space-6);
   --pane-from-y: 0px;
 }
-@media (max-width: 1023px) {
+@media (max-width: 1024px) {
   .team-explorer-pane {
     --pane-from-x: 0px;
     --pane-from-y: var(--space-5);
@@ -14449,7 +14443,7 @@ button.team-landing-tile:hover {
 .team-explorer-pane-facts dd {
   margin: 0;
 }
-@media (max-width: 1023px) {
+@media (max-width: 1024px) {
   .team-explorer.has-pane {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -14486,7 +14480,7 @@ button.team-landing-tile:hover {
 }
 /* On a phone the arrangement gets its own line, and the buttons wrap from the left as before:
    a rule beside a line of its own divides nothing. */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .team-explorer-toolbar-actions:has(> .team-explorer-list-controls) {
     justify-content: flex-start;
   }
@@ -14843,7 +14837,7 @@ button.team-landing-tile:hover {
 .team-explorer-folders-toggle {
   display: none;
 }
-@media (max-width: 1023px) {
+@media (max-width: 1024px) {
   .team-explorer-folders-toggle {
     display: inline-flex;
   }
@@ -14854,7 +14848,7 @@ button.team-landing-tile:hover {
     display: block;
   }
 }
-@media (max-width: 719px) {
+@media (max-width: 768px) {
   .team-explorer-pane {
     position: fixed;
     left: 0;
@@ -15292,7 +15286,7 @@ button.team-landing-tile:hover {
   grid-column: 3;
   grid-row: 2;
 }
-@media (max-width: 1023px) {
+@media (max-width: 1024px) {
   .team-explorer > .team-explorer-toolbar,
   .team-explorer > .team-explorer-tree,
   .team-explorer > .team-explorer-main,
@@ -15413,7 +15407,7 @@ button.team-landing-tile:hover {
 }
 /* Three fixed-width controls do not divide a 154px column; on a phone they take
    the width in turn, and their labels wrap rather than push the panel wider. */
-@media (max-width: 400px) {
+@media (max-width: 480px) {
   .embedding-settings-row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -15555,7 +15549,7 @@ input[type='number'] {
   min-width: 0;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
   .settings-primary-row,
   .custom-settings,
   .embedding-settings-row {
@@ -16333,7 +16327,7 @@ input[type='number'] {
 /* On a phone the running panel's line is a size, an elapsed time and two
    controls, and it does not fit: it wrapped off the left edge of its own card,
    taking "175 MB → ~49.6 MB" with it. It wraps onto two lines instead. */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .job-progress-panel .job-progress-meta {
     flex-wrap: wrap;
     gap: var(--space-2);
@@ -16386,7 +16380,7 @@ input[type='number'] {
  * that request made an implicit second one, which took the width and left the
  * file's name a fifteen-pixel sliver on a phone. Everything spans the single
  * column here instead. */
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   .job-row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -17221,7 +17215,7 @@ input[type='number'] {
 /* On a phone the header row has no width to lend. The number stays — it is the
    part that says something exactly — and the bar goes, rather than pushing the
    number left across the "Account" caption beside it. */
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .tfa-countdown {
     width: 100%;
     margin-right: 0;
@@ -17674,7 +17668,7 @@ input[type='number'] {
   margin-top: var(--space-4);
 }
 
-@media (max-width: 860px) {
+@media (max-width: 1024px) {
   .tfa-header {
     grid-template-columns: 1fr;
     gap: var(--space-3);
@@ -17913,7 +17907,7 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-3);
 }
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .team-updater-profile {
     grid-area: 3 / 1 / 4 / -1;
   }
@@ -18002,7 +17996,7 @@ input[type='number'] {
   height: 30px;
 }
 /* A phone: the name gets the width, its schedule and menu sit on the line under it. */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .team-updater-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas: 'check main main' 'check schedule schedule';
@@ -18144,7 +18138,7 @@ input[type='number'] {
 .team-updater-chip.ui-chip-warn {
   background-image: linear-gradient(var(--color-warning-soft), var(--color-warning-soft));
 }
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .team-updater-backdrop {
     padding: 0;
   }
@@ -18170,7 +18164,7 @@ input[type='number'] {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .team-updater-row {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -18309,7 +18303,7 @@ input[type='number'] {
 /* On a phone the header keeps one line (024, US14): the space's name, then its
    two doors. Stacked full-width, "Find" and "Space" took the first screen's
    height for two rarely pressed buttons. The chord is for keyboards. */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .team-space-shell-header {
     align-items: center;
   }
@@ -18405,7 +18399,7 @@ input[type='number'] {
    A busy agent's "+ Run" appears with the pointer or keyboard focus in the
    row. Touch screens keep it. */
 /* Not on a phone-wide window, where the buttons sit on a line of their own. */
-@media (hover: hover) and (min-width: 561px) {
+@media (hover: hover) and (width > 640px) {
   .team-agent-row:not(.is-free):not(:hover):not(:focus-within)
     .team-agent-actions-stack
     .team-agent-run-add {
@@ -19384,7 +19378,7 @@ a.history-subject {
    and goes, the counts grow — and with the head and the line free to wrap, the list jumped up
    and down with them. Above phone width the head and the line keep one row each and end in an
    ellipsis; "More" still opens everything. */
-@media (min-width: 561px) {
+@media (width > 640px) {
   .team-sync-panel-head {
     flex-wrap: nowrap;
     min-width: 0;
@@ -19423,7 +19417,7 @@ a.history-subject {
   margin: 0;
   overflow-wrap: anywhere;
 }
-@media (max-width: 1023px) {
+@media (max-width: 1024px) {
   .team-explorer > .team-explorer-header {
     grid-column: 1;
     grid-row: auto;
@@ -19652,7 +19646,7 @@ a.history-subject {
 .catalog-recent-list small {
   color: var(--color-text-muted);
 }
-@media (max-width: 1099px) {
+@media (max-width: 1280px) {
   .catalog-compact-table,
   .catalog-compact-table tbody {
     display: block;
@@ -19704,7 +19698,7 @@ a.history-subject {
     grid-column: 4;
   }
 }
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .team-updater-dialog.catalog-manager-dialog {
     width: 100%;
   }
@@ -20347,7 +20341,7 @@ a.history-subject {
 }
 
 /* Members keep the primary column; the invitation remains a compact companion. */
-@media (min-width: 1100px) {
+@media (width > 1280px) {
   .team-members-section > .team-space-settings-grid {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   }
@@ -20383,7 +20377,7 @@ a.history-subject {
 .team-leave-panel {
   padding: var(--space-4) var(--space-5);
 }
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .team-member-list li {
     flex-direction: column;
     align-items: stretch;

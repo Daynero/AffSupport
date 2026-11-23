@@ -432,7 +432,7 @@ describe('tooltip accessibility and responsive layout', () => {
 
   it('contains narrow-screen stacking rules and avoids forced horizontal layout', async () => {
     const css = await readFile(new URL('../apps/web/src/styles.css', import.meta.url), 'utf8');
-    expect(css).toContain('@media (max-width: 760px)');
+    expect(css).toContain('@media (max-width: 768px)');
     // `.media-grid` is what a job row actually renders; `.job-comparison` was
     // the name of a layout that has not been on screen for some time, and the
     // dead-rule pass (021, T150) took its CSS with it.

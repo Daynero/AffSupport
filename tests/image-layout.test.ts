@@ -6,7 +6,7 @@ describe('responsive image embedding layout', () => {
 
   it('stacks the two image columns on narrow screens', () => {
     expect(css).toMatch(
-      /@media \(max-width: 760px\)[\s\S]*?\.image-columns\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/
+      /@media \(max-width: 768px\)[\s\S]*?\.image-columns\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/
     );
   });
 
