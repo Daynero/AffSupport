@@ -169,7 +169,7 @@ describe('LandingViewer (source-agnostic)', () => {
   it('closes the phone sheet from the scrim and from Escape', async () => {
     const listeners: Array<() => void> = [];
     vi.stubGlobal('matchMedia', (query: string) => ({
-      matches: query.includes('820'),
+      matches: query.includes('768'),
       media: query,
       addEventListener: (_type: string, listener: () => void) => listeners.push(listener),
       removeEventListener: () => {}

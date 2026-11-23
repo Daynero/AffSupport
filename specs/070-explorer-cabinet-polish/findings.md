@@ -168,3 +168,10 @@
 | 181        | `(min-width: 1100px)` | `(width > 1280px)`   | `.home-tools`                                                           | домашня |
 | 475        | `(max-width: 760px)`  | `(max-width: 768px)` | `.home-panel .blocking-message .ui-alert-action`                        | домашня |
 | 481        | `(max-width: 500px)`  | `(max-width: 480px)` | `.home-panel .blocking-message .ui-alert-action`, `.home`, `.home-tile` | домашня |
+
+### `styles/landing-viewer.css`
+
+| Рядок (до) | Було                 | Стало                | Правила                                                | Екрани               |
+| ---------- | -------------------- | -------------------- | ------------------------------------------------------ | -------------------- |
+| 1245       | `(max-width: 820px)` | `(max-width: 768px)` | `.lv-viewer`, `.lv-toolbar`, `.lv-group.is-navigation` | переглядач лендингів |
+| 1307       | `(max-width: 560px)` | `(max-width: 640px)` | `.lv-canvas`, `.lv-source`                             | переглядач лендингів |

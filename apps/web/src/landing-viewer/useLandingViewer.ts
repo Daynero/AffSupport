@@ -7,7 +7,8 @@ import { useI18n } from '../i18n';
 import { emptyState, type LandingViewerSource } from './types';
 import { readViewerPreferences } from './viewerPreferences';
 
-const NARROW_QUERY = '(max-width: 820px)';
+// The same step as the viewer's narrow layout in `styles/landing-viewer.css` (070, R4).
+const NARROW_QUERY = '(max-width: 768px)';
 
 /** Below this width the tree overlays the page instead of sitting beside it (see the CSS). */
 export function narrowViewport() {
