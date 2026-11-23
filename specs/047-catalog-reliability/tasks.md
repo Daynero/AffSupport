@@ -514,6 +514,7 @@
       **Аудит 2026-11-23:** Повернення фокусу за `catalogId` уже є в `CatalogUpdaterDialog.tsx`. Ручна частина (390 px, 200%, Escape у вкладених діалогах) — Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 - [ ] T053 виміряти й прибрати зайву роботу списку — `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx`. Залежності: T026–T027, T051.
+  - Аудит 2026-11-23: браузерний замір A26 виконано (0/60/500/2000, базис `87c203c`), результати в `reviews/performance.md` і `performance.raw.json`. На 500 рядках вибір проходить (p95 188 мс), пошук (369 мс) і деталі (222/414 мс) — ні. Час іде на повторний рендер усіх 60 рядків вікна. Лишається: винести рядок у мемоізований компонент, стабілізувати `rows`, заморозити r2-читання у фікстурі й повторити замір, зокрема на Mac.
       Виконати reproducible protocol у quickstart.md: 0/60/500/2000 rows,
       render/input/read counts, baseline/after, environment і raw samples. Maps замість
       repeated find/findIndex, stable row props; pagination/virtualization лише за
