@@ -20,6 +20,7 @@ import {
   ConfirmDialog,
   DropdownMenu,
   Empty,
+  FileTrigger,
   FormField,
   IconButton,
   Input,
@@ -145,6 +146,7 @@ export default function DesignSystemPage() {
   const [menu, setMenu] = useState(false);
   const [popover, setPopover] = useState(false);
   const [page, setPage] = useState(1);
+  const [picked, setPicked] = useState('Nothing chosen yet');
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['root']));
   const [openPanels, setOpenPanels] = useState<Set<string>>(new Set(['one']));
   const [time, setTime] = useState('14:30');
@@ -419,6 +421,25 @@ export default function DesignSystemPage() {
               defaultValue={25}
               aria-label="Copies"
             />
+          </Row>
+          <Row title="file trigger">
+            <FileTrigger onSelect={files => setPicked(`${files.length} file(s)`)}>
+              <Button color="primary">Choose files</Button>
+            </FileTrigger>
+            <FileTrigger
+              acceptDirectory
+              onSelect={files => setPicked(`A folder, ${files.length} file(s)`)}
+            >
+              <Button variant="outline">Choose a folder</Button>
+            </FileTrigger>
+            <FileTrigger
+              acceptedFileTypes={['video/*']}
+              allowsMultiple={false}
+              onSelect={files => setPicked(files[0]?.name ?? '')}
+            >
+              <Button variant="outline">One video</Button>
+            </FileTrigger>
+            <span className="prose">{picked}</span>
           </Row>
         </Section>
       )}

@@ -47,6 +47,10 @@ export type {
   TextareaProps
 } from './Field';
 
+/* The way into the file system (070): a pressable opens the picker; a menu item opens it through the ref. */
+export { FileTrigger } from './FileTrigger';
+export type { FileTriggerHandle, FileTriggerProps } from './FileTrigger';
+
 export { Checkbox, RadioGroup, SegmentedControl, Slider, Switch } from './Choice';
 export type {
   CheckboxProps,
