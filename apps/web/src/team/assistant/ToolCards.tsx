@@ -360,6 +360,8 @@ export function ToolReviewCard({
       exists?: boolean;
       unchanged?: boolean;
       changes?: Array<{ field: string; from: string | null; to: string | null }>;
+      /** edit_offers: what happens to the offer — said, not left to the chip alone. */
+      operation?: 'rename' | 'archive' | 'restore';
     }>) ?? [];
   const word = (field: string, value: string | null) =>
     value === null || value === ''
@@ -450,7 +452,11 @@ export function ToolReviewCard({
                       ? t('assistantToolUnchanged')
                       : item.to !== undefined
                         ? `${show(item.from)} → ${show(item.to)}`
-                        : (item.note ?? '')}
+                        : item.operation === 'archive'
+                          ? t('assistantToolToArchive')
+                          : item.operation === 'restore'
+                            ? t('assistantToolFromArchive')
+                            : (item.note ?? '')}
               </span>
             </span>
           </li>

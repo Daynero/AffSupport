@@ -5398,6 +5398,8 @@ export const en = {
   assistantColState: 'State',
   assistantColAccount: 'Account',
   assistantColCreative: 'Creative',
+  assistantToolToArchive: '→ to the archive',
+  assistantToolFromArchive: '← back from the archive',
   assistantToolCreativeRanks: 'Creative ranks: {count}',
   assistantColRank: 'Rank',
   assistantColLaunches: 'Launches',

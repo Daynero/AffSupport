@@ -5372,6 +5372,8 @@ export const uk: Record<keyof typeof en, string> = {
   assistantColState: 'Стан',
   assistantColAccount: 'Акаунт',
   assistantColCreative: 'Креатив',
+  assistantToolToArchive: '→ в архів',
+  assistantToolFromArchive: '← з архіву',
   assistantToolCreativeRanks: 'Ранги креативів: {count}',
   assistantColRank: 'Ранг',
   assistantColLaunches: 'Запусків',

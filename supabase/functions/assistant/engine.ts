@@ -68,6 +68,29 @@ export interface EngineDeps {
   said?: string | null;
 }
 
+const GENERIC_OFFER_WORDS = new Set([
+  'новий',
+  'нова',
+  'нове',
+  'новий_офер',
+  'офер',
+  'оффер',
+  'офр',
+  'тестовий',
+  'тест',
+  'якийсь',
+  'new',
+  'offer',
+  'test',
+  'my',
+  'мій',
+  'назва',
+  'name',
+  'untitled',
+  'без',
+  'назви'
+]);
+
 /**
  * Whether the person wrote this name themselves (spelling, case and spaces aside). An offer's
  * country code is the model's reading of the person's words («прокапс на мексику» → ProCaps MX),
@@ -76,6 +99,17 @@ export interface EngineDeps {
 function personSaid(deps: EngineDeps, name: string, offer = false): boolean {
   if (deps.said === undefined || deps.said === null) return true;
   const product = offer ? name.trim().replace(/\s+[A-Za-z]{2,3}$/u, '') : name;
+  // «створи новий офер, назву придумай сам» → «Новий офер»: words of the request are not a name
+  // the person gave (found on next 1.6.0). Such a name is asked about, as any the model chose.
+  if (
+    offer &&
+    product
+      .toLocaleLowerCase('uk')
+      .split(/[\s_-]+/u)
+      .filter(Boolean)
+      .every(word => GENERIC_OFFER_WORDS.has(word))
+  )
+    return false;
   // «флексі» is Flexi: x reads as ks in both.
   const fold = (text: string) => assistantKey(text).replace(/x/gu, 'ks');
   const key = fold(product);

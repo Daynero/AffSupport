@@ -910,6 +910,16 @@ describe('064 assistant — offers, removal and selection', () => {
     expect(world.offers.map(offer => offer.value)).toContain('Gastro BG');
   });
 
+  it("asks before creating an offer named only with the request's own words", async () => {
+    const world = space();
+    const reply = await world.send(
+      'створи новий офер, назву придумай сам',
+      model(plan(action({ type: 'create_offer', offer: 'Новий офер' })))
+    );
+    expect(world.offers.map(offer => offer.value)).not.toContain('Новий офер');
+    expect(firstCard(reply).kind).toBe('question');
+  });
+
   it('creates no account and no ad account the person did not write', async () => {
     const world = space();
     const before = world.accountList.length;
