@@ -262,9 +262,6 @@ a {
 :root.wishly-page-transition .page-viewport {
   view-transition-name: wishly-page;
 }
-:root.wishly-section-transition .team-space-shell-body {
-  view-transition-name: wishly-section;
-}
 :root:is(.wishly-page-transition, .wishly-section-transition) .topbar {
   view-transition-name: wishly-topbar;
 }
@@ -7935,19 +7932,6 @@ body:has(.public-home) {
   gap: var(--space-2);
   flex-wrap: wrap;
 }
-
-/* The header rides the same axis as what is under it (024): the workspace takes a wide screen,
-   and a bar still pinned to the narrower page axis left the logo adrift from the panel below. */
-.app-shell:has(.team-space-page) .topbar {
-  --shell-gutter: max(var(--app-header-padding-inline), calc((100% - var(--shell-width-team)) / 2));
-}
-
-/* --- Guided team space: lobby, create wizard, content-first shell --- */
-.team-space-page {
-  width: min(calc(100% - 32px), var(--shell-width-team));
-  margin-inline: auto;
-  min-width: 0;
-}
 .team-workspace-gate-background {
   min-height: 52vh;
   border: 1px solid var(--color-border);
@@ -7972,79 +7956,10 @@ body:has(.public-home) {
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
-.team-space-lobby {
-  display: grid;
-  gap: var(--space-5);
-  min-width: 0;
-}
-.team-space-lobby-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-.team-space-lobby-header h1 {
-  margin: 0;
-}
 .team-space-lobby-header > div,
 .team-space-shell-header > div:first-child,
 .team-space-settings-header > :first-child {
   min-width: 0;
-}
-.team-space-lobby-header h1,
-.team-space-lobby-subtitle,
-.team-space-shell-header h1,
-.team-space-card-copy h3,
-.team-space-card-hint {
-  overflow-wrap: anywhere;
-}
-.team-space-lobby-subtitle {
-  margin: var(--space-1) 0 0;
-  color: var(--color-text-muted);
-}
-.team-space-lobby-empty {
-  min-height: 40vh;
-  place-content: center;
-  justify-items: center;
-  text-align: center;
-}
-
-/*
- * "This space is unavailable" is a screen a stranger reaches from a shared
- * link, so it is dressed like the rest of the product rather than left as a
- * heading in the corner: the same violet-tinted panel the settings sections
- * use, centred, with the lock that says what happened before the sentence does.
- */
-.team-space-no-access-card {
-  gap: var(--space-3);
-  padding: var(--space-6);
-  border: 1px solid color-mix(in oklab, var(--color-accent) 45%, transparent);
-  border-radius: var(--radius-xl);
-  background: color-mix(in oklab, var(--purple-900) 55%, var(--color-surface));
-  text-align: center;
-}
-
-.team-space-no-access-card h1 {
-  font-size: var(--text-8xl);
-}
-.team-space-no-access-card p {
-  color: var(--color-text-muted);
-  max-width: 40ch;
-}
-:root[data-theme='light'] .team-space-no-access-card,
-:root:not([data-theme='dark']) .team-space-no-access-card {
-  border-color: color-mix(in oklab, var(--color-accent) 30%, transparent);
-  background: color-mix(in oklab, var(--color-accent) 8%, var(--color-white));
-}
-
-.team-space-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
-  gap: var(--space-4);
-  list-style: none;
-  margin: 0;
-  padding: 0;
 }
 .team-space-card {
   display: flex;
@@ -8053,47 +7968,6 @@ body:has(.public-home) {
   gap: var(--space-3);
   min-height: 96px;
   min-width: 0;
-}
-.team-space-card.is-preparing {
-  opacity: 0.75;
-}
-.team-space-card-copy {
-  min-width: 0;
-  width: 100%;
-}
-.team-space-card-copy h3 {
-  margin: 0;
-}
-.team-space-card-role {
-  margin: var(--space-1) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-}
-.team-space-card-hint {
-  margin: var(--space-1) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-}
-.team-space-card-action {
-  flex: none;
-  max-width: 100%;
-  border-radius: var(--radius-full);
-  padding: 4px 12px;
-  background: var(--color-surface-muted);
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  font-weight: 700;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-  text-align: center;
-}
-.team-space-card-action.is-ready {
-  background: var(--color-accent-softer);
-  color: var(--color-accent);
-}
-.team-space-card-action.is-setup_incomplete {
-  background: var(--color-warning-soft);
-  color: var(--color-warning);
 }
 
 .team-create-wizard {
@@ -8132,48 +8006,6 @@ body:has(.public-home) {
   justify-content: flex-end;
   gap: var(--space-2);
 }
-
-.team-space-shell {
-  display: grid;
-  gap: var(--space-5);
-  min-width: 0;
-  /* One frame for every section (058): the space fills the window below the
-     topbar, and the body takes what the chrome leaves. Each section used to be
-     as tall as its content, so the panel's bottom edge jumped with every tab —
-     from the explorer's 520px to the tasks' 400px and back. */
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: calc(100dvh - var(--app-header-height) - 98px);
-}
-.team-space-shell-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-.team-space-shell-header h1 {
-  margin: 0;
-  line-height: 1.15;
-}
-/* Grow into the header's free space. Without this the identity column sits at
-   the bare name's max-content width, and the switcher's own chrome — padding,
-   gap, caret — is then subtracted from that same width rather than added to it,
-   so the name wraps to two lines and the caret floats away from it the moment a
-   second space makes the title a switcher. */
-.team-space-shell-identity {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-/* Utilities only — the content tabs live in their own row below. Splitting the
-   two is what fixed the ragged 560–860 px wrap: six same-weight buttons in one
-   flex row had no sensible break point, so they broke everywhere. */
-.team-space-shell-utilities {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
 /* One line, always, above phone width. The status chips come and go — local operations
    start and finish, an index runs, the updater counts down every second — and with both rows
    allowed to wrap, each arrival pushed the utilities onto a second line: the header doubled
@@ -8181,186 +8013,6 @@ body:has(.public-home) {
    they shrink and end in an ellipsis (the full text is one press away) — while "Find" and
    the space menu never shrink, and figures keep one width so a ticking timer cannot nudge
    the row. */
-@media (width > 640px) {
-  .team-space-shell-header {
-    flex-wrap: nowrap;
-    /* A grid item sizes to its content unless told otherwise; the row could not give way
-       while the header grew to fit every chip. */
-    min-width: 0;
-  }
-  .team-space-shell-header h1 {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    overflow-wrap: normal;
-  }
-  /* The space's name gives way last: chips are status, the name is where you are. */
-  .team-space-shell-header > .team-space-shell-identity {
-    min-width: min(14rem, 40%);
-  }
-  .team-space-shell-utilities {
-    flex: 0 1 auto;
-    flex-wrap: nowrap;
-    min-width: 0;
-  }
-  .team-space-shell-utilities > .team-space-shell-utility-link {
-    flex-shrink: 0;
-  }
-  /* A chip may come wrapped (an anchor for its popover); either way it is what gives. */
-  .team-space-shell-utilities > :not(.team-space-shell-utility-link) {
-    flex-shrink: 1;
-    min-width: 0;
-    max-width: 100%;
-    display: flex;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-  .team-space-shell-utilities .ui-chip {
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-  .team-space-shell-utilities .ui-chip > span {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
-/* On the chips' own surface (024). The header sits on the live hexagon field,
-   and a bare muted link over a lit cell was unreadable; the chip beside it
-   never was, because it carries its own ground. One row, one ground. */
-.team-space-shell-utility-link {
-  padding: 2px var(--space-2);
-  font-size: var(--text-label);
-  color: var(--color-text);
-  text-decoration: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface-muted);
-}
-.team-space-shell-utility-link:hover {
-  border-color: var(--color-border-strong);
-}
-.team-space-shell-utility-link[aria-current='page'] {
-  /* The accent wash is translucent and let a lit cell through; the ground
-     stays opaque and the state is carried by the ink and the edge. */
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
-/* The tab bar. Horizontal scroll rather than wrapping: a second row of tabs
-   reads as a second, unrelated navigation, and at these widths there are only
-   four of them. */
-.team-space-tabs {
-  display: flex;
-  gap: var(--space-1);
-  min-width: 0;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--color-border);
-  scrollbar-width: none;
-}
-.team-space-tabs::-webkit-scrollbar {
-  display: none;
-}
-.team-space-tabs-frame {
-  display: flex;
-  min-width: 0;
-}
-.team-space-tabs-frame .team-space-tabs {
-  flex: 1;
-}
-.team-space-tabs-next {
-  display: none;
-}
-@media (max-width: 640px) {
-  .team-space-tabs-next {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: var(--control-height-sm);
-    color: var(--color-text);
-    background: var(--color-surface);
-    border: 0;
-    border-left: 1px solid var(--color-border);
-    cursor: pointer;
-  }
-  .team-space-tabs-next.is-hidden {
-    visibility: hidden;
-  }
-}
-.team-space-shell-chrome {
-  display: grid;
-  gap: var(--space-2);
-  min-width: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-3) var(--space-5) 0;
-  /* Sticks with only the tab strip in view: the name and the utilities above it
-     slide under the topbar (WorkspaceShell measures how far). */
-  position: sticky;
-  top: calc(var(--topbar-h) - var(--team-space-chrome-hidden, 0px));
-  z-index: calc(var(--layer-header) + 5);
-}
-/* Every section's sticky surface measures from the topbar; inside the space
-   that edge is the bottom of the tab strip. */
-.team-space-shell-body {
-  --topbar-h: calc(var(--app-header-height) + var(--team-space-tabs-bar, 0px));
-}
-/* The panel's own edge closes the strip; a second rule under it doubled it. */
-.team-space-shell-chrome > .team-space-tabs-frame .team-space-tabs {
-  border-bottom: 0;
-}
-.team-space-tabs .ui-tab {
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-label);
-  font-weight: 500;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  /* Overlap the container's border so the active underline replaces it rather
-     than stacking a second line under it. */
-  margin-bottom: -1px;
-}
-.team-space-tabs .ui-tab:hover {
-  color: var(--color-text);
-}
-.team-space-tabs .ui-tab.is-selected {
-  color: var(--color-accent);
-  border-bottom-color: var(--color-accent);
-}
-/* Inside the tab (024): the strip clips what spills past its top and bottom, so the page's ring
-   showed as two purple bars either side of the label. Keyboard focus only — a click draws none. */
-.team-space-tabs .ui-tab:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: -2px;
-  border-radius: var(--radius-sm);
-}
-.team-space-tabs .ui-tab:focus:not(:focus-visible) {
-  outline: none;
-}
-.team-space-shell-body {
-  display: grid;
-  gap: var(--space-4);
-  min-width: 0;
-  /* The open section fills the body (058); its panel keeps its own rows at
-     the top and grows only at the bottom. */
-  grid-template-rows: minmax(0, 1fr);
-}
-.team-space-shell-body > div:not([hidden]) {
-  display: grid;
-  min-height: 0;
-}
-.team-space-shell-body :is(.team-panel, .team-space-settings) {
-  align-content: start;
-}
 
 /* Live Drive-sync indicator. Uses semantic tokens so it adapts to the dark
    theme, and an indeterminate bar because a breadth-first scan has no honest
@@ -8636,19 +8288,6 @@ body:has(.public-home) {
 }
 .team-space-settings .team-inline-actions > .button-danger {
   margin-left: auto;
-}
-
-/* The tab strip was four grey words over a dialog of grey words. The active one
-   now sits in its own accent-tinted tab. */
-.team-settings-tabs .team-space-tab {
-  padding-inline: var(--space-3);
-  color: var(--color-text-muted);
-  font-weight: 650;
-}
-.team-settings-tabs .team-space-tab.is-active {
-  color: var(--color-text);
-  background: color-mix(in oklab, var(--color-accent) 16%, transparent);
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 /* The fold's contents sit under its control, not beside it. */
 .team-restitch-fold {
@@ -12274,117 +11913,6 @@ button.team-landing-tile:hover {
   }
 }
 
-/* Space switcher (010 US1). The space name is the control, so the trigger has
-   to look like the heading it replaces — no button chrome until hover. */
-.team-space-switcher {
-  position: relative;
-  min-width: 0;
-}
-
-.team-space-shell-title {
-  margin: 0;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
-}
-
-.team-space-switcher-trigger {
-  display: inline-flex;
-  gap: var(--space-2);
-  align-items: center;
-  max-width: 100%;
-  padding: 2px var(--space-2);
-  margin-left: calc(var(--space-2) * -1);
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-}
-
-.team-space-switcher-trigger:hover {
-  background: var(--color-surface-muted);
-}
-
-.team-space-switcher-caret {
-  flex: 0 0 auto;
-  font-size: 0.6em;
-  color: var(--color-text-muted);
-}
-
-/* Placed by the component (021). */
-.team-space-switcher-menu {
-  z-index: var(--layer-popover);
-  width: 240px;
-  max-height: 60vh;
-  padding: var(--space-2);
-  overflow-y: auto;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-menu);
-}
-
-.team-space-switcher-menu ul {
-  display: grid;
-  gap: 2px;
-  padding: 0;
-  margin: 0 0 var(--space-2);
-  list-style: none;
-}
-
-.team-space-switcher-label {
-  padding: var(--space-1) var(--space-2);
-  margin: 0;
-  font-size: var(--text-caption);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-text-muted);
-}
-
-.team-space-switcher-item,
-.team-space-switcher-all {
-  display: flex;
-  gap: var(--space-2);
-  align-items: baseline;
-  justify-content: space-between;
-  padding: var(--space-2);
-  font-size: var(--text-label);
-  color: var(--color-text);
-  text-decoration: none;
-  border-radius: var(--radius-sm);
-}
-
-.team-space-switcher-item:hover,
-.team-space-switcher-all:hover {
-  background: var(--color-surface-muted);
-}
-
-.team-space-switcher-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.team-space-switcher-state {
-  flex: 0 0 auto;
-  font-size: var(--text-caption);
-  color: var(--color-text-muted);
-}
-
-.team-space-switcher-all {
-  color: var(--color-accent);
-  border-top: 1px solid var(--color-border);
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-}
-
-/* "All spaces" and "Create a new space" are one group under one rule. */
-.team-space-switcher-all + .team-space-switcher-all {
-  border-top: 0;
-}
-
 /* Row actions menu, folder picker and result pager (010 US2). */
 .team-row-menu {
   position: relative;
@@ -12533,25 +12061,6 @@ button.team-landing-tile:hover {
   justify-content: center;
   margin-top: var(--space-4);
   font-size: var(--text-label);
-}
-
-/* Discard control on an unfinished space card (010 US4). Quiet by default so a
-   destructive action does not compete with "continue setup", which is what the
-   owner usually wants. */
-.team-space-card-discard {
-  padding: var(--space-1) var(--space-2);
-  font: inherit;
-  font-size: var(--text-caption);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
-}
-
-.team-space-card-discard:hover {
-  color: var(--color-error);
-  background: var(--color-error-soft);
 }
 
 /* Invitations at the top of the lobby. */
@@ -16521,22 +16030,6 @@ input[type='number'] {
   }
 }
 
-/* The palette's visible door (024, FR-094): a word, a glass, and the chord. */
-.team-space-shell-find,
-.team-space-shell-utilities button.team-space-shell-utility-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font: inherit;
-  font-size: var(--text-label);
-  cursor: pointer;
-}
-.team-space-shell-find kbd {
-  font-family: inherit;
-  font-size: var(--text-caption);
-  color: var(--color-text-muted);
-}
-
 /* The board's quick-add (024, FR-090): the field grows, the button does not. */
 .team-task-quick-add {
   display: flex;
@@ -16611,12 +16104,6 @@ input[type='number'] {
    two doors. Stacked full-width, "Find" and "Space" took the first screen's
    height for two rarely pressed buttons. The chord is for keyboards. */
 @media (max-width: 640px) {
-  .team-space-shell-header {
-    align-items: center;
-  }
-  .team-space-shell-find kbd {
-    display: none;
-  }
   /* The board on a phone: typing a task gets the whole line, and the filters
      are one line that scrolls rather than three that each hold one control. */
   .team-task-quick-add {
@@ -16698,33 +16185,6 @@ input[type='number'] {
 }
 .team-agent-actions-stack .team-agent-run-add {
   transition: opacity var(--dur-control) var(--ease-standard);
-}
-
-/* The space picker (024): a centred panel, spaces as rows in one column. */
-.team-space-lobby-list {
-  width: min(100%, 44rem);
-  margin: var(--space-6) auto 0;
-  padding: var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-}
-.team-space-lobby-list .team-space-card-grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-/* Checking, resolving: said on the same ground, not on the hexagons. */
-.team-space-lobby[aria-busy='true'] {
-  width: min(100%, 44rem);
-  margin: var(--space-6) auto 0;
-  padding: var(--space-5) var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
-}
-.team-space-lobby-list > .ui-button,
-.team-space-lobby-list > .soty-button {
-  justify-self: start;
 }
 
 /* An invitation reads as a row: the address takes the line, its state and its

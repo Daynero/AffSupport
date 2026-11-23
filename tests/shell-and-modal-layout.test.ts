@@ -8,8 +8,11 @@ const WEB_SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../a
 
 // The shell's own screens keep their rules in their own sheets (024); the home
 // is one of them, and its container answers to the same measure as the rest.
+// The explorer's and the space frame's rules moved to their own sheets too (070).
 const css = [
   readFileSync('apps/web/src/styles.css', 'utf8'),
+  readFileSync('apps/web/src/styles/explorer.css', 'utf8'),
+  readFileSync('apps/web/src/styles/space-shell.css', 'utf8'),
   readFileSync('apps/web/src/styles/home.css', 'utf8')
 ].join('\n');
 // Comments are stripped first: a comment ahead of a rule would otherwise be

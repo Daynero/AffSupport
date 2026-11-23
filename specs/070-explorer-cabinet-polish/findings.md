@@ -187,3 +187,17 @@
 **Одна справжня нічия:** `<span className="team-explorer-tile-badge-layer creative-rank-tile-layer">` (`ContentGrid.tsx` 386). `.creative-rank-tile-layer` стояв після `.team-explorer-tile-badge-layer` і перебивав `align-items` і `padding` — емблема рангу тримає верхній лівий кут. Тому два правила `.creative-rank-tile-layer` (звичайне й у `@media (hover: none)`) переїхали в `explorer.css` разом із ним, у тому самому порядку; повторний перебір — нічиїх немає.
 
 Тест `tests/material-detail-glyph.test.ts` читав правила плитки зі `styles.css`; тепер читає `styles.css` + `explorer.css`, очікування ті самі.
+
+## T005 · Рамка простору → `styles/space-shell.css`
+
+Перенесено 82 правила рамки простору: сторінка (`.team-space-page`), шапка з утилітами й перемикачем (`.team-space-shell*`, `.team-space-switcher*`), вкладки (`.team-space-tabs*`, `.team-space-tab`), лобі й картки (`.team-space-lobby*`, `.team-space-card-*`), «немає доступу» (`.team-space-no-access*`) — тим самим способом, що й у T004. Файл підключено одразу після `explorer.css`. Звірка `styles.orig` = `styles.css` + `explorer.css` + `space-shell.css`: 3 060 = 3 060 правил, порядок у кожному файлі збережено.
+
+Не перенесено, свідомо:
+
+- `.team-space-settings*` і `.team-space-name-form` — це діалог налаштувань і розділ учасників, а не шапка; вони йдуть з T051/T052 (для них уже є `team/workspace/space-settings.css`). Спека (FR-042) називала файл `styles/shell.css`, але той уже зайнятий шапкою інструментів (024, US27), тому ім'я — з плану.
+- Сім правил зі змішаними списками (рядки ~280, 289, 5 151, 7 990, 8 663, 9 488 до зміни) — розрізати список означало б змінити селектори.
+- `.team-space-card` — **єдина справжня нічия** перебору: відкривна картка простору — `<Card as="article" role="button">` (`team/lobby/SpaceCard.tsx`), а спільне правило `button, [role='button'], … { min-height: 44.2px }` стояло пізніше з тією самою специфічністю й вигравало в `min-height: 96px` картки. Після переносу виграла б картка, тож це одне правило лишилось на місці. Відзначено для T030: картці, мабуть, і треба 96 px, але це рішення візуальне, а не переносу.
+
+Перебір для T005 ішов по оригінальному порядку (до T004) з трьома групами — `styles.css`, `explorer.css`, `space-shell.css`, — тож перевірено й пари «рамка простору ↔ провідник». Класи інвентаря (`ui-chip`, `ui-tab` …) тут уже не вважались «будь-якими»: такий клас ділить елемент лише з класами, переданими в `className` відповідного компонента (`<Chip className=…>`). Із 44 737 кандидатів після відсіву лишилось 254, переглянуто вручну; окрім картки — різні елементи або однакові значення (`align-content: start` в обох правилах `.team-space-shell-body :is(.team-panel, .team-space-settings)` і `.team-space-settings .team-panel`).
+
+Тест `tests/shell-and-modal-layout.test.ts` читає тепер і `explorer.css`, і `space-shell.css`; очікування ті самі.

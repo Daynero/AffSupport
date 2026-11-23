@@ -118,6 +118,8 @@
 /* The explorer's rules, lifted out of the sheet above (070, FR-042). Directly after it,
    and nowhere else: see the comment at the top of explorer.css for why that order is safe. */
 @import './explorer.css' layer(soty);
+/* The space's frame, lifted out the same way (070, FR-042); see the top of space-shell.css. */
+@import './space-shell.css' layer(soty);
 @import './team-accounts.css' layer(soty);
 @import './team-tasks.css' layer(soty);
 @import './transcription.css' layer(soty);
