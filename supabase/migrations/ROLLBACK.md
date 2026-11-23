@@ -3511,3 +3511,9 @@ brings back the SOURCE_CHANGED of multi-video catalogs without re-stitching.
 Rewrites one condition of `public.service_confirm_catalog_creative_links`: a dispatched job may be
 confirmed before it is marked verified. To undo, drop `and j.dispatched_at is null` from that
 condition — which brings back the 'unknown' loop of every second publication of a creatives target.
+
+## 20261223350000 — launch attach counts variations per creative
+
+Rewrites one condition of `public.service_attach_launch_catalog_before_catalog_sub` so a set matches
+its own segment's `variantCount`. Undo by restoring the bare
+`s.requested_count=(x.initial_video_plan#>>'{preferences,videoVariationCount}')::integer`.
