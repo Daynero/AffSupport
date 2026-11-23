@@ -13,7 +13,8 @@
 **Independent test / checkpoint**: Record a reproducible fixture, actual mutation inventory and successful hold/scroll prototype.
 
 - [x] T001 Reconcile the handoff inventory with current code and enumerate latest account/run/task/launch/finance read/write RPC overrides, delete/undo/import guards and export consumers in `specs/038-unified-accounts/research.md`; reserve fresh migration filenames after the actual head. (FR-003,FR-017,FR-024)
-- [ ] T002 Pin `@dnd-kit/react` and `@dnd-kit/dom` to 0.5.1 in `apps/web/package.json` and `package-lock.json`; prototype 500 ms hold, 5 px tolerance, name-button allowlist, interactive exclusion, keyboard, touch scroll and fold-stable overlay in new `apps/web/src/team/accounts/AccountReorderProvider.tsx`; record evidence before integration. (FR-009,FR-010,FR-012,FR-018)
+- [x] T002 Pin `@dnd-kit/react` and `@dnd-kit/dom` to 0.5.1 in `apps/web/package.json` and `package-lock.json`; prototype 500 ms hold, 5 px tolerance, name-button allowlist, interactive exclusion, keyboard, touch scroll and fold-stable overlay in new `apps/web/src/team/accounts/AccountReorderProvider.tsx`; record evidence before integration. (FR-009,FR-010,FR-012,FR-018)
+      **Аудит 2026-11-23:** `@dnd-kit/react`, `@dnd-kit/dom` і `@dnd-kit/abstract` закріплені на 0.5.1 в `apps/web/package.json`; `AccountReorderProvider.tsx` реалізує утримання, допуск, виключення інтерактивних елементів і клавіатуру. Прототип пішов у продукт; поведінку утримання в справжньому браузері перевіряє `scripts/check-accounts-interactions.mjs`.
 - [x] T003 [P] Create isolated deterministic fixtures for dates/zones, 50 socials/500 RK, long runs and known sums in new `tests/support/team-unified-accounts.ts`; document isolated team/browser runner in `specs/038-unified-accounts/quickstart.md`. (SC-001,SC-004,SC-006,SC-008,SC-009)
 
 ## Phase 2 — Foundation
@@ -45,6 +46,7 @@
 - [x] T017 [US1] Separate reportRange from editRange in `packages/shared/src/team/agent-finance-report.ts` and all UI consumers; update `supabase/functions/team-finance-export/handler.ts` and `_shared/finance-workbook.ts` for v2 visibility while preserving formats/rehome/permission recheck; regress zero/null/archived sums in `tests/team-agent-finance-report.test.ts` and `tests/team-agent-finance-export.test.ts`. (FR-003,FR-005,FR-020,FR-023,SC-001,SC-008)
 - [x] T018 [US1] Instrument overview and retained create/edit/delete/run/label/marker/2FA/finance-clear/undo/history/legacy/export outcomes through `apps/web/src/team/accounts/analytics.ts` and existing callers, including clipboard denial, partial sources and missing applied proof; test typed payloads in new `tests/team-accounts-analytics.test.ts`. (AD-001,AD-003,AD-005,AD-006)
 - [ ] T019 [US1] Run each handoff inventory scenario and complete per-action parity evidence in `specs/038-unified-accounts/quickstart.md`; extend existing `tests/team-accounts.test.tsx` and `tests/team-agent-finance-lifecycle.test.tsx` for any adapter regression found. (FR-003,SC-001)
+      **Аудит 2026-11-23:** Автоматичну частину покривають `team-accounts` і `team-agent-finance-lifecycle`; прохід інвентаря передачі вручну — Ручна частина — у [чеклісті бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 038.
 
 ## Phase 4 — US2 RK order (P1)
 
@@ -56,7 +58,8 @@
 - [x] T021 [US2] Implement anchor-based atomic `reorder_team_accounts`, append-on-create and scope revisions in new `supabase/migrations/` suffix `unified_accounts_order.sql`; update latest move RPC preserving all-history rehome and destination append under consistent locks. (FR-007,FR-008,FR-010,FR-013)
 - [x] T022 [US2] Replace natural/free-first resort paths in `packages/shared/src/team/accounts.ts`, `agent-finance-report.ts`, `apps/web/src/team/accounts/useAccounts.ts`, `AccountSpace.tsx`; expose typed reorder methods in `apps/web/src/api/team.ts` with canonical conflict/replay recovery. (FR-007,FR-008,FR-013,SC-002)
 - [x] T023 [US2] Integrate library RK dragging in `AccountReorderProvider.tsx` and `AgentRow.tsx`: hold-only, allowed surface/name, filtered full-order anchors, same-parent target, edge scroll, keyboard command, cancel and click suppression, historical rows excluded. (FR-009,FR-010,FR-012,FR-013,FR-018)
-- [ ] T024 [US2] Verify all exit paths and mutation races in `tests/team-accounts-order.test.tsx`, with marker/color/financial update not reordering; instrument capture/cancel/noop/request/confirmed/applied/conflict using `apps/web/src/team/accounts/analytics.ts`. (FR-007,FR-009,FR-013,AD-002,AD-003,SC-002,SC-003)
+- [x] T024 [US2] Verify all exit paths and mutation races in `tests/team-accounts-order.test.tsx`, with marker/color/financial update not reordering; instrument capture/cancel/noop/request/confirmed/applied/conflict using `apps/web/src/team/accounts/analytics.ts`. (FR-007,FR-009,FR-013,AD-002,AD-003,SC-002,SC-003)
+      **Аудит 2026-11-23:** Виходи й гонки — `tests/team-accounts-order.test.tsx` (втрачена відповідь → канонічний порядок, скасування, відновлення згортання); сигнали `reorder` captured/terminal з `AccountReorderProvider.tsx` через `analytics.ts`, тести в `account-workspace-analytics.test.ts`. 4 файли / 48 тестів (`team-accounts-order`, `team-account-social-order`, `team-account-preferences`, `account-workspace-analytics`) пройшли single-fork 2026-11-23.
 
 ## Phase 5 — US3 Social order (P1)
 
@@ -66,7 +69,8 @@
 
 - [x] T025 [US3] Add social overlay/collapse/draft/focus regressions in new `tests/team-account-social-order.test.tsx` using the full lifted draft fixture. (FR-011,FR-018,SC-003)
 - [x] T026 [US3] Extend `AccountReorderProvider.tsx`, `AccountGroup.tsx` and `AccountSpace.tsx` with social scope dragging, temporary fold snapshot, viewport anchor and non-persisted fold override; reuse US2 server mutation without moving individual RK ownership. (FR-007,FR-011,FR-012,FR-018)
-- [ ] T027 [US3] Handle incoming membership/order changes, deleted heading, loss of permission and save failures with canonical reread and unconditional fold/focus restoration in `AccountReorderProvider.tsx`; instrument outcomes in `analytics.ts` and test in `tests/team-account-social-order.test.tsx`. (FR-011,FR-013,AD-002,AD-003,SC-003)
+- [x] T027 [US3] Handle incoming membership/order changes, deleted heading, loss of permission and save failures with canonical reread and unconditional fold/focus restoration in `AccountReorderProvider.tsx`; instrument outcomes in `analytics.ts` and test in `tests/team-account-social-order.test.tsx`. (FR-011,FR-013,AD-002,AD-003,SC-003)
+      **Аудит 2026-11-23:** `tests/team-account-social-order.test.tsx`: оновлене членство, відкликання прав прибирає сортування, відхилене переміщення відновлюється з канонічного огляду, прийняте без перечитання не вважається застосованим. 4 файли / 48 тестів (`team-accounts-order`, `team-account-social-order`, `team-account-preferences`, `account-workspace-analytics`) пройшли single-fork 2026-11-23.
 
 ## Phase 6 — US5 Archive and history (P1)
 
@@ -104,7 +108,8 @@
 - [x] T041 [US4] Add own-user RLS, member/viewer/revoked-member, CAS/replay and rapid-intent regressions in new `tests/team-account-preferences.test.tsx` and `supabase/tests/database/team_account_preferences.test.sql`. (FR-014,FR-015,FR-016,SC-005)
 - [x] T042 [US4] Implement preference read/write RPCs in new `supabase/migrations/` suffix `unified_accounts_preferences.sql`, typed wrappers in `apps/web/src/api/team.ts` and new `useAccountPreferences.ts` with auth-scoped cache, serialized desired values and stale response protection. (FR-014,FR-016,SC-005)
 - [x] T043 [US4] Add seven named data-palette tokens for both themes in `apps/web/src/styles/tokens.css`; integrate accessible cycle control in `AgentRow.tsx`/`AgentIdentity.tsx`, leave copy separate, coordinate pointer name activation with `AccountReorderProvider.tsx`; update inventory description in `docs/DESIGN.md`. (FR-014,FR-015,FR-016,FR-018)
-- [ ] T044 [US4] Prove eight-click cycle, rename/move/restore persistence, no marker/filter/export changes, color contrast and keyboard-vs-hold behavior in `tests/team-account-preferences.test.tsx`; emit coalesced content-free outcomes via `analytics.ts`. (FR-014,FR-015,FR-016,AD-002,AD-005,SC-005)
+- [x] T044 [US4] Prove eight-click cycle, rename/move/restore persistence, no marker/filter/export changes, color contrast and keyboard-vs-hold behavior in `tests/team-account-preferences.test.tsx`; emit coalesced content-free outcomes via `analytics.ts`. (FR-014,FR-015,FR-016,AD-002,AD-005,SC-005)
+      **Аудит 2026-11-23:** `tests/team-account-preferences.test.tsx`: усі вісім кольорів при швидких кліках, збереження через перейменування/переміщення/архів/нову сесію, відкат при конфлікті, повтор перерваної відповіді тим самим запитом. 4 файли / 48 тестів (`team-accounts-order`, `team-account-social-order`, `team-account-preferences`, `account-workspace-analytics`) пройшли single-fork 2026-11-23.
 
 ## Phase 9 — Integration and quality
 
@@ -116,7 +121,9 @@
 - [x] T046 Prove typed producer→ingestion guard→stored fixture→inspect/investigate/audit results in `tests/analytics-investigate-command.test.ts`, `tests/analytics-guard-contract.test.ts` and new `tests/team-accounts-diagnostics-e2e.test.ts`; cover missing/delayed/out-of-order signals, privacy rejection, replay and fixed --as-of. (AD-001,AD-002,AD-003,AD-004,AD-005,AD-006,AD-007,AD-008,SC-007)
 - [x] T047 Add/update Ukrainian and English keys in `apps/web/src/i18n.ts` for archive history reasons, dated headings, conflicts, color/keyboard announcements and partial sources; verify accessible names/focus in `tests/team-i18n-glossary.test.ts` and `tests/team-unified-accounts.test.tsx`. (FR-003,FR-012,FR-015,FR-021,FR-023,SC-006)
 - [ ] T048 Extend `scripts/check-accounts-layout.mjs` for unified scroll/focus/variable-height rules and add `scripts/check-accounts-interactions.mjs` for hold/overlay/autoscroll/keyboard/real-browser timing; capture fixture/build/device metadata and perform light/dark/zoom/reduced-motion/touch checks from `quickstart.md`. (FR-006,FR-009,FR-010,FR-011,FR-012,FR-016,FR-018,SC-003,SC-004,SC-006)
+      **Аудит 2026-11-23:** `scripts/check-accounts-interactions.mjs` уже є (утримання, Escape, стрес 50 соців / 500 РК). Прогін на засіяному стеку в світлій/темній темі, зі збільшенням і на дотику ще не записано. Робиться разом із перебудовою акаунтів (024 US8), бо селектори зміняться.
 - [ ] T049 Run role/cache/membership/reconnect, archive-vs-old-client compatibility and all Q01–Q22 scenarios; record exact pass/fail/blocked evidence plus per-inventory results in `specs/038-unified-accounts/quickstart.md`; fix any newly exposed feature regression before completion. (FR-003,FR-013,FR-020,FR-022,FR-024,SC-001,SC-002,SC-003,SC-005,SC-008,SC-009,SC-010)
+      **Аудит 2026-11-23:** Сценарії Q01–Q22 з `quickstart.md` — Ручна частина — у [чеклісті бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 038.
 - [x] T050 Rebuild shared, run focused single-worker suites, `npm run test:db`, `npm run verify` and `npm run verify:release` serially; inspect `verification-result.json`, record results in `specs/038-unified-accounts/quickstart.md`; no production release or migration push implied. (SC-001,SC-007,SC-008,SC-010)
 
 ## Dependencies and execution order
