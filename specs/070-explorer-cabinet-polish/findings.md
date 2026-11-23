@@ -84,3 +84,10 @@
 | 4857       | `(max-width: 560px)` | `(max-width: 640px)`  | `.launch-editor-budget-row`, `.launch-editor-budget-row > .ui-segmented`, `.launch-editor-budget-row > .field:has(.launch-editor-budget-values)` | запуски                  |
 
 Без змін (уже на сітці): 5053 `(max-width: 640px)`.
+
+### `styles/account.css`
+
+| Рядок (до) | Було | Стало | Правила | Екрани |
+| ---------- | ---- | ----- | ------- | ------ |
+
+Без змін (уже на сітці): 259 `(max-width: 480px)`.
