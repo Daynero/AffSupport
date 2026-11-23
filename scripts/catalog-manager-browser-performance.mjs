@@ -3,7 +3,15 @@
  * route, backend write, deployment, env-file read or authentication acceptance. */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, statSync } from 'node:fs';
+import {
+  readFileSync,
+  existsSync,
+  readdirSync,
+  mkdirSync,
+  writeFileSync,
+  statSync,
+  symlinkSync
+} from 'node:fs';
 import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -155,8 +163,21 @@ try {
     const generated = path.join(output, phase, 'generated'),
       dist = path.join(output, phase, 'dist');
     mkdirSync(generated, { recursive: true });
+    // The production config's locale plugin reads `<root>/src/locales`. The fixture root is
+    // `generated`, so point that one path at the real locales; both phases get the same link.
+    mkdirSync(path.join(generated, 'src'), { recursive: true });
+    symlinkSync(
+      path.join(repo, 'apps/web/src/locales'),
+      path.join(generated, 'src/locales'),
+      'dir'
+    );
     const frozenDialog = path.join(generated, 'CatalogUpdaterDialog.tsx');
-    writeFileSync(frozenDialog, rewriteFixtureImports(source, dialogPath));
+    // Outside apps/web the frozen copy is compiled with the classic JSX runtime, which needs
+    // `React` in scope; the product file relies on the automatic one. Same line in both phases.
+    writeFileSync(
+      frozenDialog,
+      `import React from 'react';\n${rewriteFixtureImports(source, dialogPath)}`
+    );
     const harnessFile = path.join(repo, sourceFiles[1]);
     const rewrittenHarness = rewriteFixtureImports(
       readFileSync(harnessFile, 'utf8'),
@@ -477,7 +498,13 @@ try {
                       : 'льон'
                 );
             else if (action === 'selection')
-              await session.page.locator('.team-updater-select-all .ui-checkbox-content').click();
+              // The HeroUI checkbox (024) presses on `.ui-checkbox-content`; the 1.5.9 one on its label.
+              await session.page
+                .locator(
+                  '.team-updater-select-all .ui-checkbox-content, .team-updater-select-all label'
+                )
+                .first()
+                .click();
             else if (action === 'details_open')
               await session.page.getByRole('button', { name: 'Configure', exact: true }).click();
             else
