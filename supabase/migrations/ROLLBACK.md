@@ -3498,3 +3498,10 @@ recoverable — they were past the seven days the window promises. Money records
 Drop the trigger `teams_join_catalog_global_pilot` on `public.teams` and the function
 `private.join_catalog_global_pilot()`; rows it added to `private.catalog_global_pilot_teams` can stay
 (the owner's rule is «пілот для всіх») or be deleted by `note`.
+
+## 20261223330000 — catalog cells read creative blocks by their rows
+
+Restores nothing destructive: it rewrites one expression of
+`public.service_prepare_catalog_publication_cells`. To undo, re-run the definition from
+20261221116000's era (the expression `context->'sources'->((product.ordinality-1)::integer)`), which
+brings back the SOURCE_CHANGED of multi-video catalogs without re-stitching.
