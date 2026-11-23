@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, realpathSync, statSync, type Stats } from 'node:fs';
+import { constants, existsSync, realpathSync, statSync, type Stats } from 'node:fs';
+import { open } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -1080,4 +1081,59 @@ function nativeSecretCommand(
     child.stdin.on('error', () => undefined);
     child.stdin.end(input);
   });
+}
+
+/**
+ * Make a rename inside `directory` durable.
+ *
+ * POSIX needs the directory itself fsynced for a new entry to survive a power
+ * cut. Windows cannot open a directory for writing back at all — Node's
+ * `open(dir).sync()` fails with EPERM — and NTFS journals the rename's
+ * metadata itself, so there is nothing left to flush there.
+ */
+export async function syncDirectory(directory: string): Promise<void> {
+  if (process.platform === 'win32') return;
+  const handle = await open(directory, constants.O_RDONLY);
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
+ * Whether a directory's own permission bits keep it to its owner.
+ *
+ * POSIX reads this from the mode: no group or other bits. Windows has no such
+ * bits — Node synthesizes 0o666/0o444 from the read-only attribute, so the
+ * check could never pass there — and privacy comes from the profile ACL the
+ * directory inherits, so only the directory-and-not-a-link part applies.
+ */
+export function ownerOnlyDirectory(metadata: {
+  isDirectory(): boolean;
+  isSymbolicLink(): boolean;
+  mode: number;
+}): boolean {
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) return false;
+  return process.platform === 'win32' || (metadata.mode & 0o077) === 0;
+}
+
+/**
+ * Flush an existing file someone else wrote, without following a link.
+ *
+ * Windows flushes a file only through a handle that may write to it
+ * (`FlushFileBuffers` needs GENERIC_WRITE), so a read-only open fails with
+ * EPERM there; POSIX flushes through any descriptor and keeps O_NOFOLLOW.
+ * Nothing is written through the handle.
+ */
+export async function syncExistingFile(file: string): Promise<void> {
+  const handle = await open(
+    file,
+    process.platform === 'win32' ? constants.O_RDWR : constants.O_RDONLY | constants.O_NOFOLLOW
+  );
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
 }
