@@ -118,7 +118,8 @@ const dialog = {
 
 beforeEach(async () => {
   localStorage.clear();
-  localStorage.setItem('soty.assistant.open', '1');
+  sessionStorage.clear();
+  sessionStorage.setItem('soty.assistant.open', '1');
   available = 87;
   Object.values(api).forEach(fn => fn.mockClear());
   Object.values(bridge).forEach(fn => fn.mockClear());

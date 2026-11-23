@@ -157,9 +157,11 @@ const PROFILE_FIELD_COPY: Readonly<Record<string, TranslationKey>> = {
 
 const OPEN_KEY = 'soty.assistant.open';
 
+// Open is remembered for this tab only (owner, 2026-11-23: the window covered too much): moving
+// between sections keeps it as it was, a new visit starts with the small button.
 function readOpen(): boolean {
   try {
-    return localStorage.getItem(OPEN_KEY) === '1';
+    return sessionStorage.getItem(OPEN_KEY) === '1';
   } catch {
     return false;
   }
@@ -167,7 +169,7 @@ function readOpen(): boolean {
 
 function writeOpen(value: boolean): void {
   try {
-    localStorage.setItem(OPEN_KEY, value ? '1' : '0');
+    sessionStorage.setItem(OPEN_KEY, value ? '1' : '0');
   } catch {
     /* a per-viewer convenience only */
   }
