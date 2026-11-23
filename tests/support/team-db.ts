@@ -128,7 +128,19 @@ export interface TeamTestDb {
   /** Run SQL with no authenticated user and full privileges (fixtures). */
   root: <T = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<T[]>;
   close: () => Promise<void>;
+  /** Whether spaces join the picture pool as 20261223320000 makes them (off by default). */
+  joinPicturePoolOnCreate?: boolean;
 }
+
+const PICTURE_POOL_MIGRATION = '20261223320000_new_spaces_join_image_pool.sql';
+/** Undo 20261223320000 for a suite that drives the space's own images. */
+const KEEP_OUT_OF_PICTURE_POOL = `do $$ begin
+  if exists (select 1 from pg_catalog.pg_trigger where tgname = 'teams_join_catalog_global_pilot') then
+    alter table public.teams disable trigger teams_join_catalog_global_pilot;
+    delete from private.catalog_global_pilot_teams
+     where note in ('joined on creation', 'pilot for all, 2026-11-23');
+  end if;
+end $$;`;
 
 export async function createTeamTestDb(
   options: {
@@ -165,12 +177,7 @@ export async function createTeamTestDb(
     }
   }
 
-  if (!options.joinPicturePoolOnCreate)
-    await db.exec(`do $$ begin
-      if exists (select 1 from pg_catalog.pg_trigger where tgname = 'teams_join_catalog_global_pilot') then
-        alter table public.teams disable trigger teams_join_catalog_global_pilot;
-      end if;
-    end $$;`);
+  if (!options.joinPicturePoolOnCreate) await db.exec(KEEP_OUT_OF_PICTURE_POOL);
 
   const root = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => {
     const result = await db.query<T>(sql, params);
@@ -193,7 +200,13 @@ export async function createTeamTestDb(
     }
   };
 
-  return { db, root, asUser, close: () => db.close() };
+  return {
+    db,
+    root,
+    asUser,
+    close: () => db.close(),
+    joinPicturePoolOnCreate: options.joinPicturePoolOnCreate === true
+  };
 }
 
 /**
@@ -227,6 +240,10 @@ export async function applyMigrationsAfter(
         cause: error
       });
     }
+    // A database replayed past the pool migration keeps the suite's choice: the migration
+    // also enrols every space that already exists.
+    if (file === PICTURE_POOL_MIGRATION && !harness.joinPicturePoolOnCreate)
+      await harness.db.exec(KEEP_OUT_OF_PICTURE_POOL);
     applied.push({ file, ms: performance.now() - started });
   }
   return applied;
