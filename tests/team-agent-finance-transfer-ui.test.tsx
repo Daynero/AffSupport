@@ -154,3 +154,46 @@ it('retries the exact original move after a lost response and a refreshed placem
   expect(signals.some(call => call[1] === 'applied')).toBe(false);
   expect(JSON.stringify(signals)).not.toContain('2026-10-03');
 });
+it('keeps the chosen account after a definite refusal and checks eligibility again before a new try (027 T023)', async () => {
+  const { TeamApiError } = await import('../apps/web/src/api/team');
+  vi.mocked(teamFinanceApi.transferEligibility).mockResolvedValue(eligible);
+  const move = vi
+    .mocked(teamFinanceApi.move)
+    .mockRejectedValueOnce(new TeamApiError('FINANCE_CONFLICT', false))
+    .mockResolvedValue({});
+  const moved = vi.fn();
+  render(ui(snapshot, moved));
+  await waitFor(() =>
+    expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(false)
+  );
+  fireEvent.change(screen.getByRole('combobox'), { target: { value: 'y' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Move to another account' }));
+  // The refusal is said, the choice stays, and the dialog asks the server again rather than
+  // replaying an attempt whose placement version the server has just rejected.
+  await screen.findByRole('alert');
+  await waitFor(() => expect(teamFinanceApi.transferEligibility).toHaveBeenCalledTimes(2));
+  expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('y');
+  expect(screen.queryByText(/The response was lost/)).toBeNull();
+  const button = screen.getByRole('button', { name: 'Move to another account' });
+  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(button);
+  await waitFor(() => expect(moved).toHaveBeenCalledTimes(1));
+  // A new attempt: a fresh request key, not the refused one.
+  expect(move.mock.calls).toHaveLength(2);
+  expect(move.mock.calls[1]![7]).not.toBe(move.mock.calls[0]![7]);
+});
+it('says why the transfer cannot be checked and lets the person ask again (027 T023)', async () => {
+  vi.mocked(teamFinanceApi.transferEligibility)
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue(eligible);
+  render(ui());
+  await screen.findByRole('alert');
+  expect(
+    (screen.getByRole('button', { name: 'Move to another account' }) as HTMLButtonElement).disabled
+  ).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Repeat' }));
+  await waitFor(() =>
+    expect((screen.getByRole('combobox') as HTMLSelectElement).disabled).toBe(false)
+  );
+  expect(teamFinanceApi.transferEligibility).toHaveBeenCalledTimes(2);
+});
