@@ -153,3 +153,9 @@
 | Рядок (до) | Було                 | Стало             | Правила                                                                                                                          | Екрани   |
 | ---------- | -------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | 179        | `(min-width: 600px)` | `(width > 640px)` | `.catalog-image-library-info`, `.catalog-image-library-info > *`, `.catalog-image-library-info > .catalog-image-library-actions` | каталоги |
+
+### `team/product-catalog/catalog-settings-layout.css`
+
+| Рядок (до) | Було                 | Стало                | Правила                                                                                                                    | Екрани   |
+| ---------- | -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 60         | `(max-width: 700px)` | `(max-width: 768px)` | `.catalog-settings-editor .ui-accordion-aside`, `.catalog-settings-editor .ui-accordion-chevron`, `.catalog-price-actions` | каталоги |

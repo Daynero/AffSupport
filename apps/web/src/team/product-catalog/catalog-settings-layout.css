@@ -57,7 +57,7 @@
 .catalog-settings-editor .catalog-text-schedule {
   margin-top: 0;
 }
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .catalog-settings-editor .ui-accordion-aside,
   .catalog-defaults .ui-accordion-aside {
     flex-basis: 100%;
