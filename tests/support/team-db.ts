@@ -137,6 +137,12 @@ export async function createTeamTestDb(
     extensions?: Extensions;
     /** Model Supabase's public service-role table defaults when testing view ACLs. */
     supabaseServiceDefaultPrivileges?: boolean;
+    /**
+     * 20261223320000 makes every space join the picture pool as it is created. Suites
+     * written before it drive the space's own images, so the join is off unless a suite
+     * asks for it; the join itself is covered by catalog-global-pilot-new-spaces.test.sql.
+     */
+    joinPicturePoolOnCreate?: boolean;
   } = {}
 ): Promise<TeamTestDb> {
   const db = await PGlite.create(options.extensions ? { extensions: options.extensions } : {});
@@ -158,6 +164,13 @@ export async function createTeamTestDb(
       throw new Error(`migration ${file} failed to apply: ${String(error)}`, { cause: error });
     }
   }
+
+  if (!options.joinPicturePoolOnCreate)
+    await db.exec(`do $$ begin
+      if exists (select 1 from pg_catalog.pg_trigger where tgname = 'teams_join_catalog_global_pilot') then
+        alter table public.teams disable trigger teams_join_catalog_global_pilot;
+      end if;
+    end $$;`);
 
   const root = async <T = Record<string, unknown>>(sql: string, params: unknown[] = []) => {
     const result = await db.query<T>(sql, params);
