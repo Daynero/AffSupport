@@ -66,9 +66,9 @@ describe('Soty product launcher', () => {
     // "Open →" sits over the stretched link; it must let the click through to it.
     expect(home).toMatch(/\.home-tile-trailing\s*\{[^}]*pointer-events:\s*none/);
     expect(home).toContain(':focus-visible');
-    expect(home).toContain('@media (min-width: 720px)');
-    expect(home).toContain('@media (min-width: 1100px)');
-    expect(home).toContain('@media (max-width: 500px)');
+    expect(home).toContain('@media (width > 768px)');
+    expect(home).toContain('@media (width > 1280px)');
+    expect(home).toContain('@media (max-width: 480px)');
     // The legacy launcher is gone from the big sheet rather than shadowed.
     const legacy = await readFile('apps/web/src/styles.css', 'utf8');
     expect(legacy).not.toMatch(/\.launcher\b|\.tool-card\b|\.tool-grid\b/);

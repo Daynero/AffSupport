@@ -159,3 +159,12 @@
 | Рядок (до) | Було                 | Стало                | Правила                                                                                                                    | Екрани   |
 | ---------- | -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------- |
 | 60         | `(max-width: 700px)` | `(max-width: 768px)` | `.catalog-settings-editor .ui-accordion-aside`, `.catalog-settings-editor .ui-accordion-chevron`, `.catalog-price-actions` | каталоги |
+
+### `styles/home.css`
+
+| Рядок (до) | Було                  | Стало                | Правила                                                                 | Екрани  |
+| ---------- | --------------------- | -------------------- | ----------------------------------------------------------------------- | ------- |
+| 174        | `(min-width: 720px)`  | `(width > 768px)`    | `.home-tools`                                                           | домашня |
+| 181        | `(min-width: 1100px)` | `(width > 1280px)`   | `.home-tools`                                                           | домашня |
+| 475        | `(max-width: 760px)`  | `(max-width: 768px)` | `.home-panel .blocking-message .ui-alert-action`                        | домашня |
+| 481        | `(max-width: 500px)`  | `(max-width: 480px)` | `.home-panel .blocking-message .ui-alert-action`, `.home`, `.home-tile` | домашня |
