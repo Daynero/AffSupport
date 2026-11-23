@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, realpathSync, statSync, type Stats } from 'node:fs';
+import { constants, existsSync, realpathSync, statSync, type Stats } from 'node:fs';
+import { open } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -1080,4 +1081,22 @@ function nativeSecretCommand(
     child.stdin.on('error', () => undefined);
     child.stdin.end(input);
   });
+}
+
+/**
+ * Make a rename inside `directory` durable.
+ *
+ * POSIX needs the directory itself fsynced for a new entry to survive a power
+ * cut. Windows cannot open a directory for writing back at all — Node's
+ * `open(dir).sync()` fails with EPERM — and NTFS journals the rename's
+ * metadata itself, so there is nothing left to flush there.
+ */
+export async function syncDirectory(directory: string): Promise<void> {
+  if (process.platform === 'win32') return;
+  const handle = await open(directory, constants.O_RDONLY);
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
 }

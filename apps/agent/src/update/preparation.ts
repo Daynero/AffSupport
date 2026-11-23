@@ -2,6 +2,7 @@ import { createHash, createPublicKey, verify, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open, mkdir, rename, unlink, lstat, statfs, readdir } from 'node:fs/promises';
 import path from 'node:path';
+import { syncDirectory } from '../platform/platform.js';
 import {
   NATIVE_UPDATE_LIMITS,
   isNativeUpdateDescriptor,
@@ -229,12 +230,7 @@ export async function prepareNativeArchive(
     await output.sync();
     await output.close();
     await rename(temporary, destination);
-    const parent = await open(directory, constants.O_RDONLY);
-    try {
-      await parent.sync();
-    } finally {
-      await parent.close();
-    }
+    await syncDirectory(directory);
     progress(size);
     return destination;
   } catch (error) {

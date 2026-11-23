@@ -2,6 +2,7 @@ import { constants } from 'node:fs';
 import { open, mkdir, lstat, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { syncDirectory } from '../platform/platform.js';
 
 /** Flush the actual current queue files and parent entries after their writers settle. */
 export async function syncUpdateStateFiles(files: string[]): Promise<void> {
@@ -16,12 +17,7 @@ export async function syncUpdateStateFiles(files: string[]): Promise<void> {
     parents.add(path.dirname(name));
   }
   for (const directory of parents) {
-    const parent = await open(directory, constants.O_RDONLY);
-    try {
-      await parent.sync();
-    } finally {
-      await parent.close();
-    }
+    await syncDirectory(directory);
   }
 }
 
@@ -56,12 +52,7 @@ export async function writeUpdateReceipt(
       await file.close();
     }
     await rename(temp, path.join(directory, 'workload.json'));
-    const parent = await open(directory, constants.O_RDONLY);
-    try {
-      await parent.sync();
-    } finally {
-      await parent.close();
-    }
+    await syncDirectory(directory);
   } finally {
     await unlink(temp).catch(() => undefined);
   }

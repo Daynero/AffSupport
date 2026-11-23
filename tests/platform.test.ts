@@ -30,7 +30,8 @@ import {
   pauseProcess,
   processPauseSupported,
   resumeProcess,
-  sanitizeFileName
+  sanitizeFileName,
+  syncDirectory
 } from '../apps/agent/src/platform/platform.js';
 
 const realPlatform = process.platform;
@@ -301,5 +302,21 @@ describe('sanitizeFileName', () => {
     expect(sanitizeFileName('')).toBe('');
     expect(sanitizeFileName(' ')).toBe('');
     expect(sanitizeFileName('...')).toBe('');
+  });
+});
+
+describe('syncDirectory', () => {
+  it('flushes a directory entry where the platform can open a directory', async () => {
+    setPlatform('linux');
+    await expect(syncDirectory(os.tmpdir())).resolves.toBeUndefined();
+    await expect(syncDirectory(path.join(os.tmpdir(), 'soty-missing-dir'))).rejects.toThrow();
+  });
+
+  it('leaves it to NTFS on Windows, which cannot open a directory to flush it', async () => {
+    setPlatform('win32');
+    // Never opened: a path that does not exist still resolves.
+    await expect(
+      syncDirectory(path.join(os.tmpdir(), 'soty-missing-dir'))
+    ).resolves.toBeUndefined();
   });
 });
