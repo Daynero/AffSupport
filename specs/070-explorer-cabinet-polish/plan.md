@@ -1,6 +1,6 @@
 # План 070 · Вилизаний провідник і особистий кабінет
 
-**Гілка** `070-explorer-cabinet-polish` (чернетка на `claude/project-thread-a0wwpa`) · **База** `origin/integration/1.6-polish` `87c203c`, після злиття PR 13 · [Вимоги](spec.md) · [Задачі](tasks.md) · [Дослідження](research.md) · [Аналіз](analysis.md) · [Приймання](quickstart.md)
+**Гілка** `070-explorer-cabinet-polish` (чернетка на `claude/project-thread-a0wwpa`) · **База** `0e11107b` (`integration/1.6-polish` + PR 13, T001) · [Вимоги](spec.md) · [Задачі](tasks.md) · [Дослідження](research.md) · [Аналіз](analysis.md) · [Приймання](quickstart.md)
 
 ## Що постачаємо
 
@@ -27,16 +27,16 @@ apps/web/src/components/ui/FileTrigger.tsx, Splitter.tsx                      (R
 apps/web/src/styles/explorer.css, space-shell.css, accounts.css (замість team-accounts.css)
 ```
 
-| Компонент                         | Відповідає за                                                                                                   |
+| Компонент | Відповідає за |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------- |
-| `ExplorerToolbar`                 | Один рядок, одна primary, «…» з підписами на вузьких ширинах (через `Toolbar` з PR 13 і `DropdownMenu`)         |
-| `ContentList`                     | Заголовки-сортувальники, `aria-sort`, спільний стан `sort` з `SortMenu`                                         |
-| `FolderTree` + `Splitter`         | Ширина 200–480, `persistedView.treeWidth`; `Drawer` нижче 1024                                                  |
-| `ExplorerResults`                 | `TeamCatalog` без власної оболонки, рендер `MaterialDetail` з `CatalogMaterialItem`                             |
-| `ProcessScopeDialog`              | `ProcessScope` = файл / виділені / тека / простір; межа 500; замінює `FolderScopeDialog` і вхід з меню простору |
-| `useSpaceHealth`                  | Зведення сховища, realtime, агента, фонової роботи, оновлювача в `ok                                            | attention` |
-| `check-design-tokens.mjs`         | Список дозволених ширин `@media`                                                                                |
-| `tests/team-raw-controls.test.ts` | 0 сирих контролів у `team/`                                                                                     |
+| `ExplorerToolbar` | Один рядок, одна primary, «…» з підписами на вузьких ширинах (через `Toolbar` з PR 13 і `DropdownMenu`) |
+| `ContentList` | Заголовки-сортувальники, `aria-sort`, спільний стан `sort` з `SortMenu` |
+| `FolderTree` + `Splitter` | Ширина 200–480, `persistedView.treeWidth`; `Drawer` нижче 1024 |
+| `ExplorerResults` | `TeamCatalog` без власної оболонки, рендер `MaterialDetail` з `CatalogMaterialItem` |
+| `ProcessScopeDialog` | `ProcessScope` = файл / виділені / тека / простір; межа 500; замінює `FolderScopeDialog` і вхід з меню простору |
+| `useSpaceHealth` | Зведення сховища, realtime, агента, фонової роботи, оновлювача в `ok                                            | attention` |
+| `check-design-tokens.mjs` | Список дозволених ширин `@media` |
+| `tests/team-raw-controls.test.ts` | 0 сирих контролів у `team/` |
 
 ## Послідовність
 

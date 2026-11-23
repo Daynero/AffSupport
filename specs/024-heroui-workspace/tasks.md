@@ -168,7 +168,7 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       `aria-labelledby="tab-<id>"`, while React Aria's tabs require panels inside their root and
       generate their own ids — the move would rewrite four screens' layout for no visible change.
       The explorer's compact breadcrumb belongs to the explorer polish (next release, item 2).
-- [ ] T031 [US2] **Deferred to Phase 10, with a reason.** The inventory's `Table` is a CSS grid
+- [ ] T031 [US2] **Перенесено в 070 T041.** **Deferred to Phase 10, with a reason.** The inventory's `Table` is a CSS grid
       whose columns are ruled by the screen that uses it — the explorer, the accounts table, the
       member list and the admin lists each set their own tracks against `.ui-table-row`. HeroUI's
       table is a real `<table>` with different DOM, so swapping it rewrites all four screens'
@@ -187,30 +187,30 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       `DatePicker`, `DateField` on HeroUI, with the one adapter between `CalendarDate` and the
       product's stored string shape.
 - [x] T034 [US2] Update the barrel `apps/web/src/components/ui/index.ts` with every new export.
-- [ ] T035 [US2] Restyle the product's own toast in `apps/web/src/components/toast.tsx` onto the
+- [x] T035 [US2] Restyle the product's own toast in `apps/web/src/components/toast.tsx` onto the
       new surfaces — it keeps its tones, lifetimes, action and progress bar, and stays ours.
       **Closed 2026-11-22.** Its colour was already the tone's role (C2) and its bar the
       inventory's `Progress`; the action and the dismiss are now the inventory's `Button` and
       `IconButton`, and their hand-written rules are gone from `styles.css`.
-- [ ] T036 [US2] **Deferred to the sweep (T140), with a reason.** Retire the bespoke hover-bubble layer: `apps/web/src/components/InstantTips.tsx`
+- [ ] T036 [US2] **Перенесено в 070 T033, T034.** **Deferred to the sweep (T140), with a reason.** Retire the bespoke hover-bubble layer: `apps/web/src/components/InstantTips.tsx`
       and the `data-tip` attribute pattern give way to the inventory's `Tooltip` with one delay
       group; delete `useAnchoredLayer.ts` and `useCompactToolbar.ts`, whose jobs React Aria now
       does. 22 of the `data-tip` sites are on the compressor, stitcher, landing and transcription
       screens, which render only with the local app — the same reason T037 waits — and most sit
       on text that is not focusable, which React Aria's tooltip needs. It goes with the pass that
       can open those screens.
-- [ ] T037 [US2] **Deferred to the sweep (T140), with a reason.** 56 files import the shim, and
+- [ ] T037 [US2] **Перенесено в 070 T035–T038, T065.** **Deferred to the sweep (T140), with a reason.** 56 files import the shim, and
       48 of them only for `Button`, which the inventory already accepts in its legacy spelling —
       so the repoint is mechanical. What is not mechanical is the checking: most of those files
       are outside the team workspace, and three of those screens cannot render at all without the
       local app, which is exactly the finding (021, S8) that says a screen nothing can open is a
       screen nothing has checked. It goes in the pass that walks them, not before it.
-- [ ] T038 [US2] **Deferred with T037.** Rewrite `tests/design-components.test.tsx` from the deleted shim's literal
+- [ ] T038 [US2] **Перенесено в 070 T040.** **Deferred with T037.** Rewrite `tests/design-components.test.tsx` from the deleted shim's literal
       classes onto the inventory's marker grammar.
 - [x] T039 [US2] Extend `apps/web/src/dev/DesignSystemPage.tsx` to every new component and the
       new dates group, generated from the type unions as it already is.
       **Closed 2026-11-22:** the calendar group was there; `Toolbar` and `Link` were the missing rows.
-- [ ] T040 [US2] Delete from `apps/web/src/styles/components.css` every rule the adapters no
+- [ ] T040 [US2] **Перенесено в 070 T066.** Delete from `apps/web/src/styles/components.css` every rule the adapters no
       longer need; confirm `node scripts/verify-styles.mjs` still reports no orphan `var()`.
       2026-11-22: the pagination and toast-control rules went with their adapters. The rest is
       the stylesheet deletion of T138 and is done there, once the sweep has walked the screens.
@@ -218,7 +218,7 @@ workspace work untouched; `tests/ui-consistency.test.tsx` passes non-vacuously.
       component the swap changes; they assert on class names, roles and labels. Work through them
       in one pass, preferring role- and name-based queries to class-based ones, so the suite
       stops being coupled to markup it no longer owns.
-- [ ] T042 [US2] **Deferred to the sweep (T140).** Walk the screens outside the team workspace — compressor, transcription,
+- [ ] T042 [US2] **Перенесено в 070 T035–T038.** **Deferred to the sweep (T140).** Walk the screens outside the team workspace — compressor, transcription,
       stitcher, auth, landing viewer, 2FA, account page — and fix what the swap moved. Record
       anything deliberately left alone.
 
@@ -285,7 +285,7 @@ closing or losing anything.
       scoped out of the `updater-row` host, and `showInFolder` is absent until
       `list_team_product_catalogs` returns the folder's id — the row names the folder but not
       its id, and the reveal needs the id.
-- [ ] T058 [US1] Render it from the selection bar on the inventory's `SelectionBar`, with
+- [ ] T058 [US1] **Перенесено в 070 T024.** Render it from the selection bar on the inventory's `SelectionBar`, with
       `host: 'selection'` intersecting over the checked set and labels that say how many.
 - [x] T059 [US1] Show companions on the material wherever it appears — catalog, transcript,
       re-stitched copy — each with its own direct actions. `useMaterialCompanions` reads both
@@ -424,7 +424,7 @@ closing or losing anything.
       surface that can choose _which_ text, the original or a translation. `copyText` is left
       unwired in `PaneActions` so the pane does not also offer a one-press copy that guesses.
       A menu item that guesses is right where there is no room to ask; here there is room.
-- [ ] T088 [US5] Use it in search — the shell currently drops `has-pane` while searching; search
+- [ ] T088 [US5] **Перенесено в 070 T023.** Use it in search — the shell currently drops `has-pane` while searching; search
       keeps the surface. **Started and set down, with the reason.** The pane is fed a
       `TeamMaterialRow`, and a search result is a `CatalogMaterialItem` that genuinely lacks
       three of that shape's fields — `driveFileId`, `driveVersion`, `thumbnailReady` — so a
@@ -433,7 +433,7 @@ closing or losing anything.
       from its own item rather than pretend to be a folder row. That also needs selection state
       for results, which they have never had. Worth doing; too much to do sideways while the
       pane, the shell split (T095) and the search list are all still moving.
-- [ ] T089 [US5] Use it from a task attachment and from the updater's list.
+- [ ] T089 [US5] **Перенесено в 070 T025.** Use it from a task attachment and from the updater's list.
 - [x] T090 [US5] Give search results the thumbnail, the colour tag and the share action they lack.
       The tag and the share had already arrived with the shared action surface (T054); the
       picture is new. A file found by search showed a category glyph while the same file in a
@@ -451,7 +451,7 @@ closing or losing anything.
       checked row in the list looked like nothing at all until you found its tick. The
       out-of-view count was already there and already honest: it counts against the rows the
       shell holds, not the rows on screen.
-- [ ] T093 [US5] Unify process / compress / transcript scope into one dialog that asks for the
+- [ ] T093 [US5] **Перенесено в 070 T061, T062.** Unify process / compress / transcript scope into one dialog that asks for the
       scope — this file, this folder, the selection, the whole space — instead of three doors.
 - [x] T094 [US5] Remove the duplicated sort: the shell sorts, the views do not. Both sorted the
       same array with the same comparator on every render — two sorts that agreed by accident,
@@ -517,7 +517,7 @@ closing or losing anything.
       is not a place. The registry's own rule caught the consequence — nine items under one
       heading — so `organise` split into **organise** (what it is called) and **place** (where it
       goes), which is a better taxonomy than the one it replaced.
-- [ ] T104 [US6] Make toolbars and selection bars collapse into a labelled overflow at narrow
+- [ ] T104 [US6] **Перенесено в 070 T014.** Make toolbars and selection bars collapse into a labelled overflow at narrow
       widths instead of becoming unlabelled icons.
 - [x] T105 [P] [US6] `tests/workspace-palette.test.tsx`: the palette reaches a file, a folder, a
       task and an account from one field; it never empties while a search is in flight; the
@@ -836,7 +836,7 @@ processed copy from the attachment, and see all three on the task without it clo
 
 — accounts, agents and members (Priority: P3)
 
-- [ ] T116 [US8] Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the
+- [ ] T116 [US8] **Перенесено в 070 T041.** Rebuild `apps/web/src/team/accounts/AccountGroup.tsx` and `AgentRow.tsx` on the
       inventory's `Table` at its dense size, keeping the sticky header and the foldable money
       column, and ensuring no cell leaves its column when a group folds.
       **Target from the at-rest table (US14):** an agent row carries identity, state, run, money,
@@ -857,14 +857,14 @@ processed copy from the attachment, and see all three on the task without it clo
       `FormField` labelled "· USD" (`DailyFinanceFields.tsx`). It is deliberately not `InputNumber`:
       the field keeps the person's draft as typed, decimal comma included, until it is saved,
       which a React Aria `NumberField` would reformat under them.
-- [ ] T119 [US8] Put the occupancy chips, the marker filter and fold-all on `SegmentedControl` /
+- [ ] T119 [US8] **Перенесено в 070 T044.** Put the occupancy chips, the marker filter and fold-all on `SegmentedControl` /
       `Chip` / `DisclosureGroup`; make the account head a real disclosure operable by keyboard.
-- [ ] T120 [US8] Make identifiers selectable and copyable rather than living in a `title`.
-- [ ] T121 [US8] Make every count pressable — a tag chip filters to what it counted, Free/Busy
+- [ ] T120 [US8] **Перенесено в 070 T045.** Make identifiers selectable and copyable rather than living in a `title`.
+- [ ] T121 [US8] **Перенесено в 070 T046.** Make every count pressable — a tag chip filters to what it counted, Free/Busy
       filters by that state, "N tasks" goes and comes back.
-- [ ] T122 [US8] Make agent tags searchable and filterable in the accounts toolbar.
-- [ ] T123 [US8] Link a task's agent chip back to that agent in Accounts.
-- [ ] T124 [US8] Put members, permissions, ownership transfer and invitations on the inventory —
+- [ ] T122 [US8] **Перенесено в 070 T047.** Make agent tags searchable and filterable in the accounts toolbar.
+- [ ] T123 [US8] **Перенесено в 070 T048.** Link a task's agent chip back to that agent in Accounts.
+- [ ] T124 [US8] **Перенесено в 070 T051.** Put members, permissions, ownership transfer and invitations on the inventory —
       `Table`, `Select`, `Checkbox`, `FormField` — replacing the raw selects and checkbox grids.
 - [x] T125 [US8] (benchmark round 8: pending/accepted/declined/revoked/expired each a word; resend and revoke in one menu only while pending) Make an invitation state its own state in words and offer only the actions that
       state allows.
@@ -872,16 +872,16 @@ processed copy from the attachment, and see all three on the task without it clo
       **Closed 2026-11-23 (audit).** `workspace/HistoryDialog.tsx` reads pages of 50 and offers
       "more" with `before` = the last event's time; `tests/space-history.test.tsx` covers the
       second page.
-- [ ] T127 [US8] Put the settings panels on the inventory —
+- [ ] T127 [US8] **Перенесено в 070 T052.** Put the settings panels on the inventory —
       `workspace/TeamPreferencesSection.tsx` (which also stops failing silently),
       `product-catalog/ProductCatalogSettingsSection.tsx`, `labels/TaskLabelsSection.tsx`,
       `drive/DriveConnectionPanel.tsx`, `workspace/RestitchDefaultsSection.tsx`.
-- [ ] T128 [US8] Make read-only actions available to anyone who may read.
+- [ ] T128 [US8] **Перенесено в 070 T049.** Make read-only actions available to anyone who may read.
 - [x] T129 [US8] Remove the `aria-controls` that names a list which is never hidden.
       **Closed 2026-11-23 (audit).** No `aria-controls` is left under `team/accounts/`; the three
       left in `team/` (AddToTask, WorkspacePalette, SpaceSwitcher) name a popup list that does
       hide, which is what the attribute is for.
-- [ ] T130 [US8] Update `scripts/check-accounts-layout.mjs` for the new markup. Its invariant —
+- [ ] T130 [US8] **Перенесено в 070 T050.** Update `scripts/check-accounts-layout.mjs` for the new markup. Its invariant —
       every run line's `scrollWidth` equals its cell's width, at both sides of 560 / 1000 / 1200 —
       is the right invariant and must keep holding; only the selectors change.
 
@@ -891,60 +891,60 @@ processed copy from the attachment, and see all three on the task without it clo
 
 ## Phase 11: The catalog updater and the remaining surfaces
 
-- [ ] T131 (rows and schedule done in benchmark round 3; the dialog's own controls onto the inventory still open) Put `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` on the inventory —
+- [ ] T131 (rows and schedule done in benchmark round 3; the dialog's own controls onto the inventory still open) **Перенесено в 070 T056.** Put `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx` on the inventory —
       `SearchField`, `Checkbox` with a real `indeterminate` prop, `ToggleButtonGroup` for the
       intervals, `NumberField` for the custom hours, and the shared row actions.
       **Target from the at-rest table (US14):** "…" per row instead of four icon buttons; two facts
       on the meta line; the footer's three notes behind one hint.
-- [ ] T132 Link the updater to a catalog's video and back, which nothing does today.
-- [ ] T133 Put `apps/web/src/team/product-catalog/CreateProductCatalogDialog.tsx` on `FormField`
+- [ ] T132 **Перенесено в 070 T057.** Link the updater to a catalog's video and back, which nothing does today.
+- [ ] T133 **Перенесено в 070 T058.** Put `apps/web/src/team/product-catalog/CreateProductCatalogDialog.tsx` on `FormField`
       and `Input`, and give `ProductCatalogMenuDialog.tsx` a loading state instead of rendering
       nothing while it fetches.
-- [ ] T134 Put the remaining dialogs and viewers on the inventory: `TeamCompressorDialog`,
+- [ ] T134 **Перенесено в 070 T059, T060.** Put the remaining dialogs and viewers on the inventory: `TeamCompressorDialog`,
       `FolderScopeDialog`, `UploadConflictDialog`, `ProcessMaterialDialog` (whose raw `<select>`
       of tool ids becomes a real choice), `ProcessLibraryDialog`, `BulkUploadDialog`,
       `CreateSpaceWizard`, `TrashView`, `TeamTextEditor`, `MaterialMetadataEditor`,
       `MaterialPreview`, `LandingFullView`.
-- [ ] T135 Put the lobby, the space-state panel and the no-access screen on the inventory, and
+- [ ] T135 **Перенесено в 070 T030.** Put the lobby, the space-state panel and the no-access screen on the inventory, and
       give the no-access terminus something to press.
-- [ ] T136 Sweep `apps/web/src/i18n.ts`: every string this feature introduced exists in both
+- [ ] T136 **Перенесено в 070 T067.** Sweep `apps/web/src/i18n.ts`: every string this feature introduced exists in both
       languages, no key is English-only, and nothing was left as a literal in a component.
 
 ---
 
 ## Phase 12: Polish, deletion, and the sweep
 
-- [ ] T137 Write `tests/team-raw-controls.test.ts` — zero raw `<button>`, `<input>`, `<select>`,
+- [ ] T137 **Перенесено в 070 T008, T065.** Write `tests/team-raw-controls.test.ts` — zero raw `<button>`, `<input>`, `<select>`,
       `<textarea>` under `apps/web/src/team/` (SC-002). Run it; fix what it finds.
-- [ ] T138 Delete `apps/web/src/styles/team-tasks.css` and `apps/web/src/styles/team-accounts.css`
+- [ ] T138 **Перенесено в 070 T055, T066.** Delete `apps/web/src/styles/team-tasks.css` and `apps/web/src/styles/team-accounts.css`
       and every team rule the migration orphaned in `apps/web/src/styles.css` (SC-009); confirm
       `node scripts/verify-styles.mjs` and `tests/stylesheet-integrity.test.ts` pass.
-- [ ] T139 Prove SC-010: assemble a screen the product does not have from the inventory alone,
+- [ ] T139 **Перенесено в 070 T068.** Prove SC-010: assemble a screen the product does not have from the inventory alone,
       photograph it, delete it, and record whether it needed a new token or variant.
-- [ ] T140 Walk every team screen at 390 px and 1440 px, in both themes, with reduced motion on
+- [ ] T140 **Перенесено в 070 T069.** Walk every team screen at 390 px and 1440 px, in both themes, with reduced motion on
       and off; fix what the sweep finds; record the rest.
-- [ ] T141 Check the one-primary-per-surface, no-colour-alone and empty/error/permission-pattern
+- [ ] T141 **Перенесено в 070 T070.** Check the one-primary-per-surface, no-colour-alone and empty/error/permission-pattern
       rules on every screen the sweep covers.
-- [ ] T142 Run the accessibility gate; `a11y-baseline.json` must show no new violation.
-- [ ] T143 Build, measure, and re-ratchet `performance-baseline.json` **once**, against T008's
+- [ ] T142 **Перенесено в 070 T071.** Run the accessibility gate; `a11y-baseline.json` must show no new violation.
+- [ ] T143 **Перенесено в 070 T072.** Build, measure, and re-ratchet `performance-baseline.json` **once**, against T008's
       before-numbers, with a note naming both halves — the library added and the CSS deleted
       (SC-013). The baseline was provisionally raised for the 026 sync release on 2026-09-27
       (860,582 B total / 6,022 B entry / 122,173 B largest). Do not treat that as completing
       T143: compare both this temporary baseline and the original 021 values recorded in
       `performance-baseline.json`, then set the final post-cleanup budget.
-- [ ] T144 Regenerate the CSP headers; `generate:csp:check` must report no drift.
-- [ ] T145 Run `npx prettier --write apps packages tests scripts docs`, then `npm run lint` and
+- [ ] T144 **Перенесено в 070 T073.** Regenerate the CSP headers; `generate:csp:check` must report no drift.
+- [ ] T145 **Перенесено в 070 T074.** Run `npx prettier --write apps packages tests scripts docs`, then `npm run lint` and
       the full gate list from quickstart.
-- [ ] T146 Write `specs/024-heroui-workspace/findings.md` — what the migration walked past, what
+- [ ] T146 **Перенесено в 070 T075.** Write `specs/024-heroui-workspace/findings.md` — what the migration walked past, what
       it taught the system, what it deliberately did not do, and what it weighed — in the shape
       feature 021's findings file established.
-- [ ] T147 Confirm nothing changed under `apps/agent`, `packaging`, `packages/shared/src`,
+- [ ] T147 **Перенесено в 070 T075.** Confirm nothing changed under `apps/agent`, `packaging`, `packages/shared/src`,
       `packages/shared/package.json` or `config/production.env`. No longer web-only: US15 and the
       space's task maximum add migrations and an edge-function change, which deploy with it.
       Was: Confirm the feature is still web-only deployable: nothing changed under `apps/agent`,
       `packaging`, `packages/shared/src`, `packages/shared/package.json` or
       `config/production.env`.
-- [ ] T148 Walk every quickstart checkpoint end to end on the beta, in one sitting, as a person
+- [ ] T148 **Перенесено в 070 T076.** Walk every quickstart checkpoint end to end on the beta, in one sitting, as a person
       doing real work — create a task, attach a video, catalogue it from the task, find it again
       by search, compress it from the palette — and fix whatever that walk makes obvious.
 

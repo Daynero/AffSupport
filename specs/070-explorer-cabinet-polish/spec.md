@@ -264,7 +264,7 @@
 
 - **FR-040**: Ширини `@media` МАЮТЬ бути з набору 480 / 640 / 768 / 1024 / 1280; `scripts/check-design-tokens.mjs` падає на інших.
 - **FR-041**: `tests/team-raw-controls.test.ts` МАЄ падати на сирому контролі в `apps/web/src/team/` (024 T137).
-- **FR-042**: Стилі провідника МАЮТЬ бути в `styles/explorer.css`, стилі шапки простору — в `styles/shell.css`; `team-tasks.css` і `team-accounts.css` видаляються або зводяться до правил, яких не покриває інвентар (024 T138).
+- **FR-042**: Стилі провідника МАЮТЬ бути в `styles/explorer.css`, стилі шапки простору — в `styles/space-shell.css` (`styles/shell.css` — шапка інструментів, 024 US27); `team-tasks.css` і `team-accounts.css` видаляються або зводяться до правил, яких не покриває інвентар (024 T138).
 - **FR-043**: Усі нові рядки МАЮТЬ бути в `uk` і `en` (024 T136).
 - **FR-044**: Зміна НЕ МАЄ торкатися `apps/agent`, `packaging`, `packages/shared/src`, БД і Edge-функцій. Це лише веб.
 
