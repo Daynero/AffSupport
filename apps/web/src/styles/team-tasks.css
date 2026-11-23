@@ -17,7 +17,7 @@
 
 /* One column: a card is as tall as its task, no floor — an empty description
    must not be 300px of nothing on a phone. */
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .team-task-grid {
     grid-auto-rows: auto;
   }
@@ -256,7 +256,7 @@
 
 /* styles.css stacks the filter row; the date chip and the account pill keep
    their own width rather than stretching into a bare wide box. */
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .task-date-filter-calendar {
     align-self: flex-start;
   }
@@ -1128,7 +1128,7 @@ button.team-task-label-chip:hover:not(:disabled),
  * for exactly this, and it keeps every control whole, which is what the row
  * was built for.
  */
-@media (max-width: 520px) {
+@media (max-width: 480px) {
   .task-date-filter {
     flex-wrap: nowrap;
     overflow-x: auto;
