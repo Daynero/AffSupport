@@ -4241,6 +4241,7 @@ export const en = {
   teamDriveRootRestored: 'The folder is back.',
   teamDriveChooseAnother: 'Choose another folder',
   teamExplorerTreeLabel: 'Folders',
+  teamExplorerTreeWidth: 'Folder tree width',
   teamExplorerRootLabel: 'All files',
   teamExplorerBreadcrumbLabel: 'Location',
   teamExplorerHistoryLabel: 'Folder navigation',

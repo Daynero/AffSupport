@@ -85,6 +85,14 @@ export function stringList(max = 100) {
       : null;
 }
 
+/** A whole number of pixels between two bounds — a pane's width (070, `explorer.treeWidth`). */
+export function boundedNumber(min: number, max: number) {
+  return (value: unknown): number | null =>
+    typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+      ? Math.round(value)
+      : null;
+}
+
 export function boundedText(max = 200) {
   return (value: unknown): string | null =>
     typeof value === 'string' && value.length <= max ? value : null;

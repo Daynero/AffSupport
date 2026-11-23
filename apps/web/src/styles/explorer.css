@@ -53,7 +53,9 @@
    --------------------------------------------------------------------------- */
 .team-explorer {
   display: grid;
-  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+  /* The tree's column is the width its edge was left at (070, FR-006); with the details pane
+     out on a narrower screen it gives way to its floor before the files do. */
+  grid-template-columns: minmax(200px, var(--explorer-tree-width, 280px)) minmax(0, 1fr);
   gap: var(--space-4);
   align-items: start;
 }
@@ -517,10 +519,27 @@
   .team-explorer {
     grid-template-columns: minmax(0, 1fr);
   }
-  .team-explorer-tree {
-    position: static;
-    max-height: 40vh;
-  }
+}
+/* The tree in its drawer (070, FR-007): the drawer is the card, so the tree drops its own frame
+   and the stickiness it needs beside a scrolling list. */
+.team-explorer-tree-drawer .team-explorer-tree {
+  position: static;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+/* The tree's edge (070, FR-006): in the gap between the tree and the files, the gap's own
+   height, drawn only when it is reached for — a full-height rule between two cards was noise. */
+.team-explorer > .team-explorer-tree-splitter {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  justify-self: end;
+  z-index: 1;
+  margin-inline-end: calc(-1 * (var(--space-4) + var(--space-2)) / 2);
+}
+.team-explorer-tree-splitter::before {
+  background-color: transparent;
 }
 
 /* Explorer tiles and the selected-item pane (011, US2). */
@@ -529,7 +548,9 @@
      not the file names. At 1040px the old 0-floor let the pane and tree take
      their maxima and left 334px for the files — one tile per row, and list
      rows whose names shrank to "be…" while the kind and size stayed whole. */
-  grid-template-columns: minmax(200px, 280px) minmax(380px, 1fr) minmax(240px, 340px);
+  grid-template-columns:
+    minmax(200px, var(--explorer-tree-width, 280px)) minmax(380px, 1fr)
+    minmax(240px, 340px);
 }
 /* One row at every width (070, FR-002): nothing here wraps. What does not fit leaves for the
    "…" with its name (T014); the path shrinks with an ellipsis before anything else moves. */
@@ -1273,20 +1294,6 @@
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.team-explorer-folders-toggle {
-  display: none;
-}
-@media (max-width: 1024px) {
-  .team-explorer-folders-toggle {
-    display: inline-flex;
-  }
-  .team-explorer-tree {
-    display: none;
-  }
-  .team-explorer.is-tree-open .team-explorer-tree {
-    display: block;
-  }
 }
 @media (max-width: 768px) {
   .team-explorer-pane {

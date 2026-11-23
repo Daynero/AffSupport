@@ -4218,6 +4218,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamDriveRootRestored: 'Папку повернуто.',
   teamDriveChooseAnother: 'Обрати іншу папку',
   teamExplorerTreeLabel: 'Папки',
+  teamExplorerTreeWidth: 'Ширина дерева папок',
   teamExplorerRootLabel: 'Усі файли',
   teamExplorerBreadcrumbLabel: 'Розташування',
   teamExplorerHistoryLabel: 'Навігація папками',

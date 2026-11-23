@@ -44,7 +44,39 @@ function makeClient(rows: TeamMaterialRow[] = []): ExplorerShellClient {
   } as unknown as ExplorerShellClient;
 }
 
-export function renderExplorer({
+/** The shell with the address's folder held as the workspace holds it: a folder opened in the
+ *  explorer becomes the folder shown. */
+function StatefulExplorer({
+  client,
+  query,
+  onQueryChange,
+  readOnly,
+  retryGroupId
+}: {
+  client: ExplorerShellClient;
+  query: Partial<TeamRouteQuery>;
+  onQueryChange: (patch: Partial<TeamRouteQuery>) => void;
+  readOnly: boolean;
+  retryGroupId: string | null;
+}) {
+  const [folderId, setFolderId] = React.useState<string | null>(query.folderId ?? null);
+  return (
+    <ExplorerShell
+      teamId={team.id}
+      client={client}
+      query={{ ...emptyTeamRouteQuery(), view: 'list', ...query, folderId }}
+      onQueryChange={onQueryChange}
+      onFolderChange={setFolderId}
+      onSearched={vi.fn()}
+      onPreview={vi.fn()}
+      readOnly={readOnly}
+      retryGroupId={retryGroupId}
+      onRetryComplete={vi.fn()}
+    />
+  );
+}
+
+function renderExplorer({
   client = makeClient(),
   query = {},
   onQueryChange = vi.fn(),
@@ -60,17 +92,12 @@ export function renderExplorer({
   return render(
     <ToastProvider>
       <TeamProvider realtime={false} initialTeams={[team]}>
-        <ExplorerShell
-          teamId={team.id}
+        <StatefulExplorer
           client={client}
-          query={{ ...emptyTeamRouteQuery(), view: 'list', ...query }}
+          query={query}
           onQueryChange={onQueryChange}
-          onFolderChange={vi.fn()}
-          onSearched={vi.fn()}
-          onPreview={vi.fn()}
           readOnly={readOnly}
           retryGroupId={retryGroupId}
-          onRetryComplete={vi.fn()}
         />
       </TeamProvider>
     </ToastProvider>
@@ -239,5 +266,79 @@ describe('the list headers sort (T016)', () => {
     renderExplorer({ client: makeClient([fileRow(1)]), query: { view: 'grid' } });
     await screen.findAllByText('file-1.png');
     expect(document.querySelector('.team-explorer-list-controls .team-explorer-sort')).toBeTruthy();
+  });
+});
+
+function stubNarrow(narrow: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    (query: string) =>
+      ({
+        matches: narrow && query.includes('max-width: 1024px'),
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {}
+      }) as unknown as MediaQueryList
+  );
+}
+
+describe('the folder tree is a column with an edge, or a drawer (T017)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('moves its edge from the keyboard within 200–480 px and keeps the width for the space', async () => {
+    renderExplorer();
+    const edge = await screen.findByRole('separator', { name: 'Folder tree width' });
+    const surface = document.querySelector<HTMLElement>('.team-explorer')!;
+    expect(edge.getAttribute('aria-valuenow')).toBe('280');
+    expect(edge.getAttribute('aria-valuemin')).toBe('200');
+    expect(edge.getAttribute('aria-valuemax')).toBe('480');
+    expect(surface.style.getPropertyValue('--explorer-tree-width')).toBe('280px');
+
+    fireEvent.keyDown(edge, { key: 'ArrowRight' });
+    expect(edge.getAttribute('aria-valuenow')).toBe('296');
+    fireEvent.keyDown(edge, { key: 'End' });
+    expect(edge.getAttribute('aria-valuenow')).toBe('480');
+    expect(surface.style.getPropertyValue('--explorer-tree-width')).toBe('480px');
+
+    // A reload reads it back; a value from outside the bounds is not trusted.
+    cleanup();
+    renderExplorer();
+    expect(
+      (await screen.findByRole('separator', { name: 'Folder tree width' })).getAttribute(
+        'aria-valuenow'
+      )
+    ).toBe('480');
+    cleanup();
+    localStorage.setItem(`soty.team-view.v1:${team.id}:explorer.treeWidth`, '9000');
+    renderExplorer();
+    expect(
+      (await screen.findByRole('separator', { name: 'Folder tree width' })).getAttribute(
+        'aria-valuenow'
+      )
+    ).toBe('280');
+  });
+
+  it('is a drawer up to 1024 px, with no edge, that closes when a folder is chosen', async () => {
+    stubNarrow(true);
+    const client = makeClient();
+    (client.listFolderTree as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: 'folder-1',
+        driveFileId: 'drive-folder-1',
+        parentFolderId: 'root',
+        selectionId: null,
+        name: 'Creatives',
+        indexedAt: '2026-11-01T00:00:00Z',
+        childFolderCount: 0,
+        childFileCount: 0,
+        thumbnailReadyCount: 0
+      }
+    ]);
+    renderExplorer({ client });
+    expect(screen.queryByRole('separator')).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'Folders' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Folders' });
+    fireEvent.click(await within(drawer).findByRole('button', { name: /Creatives/ }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Folders' })).toBeNull());
   });
 });

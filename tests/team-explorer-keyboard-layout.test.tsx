@@ -228,16 +228,29 @@ describe('showing a file in its folder', () => {
 });
 
 describe('explorer narrow layout', () => {
-  it('keeps the tree behind a toggle instead of dropping it', async () => {
+  it('keeps the tree behind a toggle, in a drawer, instead of dropping it (070, FR-007)', async () => {
     const user = userEvent.setup();
-    renderShell(makeClient([row(1)]));
-    await screen.findByText('file-1.png');
-    const shell = document.querySelector('.team-explorer')!;
-    expect(shell.classList.contains('is-tree-open')).toBe(false);
-    await user.click(screen.getByRole('button', { name: 'Folders' }));
-    expect(shell.classList.contains('is-tree-open')).toBe(true);
-    // The tree is still in the document either way; CSS decides its visibility per width.
-    expect(screen.getByRole('complementary', { name: 'Folders' })).toBeTruthy();
+    // Up to 1024 px the tree is a drawer; jsdom has no layout, so the width is stated.
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) =>
+        ({
+          matches: query.includes('max-width: 1024px'),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {}
+        }) as unknown as MediaQueryList
+    );
+    try {
+      renderShell(makeClient([row(1)]));
+      await screen.findByText('file-1.png');
+      expect(screen.queryByRole('complementary', { name: 'Folders' })).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Folders' }));
+      const drawer = await screen.findByRole('dialog', { name: 'Folders' });
+      expect(within(drawer).getByRole('complementary', { name: 'Folders' })).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
@@ -457,7 +470,7 @@ describe('the batch entry points', () => {
     ]);
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('menuitem')).toBeNull());
-    expect(document.activeElement).toBe(button);
+    await waitFor(() => expect(document.activeElement).toBe(button));
   });
 
   it('offers the whole space from the "…" at the root, where there is no folder to process', async () => {
