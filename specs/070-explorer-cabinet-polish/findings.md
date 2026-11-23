@@ -106,3 +106,10 @@
 | ---------- | --------------------- | --------------------- | ------------------------------------------------------------------- | ------ |
 | 29         | `(max-width: 560px)`  | `(max-width: 640px)`  | `.topbar .connection-badge`, `.topbar .connection-badge-text`       | шапка  |
 | 80         | `(max-width: 1000px)` | `(max-width: 1024px)` | `.user-menu-trigger .ui-button-label`, `.topbar .user-menu-trigger` | шапка  |
+
+### `styles/launch-settings.css`
+
+| Рядок (до) | Було                 | Стало                | Правила                                             | Екрани  |
+| ---------- | -------------------- | -------------------- | --------------------------------------------------- | ------- |
+| 47         | `(min-width: 640px)` | `(width > 640px)`    | `.launch-editor-compact .launch-editor-source-grid` | запуски |
+| 53         | `(max-width: 639px)` | `(max-width: 640px)` | `.launch-editor-compact .launch-editor-refresh`     | запуски |

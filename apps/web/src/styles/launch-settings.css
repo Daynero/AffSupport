@@ -44,13 +44,13 @@
 /* Three sources and the refresh on one line only where they fit: unconditional, this rule
    undid the single column a phone gets, and РК, Офер and Баєр shrank to «Обр…» (next QA
    2026-11-21). */
-@media (min-width: 640px) {
+@media (width > 640px) {
   .launch-editor-compact .launch-editor-source-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
   }
 }
 /* One column: the refresh no longer drops to a label's line, it closes the sources. */
-@media (max-width: 639px) {
+@media (max-width: 640px) {
   .launch-editor-compact .launch-editor-refresh {
     margin-top: 0;
     justify-self: end;
