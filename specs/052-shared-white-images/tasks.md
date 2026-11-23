@@ -179,6 +179,7 @@ Independent test: clockT0/day29/day30, manifests survive deletion, scoped verifi
 - [ ] T066 Пройти disposable DB/concurrency та `nice -n 15 npm run verify:release`, включно new Worker build/typecheck й package compatibility, безparallelheavychildren; не зупиняти чужі app/verification. Refs: FR-024 FR-027 FR-036 SC-010 SC-012 SC-013 SC-015 SC-017 SC-018. Deps: T065.
 
 - [ ] T067 Перед окремо запланованим релізом пройти real authenticated beta hosted/installed macOS/Windows матрицю, authenticated Edge/e2e overhead cohort, canonical origin/cache fanout і scoped real-provider retirement та control Meta import за `specs/052-shared-white-images/quickstart.md`; зберегти exact-source/config/platform evidence, unsupported/missing results явно block readiness. Refs: FR-023 FR-027 FR-030 FR-036 AD-008 AD-009 AD-011 SC-010 SC-014 SC-016 SC-017 SC-018. Deps: T066.
+      **Аудит 2026-11-23:** ручна матриця на беті — у [чеклісті бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 052.
 
 - [ ] T068 Включити measured performance/provider/cutover/diagnostic acceptance verdict у `scripts/verify-all.mjs` і normal release proof collector; документувати critical gaps у `specs/052-shared-white-images/validation/acceptance.md`, не relabel local tests як user success. Refs: FR-024 FR-027 FR-029 FR-036 AD-005 AD-009 AD-010 AD-011 SC-010 SC-012 SC-014 SC-015. Deps: T053 T066. External readiness remains conditional on T067.
 
