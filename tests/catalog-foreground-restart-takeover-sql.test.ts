@@ -11,6 +11,9 @@ let db: TeamTestDb, team: string, source: string, image: string;
 const owner = 'c3999000-0000-4000-8000-000000000001';
 beforeAll(async () => {
   db = await createTeamTestDb();
+  // These shapes run on the space's own images: keep new spaces out of the picture pool
+  // they would otherwise join on creation (20261223320000).
+  await db.root('alter table public.teams disable trigger teams_join_catalog_global_pilot');
   await createUser(db, { id: owner, email: 'foreground-restart@example.invalid' });
   await db.root('insert into public.admin_users(user_id)values($1)', [owner]);
   team = (
