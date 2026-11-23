@@ -844,8 +844,14 @@ processed copy from the attachment, and see all three on the task without it clo
       things on the way: it opens onto its first item and closes on Tab, and an item may carry
       a fuller accessible name (`ariaLabel`) than its visible label. Two menus cannot be open
       at once because the open one sets the rest of the page aside.
-- [ ] T118 [US8] Put `apps/web/src/team/accounts/AgentMoney.tsx` on `InputNumber`, with one money
+- [x] T118 [US8] Put `apps/web/src/team/accounts/AgentMoney.tsx` on `InputNumber`, with one money
       format and its currency, used everywhere money appears.
+      **Closed 2026-11-23 (audit), not as written.** `AgentMoney.tsx` no longer exists: the money
+      moved to `team/accounts/finance/`. Every amount goes through one formatter,
+      `formatFinanceAmount.ts` (8 callers), and every money field is the inventory's `Input` in a
+      `FormField` labelled "· USD" (`DailyFinanceFields.tsx`). It is deliberately not `InputNumber`:
+      the field keeps the person's draft as typed, decimal comma included, until it is saved,
+      which a React Aria `NumberField` would reformat under them.
 - [ ] T119 [US8] Put the occupancy chips, the marker filter and fold-all on `SegmentedControl` /
       `Chip` / `DisclosureGroup`; make the account head a real disclosure operable by keyboard.
 - [ ] T120 [US8] Make identifiers selectable and copyable rather than living in a `title`.
