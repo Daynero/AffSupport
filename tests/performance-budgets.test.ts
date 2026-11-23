@@ -90,6 +90,20 @@ const RELEASE_047_049_ALLOWANCE = 46_500;
 // Root/entry/largest/Accounts and the historical baselines stay unchanged.
 const RELEASE_159_LAUNCH_ALLOWANCE = 1_500;
 const RELEASE_159_SHARED_ALLOWANCE = 43_500;
+// Same owner rule (2026-11-23), carried to what 1.6.2 ships (beta ecd01803, the
+// 1.6 line with the 024 HeroUI work on top): Launch graph 69 145 B on beta and
+// 69 250 B with 024 (limit 68 000), the growth being 062 multi-creative launches
+// and 064 assistant/credits. The entry chunk grew from 6 019 B to 6 715-6 746 B
+// (ceiling 6 320) because healModuleCache (Cloudflare serving index.html for a
+// chunk that has not arrived yet) must run before any lazy chunk can, so it lives
+// in the entry on purpose. 070 T072 recalculates the baselines once.
+const RELEASE_162_LAUNCH_ALLOWANCE = 1_500;
+const RELEASE_162_ENTRY_ALLOWANCE = 800;
+// Shared/existing assets measured 103 921 B over the 053 base on the 1.6 line and
+// 105 117 B with the 024 HeroUI work (allowance 53 500 B): no dependency was added
+// since 1.5.9; the growth is 064 (workspace assistant, credits), 063 (transcript
+// translation), 062, 058, 059 and the 024 inventory adoption.
+const RELEASE_162_SHARED_ALLOWANCE = 53_000;
 
 /**
  * How far the total may drift before this fails.
@@ -224,7 +238,10 @@ describeRequiring(
       expect(measured.lazyLaunch).toBe(sizeOf(launches.rootFile));
       expect(measured.lazyLaunch).toBeLessThanOrEqual(LAUNCH_ROOT_CEILING);
       expect(launchBytes).toBeLessThanOrEqual(
-        LAUNCH_EXCLUSIVE_CEILING + FEATURE_053_LAUNCH_ALLOWANCE + RELEASE_159_LAUNCH_ALLOWANCE
+        LAUNCH_EXCLUSIVE_CEILING +
+          FEATURE_053_LAUNCH_ALLOWANCE +
+          RELEASE_159_LAUNCH_ALLOWANCE +
+          RELEASE_162_LAUNCH_ALLOWANCE
       );
       const feature053 = JSON.parse(readFileSync(FEATURE_053_COMPARISON, 'utf8')) as {
         base_source: string;
@@ -241,10 +258,16 @@ describeRequiring(
       expect(feature053.baseline.lockfile_sha256).toBe(feature053.feature.lockfile_sha256);
       expect(
         Math.max(0, launchBytes - feature053.baseline.launch_exclusive_gzip)
-      ).toBeLessThanOrEqual(FEATURE_053_LAUNCH_INCREMENT_CEILING + RELEASE_159_LAUNCH_ALLOWANCE);
+      ).toBeLessThanOrEqual(
+        FEATURE_053_LAUNCH_INCREMENT_CEILING +
+          RELEASE_159_LAUNCH_ALLOWANCE +
+          RELEASE_162_LAUNCH_ALLOWANCE
+      );
       expect(
         Math.max(0, existingBytes - feature053.baseline.shared_existing_gzip)
-      ).toBeLessThanOrEqual(FEATURE_053_SHARED_ALLOWANCE + RELEASE_159_SHARED_ALLOWANCE);
+      ).toBeLessThanOrEqual(
+        FEATURE_053_SHARED_ALLOWANCE + RELEASE_159_SHARED_ALLOWANCE + RELEASE_162_SHARED_ALLOWANCE
+      );
       if (
         typeof manifest !== 'object' ||
         !manifest ||
@@ -268,7 +291,8 @@ describeRequiring(
       ).toBeLessThanOrEqual(
         RELEASE_130_SHARED_GROWTH_CEILING +
           FEATURE_053_SHARED_ALLOWANCE +
-          RELEASE_159_SHARED_ALLOWANCE
+          RELEASE_159_SHARED_ALLOWANCE +
+          RELEASE_162_SHARED_ALLOWANCE
       );
       expect(
         existingBytes,
@@ -278,13 +302,16 @@ describeRequiring(
           FEATURE_045_INCREMENTAL_ALLOWANCE +
           RELEASE_047_049_ALLOWANCE +
           FEATURE_053_SHARED_ALLOWANCE +
-          RELEASE_159_SHARED_ALLOWANCE
+          RELEASE_159_SHARED_ALLOWANCE +
+          RELEASE_162_SHARED_ALLOWANCE
       );
     });
 
     it('has not grown the entry chunk beyond tolerance', () => {
       const measured = measure();
-      const ceiling = Math.round(baseline.entry_gzip_bytes * (1 + TOLERANCE_PERCENT / 100));
+      const ceiling =
+        Math.round(baseline.entry_gzip_bytes * (1 + TOLERANCE_PERCENT / 100)) +
+        RELEASE_162_ENTRY_ALLOWANCE;
       // The entry is what runs before any lazy chunk can, so it is the number
       // that decides how long the first screen takes on a slow connection.
       expect(
