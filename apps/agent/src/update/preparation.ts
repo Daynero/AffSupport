@@ -2,7 +2,7 @@ import { createHash, createPublicKey, verify, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { open, mkdir, rename, unlink, lstat, statfs, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { syncDirectory } from '../platform/platform.js';
+import { ownerOnlyDirectory, syncDirectory } from '../platform/platform.js';
 import {
   NATIVE_UPDATE_LIMITS,
   isNativeUpdateDescriptor,
@@ -133,8 +133,7 @@ export async function prepareNativeArchive(
 ): Promise<string> {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const metadata = await lstat(directory);
-  if (!metadata.isDirectory() || metadata.isSymbolicLink() || (metadata.mode & 0o077) !== 0)
-    throw new AppUpdateError('APP_UPDATE_UNSAFE_INSTALLATION');
+  if (!ownerOnlyDirectory(metadata)) throw new AppUpdateError('APP_UPDATE_UNSAFE_INSTALLATION');
   const disk = await statfs(directory);
   if (
     disk.bavail * disk.bsize <

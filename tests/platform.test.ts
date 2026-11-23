@@ -30,6 +30,7 @@ import {
   pauseProcess,
   processPauseSupported,
   resumeProcess,
+  ownerOnlyDirectory,
   sanitizeFileName,
   syncDirectory,
   syncExistingFile
@@ -303,6 +304,28 @@ describe('sanitizeFileName', () => {
     expect(sanitizeFileName('')).toBe('');
     expect(sanitizeFileName(' ')).toBe('');
     expect(sanitizeFileName('...')).toBe('');
+  });
+});
+
+describe('ownerOnlyDirectory', () => {
+  const entry = (mode: number, { directory = true, link = false } = {}) => ({
+    mode,
+    isDirectory: () => directory,
+    isSymbolicLink: () => link
+  });
+  it('reads POSIX group and other bits, and ignores the synthesized Windows mode', () => {
+    setPlatform('darwin');
+    expect(ownerOnlyDirectory(entry(0o40700))).toBe(true);
+    expect(ownerOnlyDirectory(entry(0o40755))).toBe(false);
+    setPlatform('win32');
+    expect(ownerOnlyDirectory(entry(0o40666))).toBe(true);
+  });
+  it('refuses a link or a non-directory on every platform', () => {
+    for (const platform of ['darwin', 'win32'] as const) {
+      setPlatform(platform);
+      expect(ownerOnlyDirectory(entry(0o40700, { link: true }))).toBe(false);
+      expect(ownerOnlyDirectory(entry(0o100600, { directory: false }))).toBe(false);
+    }
   });
 });
 

@@ -1102,6 +1102,23 @@ export async function syncDirectory(directory: string): Promise<void> {
 }
 
 /**
+ * Whether a directory's own permission bits keep it to its owner.
+ *
+ * POSIX reads this from the mode: no group or other bits. Windows has no such
+ * bits — Node synthesizes 0o666/0o444 from the read-only attribute, so the
+ * check could never pass there — and privacy comes from the profile ACL the
+ * directory inherits, so only the directory-and-not-a-link part applies.
+ */
+export function ownerOnlyDirectory(metadata: {
+  isDirectory(): boolean;
+  isSymbolicLink(): boolean;
+  mode: number;
+}): boolean {
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) return false;
+  return process.platform === 'win32' || (metadata.mode & 0o077) === 0;
+}
+
+/**
  * Flush an existing file someone else wrote, without following a link.
  *
  * Windows flushes a file only through a handle that may write to it

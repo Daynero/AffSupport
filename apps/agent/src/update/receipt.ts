@@ -2,7 +2,7 @@ import { constants } from 'node:fs';
 import { open, mkdir, lstat, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { syncDirectory, syncExistingFile } from '../platform/platform.js';
+import { ownerOnlyDirectory, syncDirectory, syncExistingFile } from '../platform/platform.js';
 
 /** Flush the actual current queue files and parent entries after their writers settle. */
 export async function syncUpdateStateFiles(files: string[]): Promise<void> {
@@ -31,8 +31,7 @@ export async function writeUpdateReceipt(
 ): Promise<void> {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const stat = await lstat(directory);
-  if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) !== 0)
-    throw new Error('APP_UPDATE_UNSAFE_INSTALLATION');
+  if (!ownerOnlyDirectory(stat)) throw new Error('APP_UPDATE_UNSAFE_INSTALLATION');
   const temp = path.join(directory, `.${randomUUID()}.tmp`);
   try {
     const file = await open(
