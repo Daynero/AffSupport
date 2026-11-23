@@ -4203,7 +4203,7 @@ export const en = {
     'Folder selection needs a compatible desktop browser or a connected, up-to-date Soty agent. Connect or update the agent, then try again.',
   teamExplorerFolderReadFailed: 'Could not read that folder. Check access and try again.',
   teamExplorerUploadIncomplete: 'Some items could not be added. Check the result and retry.',
-  teamExplorerDropHint: 'Drop files here to upload them into this folder.',
+  teamExplorerDropInto: 'Drop to upload to “{name}”',
   teamExplorerUploadDone: 'Uploaded {count} file(s).',
   teamExplorerUploading: 'Uploading {name}…',
   teamUploadConflictTitle: '{name} is already here',

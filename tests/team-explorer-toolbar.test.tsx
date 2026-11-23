@@ -342,3 +342,34 @@ describe('the folder tree is a column with an edge, or a drawer (T017)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Folders' })).toBeNull());
   });
 });
+
+describe('files held over the folder (T018)', () => {
+  const held = () => ({ types: ['Files'], dropEffect: 'move', files: [], items: [] });
+
+  it('lays a message over the list that names the folder they will land in', async () => {
+    renderExplorer({ client: makeClient([fileRow(1)]) });
+    await screen.findByText('file-1.png');
+    const zone = document.querySelector<HTMLElement>('.team-explorer-dropzone')!;
+    const dataTransfer = held();
+    fireEvent.dragOver(zone, { dataTransfer });
+    const layer = await screen.findByText('Drop to upload to “All files”');
+    expect(layer.closest('.team-explorer-drop-layer')?.parentElement).toBe(zone);
+    expect(dataTransfer.dropEffect).toBe('copy');
+    // The old line under the list is gone.
+    expect(screen.queryByText(/Drop files here to upload/)).toBeNull();
+    fireEvent.dragLeave(zone, { relatedTarget: document.body });
+    await waitFor(() => expect(screen.queryByText(/Drop to upload/)).toBeNull());
+  });
+
+  it('shows nothing and refuses the drop for a reader who may not upload', async () => {
+    renderExplorer({ client: makeClient([fileRow(1)]), readOnly: true });
+    await screen.findByText('file-1.png');
+    const zone = document.querySelector<HTMLElement>('.team-explorer-dropzone')!;
+    const dataTransfer = held();
+    const over = fireEvent.dragOver(zone, { dataTransfer });
+    // Default prevented, so the browser does not open the file; the cursor says "no drop".
+    expect(over).toBe(false);
+    expect(dataTransfer.dropEffect).toBe('none');
+    expect(screen.queryByText(/Drop to upload/)).toBeNull();
+  });
+});

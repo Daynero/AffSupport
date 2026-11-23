@@ -655,6 +655,11 @@ function ExplorerBody({
         canUpload={Boolean(permissions?.upload)}
         onDropSources={workspaceOperations ? sources => void uploadDrop(sources) : undefined}
         onDropFiles={files => void upload(files)}
+        destinationName={
+          currentFolderId
+            ? (nodeOf(currentFolderId)?.name ?? t('teamExplorerRootLabel'))
+            : t('teamExplorerRootLabel')
+        }
       >
         {/* What is true about this folder right now, said as the inventory says it, over the
             list (070, FR-009): «Лише перегляд» was a paragraph in an empty header row, and the

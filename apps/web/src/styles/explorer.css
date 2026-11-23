@@ -180,6 +180,7 @@
   font-size: 0.85em;
 }
 .team-explorer-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -192,7 +193,9 @@
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
-  flex: 1 1 auto;
+  /* A basis of its own: the path measures itself (`container-type`), so it adds nothing to
+     the group's natural width, and with `auto` the search box took the row first. */
+  flex: 1 1 22rem;
 }
 .team-explorer-history {
   display: inline-flex;
@@ -216,9 +219,11 @@
 .team-explorer-breadcrumb li.team-explorer-breadcrumb-compact {
   display: none;
 }
-@container (max-width: 360px) {
+@container (max-width: 200px) {
   /* One name fits, and it has to be the folder you are standing in. Everything
-     above it — the root included — is in the menu beside it. */
+     above it — the root included — is in the menu beside it. At 360 px (before 070) a
+     one-row toolbar folded "Усі файли / Креативи" into "… / Креативи" with room to spare;
+     the names shrink with an ellipsis first now, and fold only when even that does not fit. */
   .team-explorer-breadcrumb li.team-explorer-breadcrumb-compact {
     display: flex;
   }
@@ -276,9 +281,21 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* An ancestor is the inventory's ghost button (070, T012); its label is what shrinks. */
+/* The trail is one line of one size, as Drive's is: the folder you are in reads as the place's
+   name, and the steps above it are the same words, quieter, each a ghost button of the
+   inventory (070, T012) whose label is what shrinks. */
+.team-explorer-breadcrumb {
+  font-size: var(--text-section);
+}
 .team-explorer-breadcrumb .team-explorer-crumb {
   max-width: 10rem;
+  padding: 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: inherit;
+  font-weight: var(--weight-label);
+}
+.team-explorer-breadcrumb .team-explorer-crumb:hover {
+  color: var(--color-text);
 }
 .team-explorer-breadcrumb .team-explorer-crumb .ui-button-label {
   min-width: 0;
@@ -574,11 +591,12 @@
   gap: var(--space-2);
   margin-left: auto;
 }
-/* The search box, between where you are and what you do. It gives way before the path does
-   not: a box narrower than its placeholder is a box nobody reads. */
+/* The search box, between where you are and what you do. When the row is short it gives way
+   before the path does — the folder you are in is the thing a person reads — but not below
+   its placeholder: a box narrower than its own words is a box nobody reads. */
 .team-explorer-search {
-  flex: 0 1 18rem;
-  min-width: 12rem;
+  flex: 0 4 18rem;
+  min-width: 11rem;
 }
 /* The box is the row's height, like every control beside it — its input is 38 px and its
    frame added two more, so the row stood a pixel taller around it. */
@@ -1244,10 +1262,45 @@
   border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
   background: color-mix(in srgb, var(--color-error) 12%, transparent);
 }
-.team-explorer-dropzone.is-over {
-  /* Keep the entire frame inside the scroll viewport instead of clipping its top edge. */
-  outline: 2px dashed var(--color-accent);
-  outline-offset: calc(-1 * var(--space-1));
+/* Files held over the folder (070, FR-008): a layer over the list that names where they will
+   land. It takes no pointer events, so moving across the rows under it does not flicker it, and
+   its message keeps to the middle of the window on a folder longer than the window. */
+.team-explorer-drop-layer {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--layer-header) + 1);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  border: 2px dashed var(--color-secondary-solid);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  pointer-events: none;
+}
+.team-explorer-drop-message {
+  position: sticky;
+  top: 40vh;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: min(32rem, calc(100% - 2 * var(--space-4)));
+  margin: var(--space-6) 0;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--color-secondary-solid);
+  color: var(--color-secondary-on-solid);
+  font-weight: var(--weight-label);
+  box-shadow: var(--shadow-lg);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .team-explorer-drop-layer {
+    animation: team-drop-layer-in var(--motion-fast) var(--ease-out-curve);
+  }
+}
+@keyframes team-drop-layer-in {
+  from {
+    opacity: 0;
+  }
 }
 
 /* Still going up: the same border the drop showed, held while the transfer

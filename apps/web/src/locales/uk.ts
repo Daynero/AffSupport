@@ -4180,7 +4180,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Для вибору папки потрібен сумісний настільний браузер або підключений оновлений агент Soty. Підключіть чи оновіть агент і спробуйте знову.',
   teamExplorerFolderReadFailed: 'Не вдалося прочитати папку. Перевірте доступ і спробуйте знову.',
   teamExplorerUploadIncomplete: 'Не всі елементи додано. Перевірте результат і повторіть спробу.',
-  teamExplorerDropHint: 'Перетягніть файли сюди, щоб завантажити їх у цю папку.',
+  teamExplorerDropInto: 'Відпустіть, щоб завантажити в «{name}»',
   teamExplorerUploadDone: 'Завантажено файлів: {count}.',
   teamExplorerUploading: 'Завантажую {name}…',
   teamUploadConflictTitle: '{name} тут уже є',

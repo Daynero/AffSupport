@@ -1,4 +1,6 @@
 import { useState, type ReactNode, type Ref } from 'react';
+import { Upload } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import type { LocalDropEntry, LocalManifestSource } from './localManifest';
 
@@ -11,6 +13,12 @@ export type UploadFile = { file: File; relativePath: string };
  * A drop from the desktop becomes the space's upload group when there is a space to run it
  * (`onDropSources`, folders included), and a plain list of files otherwise (`onDropFiles`).
  * The zone stays lit while anything it took is still going up.
+ *
+ * While files are held over it, a layer over the list names where they will land (070,
+ * FR-008) — «Відпустіть, щоб завантажити в „Креативи"». It used to be a line under the list,
+ * which on any folder longer than the window was below the window. A reader who may not upload
+ * gets no layer and the browser's "no drop" cursor, and a drop does nothing — before, the
+ * browser took the file and navigated away to show it.
  */
 export function ExplorerDropZone({
   zoneRef,
@@ -18,6 +26,7 @@ export function ExplorerDropZone({
   canUpload,
   onDropSources,
   onDropFiles,
+  destinationName,
   children
 }: {
   zoneRef: Ref<HTMLDivElement>;
@@ -26,6 +35,8 @@ export function ExplorerDropZone({
   canUpload: boolean;
   onDropSources?: (sources: LocalManifestSource[]) => void;
   onDropFiles: (files: UploadFile[]) => void;
+  /** The folder a drop lands in, by the name the reader sees in the path. */
+  destinationName: string;
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -38,8 +49,13 @@ export function ExplorerDropZone({
       }`}
       aria-busy={uploading > 0 || undefined}
       onDragOver={event => {
-        if (!canUpload || !event.dataTransfer.types.includes('Files')) return;
+        if (!event.dataTransfer.types.includes('Files')) return;
         event.preventDefault();
+        if (!canUpload) {
+          event.dataTransfer.dropEffect = 'none';
+          return;
+        }
+        event.dataTransfer.dropEffect = 'copy';
         setDropping(true);
       }}
       /* Only when the pointer actually leaves the zone: moving over a tile inside it fired
@@ -52,12 +68,20 @@ export function ExplorerDropZone({
         if (!event.dataTransfer.types.includes('Files')) return;
         event.preventDefault();
         setDropping(false);
+        if (!canUpload) return;
         if (onDropSources) onDropSources(sourcesFromDrop(event.dataTransfer));
         else void filesFromDrop(event.dataTransfer).then(onDropFiles);
       }}
     >
       {children}
-      {dropping && <p className="team-explorer-muted">{t('teamExplorerDropHint')}</p>}
+      {dropping && (
+        <div className="team-explorer-drop-layer" role="status">
+          <p className="team-explorer-drop-message">
+            <Upload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t('teamExplorerDropInto', { name: destinationName })}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
