@@ -3505,3 +3505,9 @@ Restores nothing destructive: it rewrites one expression of
 `public.service_prepare_catalog_publication_cells`. To undo, re-run the definition from
 20261221116000's era (the expression `context->'sources'->((product.ordinality-1)::integer)`), which
 brings back the SOURCE_CHANGED of multi-video catalogs without re-stitching.
+
+## 20261223340000 — creative links confirmed while their job is verified
+
+Rewrites one condition of `public.service_confirm_catalog_creative_links`: a dispatched job may be
+confirmed before it is marked verified. To undo, drop `and j.dispatched_at is null` from that
+condition — which brings back the 'unknown' loop of every second publication of a creatives target.
