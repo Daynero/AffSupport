@@ -44,28 +44,28 @@ it('keeps the line’s room while it is read, and shows what was read last at on
   expect(pending.getAttribute('aria-busy')).toBe('true');
   await waitFor(() => expect(read).toHaveBeenCalledOnce());
   await act(async () => answer({ ...snapshot, writerMode: 'video_columns' }));
-  expect(screen.getByText(/Video-link publication is scheduled for/)).toBeTruthy();
+  expect(screen.getByText(/Creative-link publication is scheduled for/)).toBeTruthy();
   first.unmount();
 
   // Opened again: the line is there in the first frame, and the read still runs under it.
   const again = vi.fn().mockImplementation(() => new Promise(() => {}));
   render(<CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={again} />);
-  expect(screen.getByText(/Video-link publication is scheduled for/)).toBeTruthy();
+  expect(screen.getByText(/Creative-link publication is scheduled for/)).toBeTruthy();
   await waitFor(() => expect(again).toHaveBeenCalledOnce());
 });
 it('shows source-only scheduled publication separately from the created table', async () => {
   const read = vi.fn().mockResolvedValue(snapshot);
   render(<CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={read} />);
-  expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
+  expect(await screen.findByText(/Creative-link publication is scheduled for/)).toBeTruthy();
   expect(screen.getByText(/cannot safely update catalog cells/)).toBeTruthy();
-  expect(screen.queryByText('The last video-link publication was verified.')).toBeNull();
+  expect(screen.queryByText('The last creative-link publication was verified.')).toBeNull();
 });
 it('shows the planned time without an obsolete unsupported warning when the narrow writer is enabled', async () => {
   const read = vi.fn().mockResolvedValue({ ...snapshot, writerMode: 'video_columns' });
   render(<CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={read} />);
-  expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
+  expect(await screen.findByText(/Creative-link publication is scheduled for/)).toBeTruthy();
   expect(screen.queryByText(/cannot safely update catalog cells/)).toBeNull();
-  expect(screen.queryByText('The last video-link publication was verified.')).toBeNull();
+  expect(screen.queryByText('The last creative-link publication was verified.')).toBeNull();
 });
 it('suppresses a previous actor publication read after scope changes', async () => {
   let resolve!: (value: CatalogPublicationSnapshot) => void;
@@ -82,7 +82,7 @@ it('suppresses a previous actor publication read after scope changes', async () 
     setPrivateCacheScope(catalog, 'viewer');
     original(snapshot);
   });
-  expect(screen.queryByText(/Video-link publication is scheduled for/)).toBeNull();
+  expect(screen.queryByText(/Creative-link publication is scheduled for/)).toBeNull();
 });
 it('does not call a past, unverified due time "scheduled"', async () => {
   // Beta 2026-11-09: the result card said "scheduled for 8 Nov 23:18" an hour after that time.
@@ -97,7 +97,7 @@ it('does not call a past, unverified due time "scheduled"', async () => {
   expect(
     await screen.findByText(/has passed, but the write to the table is not confirmed/)
   ).toBeTruthy();
-  expect(screen.queryByText(/Video-link publication is scheduled for/)).toBeNull();
+  expect(screen.queryByText(/Creative-link publication is scheduled for/)).toBeNull();
 });
 it('says it waits for the videos when the time has come but the set is still being made', async () => {
   const read = vi.fn().mockResolvedValue({
@@ -115,7 +115,7 @@ it('says it waits for the videos when the time has come but the set is still bei
 it('names the scheduled time in the app language, 24-hour, with a city instead of a zone id', async () => {
   const read = vi.fn().mockResolvedValue({ ...snapshot, timeZone: 'Europe/Kiev' });
   render(<CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={read} />);
-  const status = await screen.findByText(/Video-link publication is scheduled for/);
+  const status = await screen.findByText(/Creative-link publication is scheduled for/);
   expect(status.textContent).toMatch(/14:00/);
   expect(status.textContent).toMatch(/\(Kyiv\)/);
   expect(status.textContent).not.toMatch(/Europe\/Kiev|AM|PM/);
@@ -132,7 +132,7 @@ it('stops promising the time once the canceled creation held the publication', a
       refresh="preparing:0"
     />
   );
-  expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
+  expect(await screen.findByText(/Creative-link publication is scheduled for/)).toBeTruthy();
   read.mockResolvedValue({
     ...snapshot,
     writerMode: 'video_columns',
@@ -153,7 +153,7 @@ it('stops promising the time once the canceled creation held the publication', a
   expect(
     await screen.findByText(/will not be published: video generation was canceled/)
   ).toBeTruthy();
-  expect(screen.queryByText(/Video-link publication is scheduled for/)).toBeNull();
+  expect(screen.queryByText(/Creative-link publication is scheduled for/)).toBeNull();
 });
 it('turns a scheduled line into waiting for videos when the time passes on screen', async () => {
   // 1.4.3 QA S2: 19:42 passed with the dialog open and it still said «заплановано на 19:42».
@@ -169,7 +169,7 @@ it('turns a scheduled line into waiting for videos when the time passes on scree
     };
     const read = vi.fn().mockResolvedValue(pending);
     render(<CatalogCreatedPublicationStatus teamId={actor} catalogId={catalog} read={read} />);
-    expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
+    expect(await screen.findByText(/Creative-link publication is scheduled for/)).toBeTruthy();
     read.mockResolvedValue({ ...pending, serverNow: now + 16_000 });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(16_000);

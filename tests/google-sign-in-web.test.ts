@@ -71,16 +71,42 @@ describe('the browser half of the site-returning Google sign-in', () => {
     expect(isDirectGoogleCallback(new URLSearchParams({ state: start.state! }))).toBe(false);
   });
 
-  it('falls back to the provider redirect when the function says legacy or cannot be reached', async () => {
+  it('uses the provider redirect only where the direct path does not exist', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(answer({ mode: 'legacy', reason: 'client_mismatch' }))
     );
     await expect(beginGoogleSignIn(endpoint)).resolves.toBeNull();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(answer({ mode: 'legacy', reason: 'not_configured' }))
+    );
+    await expect(beginGoogleSignIn(endpoint)).resolves.toBeNull();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('not found', { status: 404 })));
     await expect(beginGoogleSignIn(endpoint)).resolves.toBeNull();
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
-    await expect(beginGoogleSignIn(endpoint)).resolves.toBeNull();
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it('tries a passing failure again instead of taking a redirect Google refuses (2026-11-23)', async () => {
+    const wait = vi.fn(async () => undefined);
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('offline'))
+      .mockResolvedValueOnce(answer({ mode: 'legacy', reason: 'provider_unreachable' }))
+      .mockResolvedValueOnce(
+        answer({
+          mode: 'direct',
+          authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?x=1'
+        })
+      );
+    vi.stubGlobal('fetch', fetcher);
+    await expect(beginGoogleSignIn(endpoint, wait)).resolves.toBe(
+      'https://accounts.google.com/o/oauth2/v2/auth?x=1'
+    );
+    expect(wait).toHaveBeenCalledTimes(2);
+    sessionStorage.clear();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 503 })));
+    await expect(beginGoogleSignIn(endpoint, wait)).rejects.toThrow('SIGN_IN_UNAVAILABLE');
     expect(sessionStorage.length).toBe(0);
   });
 });

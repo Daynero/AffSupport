@@ -3418,3 +3418,117 @@ back 20 MB and a second index write per journal record.
   column and two pure functions. Re-creating the view from `20261208121000` drops
   `creative_diagnostics` (the analytics CLI then reports no creative evidence) and the
   nine 062 safe error codes (they read as `UNKNOWN` again); the functions can stay.
+
+## 20261222100000 — a repeated update error closes the attempt
+
+`private.track_catalog_update_result()` gained one branch: the same error recorded again
+(a new `last_update_error_at`, the code unchanged) fails the running attempt of the catalog's
+current round. Rolling back is re-applying the body from `20261207177000` — then an update
+that fails the way the previous one did stays «в роботі» again until someone cancels it, as
+TR 84_v1 did on 2026-11-20. Attempts this branch closed stay closed; nothing to restore.
+
+## 20261222110000–20261222113000 — transcript translation through Claude (063)
+
+- `20261222110000_ai_allowance_and_usage` — additive: allowance, reservations and the model-call
+  ledger. Dropping `private.ai_allowance_reservations` loses who spent what today (every
+  allowance is full again until midnight); dropping `private.ai_usage_events` loses the cost
+  history the `ai-usage` CLI reports. The compatible rollback is a function release that stops
+  calling the model; the tables can stay. Changing the limit is an `update` of
+  `private.ai_feature_allowances`, never a migration rollback.
+- `20261222111000_transcript_translations` — additive. Dropping the table deletes every saved
+  translation (people pay again to get them back). Do not drop the `task_cleanup_reference_fence`
+  trigger while the table exists: `task_cleanup_coverage_verified` then answers false for the
+  whole database and attachment cleanup stops. Rolling back the web without the function leaves
+  the rows unread and harmless.
+- `20261222112000_translation_error_codes` — additive seed; codes stay (rows reference them).
+- `20261222113000_ai_usage_analytics` — views only; dropping them makes `ai-usage` report the
+  feature as unsupported, nothing else.
+
+## 20261222114000 — delete a translation (063)
+
+Additive: one RPC. Dropping it removes the "Delete translation" action (the web then answers
+the delete with an error toast); rows already deleted stay deleted — there is nothing to restore.
+
+## 20261223250000 — the assistant's space tools (064)
+
+Widens the card kind check with `table` and lets a `purpose: 'tool'` review card be remembered as
+done. Rolling back: put the old check back only after deleting `table` cards (they are answers,
+nothing depends on them); the old `assistant_card_confirmed` refuses tool cards, which then stay
+open in the window — every action they performed is already done.
+
+## 20261223260000 — the minute R2 sweep is no longer starved by trashed catalogs
+
+Patches `public.service_catalog_video_r2_reconcile_pending` (through `pg_get_functiondef`, failing
+if the text it replaces is missing): candidates are only active catalogs whose policy is neither
+held nor awaiting legacy verification, visited in random order instead of oldest first. Production
+2026-11-22: 55 of 66 candidates were trashed or missing, filled all 50 slots every minute, and no
+catalog made after 2026-11-19 got its missed copies planned. Rolling back means restoring the body
+left by 20261207399998 through a reviewed forward migration; nothing else changes state.
+
+## 20261223270000 — a lost rotation reply no longer revokes background work
+
+Patches `private.service_team_recovery_core` (through `pg_get_functiondef`, failing if the text it
+replaces is missing): a `rotate` that presents the previous handle under the same rotation ID,
+within 30 minutes, while the credentials of that rotation were never used (no claim, no probe
+since), rotates again from the held handle and drops the lost claim instead of revoking the
+family. Production 2026-11-20/21: a reply lost while the database was slow left two spaces with
+«Фонова робота очікує. У вас немає дозволу на цю дію.» for good. Rolling back means restoring the
+body left by 20261220100000 through a reviewed forward migration.
+
+## 20261223270100 — one-time repair of the two delegations revoked that way
+
+Data only: delegations `3df94e9b…` and `b612180e…` get their previous handle back as current and
+are live again, only if every guard above still holds and nothing newer exists for the same
+person, space and computer. Rolling back means revoking them again
+(`update private.team_recovery_delegations set revoked_at=clock_timestamp(),version=version+1`
+for those two ids); their desktops then show the same notice as before.
+
+## 20261223280000 — «Не треба» on an assistant card (064)
+
+Additive: one RPC. Dropping it removes the «Не треба» button's effect (the web shows the card
+cancelled until a reload, then open again); cards already cancelled stay cancelled.
+
+## 20261223290000 — removal by day sees launched launches (064)
+
+Additive: `service_assistant_rows_v2` beside the unchanged `service_assistant_rows`. Dropping it
+makes the assistant's removal cards fail with an error until the function release is rolled back
+too; nothing is stored by it.
+
+## 20261223300000 — claimed action cards, launch retry, command sweep (064)
+
+Additive: `assistant_card_claim`, `assistant_card_finish`, `service_assistant_sweep_stuck` and two
+indexes. Dropping the claim and finish functions makes the assistant's action buttons refuse with
+an error until the web is rolled back too; nothing is lost. Dropping the sweep leaves a command
+that died after its debit unrefunded, as before.
+
+## 20261223310000 — assistant dialogs deleted after seven idle days (064)
+
+Additive: `private.prune_idle_assistant_dialogs`, an index on `assistant_conversations(last_active_at)`
+and the hourly cron job `soty-assistant-dialog-retention`. To stop deleting:
+`select cron.unschedule('soty-assistant-dialog-retention')`. Dialogs already deleted are not
+recoverable — they were past the seven days the window promises. Money records are untouched.
+
+## 20261223320000 — new spaces join the picture pool
+
+Drop the trigger `teams_join_catalog_global_pilot` on `public.teams` and the function
+`private.join_catalog_global_pilot()`; rows it added to `private.catalog_global_pilot_teams` can stay
+(the owner's rule is «пілот для всіх») or be deleted by `note`.
+
+## 20261223330000 — catalog cells read creative blocks by their rows
+
+Restores nothing destructive: it rewrites one expression of
+`public.service_prepare_catalog_publication_cells`. To undo, re-run the definition from
+20261221116000's era (the expression `context->'sources'->((product.ordinality-1)::integer)`), which
+brings back the SOURCE_CHANGED of multi-video catalogs without re-stitching.
+
+## 20261223340000 — creative links confirmed while their job is verified
+
+Rewrites one condition of `public.service_confirm_catalog_creative_links`: a dispatched job may be
+confirmed before it is marked verified. To undo, drop `and j.dispatched_at is null` from that
+condition — which brings back the 'unknown' loop of every second publication of a creatives target.
+
+## 20261223350000 — launch attach counts variations per creative
+
+Rewrites one condition of `public.service_attach_launch_catalog_before_catalog_sub` so a set matches
+its own segment's `variantCount`. Undo by restoring the bare
+`s.requested_count=(x.initial_video_plan#>>'{preferences,videoVariationCount}')::integer`.

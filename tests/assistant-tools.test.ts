@@ -1,0 +1,943 @@
+import { describe, expect, it } from 'vitest';
+import { parseAssistantPlan } from '@video-compressor/shared';
+import {
+  pickAdAccounts,
+  rememberRenames,
+  runTool,
+  type ToolDeps
+} from '../supabase/functions/assistant/tools';
+
+/**
+ * 064: the assistant's space tools. Reads answer with numbers Soty computed the way the Accounts
+ * tab does; writes only prepare a card with what will change and the versions they saw.
+ */
+const TEAM = '00000000-0000-4000-8000-000000000001';
+const A1 = '00000000-0000-4000-8000-0000000000a1';
+const A2 = '00000000-0000-4000-8000-0000000000a2';
+const A3 = '00000000-0000-4000-8000-0000000000a3';
+const G18 = '00000000-0000-4000-8000-0000000000b1';
+const G4 = '00000000-0000-4000-8000-0000000000b2';
+/** An archived ad account with money on 2026-11-19 and the tag #2. */
+const A4 = '00000000-0000-4000-8000-0000000000a4';
+const G9 = '00000000-0000-4000-8000-0000000000b9';
+
+const accounts = [
+  {
+    id: G18,
+    name: 'g18',
+    agents: [
+      {
+        id: A1,
+        agent_id: '1111111244',
+        labels: [{ id: 'l2', name: '#2' }],
+        availability: { status: 'busy', assignmentCount: 3 }
+      },
+      {
+        id: A2,
+        agent_id: '2222222257',
+        labels: [
+          { id: 'l2', name: '#2' },
+          { id: 'l1', name: '#1' }
+        ]
+      }
+    ]
+  },
+  { id: G4, name: 'g4', agents: [{ id: A3, agent_id: '3333333999', labels: [] }] }
+];
+
+const field = (
+  agent: string,
+  date: string,
+  metric: string,
+  value: string | null,
+  version = '3'
+) => ({
+  agentRowId: agent,
+  date,
+  metric,
+  value,
+  currency: 'USD',
+  version,
+  placementId: `p-${agent}`,
+  updatedAt: '2026-11-21T10:00:00Z',
+  updatedBy: null
+});
+
+function snapshot(from: string, to: string) {
+  return {
+    schemaVersion: 1,
+    teamId: TEAM,
+    teamName: 'Goor',
+    from,
+    to,
+    currency: 'USD',
+    generatedAt: '2026-11-22T10:00:00Z',
+    accounts: [
+      { id: G18, name: 'g18' },
+      { id: G4, name: 'g4' },
+      { id: G9, name: 'g9' }
+    ],
+    agents: [
+      { id: A1, agentId: '1111111244' },
+      { id: A2, agentId: '2222222257' },
+      { id: A3, agentId: '3333333999' },
+      { id: A4, agentId: '4444444111' }
+    ],
+    placements: [A1, A2, A3, A4].map(agent => ({
+      id: `p-${agent}`,
+      agentRowId: agent,
+      accountId: agent === A3 ? G4 : agent === A4 ? G9 : G18,
+      startsOn: '2026-11-01',
+      endsOn: null,
+      version: '1'
+    })),
+    fields: [
+      field(A1, '2026-11-21', 'spend', '10.00'),
+      field(A1, '2026-11-21', 'topup', '100.00'),
+      field(A2, '2026-11-21', 'spend', '5.50'),
+      field(A2, '2026-11-21', 'topup', '50.00'),
+      field(A3, '2026-11-21', 'topup', '0.00'),
+      field(A3, '2026-11-20', 'spend', '7.00'),
+      field(A4, '2026-11-19', 'spend', '1000.00')
+    ].filter(f => f.date >= from && f.date <= to)
+  };
+}
+
+const files = [
+  {
+    id: 'm16',
+    name: 'TR_16.mp4',
+    kind: 'video',
+    category: 'video',
+    parentFolderId: 'drive-root',
+    tags: ['test'],
+    offer: 'ProCaps TR',
+    geo: 'TR'
+  },
+  {
+    id: 'm23',
+    name: 'TR_23.mp4',
+    kind: 'video',
+    category: 'video',
+    parentFolderId: 'drive-tr',
+    tags: [],
+    offer: 'ProCaps TR',
+    geo: 'TR'
+  },
+  {
+    id: 'm25a',
+    name: 'TR_25.mp4',
+    kind: 'video',
+    category: 'video',
+    parentFolderId: 'drive-root',
+    tags: [],
+    offer: null,
+    geo: null
+  },
+  {
+    id: 'm25b',
+    name: 'TR 25.mp4',
+    kind: 'video',
+    category: 'video',
+    parentFolderId: 'drive-old',
+    tags: [],
+    offer: null,
+    geo: null
+  }
+];
+
+const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+
+function deps(extra: Record<string, (args: Record<string, unknown>) => unknown> = {}): ToolDeps {
+  calls.length = 0;
+  const table: Record<string, (args: Record<string, unknown>) => unknown> = {
+    list_team_accounts: () => accounts,
+    // The overview of a period lists archived accounts and ad accounts too.
+    get_team_accounts_overview: () => ({
+      accounts: [
+        ...accounts,
+        {
+          id: G9,
+          name: 'g9',
+          archived_at: '2026-11-20T00:00:00Z',
+          agents: [
+            {
+              id: A4,
+              agent_id: '4444444111',
+              archived_at: '2026-11-20T00:00:00Z',
+              labels: [{ id: 'l2', name: '#2' }]
+            }
+          ]
+        }
+      ]
+    }),
+    get_team_agent_finance_v2: args => snapshot(String(args.p_from), String(args.p_to)),
+    search_materials: args => {
+      const query = String(args.p_query ?? '')
+        .toLowerCase()
+        .replace(/[\s_]/gu, '');
+      const items = files.filter(
+        f => !query || f.name.toLowerCase().replace(/[\s_]/gu, '').includes(query)
+      );
+      return { items, total: items.length };
+    },
+    list_team_folder_tree: () => [
+      { id: 'f-tr', drive_file_id: 'drive-tr', parent_folder_id: 'drive-root', name: 'TR' },
+      { id: 'f-old', drive_file_id: 'drive-old', parent_folder_id: 'drive-root', name: 'old' }
+    ],
+    list_team_product_catalogs: () => [
+      {
+        catalog_id: 'c1',
+        name: 'TR_16_catalog',
+        video_name: 'TR_16.mp4',
+        folder_name: 'TR',
+        product_count: 50,
+        last_update_error: null
+      },
+      {
+        catalog_id: 'c2',
+        name: 'TR_23_catalog',
+        video_name: 'TR_23.mp4',
+        folder_name: 'TR',
+        product_count: 50,
+        last_update_error: 'SHEET_GONE'
+      }
+    ],
+    list_team_members: () => [
+      { user_id: 'u-owner', display_name: 'Roman', email: 'owner@example.com', role: 'owner' },
+      {
+        user_id: 'u-andrii',
+        display_name: 'Андрій Кулік',
+        email: 'andrii@example.com',
+        role: 'editor'
+      }
+    ],
+    list_team_labels: () => [{ id: 'tl-urgent', name: 'терміново' }],
+    ...extra
+  };
+  return {
+    teamId: TEAM,
+    userId: 'u-owner',
+    timezone: 'Europe/Kyiv',
+    now: new Date('2026-11-22T10:00:00Z'),
+    callerRpc: async (name, args) => {
+      calls.push({ name, args });
+      const handler = table[name];
+      return handler
+        ? { data: handler(args), error: null }
+        : { data: null, error: { message: 'NOT_FOUND' } };
+    }
+  };
+}
+
+const arg = (name: string, value: unknown) => ({ name, value }) as never;
+
+describe('reading money', () => {
+  it('answers «скільки витрат за вчора» with the Accounts totals', async () => {
+    const card = await runTool('finance_report', [arg('date', 'yesterday')], deps());
+    expect(card.kind).toBe('table');
+    expect(card.payload).toMatchObject({
+      from: '2026-11-21',
+      to: '2026-11-21',
+      total: ['15.50', '150.00']
+    });
+  });
+
+  it('groups by tags without counting an ad account twice', async () => {
+    const card = await runTool(
+      'finance_report',
+      [arg('from', '2026-11-20'), arg('to', '2026-11-21'), arg('by', 'tag')],
+      deps()
+    );
+    expect(card.payload.rows).toEqual([
+      ['#1 + #2', '5.50', '50.00'],
+      ['#2', '10.00', '100.00'],
+      ['{untagged}', '7.00', '0.00']
+    ]);
+    expect(card.payload.total).toEqual(['22.50', '150.00']);
+  });
+
+  it('narrows to an account and refuses a future day or a too long period', async () => {
+    const card = await runTool(
+      'finance_report',
+      [arg('date', '2026-11-21'), arg('scope', ['g4'])],
+      deps()
+    );
+    expect(card.payload.total).toEqual([null, '0.00']);
+    const future = await runTool('finance_report', [arg('date', '2026-11-23')], deps());
+    expect(future.payload.unresolved).toEqual([
+      { field: 'finance_report', written: '2026-11-23', code: 'FUTURE_FINANCE_DATE' }
+    ]);
+    const long = await runTool(
+      'finance_report',
+      [arg('from', '2025-01-01'), arg('to', '2026-11-21')],
+      deps()
+    );
+    expect((long.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('PERIOD_TOO_LONG');
+  });
+
+  it('counts an archived ad account in a money report, as «Деталі періоду» does', async () => {
+    const card = await runTool(
+      'finance_report',
+      [arg('from', '2026-11-19'), arg('to', '2026-11-21'), arg('scope', ['#2'])],
+      deps()
+    );
+    expect(card.payload).toMatchObject({ total: ['1015.50', '150.00'], scope: ['#2'] });
+  });
+
+  it('never writes money to an archived ad account', async () => {
+    const card = await runTool(
+      'set_finance',
+      [arg('date', '2026-11-19'), arg('entries', ['g9-111=5'])],
+      deps()
+    );
+    expect((card.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('NOT_FOUND');
+  });
+
+  it('gives a statement of top-ups by tags with a text to copy, zeros left out', async () => {
+    const card = await runTool(
+      'topup_statement',
+      [arg('date', 'yesterday'), arg('by', 'tag')],
+      deps()
+    );
+    expect(card.payload.rows).toEqual([
+      ['#1 + #2', '1', '50.00'],
+      ['#2', '1', '100.00']
+    ]);
+    expect(card.payload.copyText).toBe(
+      '2026-11-21 · USD\n\n#1 + #2 — $50\n2222222257 - $50\n\n#2 — $100\n1111111244 - $100\n\nΣ $150'
+    );
+  });
+});
+
+describe('recording money', () => {
+  it('prepares each cell with the value it holds and its version', async () => {
+    const card = await runTool(
+      'set_finance',
+      [
+        arg('metric', 'topup'),
+        arg('date', 'yesterday'),
+        arg('entries', ['g18-244=120', 'g4 = 30,5'])
+      ],
+      deps()
+    );
+    expect(card.kind).toBe('review');
+    expect(card.payload).toMatchObject({
+      purpose: 'tool',
+      tool: 'set_finance',
+      date: '2026-11-21',
+      total: '150.50',
+      overwrites: 2
+    });
+    expect(card.payload.items).toEqual([
+      expect.objectContaining({
+        agentRowId: A1,
+        from: '100.00',
+        to: '120.00',
+        version: '3',
+        placementId: `p-${A1}`
+      }),
+      expect.objectContaining({ agentRowId: A3, from: '0.00', to: '30.50', version: '3' })
+    ]);
+  });
+
+  it('marks an equal value as unchanged and refuses one ad account named twice', async () => {
+    const same = await runTool(
+      'set_finance',
+      [arg('date', '2026-11-21'), arg('amount', '100'), arg('scope', ['g18-244'])],
+      deps()
+    );
+    expect((same.payload.items as Array<{ unchanged: boolean }>)[0]!.unchanged).toBe(true);
+    const twice = await runTool(
+      'set_finance',
+      [arg('entries', ['g18-244=1', '1111111244=2'])],
+      deps()
+    );
+    expect((twice.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('DUPLICATE_TARGET');
+  });
+
+  it('reads ad accounts by all, account, label, full id, digits and tag', () => {
+    const all = [
+      {
+        id: A1,
+        agentId: '1111111244',
+        account: 'g18',
+        accountId: G18,
+        label: 'g18-244',
+        tags: ['#2']
+      },
+      {
+        id: A2,
+        agentId: '2222222257',
+        account: 'g18',
+        accountId: G18,
+        label: 'g18-257',
+        tags: ['#2', '#1']
+      },
+      { id: A3, agentId: '3333333999', account: 'g4', accountId: G4, label: 'g4-999', tags: [] }
+    ];
+    expect(pickAdAccounts(all, ['всі']).picked).toHaveLength(3);
+    expect(pickAdAccounts(all, ['G18']).picked.map(a => a.id)).toEqual([A1, A2]);
+    expect(pickAdAccounts(all, ['g18-257', '3333333999']).picked.map(a => a.id)).toEqual([A2, A3]);
+    expect(pickAdAccounts(all, ['tag:#1']).picked.map(a => a.id)).toEqual([A2]);
+    expect(pickAdAccounts(all, ['#2']).picked.map(a => a.id)).toEqual([A1, A2]);
+    expect(pickAdAccounts(all, ['999']).picked.map(a => a.id)).toEqual([A3]);
+    expect(pickAdAccounts(all, ['g99']).missing).toEqual(['g99']);
+    expect(pickAdAccounts(all, ['g18*all']).picked.map(a => a.id)).toEqual([A1, A2]);
+    expect(pickAdAccounts(all, ['*free']).picked).toHaveLength(3);
+  });
+});
+
+describe('files and folders', () => {
+  it('moves into a folder that does not exist yet, and reports a name that fits two files', async () => {
+    const card = await runTool(
+      'move_materials',
+      [arg('items', ['тр16', 'TR_16', 'TR_25']), arg('destination', 'Нові')],
+      deps()
+    );
+    // «тр16» is not a file name; the model writes it as TR_16 (the prompt rule), Soty matches loosely.
+    expect(card.payload).toMatchObject({ destination: { create: 'Нові', parentId: null } });
+    expect((card.payload.items as Array<{ id: string }>).map(i => i.id)).toEqual(['m16']);
+    expect(card.payload.missing).toEqual(['тр16', 'TR_25 (2)']);
+  });
+
+  it('does not offer to move a folder — Soty moves files only, as the explorer does', async () => {
+    const only = await runTool(
+      'move_materials',
+      [arg('items', ['old']), arg('destination', 'TR')],
+      deps({
+        search_materials: () => ({
+          items: [
+            {
+              id: 'f-old',
+              name: 'old',
+              kind: 'folder',
+              category: null,
+              parentFolderId: 'drive-root',
+              tags: []
+            }
+          ],
+          total: 1
+        })
+      })
+    );
+    expect(only.payload.unresolved).toEqual([
+      { field: 'move_materials', written: 'old', code: 'FOLDER_MOVE_UNSUPPORTED' }
+    ]);
+  });
+
+  it('finds a file by the name an earlier step of the same message gives it', async () => {
+    const renamed = new Map<string, string>();
+    const rename = await runTool(
+      'rename_materials',
+      [arg('pairs', ['TR_16 = TR_16_final'])],
+      deps()
+    );
+    rememberRenames(rename, renamed);
+    const move = await runTool(
+      'move_materials',
+      [arg('items', ['TR_16_final.mp4']), arg('destination', 'old')],
+      { ...deps(), renamed }
+    );
+    expect((move.payload.items as Array<{ id: string }>).map(i => i.id)).toEqual(['m16']);
+  });
+
+  it('makes a missing parent first, and knows what is already at the root', async () => {
+    const nested = await runTool(
+      'create_folders',
+      [arg('names', ['a', 'b']), arg('parent', 'TR / Нові')],
+      deps()
+    );
+    expect(nested.payload.parent).toEqual({ create: 'Нові', parentId: 'f-tr', label: 'TR / Нові' });
+    const root = await runTool('create_folders', [arg('names', ['TR', 'Fresh'])], deps());
+    expect(
+      (root.payload.items as Array<{ name: string; exists: boolean }>).map(i => [i.name, i.exists])
+    ).toEqual([
+      ['TR', true],
+      ['Fresh', false]
+    ]);
+  });
+
+  it('leaves out what is already in the destination', async () => {
+    const card = await runTool(
+      'move_materials',
+      [arg('items', ['TR_16', 'TR_23']), arg('destination', 'TR')],
+      deps()
+    );
+    expect(card.payload).toMatchObject({
+      destination: { id: 'f-tr', driveId: 'drive-tr', label: 'TR' },
+      already: 1
+    });
+    expect((card.payload.items as Array<{ id: string }>).map(i => i.id)).toEqual(['m16']);
+  });
+
+  it('renames a selection by a template, keeping the extension', async () => {
+    const card = await runTool(
+      'rename_materials',
+      [arg('query', 'TR'), arg('template', 'ProCaps_{n}'), arg('start', 3)],
+      deps()
+    );
+    expect(
+      (card.payload.items as Array<{ from: string; to: string }>).map(i => [i.from, i.to])
+    ).toEqual([
+      ['TR 25.mp4', 'ProCaps_3.mp4'],
+      ['TR_16.mp4', 'ProCaps_4.mp4'],
+      ['TR_23.mp4', 'ProCaps_5.mp4'],
+      ['TR_25.mp4', 'ProCaps_6.mp4']
+    ]);
+  });
+
+  it('reads «всі відео» as a kind, not as files called «відео»', async () => {
+    const card = await runTool(
+      'rename_materials',
+      [
+        arg('query', 'відео'),
+        arg('kind', 'video'),
+        arg('in_folder', 'TR'),
+        arg('template', 'CR_{n}')
+      ],
+      deps()
+    );
+    expect((card.payload.items as unknown[]).length).toBe(4);
+  });
+
+  it('reads a selection folded into one argument', async () => {
+    const card = await runTool(
+      'rename_materials',
+      [arg('selection', 'kind: video, in_folder: TR'), arg('template', 'CR_{n}')],
+      deps()
+    );
+    expect((card.payload.items as unknown[]).length).toBe(4);
+  });
+
+  it('says what an empty selection asked for', async () => {
+    const card = await runTool(
+      'trash_materials',
+      [arg('query', 'nothing-like-this'), arg('in_folder', 'old')],
+      deps()
+    );
+    expect(card.payload.unresolved).toEqual([
+      { field: 'trash_materials', written: 'old · nothing-like-this', code: 'NOT_FOUND' }
+    ]);
+  });
+
+  it('takes «з кореня» as the top level, not the whole space', async () => {
+    const card = await runTool(
+      'trash_materials',
+      [arg('query', 'TR'), arg('in_folder', 'корінь')],
+      deps()
+    );
+    // TR_23 lies in TR and «TR 25» in old: only the two at the top are offered.
+    expect((card.payload.items as Array<{ id: string }>).map(item => item.id).sort()).toEqual([
+      'm16',
+      'm25a'
+    ]);
+  });
+
+  it('refuses a rule that gives two files the same name', async () => {
+    const card = await runTool(
+      'rename_materials',
+      [arg('query', 'TR'), arg('template', 'same')],
+      deps()
+    );
+    expect((card.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('NAME_CONFLICT');
+  });
+
+  it('adds a tag without dropping the ones a file has', async () => {
+    const card = await runTool(
+      'edit_materials',
+      [arg('items', ['TR_16', 'TR_23']), arg('add_tags', ['test'])],
+      deps()
+    );
+    expect(
+      (card.payload.items as Array<{ id: string; patch: unknown }>).map(i => [i.id, i.patch])
+    ).toEqual([['m23', { tags: ['test'] }]]);
+  });
+});
+
+describe('creative ranks', () => {
+  const ranks = () =>
+    deps({
+      list_creative_ranks: () => [
+        {
+          materialId: 'm16',
+          launchCount: 13,
+          rankCredit: 13,
+          lastLaunchedAt: '2026-11-21T10:00:00Z',
+          version: 1,
+          demotion: null
+        },
+        {
+          materialId: 'm23',
+          launchCount: 4,
+          rankCredit: 4,
+          lastLaunchedAt: '2026-11-20T10:00:00Z',
+          version: 1,
+          demotion: null
+        }
+      ]
+    });
+
+  it('answers «топ креативів» best first, with the league the explorer shows', async () => {
+    const card = await runTool('creative_ranks', [arg('query', 'TR')], ranks());
+    expect(card.kind).toBe('table');
+    const rows = card.payload.rows as Array<Array<string | null>>;
+    expect(rows[0]).toEqual(['TR_16.mp4', 'gold', '13', '2026-11-21T10:00:00Z']);
+    expect(rows[1]).toEqual(['TR_23.mp4', 'bronze', '4', '2026-11-20T10:00:00Z']);
+    // Never launched: no league, still listed.
+    expect(rows.slice(2).every(row => row[1] === null && row[2] === '0')).toBe(true);
+  });
+
+  it('keeps one league when asked «які відео золоті»', async () => {
+    const card = await runTool(
+      'creative_ranks',
+      [arg('query', 'TR'), arg('league', 'gold')],
+      ranks()
+    );
+    expect((card.payload.rows as Array<Array<string | null>>).map(row => row[0])).toEqual([
+      'TR_16.mp4'
+    ]);
+  });
+
+  it('refuses a league that does not exist instead of showing everything', async () => {
+    const card = await runTool(
+      'creative_ranks',
+      [arg('query', 'TR'), arg('league', 'platinum')],
+      ranks()
+    );
+    expect((card.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('INVALID_INPUT');
+  });
+});
+
+describe('catalogs, people and tasks', () => {
+  it('«видали всі каталоги» lists every catalog on a red card', async () => {
+    const card = await runTool('trash_catalogs', [arg('scope', 'all')], deps());
+    expect(card.payload).toMatchObject({ tool: 'trash_catalogs', danger: true });
+    expect((card.payload.items as Array<{ id: string }>).map(i => i.id)).toEqual(['c1', 'c2']);
+    const broken = await runTool('trash_catalogs', [arg('scope', 'errors')], deps());
+    expect((broken.payload.items as Array<{ id: string }>).map(i => i.id)).toEqual(['c2']);
+  });
+
+  it('never touches the owner and does not invite a member again', async () => {
+    const owner = await runTool(
+      'change_members',
+      [arg('people', ['Roman']), arg('remove', true)],
+      deps()
+    );
+    expect((owner.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe(
+      'OWNER_TRANSFER_REQUIRED'
+    );
+    const role = await runTool(
+      'change_members',
+      [arg('people', ['Андрій']), arg('role', 'admin')],
+      deps()
+    );
+    expect(role.payload).toMatchObject({
+      tool: 'change_roles',
+      items: [{ id: 'u-andrii', from: 'editor', to: 'admin' }]
+    });
+    const invite = await runTool(
+      'invite_members',
+      [arg('emails', ['andrii@example.com', 'New@Example.com'])],
+      deps()
+    );
+    expect(invite.payload).toMatchObject({
+      items: [{ email: 'new@example.com' }],
+      already: ['andrii@example.com']
+    });
+  });
+
+  it('reads a task line: title, assignee, date, tags (new ones to create), files', async () => {
+    const card = await runTool(
+      'create_tasks',
+      [arg('tasks', ['Перезалити тр16 | Андрій | tomorrow | терміново, нове | TR_16'])],
+      deps()
+    );
+    expect(card.payload.items).toEqual([
+      expect.objectContaining({
+        title: 'Перезалити тр16',
+        assigneeId: 'u-andrii',
+        date: '2026-11-23',
+        tags: [
+          { id: 'tl-urgent', name: 'терміново' },
+          { id: null, name: 'нове' }
+        ],
+        materials: [{ id: 'm16', label: 'TR_16.mp4' }]
+      })
+    ]);
+  });
+
+  it('a task change lists only what changes', async () => {
+    const card = await runTool(
+      'update_tasks',
+      [arg('items', ['Перевірити помічника']), arg('status', 'done')],
+      deps({
+        list_team_tasks: () => [
+          {
+            id: 't1',
+            title: 'Soty QA перевірити помічника',
+            status: 'todo',
+            task_date: '2026-11-23',
+            assignee_label_snapshot: 'Roman',
+            labels: [],
+            updated_at: '2026-11-22T10:00:00Z'
+          }
+        ]
+      })
+    );
+    expect(card.payload.items).toEqual([
+      expect.objectContaining({
+        id: 't1',
+        patch: { status: 'done' },
+        changes: [{ field: 'status', from: 'todo', to: 'done' }]
+      })
+    ]);
+  });
+
+  it('deletes tasks only from a red card listing them', async () => {
+    const card = await runTool(
+      'delete_tasks',
+      [arg('with_status', 'done')],
+      deps({
+        list_team_tasks: () => [
+          {
+            id: 't1',
+            title: 'A',
+            status: 'done',
+            task_date: null,
+            assignee_label_snapshot: null,
+            labels: [],
+            updated_at: ''
+          },
+          {
+            id: 't2',
+            title: 'B',
+            status: 'todo',
+            task_date: null,
+            assignee_label_snapshot: null,
+            labels: [],
+            updated_at: ''
+          }
+        ]
+      })
+    );
+    expect(card.payload).toMatchObject({
+      tool: 'delete_tasks',
+      danger: true,
+      items: [{ id: 't1', label: 'A' }]
+    });
+  });
+
+  it('«на мене» is the person writing', async () => {
+    const card = await runTool(
+      'create_tasks',
+      [arg('tasks', ['Перевірити | me | tomorrow | |']), arg('x', null)],
+      deps()
+    );
+    expect(card.payload.items).toEqual([
+      expect.objectContaining({ assigneeId: 'u-owner', assignee: 'Roman' })
+    ]);
+  });
+
+  it('says the ad accounts with their full IDs and a text to copy by account', async () => {
+    const card = await runTool('list_ad_accounts', [arg('scope', ['g18'])], deps());
+    expect(card.payload.rows).toEqual([
+      ['g18-244', '1111111244', 'busy:3', '#2'],
+      ['g18-257', '2222222257', null, '#2, #1']
+    ]);
+    expect(card.payload.copyText).toBe('g18\n1111111244\n2222222257');
+  });
+
+  it('finds the accounts wherever the model put them, ignoring «ad accounts» as a name', async () => {
+    const card = await runTool(
+      'list_ad_accounts',
+      [arg('scope', 'ad accounts'), arg('status', 'all'), arg('accounts', 'g18')],
+      deps()
+    );
+    expect(card.payload.count).toBe(2);
+    expect(card.payload.missing).toEqual([]);
+  });
+
+  it('reads «ж18» as g18 from items, and shows an archived ad account of a named account', async () => {
+    const g18 = await runTool('list_ad_accounts', [arg('items', 'ж18')], deps());
+    expect(g18.payload.count).toBe(2);
+    const g9 = await runTool('list_ad_accounts', [arg('scope', ['g9'])], deps());
+    expect(g9.payload.rows).toEqual([['g9-111', '4444444111', 'archived', '#2']]);
+  });
+
+  it('lists launches with their state and narrows to launched ones', async () => {
+    const launches = {
+      items: [
+        {
+          id: 'l1',
+          launchDate: '2026-11-23',
+          offer: 'ProCaps TR',
+          social: 'g18-244',
+          creativeAlias: 'TR_16',
+          generationState: 'succeeded'
+        },
+        {
+          id: 'l2',
+          launchDate: '2026-11-23',
+          offer: 'ProCaps TR',
+          social: '',
+          creativeAlias: 'TR_21',
+          generationState: null
+        }
+      ]
+    };
+    const all = await runTool(
+      'list_launches',
+      [arg('date', 'tomorrow')],
+      deps({ list_launches: () => launches })
+    );
+    expect(all.payload.rows).toEqual([
+      ['2026-11-23', 'ProCaps TR', 'g18-244', 'TR_16', 'launch:launched'],
+      ['2026-11-23', 'ProCaps TR', null, 'TR_21', 'launch:draft']
+    ]);
+    const launched = await runTool(
+      'list_launches',
+      [arg('date', 'tomorrow'), arg('status', 'launched')],
+      deps({ list_launches: () => launches })
+    );
+    expect(launched.payload.count).toBe(1);
+  });
+
+  it('adds ad accounts to an account, leaving out the ones it has', async () => {
+    const card = await runTool(
+      'add_ad_accounts',
+      [arg('account', 'G4'), arg('ids', ['3333333999', '5555 555 123'])],
+      deps()
+    );
+    expect(card.payload).toMatchObject({ account: { id: G4, label: 'g4' } });
+    expect(card.payload.items).toEqual([
+      { label: 'g4-999', agentId: '3333333999', note: '3333333999', exists: true },
+      { label: 'g4-123', agentId: '5555555123', note: '5555555123', exists: false }
+    ]);
+  });
+
+  it('archives an account by name and one ad account by its label', async () => {
+    const card = await runTool('archive_accounts', [arg('scope', ['g4', 'g18-257'])], deps());
+    expect(card.payload).toMatchObject({ tool: 'archive_accounts' });
+    expect(card.payload.items).toEqual([
+      { kind: 'social', id: G4, label: 'g4', note: '3333333999' },
+      { kind: 'agent', id: A2, label: 'g18-257', note: '2222222257' }
+    ]);
+    const back = await runTool(
+      'archive_accounts',
+      [arg('scope', ['g9']), arg('restore', true)],
+      deps()
+    );
+    expect(back.payload).toMatchObject({
+      tool: 'restore_accounts',
+      items: [{ kind: 'social', id: G9, label: 'g9' }]
+    });
+  });
+
+  it('restores from the trash by name and renames an offer only when it is one', async () => {
+    const restore = await runTool(
+      'restore_materials',
+      [arg('items', ['TR_16'])],
+      deps({
+        list_team_trashed_materials_v2: () => [
+          { id: 'm16', name: 'TR_16.mp4', kind: 'video', trashed_at: '2026-11-22T10:00:00Z' }
+        ]
+      })
+    );
+    expect(restore.payload.items).toEqual([{ id: 'm16', label: 'TR_16.mp4' }]);
+    const offers = await runTool(
+      'edit_offers',
+      [arg('rename', ['ProCaps TR=ProCaps TR old']), arg('archive', ['Nope'])],
+      deps({
+        list_launch_dictionaries: () => ({
+          offers: [{ id: 'o1', value: 'ProCaps TR', updatedAt: '2026-11-01T00:00:00Z' }]
+        })
+      })
+    );
+    expect(offers.payload.items).toEqual([
+      {
+        id: 'o1',
+        updatedAt: '2026-11-01T00:00:00Z',
+        operation: 'rename',
+        label: 'ProCaps TR',
+        from: 'ProCaps TR',
+        to: 'ProCaps TR old'
+      }
+    ]);
+    expect(offers.payload.missing).toEqual(['Nope']);
+  });
+
+  it('takes a catalog scope that is not all or errors as names, never as all', async () => {
+    const card = await runTool('trash_catalogs', [arg('scope', 'TR_16')], deps());
+    expect((card.payload.items as Array<{ id: string }>).map(item => item.id)).toEqual(['c1']);
+  });
+
+  it('refuses one money entry that names many ad accounts', async () => {
+    const card = await runTool(
+      'set_finance',
+      [arg('date', '2026-11-21'), arg('entries', ['g18=100'])],
+      deps()
+    );
+    expect((card.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('AMBIGUOUS_TARGET');
+  });
+
+  it('sets the catalog refresh, or turns it off', async () => {
+    const hourly = await runTool(
+      'catalog_interval',
+      [arg('scope', 'all'), arg('interval', '1h')],
+      deps()
+    );
+    expect(hourly.payload).toMatchObject({ interval: '1h' });
+    const off = await runTool(
+      'catalog_interval',
+      [arg('scope', 'errors'), arg('interval', 'off')],
+      deps()
+    );
+    expect(off.payload).toMatchObject({ interval: null, items: [{ id: 'c2' }] });
+    const wrong = await runTool('catalog_interval', [arg('interval', '5 years')], deps());
+    expect((wrong.payload.unresolved as Array<{ code: string }>)[0]!.code).toBe('INVALID_INPUT');
+  });
+
+  it('answers an unknown tool with a problem, not a crash', async () => {
+    const card = await runTool('format_disk', [], deps());
+    expect(card.payload.unresolved).toEqual([
+      { field: 'format_disk', written: 'format_disk', code: 'UNKNOWN_TOOL' }
+    ]);
+  });
+});
+
+describe('the plan contract', () => {
+  it('carries a tool and its arguments; a tool step without a tool is dropped', () => {
+    const base = {
+      offer: null,
+      count: null,
+      accounts: [],
+      fields: [],
+      overrides: [],
+      rows: [],
+      dates: null,
+      base: null,
+      baseRow: null,
+      question: null,
+      notesFrom: null,
+      notesLanguage: null
+    };
+    const plan = parseAssistantPlan({
+      reply: 'Ось витрати.',
+      actions: [
+        {
+          ...base,
+          type: 'use_tool',
+          tool: 'finance_report',
+          args: [{ name: 'date', value: '2026-11-21' }]
+        },
+        { ...base, type: 'use_tool', tool: null, args: [] }
+      ]
+    });
+    expect(plan?.actions).toHaveLength(1);
+    expect(plan?.actions[0]).toMatchObject({
+      tool: 'finance_report',
+      args: [{ name: 'date', value: '2026-11-21' }]
+    });
+  });
+});

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ConfirmDialog } from '../apps/web/src/components/ui/index';
+import { ConfirmDialog, Modal } from '../apps/web/src/components/ui/index';
 import { LaunchSelector } from '../apps/web/src/team/launches/LaunchSelectors';
 afterEach(cleanup);
 it('opens a searchable choice once and commits only an actual option', async () => {
@@ -193,4 +193,32 @@ it('shows the still-selected offer when a created one was not selected or failed
     await user.click(screen.getByRole('option', { name: 'Create “Offer 2”' }));
     await waitFor(() => expect(input).toHaveProperty('value', 'Offer 1'));
   }
+});
+it('Escape in an open, empty choice closes the list and leaves the dialog around it open', async () => {
+  // next QA 2026-11-21: Escape on an empty «Офер» closed the whole launch editor.
+  const user = userEvent.setup();
+  const closed = vi.fn();
+  render(
+    <Modal open title="Launch" onClose={closed}>
+      <LaunchSelector
+        id="launch-selector-escape"
+        label="Offer"
+        value=""
+        options={[
+          { value: 'a', label: 'Alpha' },
+          { value: 'b', label: 'Beta' }
+        ]}
+        onChange={() => undefined}
+      />
+    </Modal>
+  );
+  const input = screen.getByRole('combobox', { name: 'Offer' });
+  await user.click(input);
+  expect(screen.getAllByRole('listbox')).toHaveLength(1);
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('listbox')).toBeNull();
+  expect(closed).not.toHaveBeenCalled();
+  // With the list closed, Escape is the dialog's again.
+  await user.keyboard('{Escape}');
+  expect(closed).toHaveBeenCalledOnce();
 });

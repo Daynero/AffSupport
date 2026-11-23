@@ -210,10 +210,25 @@ Supabase автоматично надає функції її server-side proje
 Задеплойте всі командні функції:
 
 ```bash
-for fn in team-invitations drive-connect drive-oauth-callback catalog-sync drive-transfer drive-ops library-ops tariff-notices team-recovery; do
+for fn in team-invitations drive-connect drive-oauth-callback catalog-sync drive-transfer drive-ops library-ops tariff-notices team-recovery transcript-translate; do
   npx supabase functions deploy "$fn" --project-ref YOUR_PROJECT_REF --use-api
 done
 ```
+
+### Переклад транскриптів (063)
+
+Функція `transcript-translate` викликає Claude API ключем із **Claude Console** (не логіном
+підписки Claude — його умови Anthropic забороняють використовувати в продуктах). Без ключа
+функція відповідає `TRANSLATION_UNAVAILABLE` і нічого не списує з ліміту.
+
+```bash
+npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-... --project-ref YOUR_PROJECT_REF
+```
+
+Ліміт — 9 000 знаків (10 хв) на людину на київський день, рядок у
+`private.ai_feature_allowances`. Витрати й збої: `npm run analytics -- ai-usage --json`.
+На беті без ключа `SOTY_TRANSLATION_PROVIDER=fake` (`fake-refuse`, `fake-down`) у локальному
+оточенні функцій підставляє детермінований переклад.
 
 ### Каталог-синк (рекурсивний аналіз Drive)
 

@@ -1,9 +1,22 @@
 /** Publication ownership is independent from video preparation and routine updates.
  * These decisions authorize no provider write; the server must still reserve its
  * catalog-wide writer and verify current access and the immutable target. */
+/** 062: one creative's block of rows in a catalog published from several creatives. */
+export type CatalogPublicationSegment = Readonly<{
+  ordinal: number;
+  kind: 'video' | 'image';
+  materialId: string;
+  sourceVersion?: string;
+  videoSetId?: string;
+  recipeRevision?: number;
+  imageId?: string;
+  rowStart: number;
+  rowCount: number;
+}>;
 export type CatalogPublicationTarget =
   | Readonly<{ kind: 'source'; materialId: string; sourceVersion: string }>
-  | Readonly<{ kind: 'video_set'; videoSetId: string; recipeRevision: number }>;
+  | Readonly<{ kind: 'video_set'; videoSetId: string; recipeRevision: number }>
+  | Readonly<{ kind: 'creatives'; segments: readonly CatalogPublicationSegment[] }>;
 export type CatalogPublicationPolicy =
   | Readonly<{ mode: 'immediate'; revision: number }>
   | Readonly<{ mode: 'held'; revision: number }>
@@ -150,5 +163,51 @@ export function parseCatalogPublicationTarget(raw: unknown): CatalogPublicationT
       videoSetId: value.videoSetId.toLowerCase(),
       recipeRevision: value.recipeRevision as number
     });
+  // 062: the server's 'creatives' target (catalog_publication_target_json). Without it every
+  // read of a catalog made from several creatives, or from images, failed as INVALID_RESPONSE
+  // and its result said «ще не підтверджено» for good (next, 2026-11-21).
+  if (
+    value.kind === 'creatives' &&
+    Array.isArray(value.segments) &&
+    value.segments.length <= 400 &&
+    Object.keys(value).length === 2
+  ) {
+    const count = (x: unknown, min: number, max: number): x is number =>
+      Number.isSafeInteger(x) && (x as number) >= min && (x as number) <= max;
+    const segments = value.segments.map((entry: unknown, index: number) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+        throw new Error('INVALID_INPUT');
+      const g = entry as Record<string, unknown>;
+      if (
+        g.ordinal !== index ||
+        (g.kind !== 'video' && g.kind !== 'image') ||
+        !uuid(g.materialId) ||
+        (g.sourceVersion !== undefined &&
+          (typeof g.sourceVersion !== 'string' ||
+            !/^[A-Za-z0-9._:-]{1,128}$/u.test(g.sourceVersion))) ||
+        (g.videoSetId !== undefined && (g.kind !== 'video' || !uuid(g.videoSetId))) ||
+        (g.videoSetId === undefined) !== (g.recipeRevision === undefined) ||
+        (g.recipeRevision !== undefined && !count(g.recipeRevision, 1, Number.MAX_SAFE_INTEGER)) ||
+        (g.imageId !== undefined && (g.kind !== 'image' || !uuid(g.imageId))) ||
+        !count(g.rowStart, 0, 399) ||
+        !count(g.rowCount, 1, 400) ||
+        (g.rowStart as number) + (g.rowCount as number) > 400
+      )
+        throw new Error('INVALID_INPUT');
+      return Object.freeze({
+        ordinal: index,
+        kind: g.kind,
+        materialId: g.materialId.toLowerCase(),
+        ...(typeof g.sourceVersion === 'string' ? { sourceVersion: g.sourceVersion } : {}),
+        ...(typeof g.videoSetId === 'string'
+          ? { videoSetId: g.videoSetId.toLowerCase(), recipeRevision: g.recipeRevision as number }
+          : {}),
+        ...(typeof g.imageId === 'string' ? { imageId: g.imageId.toLowerCase() } : {}),
+        rowStart: g.rowStart as number,
+        rowCount: g.rowCount as number
+      });
+    });
+    return Object.freeze({ kind: 'creatives', segments: Object.freeze(segments) });
+  }
   throw new Error('INVALID_INPUT');
 }

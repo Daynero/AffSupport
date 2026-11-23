@@ -1786,7 +1786,7 @@ it('saves an offer with its own version, clears the old proposal, and preserves 
   expect(seams.setDefaults.mock.calls[1]).toEqual(seams.setDefaults.mock.calls[0]);
   expect(seams.setDefaults.mock.calls[0][1]).toBe('17');
   expect(seams.setDefaults.mock.calls[0][4]).toBe(current.draft.offerId);
-  expect(screen.queryByRole('dialog', { name: /^Apply the .*settings\?$/ })).toBeNull();
+  expect(screen.queryByRole('status', { name: /^Apply the .*settings\?$/ })).toBeNull();
 });
 
 it('saves the newly selected offer after an uncertain save of the previous one (1.4.3)', async () => {
@@ -2574,4 +2574,24 @@ it('does not carry a pending batch import across sign-out and sign-in of the sam
   } finally {
     setPrivateCacheScope(null, '');
   }
+});
+
+/**
+ * Found on next 2026-11-21: a Launch closed while its detail was still being read left
+ * «Preparing launch…» over the list for good — the late reply belonged to a closed session
+ * and nothing else cleared the flag.
+ */
+it('does not keep saying it is preparing a Launch that was closed before its read came back', async () => {
+  let reply: (value: unknown) => void = () => undefined;
+  seams.detail.mockReturnValue(new Promise(resolve => (reply = resolve)));
+  const view = render(<LaunchSpace teamId={TEAM} query={query} />);
+  await waitFor(() => expect(seams.detail).toHaveBeenCalled());
+  view.rerender(<LaunchSpace teamId={TEAM} query={{ ...emptyTeamRouteQuery(), launchId: null }} />);
+  await act(async () => reply(detail('https://example.test/closed')));
+  await waitFor(() => expect(seams.list).toHaveBeenCalled());
+  const busyLine = () =>
+    [...document.querySelectorAll('p[role="status"]')].filter(
+      node => node.textContent === 'Preparing launch…'
+    );
+  await waitFor(() => expect(busyLine()).toHaveLength(0));
 });

@@ -76,6 +76,20 @@ export function catalogDeleteConfirmKey(language: Language, count: number): Tran
   return category === 'few' ? 'catalogUpdaterDeleteConfirmFew' : 'catalogUpdaterDeleteConfirmMany';
 }
 
+/** 064 — «1 чернетка», «3 чернетки», «5 чернеток» on an assistant card. */
+export function assistantDraftsKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'assistantDraftsOne';
+  return category === 'few' ? 'assistantDraftsFew' : 'assistantDraftsMany';
+}
+
+/** 064 — «98 чарунок»: the AI balance, wherever it is shown. */
+export function creditsCountKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'creditsCountOne';
+  return category === 'few' ? 'creditsCountFew' : 'creditsCountMany';
+}
+
 /** 023 — "12 catalogs" on the updater's chip. */
 export function catalogCountKey(language: Language, count: number): TranslationKey {
   const category = pluralCategory(language, count);
@@ -95,6 +109,13 @@ export function launchCountKey(language: Language, count: number): TranslationKe
   const category = pluralCategory(language, count);
   if (category === 'one') return 'creativeRankLaunchesOne';
   return category === 'few' ? 'creativeRankLaunchesFew' : 'creativeRankLaunchesMany';
+}
+
+/** 1.5.9 — the picker of a catalog launch takes several: "Обрати 3 креативи". */
+export function creativeSelectKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'launchesSelectCreativesOne';
+  return category === 'few' ? 'launchesSelectCreativesFew' : 'launchesSelectCreativesMany';
 }
 
 export function selectedCountKey(language: Language, count: number): TranslationKey {

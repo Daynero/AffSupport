@@ -104,7 +104,9 @@ async function observe(drive: PublicationCellsDrive, frozen: FrozenPublicationCe
     sheetName: frozen.sheetName,
     columns: [frozen.idColumn, frozen.videoColumn],
     rowCount: sheet.rowCount,
-    expectedRows: frozen.products.length + 2
+    expectedRows: frozen.products.length + 2,
+    // The product rows only; a value under the last product is not this write's concern.
+    tolerant: true
   });
   if (
     !ids ||

@@ -15,7 +15,8 @@ export function assertExpectedMutationActor(expected: unknown, authenticatedActo
 
 export const MAX_TEXT_EDIT_BYTES = 1024 * 1024;
 export const UPLOAD_CHUNK_MULTIPLE_BYTES = 256 * 1024;
-export const BROWSER_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024;
+/** One range: the browser gets no more in a plain GET (see drive-transfer). */
+export const BROWSER_DOWNLOAD_MAX_BYTES = 32 * 1024 * 1024;
 
 export type ConflictMode = 'cancel' | 'keep_both' | 'replace';
 

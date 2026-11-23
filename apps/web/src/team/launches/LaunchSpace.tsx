@@ -1,5 +1,6 @@
 import { privateCacheActorEpoch } from '../private-cache-scope.js';
 import type { LaunchBatch } from './LaunchBatch.js';
+import { onLaunchesChanged, registerLaunchRunner } from '../assistant/bridge.js';
 import { launchCardState } from './launchPresentation.js';
 import { batchEligible } from './batchModel.js';
 import { durableCardValue, durableItemState } from './durableBatchModel.js';
@@ -48,6 +49,7 @@ import { useOptionalAuth } from '../../auth/AuthContext';
 import { LaunchListFilter } from './LaunchListFilter';
 
 import { DeferredLaunchSession, preloadLaunchSession } from './DeferredLaunchSession';
+import { prefetchCatalogVideoR2Availability } from '../product-catalog/useCatalogVideoR2Availability';
 import { searchWithLayoutFallback } from '../../lib/layoutFallback';
 
 function isOlderLaunchDetail(next: LaunchDetail, current: LaunchDetail | null): boolean {
@@ -289,11 +291,16 @@ function LaunchSpaceContent({
       ? (target.closest<HTMLElement>('[data-launch-id]')?.dataset.launchId ?? null)
       : null;
   const usedSearch = useRef('');
-  // The editor's code arrives while the board is read, not when a card is opened.
+  // The editor's code arrives while the board is read, not when a card is opened — and so
+  // does the answer the catalog shelf's R2 switch waits for, which otherwise appeared a beat
+  // after the shelf (next QA 2026-11-21).
   useEffect(() => {
-    const timer = window.setTimeout(preloadLaunchSession, 1_500);
+    const timer = window.setTimeout(() => {
+      preloadLaunchSession();
+      prefetchCatalogVideoR2Availability(teamId, teamApi.catalogVideoR2);
+    }, 1_500);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [teamId]);
   const readList = useCallback(
     async (next: { id: string; date: string | null; createdAt?: string } | null = null) => {
       const f: {
@@ -418,6 +425,10 @@ function LaunchSpaceContent({
     if (!open || open === 'new') {
       detailRead.current = null;
       setDetail(null);
+      // A read still in flight for the Launch just closed is now someone else's sequence
+      // and never clears this: «Готуємо запуск…» stayed over the list for good (next,
+      // 2026-11-21, closing a Launch right after its generation).
+      setPending(false);
       return;
     }
     setPending(true);
@@ -557,7 +568,6 @@ function LaunchSpaceContent({
     };
   }, [actorId, t]);
   const startBatch = async () => {
-    if (batchRunning.current || batchSubmissionPending || !can('edit') || !actorId) return;
     if (eligible.length > LAUNCH_BATCH_MAX_ITEMS) {
       setError(t('launchesBulkLimit'));
       return;
@@ -566,7 +576,20 @@ function LaunchSpaceContent({
     const selected = [...eligible].sort((a, b) =>
       (a.sourceMaterialId ?? a.id).localeCompare(b.sourceMaterialId ?? b.id)
     );
-    const id = crypto.randomUUID();
+    await submitBatch(
+      selected.map(row => ({ id: row.id, version: row.version, method: row.method })),
+      crypto.randomUUID()
+    );
+  };
+  /**
+   * The one way a batch starts: the selection's «Згенерувати» and the assistant's «Запустити N»
+   * (064) both hand over exact rows with the versions they showed; the batch refuses a changed one.
+   */
+  const submitBatch = async (
+    selected: Array<{ id: string; version: string; method: 'catalog' | 'other' }>,
+    id: string
+  ) => {
+    if (batchRunning.current || batchSubmissionPending || !can('edit') || !actorId) return;
     const ownerEpoch = privateCacheActorEpoch();
     const current = () =>
       scope.current.mounted && scope.current.canEdit && ownerEpoch === privateCacheActorEpoch();
@@ -624,6 +647,32 @@ function LaunchSpaceContent({
     detailRead.current.revisionId === (query.revisionId ?? null)
       ? detail
       : null;
+  // 064: the space's assistant starts batches here and asks the list to read again after a change.
+  const assistantRun = useRef<
+    (rows: Array<{ launchId: string; version: string }>, key: string) => Promise<void>
+  >(async () => {});
+  assistantRun.current = async (rows, batchKey) => {
+    const known = new Map(items.map(item => [item.id, item.method]));
+    await submitBatch(
+      rows.map(row => ({
+        id: row.launchId,
+        version: row.version,
+        method: known.get(row.launchId) ?? 'catalog'
+      })),
+      batchKey
+    );
+  };
+  useEffect(
+    () => registerLaunchRunner(teamId, (rows, key) => assistantRun.current(rows, key)),
+    [teamId]
+  );
+  useEffect(
+    () =>
+      onLaunchesChanged(changed => {
+        if (changed === teamId) void refresh().catch(e => setError(teamErrorMessageFor(e, t)));
+      }),
+    [teamId, refresh, t]
+  );
   // Everything the board shows first, read before any of it is shown (058): the cards, the
   // dictionaries their labels come from, and the batch block above them.
   const busy = !error && (!ready || !listLoaded || (Boolean(actorId) && !batchesRead));

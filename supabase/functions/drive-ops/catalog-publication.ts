@@ -1,3 +1,7 @@
+// Bundled from packages/shared/dist at deploy. The backend plan redeploys a function for its
+// own directory and _shared only, so a change to these shared parsers needs a change here to
+// reach the server: 062's 'creatives' target (2026-11-21) was refused by both functions until
+// they were deployed again with it.
 import {
   parseCatalogPublicationCommand,
   parseCatalogPublicationSnapshot,

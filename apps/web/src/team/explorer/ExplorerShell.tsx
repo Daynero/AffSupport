@@ -1592,7 +1592,17 @@ function ExplorerBody({
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
       if (!onScreen()) return;
       if (isEditableTarget(event.target instanceof HTMLElement ? event.target : null)) return;
+      /* Text first (063): a transcript, its translation or a note selected with the mouse is
+         what Cmd+C means, and inside a dialog the folder is not what the keys are about.
+         Files are copied only when nothing is selected on the page. */
+      if (
+        event.target instanceof Element &&
+        event.target.closest('[role="dialog"], [role="alertdialog"]')
+      )
+        return;
       const key = event.key.toLowerCase();
+      if ((key === 'c' || key === 'x') && (window.getSelection()?.toString().trim() ?? '') !== '')
+        return;
       if (key === 'c' || key === 'x') {
         const rows = selectedRows.length > 0 ? selectedRows : focused ? [focused] : [];
         if (rows.length === 0) return;

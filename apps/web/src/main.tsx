@@ -4,6 +4,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import Root from './Root';
 import { consumePairingToken } from './api/pairing-token';
+import { healModuleGraph } from './lib/healModuleCache';
 // One entry, because the order the sheets load in is a cascade decision and it
 // belongs in a cascade file. `styles/index.css` declares the layer ladder and
 // imports every sheet into its place; see the comment at the top of it.
@@ -47,8 +48,11 @@ window.addEventListener('vite:preloadError', event => {
   }
   event.preventDefault();
   const reload = () => window.location.reload();
-  if (!href) return reload();
-  void fetch(href, { cache: 'reload', credentials: 'same-origin' }).then(reload, reload);
+  // The failed chunk and everything it imports: the poisoned file may be one of its imports.
+  const start =
+    href ?? document.querySelector<HTMLScriptElement>('script[type="module"][src]')?.src;
+  if (!start) return reload();
+  void healModuleGraph(start).then(reload, reload);
 });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

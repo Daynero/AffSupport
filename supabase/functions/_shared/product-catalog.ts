@@ -412,6 +412,11 @@ export interface CatalogSnapshotCreative {
   link?: string;
   linkKind?: 'r2' | 'drive';
   linkRevision?: number;
+  /**
+   * The product link (C) of this creative's block, when SUB «Креатив» tells blocks apart.
+   * Absent: the block takes the catalog's single source link.
+   */
+  sourceLink?: string;
 }
 
 /** 062: what a catalog's snapshot says about its creatives; null for a catalog from before. */
@@ -465,7 +470,11 @@ export function parseCatalogCreativeLayout(
         (typeof entry.link !== 'string' || !/^https:\/\/\S+$/u.test(entry.link))) ||
       (entry.linkKind !== undefined && entry.linkKind !== 'r2' && entry.linkKind !== 'drive') ||
       (entry.linkRevision !== undefined &&
-        (typeof entry.linkRevision !== 'number' || !Number.isSafeInteger(entry.linkRevision)))
+        (typeof entry.linkRevision !== 'number' || !Number.isSafeInteger(entry.linkRevision))) ||
+      (entry.sourceLink !== undefined &&
+        (typeof entry.sourceLink !== 'string' ||
+          entry.sourceLink.length > SOURCE_LINK_MAX ||
+          !/^https?:\/\/\S+$/u.test(entry.sourceLink)))
     )
       throw new Error('INVALID_CATALOG_CREATIVES');
     return {
@@ -478,7 +487,8 @@ export function parseCatalogCreativeLayout(
       ...(entry.linkKind === 'r2' || entry.linkKind === 'drive'
         ? { linkKind: entry.linkKind }
         : {}),
-      ...(typeof entry.linkRevision === 'number' ? { linkRevision: entry.linkRevision } : {})
+      ...(typeof entry.linkRevision === 'number' ? { linkRevision: entry.linkRevision } : {}),
+      ...(typeof entry.sourceLink === 'string' ? { sourceLink: entry.sourceLink } : {})
     };
   });
   const rowCreatives = rows.map(value => {
@@ -527,6 +537,8 @@ export interface CatalogCreativeCells {
   kind: CatalogCreativeKind;
   videoLink?: string | null;
   imageLink?: string | null;
+  /** C of the block's rows when it has its own (SUB «Креатив» per creative). */
+  sourceLink?: string | null;
 }
 
 /** The cell inputs of a layout: prefixes from aliases, links from the creatives' current links. */
@@ -540,7 +552,8 @@ export function catalogCreativeCells(
     ...(creative.kind === 'video' && creative.link ? { videoLink: creative.link } : {}),
     ...(creative.kind === 'image' && options.imageLinks !== false && creative.link
       ? { imageLink: creative.link }
-      : {})
+      : {}),
+    ...(creative.sourceLink ? { sourceLink: creative.sourceLink } : {})
   }));
 }
 
@@ -867,7 +880,8 @@ export function buildProductCatalogRows(input: {
           break;
         }
         case 'sourceLink':
-          cell = text(input.sourceLink);
+          // Each creative's block links with its own SUB «Креатив» when it has one.
+          cell = text(creativeOf(index)?.sourceLink ?? input.sourceLink);
           break;
         case 'copyOf':
           cell = byColumn.get(source.column) ?? text('');

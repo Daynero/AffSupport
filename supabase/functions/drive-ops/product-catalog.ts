@@ -138,6 +138,11 @@ export interface ProductCatalogDeps {
   validateImageUses?(teamId: string, attemptId: string): Promise<void>;
   /** Resolve Launch SUBs only after the durable version and final collision-safe name exist. */
   resolveSourceLink?: (name: string) => Promise<string>;
+  /**
+   * 062: one product link per creative, in creative order, when SUB «Креатив» tells the blocks
+   * apart; null keeps the catalog's single link for every row. Resolved with the final name.
+   */
+  resolveCreativeSourceLinks?: (name: string) => Promise<readonly string[] | null>;
 
   /** Durable adapter owns reconciliation; an uncertain output must not be trashed blindly. */
   preserveUncertainOutput?: boolean;
@@ -847,6 +852,21 @@ export async function createProductCatalog(
   ];
   const rowCreatives = catalogRowCreatives(requestCreatives.map(creative => creative.copies));
   if (rowCreatives.length !== request.productCount) throw new TeamFunctionError('INVALID_INPUT');
+  /* Each block links with its own SUB «Креатив» when the Launch gives one per creative; the
+     links live in the layout, so every later update writes the same block's own link. */
+  let creativeSourceLinks: string[] | null = null;
+  const resolvedCreativeLinks = deps.resolveCreativeSourceLinks
+    ? await deps.resolveCreativeSourceLinks(plan.name)
+    : null;
+  if (resolvedCreativeLinks) {
+    if (resolvedCreativeLinks.length !== requestCreatives.length)
+      throw new TeamFunctionError('LAUNCH_SUB_INVALID');
+    creativeSourceLinks = resolvedCreativeLinks.map(raw => {
+      const link = parseWebLink(raw, SOURCE_LINK_MAX);
+      if (!link.ok) throw new TeamFunctionError('LAUNCH_SUB_INVALID');
+      return link.value;
+    });
+  }
   // H holds the creative's own image at once only when nothing schedules its publication.
   const publicationHeld = request.videoPublication?.mode === 'scheduled';
   const snapshotCreatives: CatalogSnapshotCreative[] = requestCreatives.map((creative, ordinal) => {
@@ -864,14 +884,16 @@ export async function createProductCatalog(
       ...(image && !publicationHeld ? { link: image.link, linkKind: image.linkKind } : {}),
       ...(ownVideo && !publicationHeld
         ? { link: creativeVideoLinks[ordinal]!, linkKind: 'drive' as const }
-        : {})
+        : {}),
+      ...(creativeSourceLinks ? { sourceLink: creativeSourceLinks[ordinal]! } : {})
     };
   });
   const creativeCells: CatalogCreativeCells[] = requestCreatives.map((creative, ordinal) => ({
     idPrefix: catalogIdPrefix(creative.alias),
     kind,
     ...(kind === 'video' && ordinal > 0 ? { videoLink: creativeVideoLinks[ordinal]! } : {}),
-    ...(kind === 'image' && !publicationHeld ? { imageLink: imageLinks[ordinal]!.link } : {})
+    ...(kind === 'image' && !publicationHeld ? { imageLink: imageLinks[ordinal]!.link } : {}),
+    ...(creativeSourceLinks ? { sourceLink: creativeSourceLinks[ordinal]! } : {})
   }));
   /* Kept for sheets and workers that read one value: the first row's. */
   const snapshot = {

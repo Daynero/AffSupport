@@ -46,6 +46,26 @@ async function rotate() {
     claimHash: H(4)
   });
 }
+async function expireReplay() {
+  await db.root(
+    "update private.team_recovery_delegations set rotation_replay_until=clock_timestamp()-interval '1 microsecond'"
+  );
+}
+/** The same rotation sent again after its reply was lost; the server mints fresh handles. */
+async function retryRotation(n: number) {
+  return call('rotate', H(2), {
+    rotationId: ROTATION,
+    refresh: 'f'.repeat(43),
+    refreshHash: H(n),
+    claim: 'g'.repeat(43),
+    claimHash: H(n + 1)
+  });
+}
+async function family() {
+  return db.root(
+    "select '\\x'||encode(previous_hash,'hex') previous,'\\x'||encode(refresh_hash,'hex') current,revoked_at is not null revoked from private.team_recovery_delegations"
+  );
+}
 async function executionFixture() {
   await enroll();
   await rotate();
@@ -954,7 +974,7 @@ describe('scoped background delegation', () => {
     await expect(call('probe', H(23))).rejects.toThrow(/AUTH_REQUIRED/);
     expect(await activeInstallations()).toEqual([{ installation_id: otherInstallation }]);
   });
-  it('bounds replay and claim lifetimes and revokes an expired rotation replay', async () => {
+  it('bounds replay and claim lifetimes; a lost rotation retried later rotates again', async () => {
     await enroll();
     await rotate();
     expect(
@@ -967,18 +987,31 @@ describe('scoped background delegation', () => {
         [H(4)]
       )
     ).toEqual([{ replay_seconds: 60, claim_seconds: 300 }]);
-    await db.root(
-      "update private.team_recovery_delegations set rotation_replay_until=clock_timestamp()-interval '1 microsecond' where refresh_hash=$1::text::bytea",
-      [H(3)]
-    );
-    expect(await rotate()).toEqual({ error: 'AUTH_REQUIRED' });
+    await expireReplay();
+    // Production 2026-11-20 (NUTRA (RKS)): the reply was lost while the database was slow and
+    // the desktop retried the same rotation 95 s later. Its new credentials were never used, so
+    // this is the desktop itself, not a stolen handle: it rotates again from the handle it holds.
+    expect(await retryRotation(10)).toMatchObject({
+      refresh: 'f'.repeat(43),
+      claim: 'g'.repeat(43)
+    });
     await expect(call('authorize_claim', H(4))).rejects.toThrow(/AUTH_REQUIRED/);
-    expect(
-      await db.root(
-        'select revoked_at is not null as revoked from private.team_recovery_delegations where refresh_hash=$1::text::bytea',
-        [H(3)]
-      )
-    ).toEqual([{ revoked: true }]);
+    await expect(call('probe', H(3))).rejects.toThrow(/AUTH_REQUIRED/);
+    expect(await family()).toEqual([{ previous: H(2), current: H(10), revoked: false }]);
+  });
+  it('still revokes a retried rotation whose credentials were used or that is older than 30 minutes', async () => {
+    for (const evidence of [
+      'last_claim_at=clock_timestamp()',
+      'last_probe_at=clock_timestamp()',
+      "last_rotation_at=clock_timestamp()-interval '31 minutes'"
+    ]) {
+      await enroll();
+      await rotate();
+      await expireReplay();
+      await db.root(`update private.team_recovery_delegations set ${evidence}`);
+      expect(await retryRotation(20)).toEqual({ error: 'AUTH_REQUIRED' });
+      expect(await family()).toEqual([{ previous: H(2), current: H(3), revoked: true }]);
+    }
   });
   it('rejects an expired delegation even while its claim credential is still valid', async () => {
     await enroll();

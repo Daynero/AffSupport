@@ -227,7 +227,9 @@ export async function verifyCatalogVideoBaseline(input: {
     sheetName: PRODUCT_CATALOG_SHEET_NAME,
     columns: [idColumn, videoColumn],
     rowCount: sheet.rowCount,
-    expectedRows: scope.productCount + 2
+    expectedRows: scope.productCount + 2,
+    // The links to confirm are the product rows'; strays under them are not evidence.
+    tolerant: true
   });
   const [ids, videos] = columns;
   if (

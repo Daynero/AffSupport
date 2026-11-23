@@ -23,7 +23,7 @@ import { TaskAttachmentPicker } from '../tasks/TaskAttachmentPicker.js';
 import { teamApi } from '../../api/team.js';
 import { uploadTeamFile } from '../catalog/material-actions-client.js';
 import { Button, DropdownMenu, FormField } from '../../components/ui/index.js';
-import { useI18n } from '../../i18n.js';
+import { creativeSelectKey, useI18n } from '../../i18n.js';
 import { useThumbnailSession } from '../explorer/useThumbnailSession.js';
 import { privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope.js';
 import { teamErrorMessageFor } from '../errors.js';
@@ -70,11 +70,12 @@ export function LaunchCreativePicker({
   onBusyChange?: (busy: boolean) => void;
   submitted?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const id = useId();
   const fileInput = useRef<HTMLInputElement>(null);
   const menuAnchor = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuWasOpen = useRef(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -328,7 +329,10 @@ export function LaunchCreativePicker({
   // One compact drop strip: it says it takes dropped files and opens the source menu.
   const compactDrop = catalogMode || creatives.length === 0;
   return (
-    <FormField label={t('launchesCreative')} error={selectionError}>
+    <FormField
+      label={t(creatives.length > 1 ? 'launchesCreatives' : 'launchesCreative')}
+      error={selectionError}
+    >
       <div
         className="flex min-w-0 max-w-xl flex-col gap-2"
         onDragOver={event => {
@@ -378,14 +382,27 @@ export function LaunchCreativePicker({
         <div
           className={
             compactDrop
-              ? `flex min-h-10 min-w-0 items-center gap-2 rounded-control border border-dashed px-3 text-caption text-ink-muted ${
+              ? `launch-creative-drop flex min-h-10 min-w-0 items-center gap-2 rounded-control border border-dashed px-3 text-caption text-ink-muted ${
                   dragging ? 'border-secondary-border bg-secondary-soft' : 'border-neutral-border'
                 }`
               : 'launch-creative-field'
           }
           data-dragging={dragging || undefined}
           data-busy={busy || undefined}
+          data-disabled={(compactDrop && unavailable) || undefined}
           aria-busy={busy}
+          // The whole drop zone opens «Обрати», not only its button (next QA 2026-11-21).
+          // A pointer convenience: the button inside stays the one control for the
+          // keyboard and for assistive technology, so the zone takes no role of its own.
+          onPointerDownCapture={() => {
+            menuWasOpen.current = menuOpen;
+          }}
+          onClick={event => {
+            if (!compactDrop || unavailable || busy) return;
+            if (event.target instanceof Element && event.target.closest('button, input, a')) return;
+            // A press on the zone while the menu is up closes it, as the button does.
+            if (!menuWasOpen.current) setMenuOpen(true);
+          }}
         >
           {!compactDrop && creatives[0] && (
             <LaunchCreativeRow
@@ -423,9 +440,21 @@ export function LaunchCreativePicker({
           <TaskAttachmentPicker
             key={`${epoch}:${teamId}:${catalogMode}`}
             teamId={teamId}
-            title={t('launchesSelectCreative')}
-            confirmLabel={() => t('launchesSelectCreative')}
+            title={t(catalogMode ? 'launchesSelectCreatives' : 'launchesSelectCreative')}
+            confirmLabel={count =>
+              catalogMode && count > 0
+                ? t(creativeSelectKey(language, count), { count })
+                : t('launchesSelectCreative')
+            }
             single={!catalogMode}
+            // A video and a picture cannot share a Launch: once one kind is ticked the other
+            // is shown unavailable, not accepted and then refused with the whole choice.
+            unavailableWith={(material, chosen) => {
+              if (!catalogMode || chosen.length === 0) return null;
+              const first = kindOf(chosen[0]!.category);
+              const own = kindOf(material.category);
+              return first && own && first !== own ? t('launchCreativesMixed') : null;
+            }}
             attachedMaterialIds={new Set(catalogMode ? creatives.map(c => c.materialId) : [])}
             accept={material => {
               if (material.kind !== 'file') return false;

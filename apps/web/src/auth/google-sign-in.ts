@@ -51,33 +51,77 @@ async function call<T>(endpoint: GoogleSignInEndpoint, body: Record<string, unkn
   return payload.value;
 }
 
+/** A start that may succeed on its own a moment later: the function or Supabase Auth was down. */
+class TransientStartError extends Error {}
+
+const START_RETRY_DELAYS_MS = [700, 2000];
+
 /**
  * Asks the function for a Google authorization URL. Returns it when this path is
- * ready, or null when the caller should use the provider redirect instead.
+ * ready, or null when this environment signs in through the provider redirect
+ * (no direct sign-in configured, a different provider client, or no function at all).
+ *
+ * A passing failure is not a reason to take that redirect (production 2026-11-23: after a
+ * database restart a start failed once, the page fell back to Supabase's redirect, and Google
+ * answered redirect_uri_mismatch — the supabase.co callback left the client at brand
+ * verification). It is tried again, and then reported: SIGN_IN_UNAVAILABLE.
  */
-export async function beginGoogleSignIn(endpoint: GoogleSignInEndpoint): Promise<string | null> {
+export async function beginGoogleSignIn(
+  endpoint: GoogleSignInEndpoint,
+  wait: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms))
+): Promise<string | null> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await startOnce(endpoint);
+    } catch (error) {
+      if (!(error instanceof TransientStartError)) throw error;
+      const delay = START_RETRY_DELAYS_MS[attempt];
+      if (delay === undefined) throw new Error('SIGN_IN_UNAVAILABLE', { cause: error });
+      await wait(delay);
+    }
+  }
+}
+
+async function startOnce(endpoint: GoogleSignInEndpoint): Promise<string | null> {
   const flow: StoredFlow = {
     state: randomToken(32),
     verifier: randomToken(48),
     nonce: randomToken(32),
     createdAt: Date.now()
   };
+  let response: Response;
   try {
-    const result = await call<{ mode: 'direct'; authorizationUrl: string } | { mode: 'legacy' }>(
-      endpoint,
-      {
+    response = await fetch(`${endpoint.supabaseUrl}/functions/v1/google-sign-in`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', apikey: endpoint.publishableKey },
+      body: JSON.stringify({
         action: 'start',
         state: flow.state,
         codeChallenge: base64Url(await sha256(flow.verifier)),
         nonceHash: hex(await sha256(flow.nonce))
+      })
+    });
+  } catch {
+    throw new TransientStartError('NETWORK');
+  }
+  // No such function here: an environment that has only the provider redirect.
+  if (response.status === 404) return null;
+  const payload = (await response.json().catch(() => null)) as
+    | {
+        ok: true;
+        value: { mode: 'direct'; authorizationUrl: string } | { mode: 'legacy'; reason?: string };
       }
-    );
-    if (result.mode !== 'direct') return null;
+    | { ok: false }
+    | null;
+  if (!response.ok || !payload || !payload.ok) throw new TransientStartError('UNAVAILABLE');
+  const result = payload.value;
+  if (result.mode === 'direct') {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(flow));
     return result.authorizationUrl;
-  } catch {
-    return null;
   }
+  // Supabase Auth did not answer the function's lookup: as passing as the function's own outage.
+  if (result.reason === 'provider_unreachable') throw new TransientStartError('UNAVAILABLE');
+  return null;
 }
 
 function readFlow(): StoredFlow | null {

@@ -30,6 +30,8 @@ import {
   GLOBAL_CATALOG_IMAGE_ERROR_CODES,
   CATALOG_VIDEO_R2_ERROR_CODES,
   LAUNCH_CREATIVE_ERROR_CODES,
+  TEAM_TRANSLATION_ERROR_CODES,
+  TEAM_ASSISTANT_ERROR_CODES,
   TEAM_ERROR_CODES,
   OPERATION_GRANT_TTL_SECONDS,
   TRANSCRIPT_INDEX_MAX_BYTES,
@@ -271,6 +273,14 @@ describe('team contract', () => {
       'supabase/migrations/20261221090000_launch_creative_error_codes.sql',
       'utf8'
     );
+    const translationDelta = readFileSync(
+      'supabase/migrations/20261222112000_translation_error_codes.sql',
+      'utf8'
+    );
+    const assistantDelta = readFileSync(
+      'supabase/migrations/20261223090000_assistant_error_codes.sql',
+      'utf8'
+    );
     expect(createHash('sha256').update(mutationDelta.replaceAll('\r\n', '\n')).digest('hex')).toBe(
       '5a4c059890f619a630cd9f221bd2774d6af3a68928913179122147ef1dff9eb9'
     );
@@ -304,6 +314,8 @@ describe('team contract', () => {
     expect(codes(videoDelta)).toEqual([...CATALOG_VIDEO_R2_ERROR_CODES]);
     expect(codes(globalDelta)).toEqual([...GLOBAL_CATALOG_IMAGE_ERROR_CODES]);
     expect(codes(creativeDelta)).toEqual([...LAUNCH_CREATIVE_ERROR_CODES]);
+    expect(codes(translationDelta)).toEqual([...TEAM_TRANSLATION_ERROR_CODES]);
+    expect(codes(assistantDelta)).toEqual([...TEAM_ASSISTANT_ERROR_CODES]);
     expect(
       [
         ...codes(base),
@@ -321,7 +333,9 @@ describe('team contract', () => {
         ...codes(restitchRecoveryDelta),
         ...codes(videoDelta),
         ...codes(globalDelta),
-        ...codes(creativeDelta)
+        ...codes(creativeDelta),
+        ...codes(translationDelta),
+        ...codes(assistantDelta)
       ].sort()
     ).toEqual([...TEAM_ERROR_CODES].sort());
     const directory = mkdtempSync(join(tmpdir(), 'wishly-team-contract-delta-'));
@@ -445,6 +459,8 @@ describe('team contract', () => {
       await db.db.exec(videoDelta);
       await db.db.exec(globalDelta);
       await db.db.exec(creativeDelta);
+      await db.db.exec(translationDelta);
+      await db.db.exec(assistantDelta);
       const catalog = await db.root<{ code: string }>(
         'select code from public.team_error_codes order by code'
       );
@@ -457,13 +473,17 @@ describe('team contract', () => {
               !(TEAM_CATALOG_PUBLICATION_ERROR_CODES as readonly string[]).includes(code) &&
               !(CATALOG_VIDEO_R2_ERROR_CODES as readonly string[]).includes(code) &&
               !(GLOBAL_CATALOG_IMAGE_ERROR_CODES as readonly string[]).includes(code) &&
-              !(LAUNCH_CREATIVE_ERROR_CODES as readonly string[]).includes(code)
+              !(LAUNCH_CREATIVE_ERROR_CODES as readonly string[]).includes(code) &&
+              !(TEAM_TRANSLATION_ERROR_CODES as readonly string[]).includes(code) &&
+              !(TEAM_ASSISTANT_ERROR_CODES as readonly string[]).includes(code)
           )
       ).toEqual(before);
       await db.db.exec(publicationDelta);
       await db.db.exec(videoDelta);
       await db.db.exec(globalDelta);
       await db.db.exec(creativeDelta);
+      await db.db.exec(translationDelta);
+      await db.db.exec(assistantDelta);
       expect(
         (
           await db.root<{ code: string }>('select code from public.team_error_codes order by code')

@@ -1,0 +1,471 @@
+/* 064: the launch assistant above the list, and the credits button in the header. */
+.assistant-dock {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  /* Above a dialog it may sit next to (a launch opened from it), below the menus it opens itself:
+     between --layer-modal and --layer-anchored, as the work panel of 024 is. These lived in the
+     next-only rule below, so in production the explorer's toolbar and a file's hover card were
+     drawn over the window (owner, 2026-11-23). */
+  z-index: var(--layer-modal-nested);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+/* The test-build badge sits in the same corner on next; the assistant stands above it. */
+body:has(.next-channel-badge) .assistant-dock {
+  bottom: calc(var(--space-5) + var(--space-6) + var(--space-3));
+}
+.assistant-fab {
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+  animation: assistant-appear var(--motion-base) var(--ease-out-curve);
+}
+.assistant-window {
+  transform-origin: bottom right;
+  animation: assistant-appear var(--motion-base) var(--ease-out-curve);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  /* Narrow and short enough to leave the page readable beside it (owner, 2026-11-23). */
+  width: min(22rem, calc(100vw - 2 * var(--space-4)));
+  height: min(30rem, calc(100vh - 7rem));
+  /* A phone's browser bar takes part of 100vh; the dynamic height keeps the input in sight. */
+  height: min(30rem, calc(100dvh - 7rem));
+  padding: var(--space-2) var(--space-3);
+  /* A floating window over a dark page of the same surface: a honey edge, a soft honey halo and
+     a raised surface make it read as its own layer instead of melting into the panel behind. */
+  border: var(--border-width) solid color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-raised);
+  box-shadow:
+    var(--shadow-xl),
+    0 0 0 var(--space-1) color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.assistant-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.assistant-dialog-switch {
+  display: inline-flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-label);
+  font-weight: 600;
+  cursor: pointer;
+}
+.assistant-dialog-switch:hover,
+.assistant-dialog-switch:focus-visible {
+  background: var(--color-surface-raised);
+}
+.assistant-dialog-switch svg:first-child {
+  color: var(--color-accent-text);
+}
+.assistant-dialog-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assistant-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+.assistant-retention {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  text-align: center;
+}
+.assistant-error {
+  padding: 0 var(--space-1);
+}
+.assistant-thread {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: var(--space-3);
+  min-height: 0;
+  margin: 0;
+  padding: 0 var(--space-1);
+  overflow-y: auto;
+  list-style: none;
+}
+.assistant-message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+.assistant-message.is-user {
+  align-items: flex-end;
+}
+.assistant-text {
+  max-width: var(--measure);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.assistant-message.is-user .assistant-text {
+  padding: var(--space-1-5) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+.assistant-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.assistant-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: 600;
+}
+.assistant-card-title svg {
+  color: var(--color-success);
+}
+.assistant-rows,
+.assistant-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.assistant-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1-5) var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-caption);
+}
+.assistant-row + .assistant-row {
+  border-top: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+}
+.assistant-row-open {
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+.assistant-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-size: var(--text-caption);
+  line-height: 1.6;
+}
+.assistant-chip.is-creative {
+  background: var(--color-accent-softer);
+  color: var(--color-accent-text);
+}
+.assistant-chip.is-missing {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+.assistant-row-offer {
+  font-weight: 600;
+}
+.assistant-row-facts {
+  color: var(--color-text-muted);
+}
+.assistant-row-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.assistant-row-line.is-sub {
+  font-size: var(--text-caption);
+}
+.assistant-row-need {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  color: var(--color-warning-text);
+}
+.assistant-note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.assistant-note.is-warning {
+  color: var(--color-warning-text);
+}
+.assistant-note.is-success {
+  color: var(--color-success-text);
+}
+.assistant-question {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.assistant-card-actions,
+.assistant-examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.assistant-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-1-5) var(--space-1-5) var(--space-1-5) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  /* A long message makes the field several lines tall: a pill's rounding then hid its first and
+     last lines (owner, 2026-11-23). */
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.assistant-bar.is-focused {
+  border-color: var(--color-accent-soft);
+}
+.assistant-bar.is-invalid {
+  border-color: var(--color-error-border);
+}
+.assistant-input {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--space-6);
+  padding: var(--space-2) 0;
+  border: 0;
+  /* Past its tallest the field scrolls, and the line being typed keeps clear of the edge. */
+  overflow-y: auto;
+  scroll-padding-block: var(--space-2);
+  outline: none;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-body);
+  resize: none;
+}
+.assistant-input::placeholder {
+  color: var(--color-text-muted);
+}
+.assistant-price {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-accent-text);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+.assistant-thread.is-switching {
+  opacity: 0.5;
+  transition: opacity var(--motion-fast) var(--ease-fade);
+}
+@keyframes assistant-appear {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2)) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .assistant-window,
+  .assistant-fab {
+    animation: none;
+  }
+}
+.credits-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(20rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3);
+}
+.credits-panel-total {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--text-title);
+  font-weight: 700;
+}
+.credits-panel-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.credits-panel-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-label);
+}
+.credits-panel-line {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.credits-panel-line.is-warning {
+  color: var(--color-warning-text);
+}
+.credits-chip {
+  font-variant-numeric: tabular-nums;
+}
+.ai-budget-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-6);
+}
+.ai-budget-figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ai-budget-figure strong {
+  font-size: var(--text-title);
+}
+.ai-budget-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-caption);
+}
+.assistant-card.is-undone .assistant-rows {
+  opacity: 0.55;
+}
+.ai-budget-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.ai-budget-forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0 var(--space-5);
+}
+/* A number field keeps its own width; its button stands right next to it, not across the column. */
+.ai-budget-forms .release-testers-form .ui-field {
+  flex: 0 1 auto;
+}
+.assistant-card-title .assistant-card-warning {
+  color: var(--color-warning-text);
+}
+.admin-credits-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.admin-credits-bonus {
+  color: var(--color-accent-text);
+}
+.admin-credits-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(16rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3);
+}
+.admin-credits-form-title {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: 600;
+}
+.admin-pilot-outside {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.admin-credits-cell > .numeric {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* 064: space tools — an answer read from the space, and a removal that says so. */
+.assistant-card.is-danger {
+  border-color: var(--color-error-border);
+}
+.assistant-table-wrap {
+  max-height: calc(var(--space-6) * 12);
+  overflow: auto;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.assistant-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+.assistant-table th,
+.assistant-table td {
+  padding: var(--space-1) var(--space-2);
+  text-align: start;
+  border-bottom: var(--border-width) solid var(--color-border);
+  white-space: nowrap;
+}
+/* The first column is the name; it wraps — at spaces, or inside a long file name with none — so
+   one long name never pushes the other columns out of the window (ranks on next, 2026-11-23). */
+.assistant-table td:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: calc(var(--space-6) * 4);
+}
+.assistant-table th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-weight: var(--weight-emphasis);
+}
+.assistant-table .is-numeric {
+  text-align: end;
+  white-space: nowrap;
+}
+.assistant-table tfoot td {
+  border-bottom: 0;
+  font-weight: var(--weight-emphasis);
+}
+.assistant-table-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+}
+.assistant-table-totals dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.assistant-table-totals dd {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: var(--weight-emphasis);
+}

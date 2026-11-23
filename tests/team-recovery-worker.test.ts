@@ -7,6 +7,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RECOVERY_BUDGET } from '@video-compressor/shared';
 import {
+  REJECTED_REASK_MS,
   TeamRecoveryWorker,
   recoveryEndpoint,
   type RecoveryWorkerOptions
@@ -1296,9 +1297,14 @@ describe('background recovery worker', () => {
           request_id: expect.any(String)
         })
       );
+      // A refused credential is offered for setup again at once and asked once an hour; the
+      // other verdicts wait for a person or a restart.
+      expect(f.worker.status(TEAM).automaticSetup).toBe(
+        code === 'AUTH_REQUIRED' ? 'eligible' : 'blocked'
+      );
       await vi.advanceTimersByTimeAsync(3_600_000);
       await f.worker.idle();
-      expect(f.fetcher).toHaveBeenCalledOnce();
+      expect(f.fetcher).toHaveBeenCalledTimes(code === 'AUTH_REQUIRED' ? 2 : 1);
       await f.worker.shutdown();
       const restarted = new TeamRecoveryWorker(f.worker.options);
       workers.push(restarted);
@@ -1309,10 +1315,44 @@ describe('background recovery worker', () => {
       expect(restarted.status(TEAM)).toMatchObject({ state: 'blocked', reason });
       // A revoked permission stays revoked; a "needs setup" verdict from an earlier run
       // is asked once by the restarted agent and recorded again when it still holds.
-      expect(f.fetcher).toHaveBeenCalledTimes(code === 'PERMISSION_DENIED' ? 1 : 2);
+      expect(f.fetcher).toHaveBeenCalledTimes(
+        code === 'PERMISSION_DENIED' ? 1 : code === 'AUTH_REQUIRED' ? 3 : 2
+      );
       expect(f.process.process).not.toHaveBeenCalled();
     }
   );
+  it('resumes a space on its own once the server takes the refused credential again', async () => {
+    const f = await fixture();
+    f.fetcher
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: false, error: { code: 'AUTH_REQUIRED' } }), {
+          status: 401
+        })
+      )
+      .mockResolvedValue(
+        new Response(JSON.stringify({ ok: true, value: { allowed: true, job: null } }))
+      );
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({
+      state: 'blocked',
+      reason: 'needs_agent_setup',
+      automaticSetup: 'eligible'
+    });
+    // The page may set it up again now — as a new delegation, never a «renewal» of a live one.
+    const setup = await f.worker.beginAutomatic(
+      TEAM,
+      'http://127.0.0.1:54321/functions/v1/team-recovery',
+      ACTOR
+    );
+    expect(setup).not.toHaveProperty('renewalDelegationId');
+    // Nobody did: an hour later the worker asks the server itself, and the space runs again.
+    await vi.advanceTimersByTimeAsync(REJECTED_REASK_MS);
+    await f.worker.idle();
+    expect(f.worker.status(TEAM).reason).not.toBe('needs_agent_setup');
+    expect(f.worker.status(TEAM).automaticSetup).not.toBe('blocked');
+  });
   it('retries a claim answered INVALID_RESPONSE instead of parking the space for good', async () => {
     const f = await fixture();
     f.fetcher

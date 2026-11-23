@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.5.9",
-  "buildNumber": "101",
-  "buildId": "1.5.9+101",
+  "version": "1.6.2",
+  "buildNumber": "104",
+  "buildId": "1.6.2+104",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-20T00:00:00.000Z",
+  "publishedAt": "2026-11-23T00:00:00.000Z",
   "summary": {
-    "uk": "Каталожний запуск приймає кілька креативів — відео або зображень — і ділить товари між ними.",
-    "en": "A catalog launch takes several creatives — videos or images — and splits the products between them."
+    "uk": "Помічник простору: пишіть звичайними словами — він робить у просторі те саме, що й ви, і показує картку до будь-якої зміни. Чарунки, переклад транскриптів, фонова робота без перезапусків.",
+    "en": "The space assistant: write in plain words and it does in the space what you do, with a card before any change. Credits, transcript translation, background work without restarts."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.9/Soty-v1.5.9-macOS-arm64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.2/Soty-v1.6.2-macOS-arm64.dmg",
+      "sha256": "1ad62a128572a5db73a481840575e501f3eba04fddee9afadb47f9752be17e99"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.9/Soty-v1.5.9-macOS-x64.dmg",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.2/Soty-v1.6.2-macOS-x64.dmg",
+      "sha256": "0aaebb35dcb0cf88d8409eff5c66595fbf44a609a3effcef0e81c265e7df8519"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.5.9/Soty-v1.5.9-Windows-x64.exe",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.2/Soty-v1.6.2-Windows-x64.exe",
+      "sha256": "953e0feaed5c08500a80a0898b192c8def8bb7ddc94ada3e4765a8f461f7f860"
     }
   },
   "toolRequirements": {
@@ -48,5 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "C3GuSZPD_iWYDZ28taXpqkXGkktTE03PYIENVdF50gLz7wvvS1JzcoqqxPsu1lqW9Qx5LLM40oHHZgYvXSNS5Q"
+  "signature": "OSuzI-LvUen_4MghlGLhQK_sAbdqCZV7AnqE_lpHAklJt1bFPD6yuRfKk5UAJNMviq--yjaxT5b5IJR3AoIdjw"
 }

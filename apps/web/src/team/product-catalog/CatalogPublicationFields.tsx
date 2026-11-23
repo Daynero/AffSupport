@@ -31,11 +31,13 @@ export interface CatalogPublicationFieldsValue {
 export function CatalogPublicationFields({
   value,
   onChange,
-  disabled
+  disabled,
+  media
 }: {
   value: CatalogPublicationFieldsValue;
   onChange(value: CatalogPublicationFieldsValue): void;
   disabled: boolean;
+  media?: 'video' | 'image';
 }) {
   const { t, language } = useI18n();
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -55,6 +57,7 @@ export function CatalogPublicationFields({
     onChange({ ...value, ...patch });
   return (
     <CatalogPublicationSchedule
+      media={media}
       enabled={value.delayed}
       disabled={disabled}
       date={value.date}

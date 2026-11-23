@@ -576,6 +576,7 @@ export async function createDurableProductCatalog(
     drawImages: 'resource_selection',
     planName: 'name_conflicts',
     resolveSourceLink: 'source_link',
+    resolveCreativeSourceLinks: 'source_link',
     startOperation: 'operation_start',
     markRunning: 'operation_running',
     beforeImageWrite: 'image_validation',
