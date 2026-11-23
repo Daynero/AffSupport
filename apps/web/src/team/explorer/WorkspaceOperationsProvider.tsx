@@ -16,12 +16,19 @@ import type {
 import { useOptionalTeam } from '../TeamContext';
 import { useBulkTrash } from './useBulkTrash';
 import { teamApi } from '../../api/team';
-import { useI18n, type TranslationKey } from '../../i18n';
+import { useI18n } from '../../i18n';
 import { useOptionalToasts } from '../../components/toast';
 import { uploadTeamFile, type TeamFileUploadInput } from '../catalog/material-actions-client';
 import type { LocalManifest } from './localManifest';
 import { localStageProgress } from './localProgress';
 import { WorkspaceOperationJournal, type JournalGroup } from './workspaceOperationJournal';
+import {
+  errorCode,
+  fromJournal,
+  Semaphore,
+  STAGE_LABEL,
+  terminalState
+} from './workspaceOperationHelpers';
 import { catalogNameKey, type WorkspaceCatalogResult } from './catalogPostcondition';
 
 export interface WorkspaceDestination {
@@ -96,73 +103,6 @@ const defaultClient: WorkspaceOperationsClient = {
   uploadFile: uploadTeamFile,
   getOperation: (teamId, operationId) => teamApi.getOperation(teamId, operationId),
   cancelOperation: (teamId, operationId) => teamApi.cancelOperation(teamId, operationId)
-};
-
-function fromJournal(group: JournalGroup): WorkspaceOperationGroup {
-  return {
-    id: group.id,
-    teamId: group.teamId,
-    createdAt: group.createdAt,
-    destination: { ...group.destination },
-    state: group.state,
-    stage: group.stage,
-    attempt: group.attempt,
-    confirmedBytes: 0,
-    totalBytes: group.items
-      .filter(item => item.kind === 'file' && item.state !== 'succeeded')
-      .reduce((total, item) => total + item.sizeBytes, 0),
-    progress: 'indeterminate',
-    items: group.items.map(item => ({
-      clientItemKey: item.clientItemKey,
-      relativePath: item.relativePath,
-      idempotencyKey: item.idempotencyKey,
-      state: item.state,
-      errorCode: item.errorCode,
-      operationId: item.operationId,
-      resultMaterialId: item.resultMaterialId,
-      resultFolderId: item.resultFolderId
-    }))
-  };
-}
-
-class Semaphore {
-  private active = 0;
-  private readonly waiting: Array<() => void> = [];
-  constructor(private readonly limit: number) {}
-
-  async use<T>(work: () => Promise<T>): Promise<T> {
-    if (this.active >= this.limit) await new Promise<void>(resolve => this.waiting.push(resolve));
-    else this.active += 1;
-    try {
-      return await work();
-    } finally {
-      const next = this.waiting.shift();
-      if (next) next();
-      else this.active -= 1;
-    }
-  }
-}
-
-function errorCode(cause: unknown): string {
-  if (cause && typeof cause === 'object' && 'code' in cause && typeof cause.code === 'string')
-    return cause.code;
-  return 'DRIVE_UNAVAILABLE';
-}
-
-function terminalState(group: WorkspaceOperationGroup, issueCount: number): LocalOperationState {
-  const succeeded = group.items.filter(item => item.state === 'succeeded').length;
-  const failed = group.items.some(item => item.state === 'failed' || item.state === 'skipped');
-  if (!failed && issueCount === 0) return 'succeeded';
-  return succeeded > 0 ? 'partial' : 'failed';
-}
-
-const STAGE_LABEL: Record<LocalOperationStage, TranslationKey> = {
-  preparing: 'teamWorkspaceStagePreparing',
-  creating_folders: 'teamWorkspaceStageFolders',
-  transferring: 'teamWorkspaceStageTransfer',
-  moving: 'teamWorkspaceStageMoving',
-  updating_catalog: 'teamWorkspaceStageCatalog',
-  done: 'teamOperationSucceeded'
 };
 
 /** One space-level owner for browser transfer groups and their local metadata. */
