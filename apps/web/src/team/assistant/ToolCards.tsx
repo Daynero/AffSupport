@@ -224,7 +224,9 @@ export function TableCard({ card }: { card: AssistantCard }) {
         timeZone: 'UTC'
       });
     if (column === 'rank' && LEAGUE[value]) return t(LEAGUE[value]);
-    if ((column === 'updated' || column === 'lastLaunch') && /^\d{4}-\d{2}-\d{2}T/u.test(value))
+    if (column === 'lastLaunch' && /^\d{4}-\d{2}-\d{2}T/u.test(value))
+      return new Date(value).toLocaleDateString(language, { day: 'numeric', month: 'short' });
+    if (column === 'updated' && /^\d{4}-\d{2}-\d{2}T/u.test(value))
       return new Date(value).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
     return value;
   };
@@ -270,7 +272,9 @@ export function TableCard({ card }: { card: AssistantCard }) {
                     <td
                       key={column}
                       className={
-                        MONEY_COLUMNS.has(column) || column === 'count' ? 'is-numeric' : undefined
+                        MONEY_COLUMNS.has(column) || column === 'count' || column === 'launches'
+                          ? 'is-numeric'
+                          : undefined
                       }
                     >
                       {cell(column, row[at] ?? null)}
@@ -286,7 +290,9 @@ export function TableCard({ card }: { card: AssistantCard }) {
                     <td
                       key={column}
                       className={
-                        MONEY_COLUMNS.has(column) || column === 'count' ? 'is-numeric' : undefined
+                        MONEY_COLUMNS.has(column) || column === 'count' || column === 'launches'
+                          ? 'is-numeric'
+                          : undefined
                       }
                     >
                       {at === 0 && columns[0] === 'group'

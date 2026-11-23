@@ -424,9 +424,11 @@ body:has(.next-channel-badge) .assistant-dock {
   border-bottom: var(--border-width) solid var(--color-border);
   white-space: nowrap;
 }
-/* The first column is the name; it may wrap at spaces, the rest scroll sideways whole. */
+/* The first column is the name; it wraps — at spaces, or inside a long file name with none — so
+   one long name never pushes the other columns out of the window (ranks on next, 2026-11-23). */
 .assistant-table td:first-child {
   white-space: normal;
+  overflow-wrap: anywhere;
   min-width: calc(var(--space-6) * 4);
 }
 .assistant-table th {
