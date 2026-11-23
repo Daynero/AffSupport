@@ -102,6 +102,10 @@ export async function inspectCleanupGraph(db, ownership) {
       allowed = 'candidate.team_id=any($2::uuid[]) and candidate.user_id=any($4::uuid[])';
     if (table === 'public.team_audit_events')
       allowed = 'candidate.team_id=any($2::uuid[]) and candidate.actor_id=any($4::uuid[])';
+    // 20261223320000: every space joins the picture pool as it is created; the row goes with the
+    // team (on delete cascade), so a fixture team's own membership is not a foreign reference.
+    if (table === 'private.catalog_global_pilot_teams')
+      allowed = "candidate.team_id=any($2::uuid[]) and candidate.note='joined on creation'";
     if (table === 'public.space_tariffs') allowed = 'candidate.id=any($3::uuid[])';
     if (table === 'public.space_tariff_events')
       allowed =
