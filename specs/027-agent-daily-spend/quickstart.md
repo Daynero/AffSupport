@@ -1,6 +1,13 @@
 # Quickstart validation
 
-Це інструкція для майбутньої реалізації. Нові RPC/тести ще не створені; наведені очікування не є звітом про проходження.
+Функцію реалізовано й випущено з 1.4.3. Цей документ — протокол ручної перевірки, а не звіт про проходження. Автоматично вже покрито:
+
+- пункти 1, 5, 6 — `tests/team-agent-finance-daily.test.tsx`, `tests/team-agent-finance-fields.test.tsx`, `tests/team-agent-finance-period.test.tsx`, `tests/team-agent-finance-realtime.test.tsx`;
+- пункт 2 і частина 3 (same/different metric, delete/write) — `tests/team-agent-finance-concurrency-e2e.test.ts` на реальному PostgreSQL; гонки move/write, batch/Undo, retry і legacy import ще ні (T045);
+- пункти 4, 7, 8, 11 — `supabase/tests/database/team-agent-finance.test.sql` і `tests/team-agent-finance-lifecycle.test.tsx`;
+- пункти 9–10 — `tests/team-agent-finance-statement.test.tsx` (рядки на екрані = аркуш «Виписка поповнень»), `tests/team-agent-finance-xlsx.test.ts` і `tests/team-agent-finance-export.test.ts`.
+
+Відкриття файлу в Excel і прохід на beta — у [чеклісті бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 027. Пункт 12 (p95) знято з обсягу 2026-10-11, див. T048.
 
 ## Передумови
 

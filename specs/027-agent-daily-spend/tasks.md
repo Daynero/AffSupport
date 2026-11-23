@@ -119,8 +119,8 @@
       **Аудит 2026-11-23:** Прохід quickstart і відкриття контрольного файлу в Excel. Ручна частина — у [чеклісті бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 027.
 - [x] T049 Оновити локальні `apps/web/src/lib/database.types.ts` і зібрані shared artifacts, виконати форматування, `npm run build:web`, `npm run verify` та `npm run verify:release` послідовно; виправити збої в межах функції, перевірити `verification-result.json` та записати фактичні результати в `specs/027-agent-daily-spend/validation.md`.
       **Аудит 2026-11-23:** Згенеровані типи й shared artifacts підтримуються в робочому стані; повний `npm run verify` проганяє CI кожного PR (`.github/workflows/verify.yml`), окремий запуск для 027 не потрібен.
-- [ ] T050 Оновити `specs/027-agent-daily-spend/spec.md`, `plan.md`, `quickstart.md` і `supabase/migrations/ROLLBACK.md` за фактичною реалізацією та перевірками; відмічати виконані задачі у `specs/027-agent-daily-spend/tasks.md` лише за наявності результату, не заявляти production deployment або release.
-      **Аудит 2026-11-23:** не зроблено: оновлення spec/plan/quickstart за фактичною реалізацією. Лишається відкритою.
+- [x] T050 Оновити `specs/027-agent-daily-spend/spec.md`, `plan.md`, `quickstart.md` і `supabase/migrations/ROLLBACK.md` за фактичною реалізацією та перевірками; відмічати виконані задачі у `specs/027-agent-daily-spend/tasks.md` лише за наявності результату, не заявляти production deployment або release.
+      **Аудит 2026-11-23:** `spec.md` і `plan.md` мають статус «реалізовано й випущено з 1.4.3», `quickstart.md` вказує, які пункти вже покриті тестами, а що лишилося ручним (чекліст бети 1.6, розділ 027). `ROLLBACK.md` доповнено для 20261003104000 і 20261003105000; інші міграції 027 там уже були.
 
 ## Dependencies & Execution Order
 

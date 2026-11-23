@@ -1480,6 +1480,21 @@ daily values back to undated balance/topup. A UI rollback leaves finance editing
 unavailable until a forward fix. Export/read access and original legacy values
 remain preserved. Validate rollback against a disposable local snapshot first.
 
+### Finance draft-team guard (20261003104000)
+
+Forward fix preferred. To revert only this guard, restore
+`public.delete_draft_team(uuid)` from `20261003103000_team_agent_finance_operations.sql`.
+Do not restore the pre-finance version from `20260823120000_team_ux_lifecycle.sql`:
+it would let an owner delete a draft space that already holds money history.
+
+### Finance history paging (20261003105000)
+
+Forward fix preferred. To revert only the paging, restore
+`public.list_team_agent_finance_history(...)` from
+`20261003101000_team_agent_finance_values.sql`; later redefinitions (for example
+`20261125110000_team_agent_transfer_rehome.sql`) must then be re-applied on top.
+No data is changed. The older form loads an agent's whole transfer archive at once.
+
 # Finance delete compatibility (20261003106000)
 
 Forward-only clarification: transferred agents without financial journal or legacy data remain deletable. A former social account remains protected when its placement explains an agent with financial history. Do not restore the older guard functions: that would reintroduce the deferred-FK failure for transfer-only agents. All monetary archive protections remain enabled. No applied finance migration should be edited.
@@ -3266,7 +3281,6 @@ Additive only: the attachment cleanup guard on `team_creative_launch_events` and
 `task_cleanup_coverage_verified` then answers false for the whole database and no
 orphaned task upload can be claimed. Removing creative ranks removes the tables and the
 triggers with them.
-
 
 ## 20261221100000–20261221150000 — several creatives and images in catalog Launches (062)
 
