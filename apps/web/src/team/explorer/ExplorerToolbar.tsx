@@ -2,14 +2,19 @@ import { useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import {
   ArrowLeft,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   FolderTree,
   LayoutGrid,
   List,
   MoreHorizontal,
   Play,
+  Plus,
   RefreshCw,
+  Search,
   Shrink,
-  Trash2
+  Trash2,
+  X
 } from 'lucide-react';
 
 import {
@@ -28,7 +33,13 @@ import { useI18n } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { buildTeamRoute, type ExplorerView } from '../routes';
 import { formatShortcut, shortcutOf } from '../palette/shortcuts';
-import { Breadcrumb, FolderHistoryButtons, useFolderHistory } from './Breadcrumb';
+import {
+  Breadcrumb,
+  FolderHistoryButtons,
+  useFolderHistory,
+  type FolderHistory
+} from './Breadcrumb';
+import { useToolbarFit } from './useToolbarFit';
 import type { ProcessableFolder } from './FolderScopeDialog';
 
 /** The folder-wide work the toolbar offers, when the reader may process. */
@@ -129,9 +140,19 @@ export function ExplorerToolbar({
     ? buildTeamRoute({ spaceId: teamId, section: 'tasks', query: { taskId: backToTask } })
     : null;
   const shortcut = formatShortcut(shortcutOf('search')!.keys);
+  const row = useRef<HTMLDivElement>(null);
+  /* The controls that are there only sometimes take their room from the steps (T014). */
+  const fit = useToolbarFit(
+    row,
+    (treeAsDrawer ? SOMETIMES_PX.treeToggle : 0) + (taskRoute ? SOMETIMES_PX.backToTask : 0)
+  );
+  const arrowsInRow = fit !== 'tight';
+  const searchBox = fit === 'full';
+  const searchInRow = fit !== 'tight';
+  const viewInRow = fit === 'full' || fit === 'compact';
 
   return (
-    <div className="team-explorer-toolbar">
+    <div ref={row} className="team-explorer-toolbar" data-fit={fit}>
       {treeAsDrawer && (
         <IconButton
           className="team-explorer-folders-toggle"
@@ -156,7 +177,7 @@ export function ExplorerToolbar({
         <Breadcrumb
           before={
             <>
-              <FolderHistoryButtons history={history} />
+              {arrowsInRow && <FolderHistoryButtons history={history} />}
               {/* The task that sent you here, one press away (024, FR-080): a navigation
                   control of the row, not a chip of its own colour beside the path. */}
               {taskRoute && (
@@ -176,10 +197,17 @@ export function ExplorerToolbar({
       )}
       {!trash &&
         (searching ? (
-          <Button variant="secondary" className="team-explorer-search" onClick={onCloseSearch}>
-            {t('teamExplorerSearchClose')}
-          </Button>
-        ) : (
+          searchBox ? (
+            <Button variant="secondary" className="team-explorer-search" onClick={onCloseSearch}>
+              {t('teamExplorerSearchClose')}
+            </Button>
+          ) : (
+            /* The way out of the search keeps its place; a × is one of the obvious actions. */
+            <IconButton label={t('teamExplorerSearchClose')} title="" onClick={onCloseSearch}>
+              <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </IconButton>
+          )
+        ) : searchBox ? (
           <div className="team-explorer-search" {...{ [EXPLORER_SEARCH_ATTRIBUTE]: '' }}>
             <SearchField
               aria-label={t('teamExplorerSearchOpen')}
@@ -192,21 +220,45 @@ export function ExplorerToolbar({
               }}
             />
           </div>
-        ))}
+        ) : searchInRow ? (
+          /* Too narrow for a box: its magnifier, with the box's name and its key. */
+          <IconButton
+            label={t('teamExplorerSearchOpen')}
+            title={`${t('teamExplorerSearchOpen')} · ${shortcut}`}
+            onClick={() => onOpenSearch('')}
+          >
+            <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        ) : null)}
       <div className="team-explorer-toolbar-actions">
         {canUpload && !trash && (
           <>
             {/* The picker for files; the menu item opens it through the ref. */}
             <FileTrigger ref={filePicker} onSelect={onPickFiles} />
-            <Button
-              variant="primary"
-              aria-haspopup="menu"
-              aria-expanded={addMenuOpen}
-              trailing={<ChevronDown size={16} strokeWidth={ICON_STROKE} />}
-              onClick={event => onOpenAddMenu(event.currentTarget)}
-            >
-              {t('teamExplorerUpload')}
-            </Button>
+            {fit === 'tight' ? (
+              /* A phone's row has room for the folder you are in or for the word, not both:
+                 the primary keeps its colour and its name, as Drive's "+" does. */
+              <IconButton
+                color="primary"
+                variant="solid"
+                label={t('teamExplorerUpload')}
+                aria-haspopup="menu"
+                aria-expanded={addMenuOpen}
+                onClick={event => onOpenAddMenu(event.currentTarget)}
+              >
+                <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              </IconButton>
+            ) : (
+              <Button
+                variant="primary"
+                aria-haspopup="menu"
+                aria-expanded={addMenuOpen}
+                trailing={<ChevronDown size={16} strokeWidth={ICON_STROKE} />}
+                onClick={event => onOpenAddMenu(event.currentTarget)}
+              >
+                {t('teamExplorerUpload')}
+              </Button>
+            )}
             <DropdownMenu
               open={addMenuOpen}
               onClose={onCloseAddMenu}
@@ -233,7 +285,7 @@ export function ExplorerToolbar({
             />
           </>
         )}
-        {!trash && (
+        {!trash && viewInRow && (
           /* A choice of two, told as one (021, T088). */
           <SegmentedControl<'list' | 'grid'>
             className="team-explorer-view-toggle"
@@ -256,14 +308,22 @@ export function ExplorerToolbar({
         )}
         {!trash && (
           <MoreMenu
-            items={moreActions({
-              t,
-              searching,
-              resync,
-              process,
-              canUpload,
-              onOpenTrash
-            })}
+            items={[
+              ...collapsedActions({
+                t,
+                history: arrowsInRow ? null : history,
+                search: searchInRow || searching ? null : () => onOpenSearch(''),
+                view: viewInRow ? null : { value: view, onChange: onViewChange }
+              }),
+              ...moreActions({
+                t,
+                searching,
+                resync,
+                process,
+                canUpload,
+                onOpenTrash
+              })
+            ]}
           />
         )}
       </div>
@@ -273,6 +333,74 @@ export function ExplorerToolbar({
 }
 
 type Translate = ReturnType<typeof useI18n>['t'];
+
+/** The room, in pixels, of the controls the row holds only sometimes (T014). */
+const SOMETIMES_PX = { treeToggle: 52, backToTask: 128 };
+
+/**
+ * What left the row for lack of room (T014), first in "…" and in words: the search, the
+ * arrows (only the steps there are), and the view as two choices of one question.
+ */
+function collapsedActions({
+  t,
+  history,
+  search,
+  view
+}: {
+  t: Translate;
+  history: FolderHistory | null;
+  search: (() => void) | null;
+  view: { value: ExplorerView; onChange: (view: ExplorerView) => void } | null;
+}): MenuEntry[] {
+  const moves: MenuEntry[] = [];
+  if (search) {
+    moves.push({
+      id: 'search',
+      label: t('teamExplorerSearchOpen'),
+      icon: <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+      onSelect: search
+    });
+  }
+  if (history?.canBack) {
+    moves.push({
+      id: 'back',
+      label: t('teamExplorerHistoryBack'),
+      icon: <ChevronLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+      onSelect: history.back
+    });
+  }
+  if (history?.canForward) {
+    moves.push({
+      id: 'forward',
+      label: t('teamExplorerHistoryForward'),
+      icon: <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+      onSelect: history.forward
+    });
+  }
+  const entries: MenuEntry[] = [...moves];
+  if (view) {
+    if (entries.length > 0) entries.push('separator');
+    entries.push(
+      { heading: t('teamExplorerViewLabel') },
+      {
+        id: 'view-list',
+        label: t('teamExplorerViewList'),
+        icon: <List size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+        checked: view.value === 'list',
+        onSelect: () => view.onChange('list')
+      },
+      {
+        id: 'view-grid',
+        label: t('teamExplorerViewGrid'),
+        icon: <LayoutGrid size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+        checked: view.value === 'grid',
+        onSelect: () => view.onChange('grid')
+      }
+    );
+  }
+  if (entries.length > 0) entries.push('separator');
+  return entries;
+}
 
 /**
  * What the "…" holds (070, FR-004): the work that is rare here, each with its name. The Drive

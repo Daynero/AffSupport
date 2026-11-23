@@ -907,10 +907,20 @@ export function createMockSupabaseClient(): unknown {
       exchangeCodeForSession: async () => ({ data: {}, error: null }),
       signOut: async () => ({ error: null })
     },
-    rpc: async (name: string, args: Record<string, unknown> = {}) => ({
-      data: (RPC[name] ?? (() => fallback(name)))(args),
-      error: null
-    }),
+    /* A PostgREST builder, not a bare promise: the API layer chains `abortSignal()` onto every
+       read that can be cancelled and `setHeader()` onto a replay, and a promise without them
+       threw before the seed was ever asked — every space read failed (070, found walking T014). */
+    rpc: (name: string, args: Record<string, unknown> = {}) => {
+      const answer = Promise.resolve({
+        data: (RPC[name] ?? (() => fallback(name)))(args),
+        error: null
+      });
+      return Object.assign(answer, {
+        abortSignal: () => answer,
+        setHeader: () => answer,
+        throwOnError: () => answer
+      });
+    },
     from: () => builder(),
     functions: { invoke: async () => ({ data: null, error: null }) },
     storage: {

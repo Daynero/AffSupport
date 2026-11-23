@@ -1458,6 +1458,17 @@
   cursor: not-allowed;
   opacity: 0.5;
 }
+/* A filled plate (070): the one primary of a row too narrow for its word keeps its fill,
+   as Drive's "+" does. `variant="solid"` used to be accepted and drawn as a ghost. */
+.ui-icon-button--solid {
+  background: var(--ui-solid);
+  border-color: var(--ui-solid);
+  color: var(--ui-on-solid);
+}
+.ui-icon-button--solid:hover:not(:disabled) {
+  background: var(--ui-hover);
+  color: var(--ui-on-solid);
+}
 
 /* ============================================================
    Badge and Chip

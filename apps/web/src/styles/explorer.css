@@ -573,6 +573,24 @@
   flex: none;
   white-space: nowrap;
 }
+/* The view switch at the row's height, as the launch editor's switches are: the inventory's md
+   track is its 38 px segments plus its own frame, and stood 8 px taller than the buttons
+   beside it. Its segments hold an icon, so they are square plates, not word-wide pills. */
+.team-explorer-toolbar .team-explorer-view-toggle {
+  box-sizing: border-box;
+  height: var(--control-height-md);
+}
+.team-explorer-toolbar .team-explorer-view-toggle button {
+  min-height: 0;
+  height: 100%;
+  padding: 0 var(--space-2);
+}
+/* The glyph at the size it was drawn for (docs/DESIGN.md, 20 px): the library's toggle shrinks
+   any svg to its own 1rem, which left a 12 px list mark in a 36 px plate. */
+.team-explorer-toolbar .team-explorer-view-toggle svg {
+  width: 20px;
+  height: 20px;
+}
 .team-explorer-grid {
   list-style: none;
   margin: 0;
