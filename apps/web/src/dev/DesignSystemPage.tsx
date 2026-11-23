@@ -38,6 +38,7 @@ import {
   Skeleton,
   Slider,
   Spinner,
+  Splitter,
   Switch,
   Table,
   TableCell,
@@ -147,6 +148,7 @@ export default function DesignSystemPage() {
   const [popover, setPopover] = useState(false);
   const [page, setPage] = useState(1);
   const [picked, setPicked] = useState('Nothing chosen yet');
+  const [paneWidth, setPaneWidth] = useState(240);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['root']));
   const [openPanels, setOpenPanels] = useState<Set<string>>(new Set(['one']));
   const [time, setTime] = useState('14:30');
@@ -544,6 +546,22 @@ export default function DesignSystemPage() {
                 }
               ]}
             />
+          </Row>
+          <Row title="splitter">
+            <div
+              className="ds-split"
+              style={{ '--ds-pane-width': `${paneWidth}px` } as React.CSSProperties}
+            >
+              <div className="ds-split-pane is-start">Tree · {paneWidth}px</div>
+              <Splitter
+                label="Folder tree width"
+                value={paneWidth}
+                min={200}
+                max={480}
+                onChange={setPaneWidth}
+              />
+              <div className="ds-split-pane">List</div>
+            </div>
           </Row>
           <Row title="accordion">
             <Accordion

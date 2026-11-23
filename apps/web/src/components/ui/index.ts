@@ -95,6 +95,10 @@ export type {
 } from './Overlay';
 export { useDialogBehaviour } from './Overlay';
 
+/* The movable edge between two panes (070). */
+export { Splitter } from './Splitter';
+export type { SplitterProps } from './Splitter';
+
 export { Breadcrumb, Link, Pagination, Tabs, Toolbar } from './Navigation';
 export type {
   BreadcrumbProps,

@@ -3426,6 +3426,53 @@
 }
 
 /* ============================================================
+   Splitter (070, R5) — the movable edge between two panes.
+
+   The handle is a strip of `--space-2` across, wide enough to grab and drawn
+   as a hairline down its middle; hover, a drag and keyboard focus thicken the
+   line into the secondary role. Only the line's colour transitions, on
+   `--motion-fast`, which the token layer collapses under reduced motion — the
+   pane itself follows the pointer and never animates.
+   ============================================================ */
+.ui-splitter {
+  position: relative;
+  flex: none;
+  touch-action: none;
+  user-select: none;
+}
+.ui-splitter--vertical {
+  width: var(--space-2);
+  align-self: stretch;
+  cursor: col-resize;
+}
+.ui-splitter--horizontal {
+  height: var(--space-2);
+  justify-self: stretch;
+  cursor: row-resize;
+}
+.ui-splitter::before {
+  content: '';
+  position: absolute;
+  background-color: var(--color-neutral-border);
+  transition: background-color var(--motion-fast) var(--ease-out-curve);
+}
+.ui-splitter--vertical::before {
+  inset: 0 calc(50% - 1px);
+}
+.ui-splitter--horizontal::before {
+  inset: calc(50% - 1px) 0;
+}
+.ui-splitter:hover::before,
+.ui-splitter.is-dragging::before,
+.ui-splitter:focus-visible::before {
+  background-color: var(--color-secondary-solid);
+}
+.ui-splitter:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ============================================================
    Patterns
    ============================================================ */
 .ui-selection-bar {
@@ -3508,6 +3555,25 @@
 }
 .ds-row-body > * {
   min-width: 0;
+}
+/* Two panes and the edge between them, for the splitter's row. */
+.ds-split {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: calc(var(--space-6) * 3);
+}
+.ds-split-pane {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+}
+.ds-split-pane.is-start {
+  flex: none;
+  width: var(--ds-pane-width);
 }
 .ds-anchor {
   position: relative;
