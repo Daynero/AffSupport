@@ -5,8 +5,7 @@ import { useI18n } from '../../i18n';
 import { KindIcon } from './KindIcon';
 import { useExplorer } from './ExplorerProvider';
 import { DRAG_TYPE } from './rowKinds';
-import { EmptyState, ErrorState } from '../../components/ui/index';
-import { LabeledSkeleton } from '../../components/LabeledSkeleton';
+import { EmptyState, ErrorState, LoadingState } from '../../components/ui/index';
 
 /**
  * The folder tree (011, FR-008/FR-027): every level, counts beside each
@@ -37,7 +36,8 @@ export function FolderTree({
     childrenOf,
     nodeOf,
     pathTo,
-    openFolder
+    openFolder,
+    refresh
   } = useExplorer();
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [focused, setFocused] = useState<string | null>(null);
@@ -245,8 +245,18 @@ export function FolderTree({
           <ChevronsDownUp size={16} strokeWidth={2} aria-hidden="true" />
         </button>
       </div>
-      {loading && nodes === null && <LabeledSkeleton label="teamExplorerLoading" rows={4} />}
-      {error && <ErrorState className="team-inline-error" message={t('teamExplorerLoadFailed')} />}
+      {/* The inventory's three states (070, FR-009), the failed one with the way to try again. */}
+      {loading && nodes === null && (
+        <LoadingState label={t('teamExplorerLoading')} shape="text" count={4} />
+      )}
+      {error && (
+        <ErrorState
+          className="team-inline-error"
+          message={t('teamExplorerLoadFailed')}
+          onRetry={() => void refresh()}
+          retryLabel={t('tryAgain')}
+        />
+      )}
       {nodes && nodes.length === 0 && <EmptyState size="sm" title={t('teamExplorerNoFolders')} />}
       {nodes && nodes.length > 0 && renderLevel(topLevelIds, 0)}
     </aside>

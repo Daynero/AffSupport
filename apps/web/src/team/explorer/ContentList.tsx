@@ -4,6 +4,7 @@ import type { TeamMaterialSummary } from '../../api/team';
 import {
   EmptyState,
   ErrorState,
+  LoadingState,
   Reveal,
   Table,
   TableCell,
@@ -13,7 +14,6 @@ import {
 } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
-import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n } from '../../i18n';
 import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
@@ -141,7 +141,15 @@ export function ContentList({
         </h2>
         {/* No "Items: N" (024, FR-096): the tree beside it already counts the folder. */}
       </div>
-      {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
+      {/* What failed, and the one thing that may fix it (070, FR-009): the folder is read
+          again. It said what failed and left the reader to find a refresh. */}
+      {page.error && (
+        <ErrorState
+          message={t('teamExplorerLoadFailed')}
+          onRetry={() => void page.reload()}
+          retryLabel={t('tryAgain')}
+        />
+      )}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
           same thing twice above a card that had collapsed to a strip. */}
@@ -163,7 +171,7 @@ export function ContentList({
       )}
       <Reveal
         busy={page.loading && page.rows.length === 0}
-        placeholder={<LabeledSkeleton label="teamMaterialsLoading" rows={4} />}
+        placeholder={<LoadingState label={t('teamMaterialsLoading')} shape="row" count={4} />}
       >
         {rows.length > 0 && (
           <Table

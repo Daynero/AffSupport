@@ -6,10 +6,16 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { EmptyState, ErrorState, Popover, FadeImage, Reveal } from '../../components/ui/index';
+import {
+  EmptyState,
+  ErrorState,
+  FadeImage,
+  LoadingState,
+  Popover,
+  Reveal
+} from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { ExternalLink, FolderOpen, Paperclip } from 'lucide-react';
-import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { RankEmblem } from '../ranks/RankEmblem';
 import { RankFacts } from '../ranks/RankFacts';
@@ -166,7 +172,15 @@ export function ContentGrid({
         </h2>
         {/* No "Items: N" (024, FR-096): the tree beside it already counts the folder. */}
       </div>
-      {page.error && <ErrorState message={t('teamExplorerLoadFailed')} />}
+      {/* What failed, and the one thing that may fix it (070, FR-009): the folder is read
+          again. It said what failed and left the reader to find a refresh. */}
+      {page.error && (
+        <ErrorState
+          message={t('teamExplorerLoadFailed')}
+          onRetry={() => void page.reload()}
+          retryLabel={t('tryAgain')}
+        />
+      )}
       {/* One sentence, centred in a content area that keeps its shape. It was
           "Елементів: 0" and "Ця папка порожня." stacked flush left, saying the
           same thing twice above a card that had collapsed to a strip. */}
@@ -190,10 +204,10 @@ export function ContentGrid({
       <Reveal
         busy={page.loading && page.rows.length === 0}
         placeholder={
-          <LabeledSkeleton
-            label="teamMaterialsLoading"
-            rows={8}
+          <LoadingState
+            label={t('teamMaterialsLoading')}
             shape="tile"
+            count={8}
             className="team-explorer-grid"
           />
         }

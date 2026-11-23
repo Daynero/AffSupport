@@ -139,6 +139,10 @@ export function useFolderPage(input: {
   const [next, setNext] = useState<FolderPageCursor | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  /* Which folder the failure belongs to (070, FR-009). The error was shown only for a folder
+     whose rows had once arrived, so a folder whose very first read failed sat on its skeleton
+     for good — no message, no way to try again. */
+  const [errorScope, setErrorScope] = useState<string | null>(null);
   const generation = useRef(0);
   const latestRefresh = useRef<Promise<ReadResult> | null>(null);
   const loadedPages = useRef(1);
@@ -195,7 +199,10 @@ export function useFolderPage(input: {
         read.succeed();
       } catch {
         read.fail();
-        if (token === generation.current) setError(true);
+        if (token === generation.current) {
+          setError(true);
+          setErrorScope(scopeKey);
+        }
         if (reportFailure) throw new Error('FOLDER_PAGE_REFRESH_FAILED');
       } finally {
         if (token === generation.current) setLoading(false);
@@ -276,6 +283,7 @@ export function useFolderPage(input: {
               if (attempt === 1) {
                 read.fail();
                 setError(true);
+                setErrorScope(scopeKey);
                 return 'failed';
               }
               await new Promise(resolve => window.setTimeout(resolve, 250));
@@ -401,11 +409,12 @@ export function useFolderPage(input: {
 
   // The render before the effect above has run: a folder seen before is already there.
   const seen = dataScope === scopeKey ? null : recall(client, scopeKey);
+  const failedHere = error && errorScope === scopeKey;
   return {
     rows: dataScope === scopeKey ? rows : (seen?.rows ?? EMPTY_ROWS),
     total: dataScope === scopeKey ? total : (seen?.total ?? null),
-    loading: loading || (dataScope !== scopeKey && !seen),
-    error: dataScope === scopeKey && error,
+    loading: loading || (dataScope !== scopeKey && !seen && !failedHere),
+    error: failedHere,
     hasMore: dataScope === scopeKey && next !== null,
     loadMore: () => {
       if (appendRead.current) return appendRead.current;

@@ -373,3 +373,46 @@ describe('files held over the folder (T018)', () => {
     expect(screen.queryByText(/Drop to upload/)).toBeNull();
   });
 });
+
+describe('the explorer says loading, failed and empty with the inventory, and offers the way out (T019)', () => {
+  it('offers to try again when the folder could not be read, and reads it again', async () => {
+    const client = makeClient([fileRow(1)]);
+    // The read tries twice on its own before it gives up.
+    (client.listFolderPage as ReturnType<typeof vi.fn>)
+      .mockRejectedValueOnce(new Error('down'))
+      .mockRejectedValueOnce(new Error('down'));
+    renderExplorer({ client });
+    const failed = (await screen.findByText(/Could not read this space/)).closest('.ui-alert')!;
+    fireEvent.click(within(failed as HTMLElement).getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('file-1.png')).toBeTruthy();
+  });
+
+  it('offers to try again when the folder tree could not be read', async () => {
+    const client = makeClient();
+    (client.listFolderTree as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('down'));
+    renderExplorer({ client });
+    const tree = await screen.findByRole('complementary', { name: 'Folders' });
+    fireEvent.click(await within(tree).findByRole('button', { name: 'Try again' }));
+    await waitFor(() => expect(client.listFolderTree).toHaveBeenCalledTimes(2));
+  });
+
+  it('stands the inventory loading state in for the rows while the first page is on its way', async () => {
+    const client = makeClient();
+    (client.listFolderPage as ReturnType<typeof vi.fn>).mockReturnValueOnce(new Promise(() => {}));
+    renderExplorer({ client });
+    expect(await screen.findByText('Loading this folder…')).toBeTruthy();
+    const group = document.querySelector('.team-explorer-content .ui-skeleton-group');
+    expect(group?.getAttribute('role')).toBe('status');
+  });
+
+  it('offers Upload in an empty folder, opening the same menu as the toolbar', async () => {
+    renderExplorer();
+    const empty = (await screen.findByText('This folder is empty.')).closest('.ui-empty')!;
+    fireEvent.click(within(empty as HTMLElement).getByRole('button', { name: 'Upload' }));
+    expect((await screen.findAllByRole('menuitem')).map(item => item.textContent?.trim())).toEqual([
+      'Files…',
+      'Folder…',
+      'New folder'
+    ]);
+  });
+});
