@@ -140,3 +140,10 @@
 | 3026       | `(max-width: 560px)`                    | `(max-width: 640px)`                    | `.team-account-space.is-unified .team-account-head:not(.is-editing)`, `.team-account-space.is-unified .team-account-head:not(.is-editing) .team-account-actions`, `.team-account-space.is-unified .team-agent-row` | акаунти |
 
 Без змін (уже на сітці): 2751 `(max-width: 768px)`.
+
+### `team/workspace/space-settings.css`
+
+| Рядок (до) | Було                 | Стало                | Правила                                                                                                                                                                            | Екрани         |
+| ---------- | -------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| 105        | `(max-width: 700px)` | `(max-width: 768px)` | `.team-space-settings .team-space-settings-grid .settings-section`, `.team-space-settings .settings-field-grid > .field-group`, `.team-space-settings .settings-field-grid select` | шапка простору |
+| 134        | `(max-width: 700px)` | `(max-width: 768px)` | `.team-space-settings .team-task-labels-name`                                                                                                                                      | шапка простору |
