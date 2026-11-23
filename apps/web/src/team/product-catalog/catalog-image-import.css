@@ -176,7 +176,7 @@
   color: var(--color-text-muted);
 }
 
-@media (min-width: 600px) {
+@media (width > 640px) {
   .catalog-image-library-info {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

@@ -147,3 +147,9 @@
 | ---------- | -------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | 105        | `(max-width: 700px)` | `(max-width: 768px)` | `.team-space-settings .team-space-settings-grid .settings-section`, `.team-space-settings .settings-field-grid > .field-group`, `.team-space-settings .settings-field-grid select` | шапка простору |
 | 134        | `(max-width: 700px)` | `(max-width: 768px)` | `.team-space-settings .team-task-labels-name`                                                                                                                                      | шапка простору |
+
+### `team/product-catalog/catalog-image-import.css`
+
+| Рядок (до) | Було                 | Стало             | Правила                                                                                                                          | Екрани   |
+| ---------- | -------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| 179        | `(min-width: 600px)` | `(width > 640px)` | `.catalog-image-library-info`, `.catalog-image-library-info > *`, `.catalog-image-library-info > .catalog-image-library-actions` | каталоги |
