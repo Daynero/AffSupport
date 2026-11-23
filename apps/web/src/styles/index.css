@@ -115,6 +115,9 @@
 @import './base.css' layer(soty);
 @import './components.css' layer(soty);
 @import '../styles.css' layer(soty);
+/* The explorer's rules, lifted out of the sheet above (070, FR-042). Directly after it,
+   and nowhere else: see the comment at the top of explorer.css for why that order is safe. */
+@import './explorer.css' layer(soty);
 @import './team-accounts.css' layer(soty);
 @import './team-tasks.css' layer(soty);
 @import './transcription.css' layer(soty);
