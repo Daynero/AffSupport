@@ -3492,3 +3492,9 @@ Additive: `private.prune_idle_assistant_dialogs`, an index on `assistant_convers
 and the hourly cron job `soty-assistant-dialog-retention`. To stop deleting:
 `select cron.unschedule('soty-assistant-dialog-retention')`. Dialogs already deleted are not
 recoverable — they were past the seven days the window promises. Money records are untouched.
+
+## 20261223320000 — new spaces join the picture pool
+
+Drop the trigger `teams_join_catalog_global_pilot` on `public.teams` and the function
+`private.join_catalog_global_pilot()`; rows it added to `private.catalog_global_pilot_teams` can stay
+(the owner's rule is «пілот для всіх») or be deleted by `note`.
