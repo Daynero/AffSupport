@@ -1716,7 +1716,7 @@ export const en = {
   errorFileTooLarge: 'That file is too large.',
   errorFileUnavailable: 'That file is no longer where it was.',
   errorUnsupportedFormat: 'That format is not supported.',
-  errorDiskFull: 'There is not enough free space.',
+  errorDiskFull: 'There is not enough free space. Free some space on the disk and try again.',
   errorPermissionDenied: 'Soty is not allowed to read that file.',
   errorPathNotGranted: 'Add that file through the picker or by dropping it in.',
   errorToolUnavailable: 'A media tool is unavailable right now.',
@@ -3421,7 +3421,7 @@ export const en = {
   teamRestitchClientOutdated:
     'This page is too old for the space’s re-stitch settings. Reload it to continue.',
   teamRestitchScreenUnavailable:
-    'The Soty app has no copy of the chosen picture and no way to fetch it.',
+    'The chosen picture is no longer available to the Soty app. Choose another picture in re-stitching settings and try again.',
   teamRestitchScreenFetchFailed:
     'The chosen picture could not be fetched from the space. Check the connection and free space, then try again.',
   teamRestitchScreenUnsupported:

@@ -1704,7 +1704,7 @@ export const uk: Record<keyof typeof en, string> = {
   errorFileTooLarge: 'Файл завеликий.',
   errorFileUnavailable: 'Файлу вже немає там, де він був.',
   errorUnsupportedFormat: 'Формат не підтримується.',
-  errorDiskFull: 'Недостатньо вільного місця.',
+  errorDiskFull: 'Недостатньо вільного місця. Звільніть місце на диску й спробуйте знову.',
   errorPermissionDenied: 'Soty не має доступу до цього файлу.',
   errorPathNotGranted: 'Додайте файл через вибір або перетягніть його.',
   errorToolUnavailable: 'Медіаінструмент зараз недоступний.',
@@ -3409,7 +3409,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamRestitchClientOutdated:
     'Ця сторінка застара для налаштувань перезашивки простору. Перезавантажте її, щоб продовжити.',
   teamRestitchScreenUnavailable:
-    'У застосунку Soty немає копії обраної картинки й немає як її забрати.',
+    'Обрана картинка більше недоступна застосунку Soty. Оберіть іншу картинку в налаштуваннях перезашивки й спробуйте знову.',
   teamRestitchScreenFetchFailed:
     'Не вдалося забрати обрану картинку з простору. Перевірте зʼєднання і вільне місце, потім спробуйте знову.',
   teamRestitchScreenUnsupported:
