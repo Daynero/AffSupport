@@ -26,7 +26,7 @@
 
 /* On a phone the chip is its dot: the colour is the state, and the words stay
    in the page for a reader that asks for them. */
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .topbar .connection-badge {
     justify-content: center;
     min-width: var(--control-height-md);
@@ -77,7 +77,7 @@
 }
 /* The face and the menu are what a narrow bar keeps; the name was the last
    thing pushing the way out of the app off the screen. */
-@media (max-width: 1000px) {
+@media (max-width: 1024px) {
   .user-menu-trigger .ui-button-label,
   .user-menu-trigger .ui-button-trailing {
     display: none;

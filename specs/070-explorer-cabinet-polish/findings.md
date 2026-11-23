@@ -99,3 +99,10 @@
 | 20         | `(max-width: 720px)` | `(max-width: 768px)` | `.team-task-grid`                            | задачі |
 | 259        | `(max-width: 720px)` | `(max-width: 768px)` | `.task-date-filter-calendar`                 | задачі |
 | 1131       | `(max-width: 520px)` | `(max-width: 480px)` | `.task-date-filter`, `.task-date-filter > *` | задачі |
+
+### `styles/shell.css`
+
+| Рядок (до) | Було                  | Стало                 | Правила                                                             | Екрани |
+| ---------- | --------------------- | --------------------- | ------------------------------------------------------------------- | ------ |
+| 29         | `(max-width: 560px)`  | `(max-width: 640px)`  | `.topbar .connection-badge`, `.topbar .connection-badge-text`       | шапка  |
+| 80         | `(max-width: 1000px)` | `(max-width: 1024px)` | `.user-menu-trigger .ui-button-label`, `.topbar .user-menu-trigger` | шапка  |
