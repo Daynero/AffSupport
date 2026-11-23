@@ -76,7 +76,7 @@ export async function beginGoogleSignIn(
     } catch (error) {
       if (!(error instanceof TransientStartError)) throw error;
       const delay = START_RETRY_DELAYS_MS[attempt];
-      if (delay === undefined) throw new Error('SIGN_IN_UNAVAILABLE');
+      if (delay === undefined) throw new Error('SIGN_IN_UNAVAILABLE', { cause: error });
       await wait(delay);
     }
   }
