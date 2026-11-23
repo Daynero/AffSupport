@@ -25,6 +25,7 @@
 
 - [x] T001 Встановити залежності воркдерева й перебудувати shared: `npm ci` і `npm run build -w @video-compressor/shared` у /Users/daynero/RiderProjects/AffSupport-062
 - [ ] T002 Перевірити на беті, що публічний origin бакета `soty-catalog-images-${env}-public` віддає новий об'єкт `c1/<uuid>` напряму анонімно (`curl -sI` без cookies); результат і рішення (origin чи маршрут Worker `/c/*`) записати в research.md R7
+      **Аудит 2026-11-23:** потрібна справжня бета. Перенесено в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 062.
 
 ## Phase 2: Foundational (блокує всі історії)
 
@@ -74,7 +75,8 @@
 - [x] T032 [US2] `LaunchCreativeDistribution` (`Accordion` з підсумком, `Slider` → `dragCopies`, `Input` → `setCopies`, «Порівну», прокрутка при великих k) у apps/web/src/team/launches/LaunchCreativeDistribution.tsx; PageUp/PageDown через `onKeyDown` у apps/web/src/components/ui/Choice.tsx з оновленням specs/021-design-system-redesign/contracts/components.md, `/design` і tests/design-components.test.tsx; авторозгортання при помилці всередині (FR-009)
 - [x] T033 [US2] Підключити під «Товарів у каталозі»: `min = k`, попередження «Товарів не може бути менше, ніж креативів», `rescaleCopies`, `removeCreative` у apps/web/src/team/launches/LaunchEditor.tsx
 - [x] T034 [P] [US2] Стилі списку й розподілу — лише утиліти від токенів у самих компонентах (без нових правил у apps/web/src/styles/launch-settings.css), `node scripts/check-tailwind-classes.mjs`
-- [ ] T035 [P] [US2] Варіант на сторінці `/design` у apps/web/src/dev/DesignSystemPage.tsx
+- [x] T035 [P] [US2] Варіант на сторінці `/design` у apps/web/src/dev/DesignSystemPage.tsx
+      **Аудит 2026-11-23:** окремого компонента розподілу більше немає: після відгуку власника 2026-11-20 (`69ccc8c`) частки стали рядками в `LaunchCreativePicker.tsx`. Єдина нова частина інвентаря з цього, `Slider size="lg"`, показана на `/design` у рядку «slider» (`apps/web/src/dev/DesignSystemPage.tsx`).
 - [x] T036 [US2] Ручний розподіл на сервері (блоки з `copies`) — тест у tests/catalog-multi-creative-rows.test.ts
 
 ## Phase 5: User Story 3 — Варіації по колу (P1)
@@ -141,10 +143,13 @@
 - [x] T077 Пов'язані тести single-worker після `uptime`/`pgrep`
 - [x] T078 Накат міграцій 062 на бету через psql + `schema_migrations`, pgTAP у rolled-back транзакції
 - [ ] T089 Перевірити Realtime: зміна стану сегмента, повтор сегмента й H-публікація торкаються таблиць, на які вже підписаний шов команди (менеджер і картка запуску оновлюються без перезавантаження); за потреби — тригер-«дотик» наявної підписаної таблиці
+      **Аудит 2026-11-23:** потрібна справжня бета з Realtime. Перенесено в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 062.
 - [ ] T079 Приймання на беті за quickstart.md через Playwright-драйвер (обидві теми, desktop і вузька форма, клавіатура)
+      **Аудит 2026-11-23:** перенесено в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 062.
 - [x] T080 RELEASE_NOTES.md (розділ next)
 - [x] T081 Зворотні кроки кожної міграції 062 у supabase/migrations/ROLLBACK.md
-- [ ] T082 `npm run types:supabase` після міграцій і перевірка типів веба
+- [x] T082 `npm run types:supabase` після міграцій і перевірка типів веба
+      **Аудит 2026-11-23:** міграції 062 не додають нових публічних таблиць і не міняють сигнатур публічних функцій (`get_launch` замінено з тією самою сигнатурою); функції, які вони чіпають, уже є в `apps/web/src/lib/database.types.ts`. Типи вебу перевіряє CI кожного PR (`typecheck:projects`).
 
 ## Dependencies & Execution Order
 
