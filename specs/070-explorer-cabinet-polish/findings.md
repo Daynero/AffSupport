@@ -73,3 +73,14 @@
 | 20386      | `(max-width: 700px)`                    | `(max-width: 768px)`                 | `.team-member-list li`                                                                                                                | учасники                             |
 
 Без змін (уже на сітці): 1159 `(max-width: 480px)`, 5231 `(max-width: 640px)`, 15870 `(max-width: 1280px)`.
+
+### `styles/components.css`
+
+| Рядок (до) | Було                 | Стало                 | Правила                                                                                                                                          | Екрани                   |
+| ---------- | -------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------ |
+| 799        | `(max-width: 639px)` | `(max-width: 640px)`  | `.launch-result-warning`, `.launch-result-regenerate`, `.launch-result-section-heading`                                                          | запуски                  |
+| 1228       | `(max-width: 639px)` | `(max-width: 640px)`  | `.launch-editor-source-grid`, `.launch-editor-section-heading`, `.launch-editor-section-heading > button`                                        | запуски                  |
+| 4258       | `(max-width: 900px)` | `(max-width: 1024px)` | `.finance-daily-table .finance-daily-columns`, `.finance-daily-table .team-agent-row.finance-daily-row`, `.finance-daily-table .team-agent-id`   | акаунти (гроші), акаунти |
+| 4857       | `(max-width: 560px)` | `(max-width: 640px)`  | `.launch-editor-budget-row`, `.launch-editor-budget-row > .ui-segmented`, `.launch-editor-budget-row > .field:has(.launch-editor-budget-values)` | запуски                  |
+
+Без змін (уже на сітці): 5053 `(max-width: 640px)`.
