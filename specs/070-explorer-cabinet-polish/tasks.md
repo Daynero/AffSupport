@@ -15,7 +15,7 @@
 
 ## Фаза 2 · Розділення `ExplorerShell` (без зміни поведінки)
 
-- [ ] T009 Винести з `ExplorerBody` діалоги (`TeamCompressorDialog`, `FolderScopeDialog`, `UploadConflictDialog`, `CreateFolderDialog`, `ProductCatalogMenuDialog`, `MaterialProcessFlow`, `RestitchDeliveryNotices`) у `ExplorerDialogs.tsx`, а стек процесів — у `ExplorerProcessStack.tsx`. FR-001
+- [x] T009 Винести з `ExplorerBody` діалоги (`TeamCompressorDialog`, `FolderScopeDialog`, `UploadConflictDialog`, `CreateFolderDialog`, `ProductCatalogMenuDialog`, `MaterialProcessFlow`, `RestitchDeliveryNotices`) у `ExplorerDialogs.tsx`, а стек процесів — у `ExplorerProcessStack.tsx`. FR-001 — Разом зі стеком процесів пішли й доставки ре-стітчу (`useExplorerRestitch.ts`), бо стек показує поточну. Діалоги тепер рендеряться після стеку, а не по обидва боки: усі вони — модалки в порталі, а `RestitchDeliveryNotices` нічого не малює, тож DOM провідника той самий.
 - [ ] T010 Винести панель інструментів у `ExplorerToolbar.tsx`, панель виділення — в `ExplorerSelection.tsx`, зону перетягування — в `ExplorerDropZone.tsx`. Пропси — явні, без передачі всього стану. FR-001
 - [ ] T011 Тест-сторож: жоден файл у `team/explorer/` не довший за 800 рядків (у `tests/ui-consistency.test.tsx` або окремо). Усі наявні тести провідника зелені без змін очікувань. SC-004
 

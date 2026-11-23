@@ -67,44 +67,29 @@ import { carriesRank } from '../ranks/creativeRanks';
 import { ContentList } from './ContentList';
 import { ExplorerProvider, useExplorer, type ExplorerClient } from './ExplorerProvider';
 import { FolderTree } from './FolderTree';
-import { CreateFolderDialog } from './CreateFolderDialog';
 import { KindFilterMenu } from './KindFilterMenu';
 import { SortMenu } from './SortMenu';
 import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
 import { PreviewPane } from './PreviewPane';
-import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import { useAgentQueue } from './useAgentQueue';
-import { createPortal } from 'react-dom';
-import { AgentQueuePanel, useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
+import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
 import { useOptionalAddToTask } from '../tasks/AddToTask';
 import { useExplorerClipboard } from './useExplorerClipboard';
 import { formatShortcut, shortcutOf } from '../palette/shortcuts';
 import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import {
   BATCH_SCOPE_LIMIT,
-  FolderScopeDialog,
-  scopeIdsOf,
   type FolderSubtreeClient,
   type ProcessableFolder
 } from './FolderScopeDialog';
 import {
   compressJobs,
-  TeamCompressorDialog,
   type CompressPlan,
   type CompressPlanItem as CompressPlanItem_
 } from './TeamCompressorDialog';
 import type { RowActionsProps } from './RowActions';
-import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
-import { useRestitchDelivery } from '../restitch/useRestitchDelivery';
-import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
-import {
-  UploadConflictDialog,
-  type UploadConflictChoice,
-  type UploadConflictRequest
-} from './UploadConflictDialog';
-import { BulkTrashPanel } from './BulkTrashPanel';
-import { ProcessPanel } from './ProcessPanel';
-import { internalLink, navigateTo } from '../../lib/navigation';
+import type { UploadConflictChoice, UploadConflictRequest } from './UploadConflictDialog';
+import { internalLink } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
 import { foldCompanions } from './companions';
 import { useFolderPage } from './useFolderPage';
@@ -126,6 +111,9 @@ import {
   type WorkspaceUploadRequest
 } from './WorkspaceOperationsProvider';
 import { confirmWorkspaceCatalog, findFolderConflicts } from './catalogPostcondition';
+import { useExplorerRestitch } from './useExplorerRestitch';
+import { ExplorerProcessStack } from './ExplorerProcessStack';
+import { ExplorerDialogs, type ExplorerFolderScope } from './ExplorerDialogs';
 
 /** A progress tick refreshes the visible folder at most this often (028). */
 const PROGRESS_REFRESH_MIN_MS = 5_000;
@@ -159,46 +147,6 @@ export type { ExplorerView };
  * state lives in the address, so a refresh and a pasted link land on the same
  * screen.
  */
-/**
- * What a re-stitched download is doing, in words and as a share.
- *
- * The shares are the honest shape of the work rather than a guess at seconds: the transfer is
- * most of a prepared delivery, and the cut that follows it is quick. They only ever move
- * forward, which is what the panel needs.
- */
-const RESTITCH_PHASE_KEYS = {
-  checking: 'teamRestitchPhaseChecking',
-  choosing: 'teamRestitchPhaseChoosing',
-  transferring: 'teamRestitchPhaseTransferring',
-  inspecting: 'teamRestitchPhaseInspecting',
-  stitching: 'teamRestitchPhaseStitching',
-  saving: 'teamRestitchPhaseSaving'
-} as const;
-
-/*
- * Where a step starts and how much of the bar it owns.
- *
- * The agent reports each step's own percentage now — bytes while the video arrives, the join
- * while it is stitched — so the bar is that percentage placed inside the step's own share of
- * the whole. Fetching and stitching are the two real waits and take the bar between them;
- * the rest are moments.
- */
-const RESTITCH_PHASE_SPAN = {
-  checking: { from: 0, to: 0 },
-  choosing: { from: 0, to: 5 },
-  transferring: { from: 5, to: 45 },
-  inspecting: { from: 45, to: 50 },
-  stitching: { from: 50, to: 95 },
-  saving: { from: 95, to: 100 }
-} as const;
-
-function restitchProgress(phase: keyof typeof RESTITCH_PHASE_SPAN, within?: number): number {
-  const span = RESTITCH_PHASE_SPAN[phase];
-  if (within === undefined) return span.from;
-  const fraction = Math.max(0, Math.min(100, within)) / 100;
-  return Math.round(span.from + (span.to - span.from) * fraction);
-}
-
 /** The grid never unfolds companions in place; a stable empty set keeps the memo quiet. */
 const NO_COMPANIONS_OPEN: ReadonlySet<string> = new Set();
 
@@ -324,48 +272,10 @@ function ExplorerBody({
   const { push, update, dismiss } = useToasts();
   /* 015 — one running re-stitched delivery per material, held here rather than in the row:
      a delivery outlives the menu that started it and the row that scrolled past. */
-  const restitch = useRestitchDelivery(teamId);
-  /*
-   * The one delivery worth a panel.
-   *
-   * Only ever one runs at a time — the menu starts a single file — so the first running state
-   * is the answer, and the toasts keep carrying everything that has already finished.
-   */
-  const deliveringMaterial = useMemo(() => {
-    for (const [materialId, state] of Object.entries(restitch.states)) {
-      if (state.kind === 'running') return { materialId, state };
-    }
-    return null;
-  }, [restitch.states]);
-  /*
-   * Several videos, one at a time.
-   *
-   * A re-stitch is the heaviest thing this machine does — it reads a whole file and writes
-   * another — so a selection of five started at once would fight itself for the same cores
-   * and finish later than five in a row. The panel shows whichever is running; the rest wait
-   * their turn, and a failure stops that video rather than the queue.
-   */
-  const deliverRestitched = useCallback(
-    async (rows: TeamMaterialRow[]) => {
-      for (const row of rows) {
-        if (row.category !== 'video') continue;
-        await restitch
-          .deliver({ materialId: row.id, fileName: row.name, driveVersion: row.driveVersion })
-          .catch(() => {
-            // Each delivery already reports its own outcome; one refusal is not the others'.
-          });
-      }
-    },
-    [restitch]
+  const { restitch, deliveringMaterial, deliverRestitched } = useExplorerRestitch(
+    teamId,
+    query?.settings === true
   );
-  /* The delivery that met an unconfigured space waits for the settings to close, then
-     continues by itself — the member gets the file they asked for without a second click. */
-  const settingsOpen = query?.settings === true;
-  const settingsWasOpen = useRef(false);
-  useEffect(() => {
-    if (settingsWasOpen.current && !settingsOpen && restitch.pending) void restitch.resume();
-    settingsWasOpen.current = settingsOpen;
-  }, [settingsOpen, restitch]);
   const {
     permissions: loadedPermissions,
     activeTeam,
@@ -404,10 +314,7 @@ function ExplorerBody({
      and a drive id, and both kinds of thing carry those. */
   /* Reading a folder's subtree, and what the answer is for. All three of the
      folder-wide commands need the same walk, so they share one window. */
-  const [folderScope, setFolderScope] = useState<{
-    folder: ProcessableFolder;
-    intent: 'process' | 'compress';
-  } | null>(null);
+  const [folderScope, setFolderScope] = useState<ExplorerFolderScope | null>(null);
   const [compressing, setCompressing] = useState<CompressPlanItem_[] | null>(null);
   const [dropping, setDropping] = useState(false);
   /** How many files are still going up; the zone stays lit while any is. */
@@ -767,16 +674,6 @@ function ExplorerBody({
   const space = useOptionalSpaceAgentQueue();
   const addToTask = useOptionalAddToTask();
   const queue = space?.queue ?? localQueue;
-  /* Long jobs report in one corner. Inside a space that corner is the space's,
-     so a re-stitched download and the queue stack instead of covering each
-     other; the explorer's own panels are portalled into it. */
-  const processStack = (panels: React.ReactNode) =>
-    space?.stack ? (
-      createPortal(panels, space.stack)
-    ) : (
-      <div className="team-process-stack">{panels}</div>
-    );
-
   /* Copy, cut and paste, in their own file for the same reason (024). */
   const clipboard = useExplorerClipboard({
     teamId,
@@ -2251,166 +2148,45 @@ function ExplorerBody({
           onCreateTask={onCreateTask}
         />
       )}
-      {compressing && (
-        <TeamCompressorDialog
-          teamId={teamId}
-          items={compressing}
-          client={client}
-          onRun={runCompressPlan}
-          onClose={() => setCompressing(null)}
-        />
-      )}
-      {folderScope && (
-        <FolderScopeDialog
-          teamId={teamId}
-          folder={folderScope.folder}
-          intent={folderScope.intent}
-          client={client}
-          onResolved={result => {
-            const { folder, intent } = folderScope;
-            setFolderScope(null);
-            if (intent === 'compress') {
-              if (result.videos.length === 0) return;
-              setCompressing(
-                result.videos.map(video => ({
-                  id: video.id,
-                  name: video.name,
-                  folderId: video.parentFolderId ?? folder.driveFileId
-                }))
-              );
-              return;
-            }
-            const ids = scopeIdsOf(result);
-            /* An empty scope is not a small batch: with no ids the server reads
-               the request as the whole space, so a folder that yielded nothing
-               would quietly start everything. */
-            if (ids.length === 0) return;
-            onProcessSelection?.(ids, {
-              kind: 'folder',
-              name: folder.name,
-              // The walk counts the folder it started from; a folder with five
-              // subfolders was reporting six.
-              folders: Math.max(0, result.foldersVisited - 1),
-              files: ids.length,
-              // Separately, because the window's "already done" line is about
-              // videos with a transcript, and one video is exactly one
-              // transcription job.
-              videos: result.videos.length,
-              landingIds: result.landings.map(landing => landing.id)
-            });
-          }}
-          onClose={() => setFolderScope(null)}
-        />
-      )}
       {/* One corner, one stack: both panels are reachable from the same
           selection, and pinned to the same pixel the second hid the first. */}
-      {processStack(
-        <>
-          {/* A group the catalog manager is showing is reported there, once. */}
-          {workspaceOperations?.bulkTrash?.groups
-            .filter(group => !workspaceOperations.bulkTrash?.claimed?.has(group.id))
-            .slice(0, 3)
-            .map(group => (
-              <BulkTrashPanel
-                key={group.id}
-                group={group}
-                historicalReceipts={workspaceOperations.bulkTrash?.historicalReceipts?.get(
-                  group.id
-                )}
-                rows={page.rows}
-                names={workspaceOperations.bulkTrash?.names}
-                executing={workspaceOperations.bulkTrash?.executing?.has(group.id)}
-                uncertain={workspaceOperations.bulkTrash?.uncertain ?? true}
-                onVisible={workspaceOperations.bulkTrash!.acknowledgeVisible}
-                onDismiss={workspaceOperations.bulkTrash!.dismiss}
-                onRetry={
-                  permissions?.delete && workspaceOperations.bulkTrash?.owns(group)
-                    ? () => {
-                        void workspaceOperations.bulkTrash
-                          ?.retry(group, page.rows, tailClient)
-                          .then(changed)
-                          .catch(cause =>
-                            push({ tone: 'error', text: teamErrorMessageFor(cause, t) })
-                          );
-                      }
-                    : undefined
-                }
-              />
-            ))}
-          {!space && (queue.active || queue.queued.length > 0) && (
-            <AgentQueuePanel queue={queue} t={t} />
-          )}
-
-          {/* 015 — a re-stitched download reports itself the same way every other long job does:
-            one panel, a named step, and a way out. It used to say only "downloading…" in a
-            toast, which on a thirty-second wait reads as a hang. */}
-          {deliveringMaterial && (
-            <ProcessPanel
-              title={t('teamRestitchDownloadTitle')}
-              detail={deliveringMaterial.state.fileName}
-              phase={t(RESTITCH_PHASE_KEYS[deliveringMaterial.state.phase])}
-              progress={restitchProgress(
-                deliveringMaterial.state.phase,
-                deliveringMaterial.state.progress
-              )}
-              active
-              actions={[
-                {
-                  label: t('teamQueueStopNow'),
-                  run: () => restitch.cancel(deliveringMaterial.materialId),
-                  destructive: true
-                }
-              ]}
-            />
-          )}
-        </>
-      )}
-
-      {/* 015 — the running deliveries speak for themselves; nothing is rendered inline. */}
-      {conflict && <UploadConflictDialog request={conflict.request} onChoose={conflict.settle} />}
-      {creatingFolder && (
-        <CreateFolderDialog onCreate={createFolder} onClose={() => setCreatingFolder(false)} />
-      )}
-      <RestitchDeliveryNotices
-        states={restitch.states}
-        onConfigure={() =>
-          navigateTo(
-            buildTeamRoute({
-              spaceId: teamId,
-              section: 'explorer',
-              query: { ...query, settings: true }
-            })
-          )
-        }
+      <ExplorerProcessStack
+        stack={space?.stack}
+        bulkTrash={workspaceOperations?.bulkTrash}
+        rows={page.rows}
+        canDelete={Boolean(permissions?.delete)}
+        tailClient={tailClient}
+        onChanged={changed}
+        showQueue={!space}
+        queue={queue}
+        delivering={deliveringMaterial}
+        onCancelDelivery={materialId => restitch.cancel(materialId)}
       />
-      {catalogFor && (
-        <ProductCatalogMenuDialog
-          teamId={teamId}
-          video={{
-            id: catalogFor.id,
-            name: catalogFor.name,
-            parentFolderId: catalogFor.parentFolderId
-          }}
-          onClose={() => setCatalogFor(null)}
-          onChanged={changed}
-        />
-      )}
-      {processing && (
-        <MaterialProcessFlow
-          teamId={teamId}
-          material={{
-            id: processing.row.id,
-            name: processing.row.name,
-            category: processing.row.category
-          }}
-          destinationFolderId={processing.row.parentFolderId ?? currentFolderId ?? null}
-          browseClient={client}
-          onClose={() => {
-            setProcessing(null);
-            changed();
-          }}
-        />
-      )}
+      <ExplorerDialogs
+        teamId={teamId}
+        client={client}
+        query={query}
+        currentFolderId={currentFolderId}
+        compressing={compressing}
+        onCompressing={setCompressing}
+        onRunCompress={runCompressPlan}
+        folderScope={folderScope}
+        onFolderScope={setFolderScope}
+        onProcessSelection={onProcessSelection}
+        conflict={conflict}
+        creatingFolder={creatingFolder}
+        onCreateFolder={createFolder}
+        onCloseCreateFolder={() => setCreatingFolder(false)}
+        restitchStates={restitch.states}
+        catalogFor={catalogFor}
+        onCloseCatalog={() => setCatalogFor(null)}
+        onChanged={changed}
+        processing={processing}
+        onCloseProcessing={() => {
+          setProcessing(null);
+          changed();
+        }}
+      />
     </div>
   );
 }
