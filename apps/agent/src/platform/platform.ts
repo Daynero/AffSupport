@@ -1100,3 +1100,23 @@ export async function syncDirectory(directory: string): Promise<void> {
     await handle.close();
   }
 }
+
+/**
+ * Flush an existing file someone else wrote, without following a link.
+ *
+ * Windows flushes a file only through a handle that may write to it
+ * (`FlushFileBuffers` needs GENERIC_WRITE), so a read-only open fails with
+ * EPERM there; POSIX flushes through any descriptor and keeps O_NOFOLLOW.
+ * Nothing is written through the handle.
+ */
+export async function syncExistingFile(file: string): Promise<void> {
+  const handle = await open(
+    file,
+    process.platform === 'win32' ? constants.O_RDWR : constants.O_RDONLY | constants.O_NOFOLLOW
+  );
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}

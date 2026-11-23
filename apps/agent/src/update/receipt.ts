@@ -2,18 +2,13 @@ import { constants } from 'node:fs';
 import { open, mkdir, lstat, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { syncDirectory } from '../platform/platform.js';
+import { syncDirectory, syncExistingFile } from '../platform/platform.js';
 
 /** Flush the actual current queue files and parent entries after their writers settle. */
 export async function syncUpdateStateFiles(files: string[]): Promise<void> {
   const parents = new Set<string>();
   for (const name of files) {
-    const file = await open(name, constants.O_RDONLY | constants.O_NOFOLLOW);
-    try {
-      await file.sync();
-    } finally {
-      await file.close();
-    }
+    await syncExistingFile(name);
     parents.add(path.dirname(name));
   }
   for (const directory of parents) {

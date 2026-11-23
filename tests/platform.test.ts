@@ -31,7 +31,8 @@ import {
   processPauseSupported,
   resumeProcess,
   sanitizeFileName,
-  syncDirectory
+  syncDirectory,
+  syncExistingFile
 } from '../apps/agent/src/platform/platform.js';
 
 const realPlatform = process.platform;
@@ -305,11 +306,29 @@ describe('sanitizeFileName', () => {
   });
 });
 
+describe('syncExistingFile', () => {
+  it('flushes a file written by another handle and refuses one that is not there', async () => {
+    const dir = await import('node:fs/promises').then(fs =>
+      fs.mkdtemp(path.join(os.tmpdir(), 'soty-sync-'))
+    );
+    const file = path.join(dir, 'state.json');
+    await import('node:fs/promises').then(fs => fs.writeFile(file, '{}'));
+    await expect(syncExistingFile(file)).resolves.toBeUndefined();
+    await expect(import('node:fs/promises').then(fs => fs.readFile(file, 'utf8'))).resolves.toBe(
+      '{}'
+    );
+    await expect(syncExistingFile(path.join(dir, 'missing.json'))).rejects.toThrow();
+  });
+});
+
 describe('syncDirectory', () => {
-  it('flushes a directory entry where the platform can open a directory', async () => {
-    setPlatform('linux');
+  it('flushes a directory entry on this host, or leaves it to NTFS on a Windows host', async () => {
+    // The real filesystem decides: a Windows runner cannot open a directory to flush it,
+    // so pretending to be Linux there would test Node, not this function.
     await expect(syncDirectory(os.tmpdir())).resolves.toBeUndefined();
-    await expect(syncDirectory(path.join(os.tmpdir(), 'soty-missing-dir'))).rejects.toThrow();
+    const missing = syncDirectory(path.join(os.tmpdir(), 'soty-missing-dir'));
+    if (realPlatform === 'win32') await expect(missing).resolves.toBeUndefined();
+    else await expect(missing).rejects.toThrow();
   });
 
   it('leaves it to NTFS on Windows, which cannot open a directory to flush it', async () => {
