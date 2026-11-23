@@ -19,10 +19,47 @@ import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
-const STYLE_ROOT = path.join(ROOT, 'apps/web/src');
+const ARGS = process.argv.slice(2);
+/**
+ * `--root=<dir>` points the check at a directory of our own, so a test can feed
+ * it a stylesheet without touching the committed ones (the same reason
+ * `verify-styles.mjs` takes a path).
+ */
+const ROOT_ARG = ARGS.find(arg => arg.startsWith('--root='));
+const STYLE_ROOT = ROOT_ARG
+  ? path.resolve(ROOT_ARG.slice('--root='.length))
+  : path.join(ROOT, 'apps/web/src');
 /** The one file allowed to hold raw values. */
 const TOKEN_FILE = path.join(STYLE_ROOT, 'styles/tokens.css');
 const ALLOW_FILE = path.join(ROOT, 'config/design-token-exemptions.json');
+
+/**
+ * The widths a layout may change at (070, FR-040): `--breakpoint-xs`…`--breakpoint-xl`
+ * in `styles/tokens.css`, spelled out because a `var()` cannot stand inside an
+ * `@media` condition.
+ */
+const MEDIA_WIDTHS = new Set([480, 640, 768, 1024, 1280]);
+/**
+ * Report, or refuse. Until 070 T065 the widths are reported and the run still
+ * passes: thirty-four widths are moved to five one stylesheet at a time, and a
+ * gate that is red for the whole migration is a gate everyone learns to skip.
+ * T065 turns this on; `--enforce-media-widths` turns it on for one run.
+ */
+const MEDIA_WIDTH_GATE = ARGS.includes('--enforce-media-widths');
+
+/** Every width an `@media` condition names, in either syntax, with its unit. */
+function mediaWidths(line) {
+  if (!/@media\b/.test(line)) return [];
+  const found = [];
+  const pattern =
+    /(?:(?:min|max)-width\s*:\s*(\d+(?:\.\d+)?)(px|rem|em)\b)|(?:\bwidth\s*[<>]=?\s*(\d+(?:\.\d+)?)(px|rem|em)\b)|(?:(\d+(?:\.\d+)?)(px|rem|em)\s*[<>]=?\s*width\b)/g;
+  for (const match of line.matchAll(pattern)) {
+    const value = match[1] ?? match[3] ?? match[5];
+    const unit = match[2] ?? match[4] ?? match[6];
+    found.push({ text: match[0], value: Number(value), unit });
+  }
+  return found;
+}
 
 /** Properties a transition may name: none of them force layout. */
 const COMPOSITABLE = new Set([
@@ -180,6 +217,8 @@ async function main() {
   const allowList = loadAllowList();
   const files = await stylesheets(STYLE_ROOT);
   const violations = [];
+  /** Widths outside the five: failures under the gate, a report before it. */
+  const widths = [];
 
   for (const file of files) {
     const relative = path.relative(ROOT, file);
@@ -203,7 +242,33 @@ async function main() {
       if (!exempt(allowList, relative, 'layout-transition')) {
         checkTransitions(line, relative, lineNumber, violations);
       }
+      for (const width of mediaWidths(line)) {
+        if (width.unit === 'px' && MEDIA_WIDTHS.has(width.value)) continue;
+        widths.push({
+          file: relative,
+          line: lineNumber,
+          rule: 'media-width',
+          width: width.text.replace(/\s+/g, ''),
+          message: `\`@media\` width \`${width.text}\` — use one of ${[...MEDIA_WIDTHS]
+            .map(value => `${value}px`)
+            .join(' / ')} (--breakpoint-* in styles/tokens.css)`,
+          text: line.trim()
+        });
+      }
     });
+  }
+
+  if (MEDIA_WIDTH_GATE) violations.push(...widths);
+  else if (widths.length > 0) {
+    const distinct = new Set(widths.map(width => width.width));
+    process.stdout.write(
+      `Media widths (report only until 070 T065): ${widths.length} condition(s) outside ` +
+        `the five, ${distinct.size} distinct.\n`
+    );
+    for (const width of widths.slice(0, 40)) {
+      process.stdout.write(`  ${width.file}:${width.line}  ${width.text}\n`);
+    }
+    if (widths.length > 40) process.stdout.write(`  … and ${widths.length - 40} more\n`);
   }
 
   if (violations.length === 0) {

@@ -12,6 +12,31 @@
   initial-value: #7c59e0;
 }
 
+/*
+ * The five widths a layout may change at (070, FR-040).
+ *
+ * The product had grown thirty-four of them, each written beside the rule that
+ * needed it, so two panels on one screen folded twenty pixels apart. These are
+ * the only widths now: Tailwind reads them for its `xs:`…`xl:` variants, and
+ * `scripts/check-design-tokens.mjs` holds plain CSS to the same five, because a
+ * `var()` cannot stand inside an `@media` condition and the numbers have to be
+ * written out there. `sm`…`xl` keep Tailwind's own values, so the variants the
+ * screens already use do not move; `xs` is the phone step under them, and the
+ * library's `2xl` is withdrawn so that five means five.
+ *
+ * A narrow rule is `max-width: N`; the wide rule that answers it is
+ * `width > N`, so the two never both apply at exactly N pixels — an iPad held
+ * upright is exactly 768 wide.
+ */
+@theme {
+  --breakpoint-*: initial;
+  --breakpoint-xs: 480px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+}
+
 /* ============================================================
    The token layer (021)
 
