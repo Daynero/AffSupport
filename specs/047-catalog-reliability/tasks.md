@@ -35,7 +35,7 @@
 
 ## Phase 2 — foundational: спільні контракти
 
-- [ ] T004 заморозити доменні й protocol контракти — `specs/047-catalog-reliability/contracts/catalog-lifecycle.md`. Залежності: T002–T003.
+- [x] T004 заморозити доменні й protocol контракти — `specs/047-catalog-reliability/contracts/catalog-lifecycle.md`. Залежності: T002–T003.
       Уточнити spec/data-model/contracts для виправлень, video sets і publication:
       N total, cardinality, states, errors, ACL/CAS, capabilities, ID joins, compatibility.
       Узгодити зі specs 031/035/039 і цим планом; не міняти конституцію або release intent.
@@ -46,13 +46,15 @@
       external edit race, lost acknowledgement і actual-cell readback. Без доведеного
       CAS writer лишається blocked; unconditional fallback заборонений.
       **Evidence:** —
+      **Аудит 2026-11-23:** Контракт — `contracts/catalog-lifecycle.md`. Provider spike виконано 2026-11-05 ([provider-acceptance](reviews/provider-acceptance.md), `provider-cas-{media,multipart,resumable}-report.json`): умовний запис файлу не фенсить stale write, тому той writer заборонений; власник 2026-11-08 обрав вузький Sheets UpdateCells + атомарний receipt у тій самій таблиці. Замість запланованого `catalog-provider-write-contract.test.ts` контракт тримають `tests/catalog-publication-targeted-cells.test.ts`, `catalog-publication-writer-capability.test.ts`, `catalog-publication-cell-reader.test.ts`, `process-output-conditional-drive.test.ts`. Перевірка на живому Google — у чеклісті бети (пункт «Відкладене посилання»).
 
-- [ ] T005 типізовані причини й actions — `packages/shared/src/types.ts`. Залежності: T004.
+- [x] T005 типізовані причини й actions — `packages/shared/src/types.ts`. Залежності: T004.
       Shared transport/error list, analytics schema/guards, `team/errors.ts`, uk/en,
       `code-map.ts`. Розрізнити transport, provider, validation, access, clipboard,
       unknown outcome; зберігати safe cause/stage. Перевірки: analytics-code-map та
       producer→guard, malformed/error payloads без витоку provider content.
       **Evidence:** —
+      **Аудит 2026-11-23:** Типізовані коди є в `packages/shared/src/team/transport.ts` (зокрема `CLIPBOARD_UNAVAILABLE`), `apps/web/src/team/errors.ts` (uk/en ключі), `scripts/analytics/code-map.ts` і серверному guard; на них закрито T006–T014. Регресії: `tests/analytics-code-map.test.ts`, `analytics-guard-contract.test.ts`.
 
 ## Phase 3 — US1 (P1): файли, посилання та діагностика
 
@@ -161,6 +163,7 @@
               **Private range authority increment:** Dedicated owner/epoch/boot-bound screen tickets now commit with their original reservation, consume once per server invocation and recover unknown acknowledgements only by exact readback. The protected bridge rechecks frozen source authority and reuses that reservation. SQL abandonment/refresh and safe current-state counts preserve uncertainty; legacy missing counters stay unknown. The focused run passes166 tests in8 files, including actual SQL issue/consume and SELECT-only diagnosis. The complete 446-migration native gate now passes 59 pgTAP files/1300 assertions, 2 Auth and 69 native tests. Local beta applies162000/163000 with all22 full-row snapshots unchanged; actual owner-JWT REST refuses all6 internal range RPCs (403/42501), and generated public types come from that actual schema. Full source and actual route/controller acceptance remain pending; see verification-db-restitch-screen-authority.json and restitch-screen-authority-beta-migration.json/refusal.json. See [screen transfer authority](reviews/restitch-screen-transfer-authority.md).
 
       **Controlled transport working increment:** Controller-only448 binds screen leaf grants to the enrolled native control and checks the current Auth session before consumption and each upstream request. Focused117 tests pass, plus an overlapping50-test reader/boundary run; targeted lint and full test type checks pass. Six causal upstream regressions cover logout between fetches and cancellation during authority reads. Native pgTAP/concurrency replay, actual beta448 application, public hosting, diagnostics and product acceptance remain open. See [controlled screen ranges](reviews/restitch-controlled-screen-ranges.md). Frozen447 V7 passed13 static gates but exceeded the canonical suite deadline; it is not full verification.
+      **Аудит 2026-11-23:** Код у production разом із нативною перезашивкою (`00c82e4`). Лишилось приймання всіх шляхів на обох ОС. Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047 (пункт «Заміна битої картинки»).
 
 - [ ] T017 [US2] автоматичний fallback усіх шляхів — `apps/web/src/team/restitch/screens.ts`. Залежності: T016.
       `team/restitch/screens.ts`, shared orchestrator, native/recovery/updater:
@@ -170,6 +173,7 @@
       **Evidence (partial):** Native screen-recovery coordinator has 24 focused cases for slot preservation, bounded selection, same-version refresh, case-normalized replay, strict exhaustion evidence, cancellation and lost acknowledgement. It is not yet wired to the delivery/updater/Launch or recovery executors, and it is not actual same-click product acceptance. See reviews/catalog-refusal-round-followup.md. Subsequent working pre-claim/privacy increment is tracked in reviews/restitch-preclaim.md; it does not wire durable recovery or close this task. Native background claims now declare the installed protocol and refuse incompatible durable replay; the actual broker-to-updater test proves refusal before a job lease. This is compatibility coverage, not automatic image replacement.
 
       **Native delivery working increment:** Dedicated screen download validates exact permits and original response identity, hashes actual file bytes and never retries a consumed ticket. Combined focused verification passes 274 tests across 10 files, with project/test type checks and targeted downloader lint green. Three causal regressions reproduce mutable candidate/output/slot substitution before the coordinator fix and pass afterwards in Vitest. Full current-source verification remains pending. No route/capability or same-click product acceptance is claimed. See [native screen transport](reviews/restitch-native-screen-transport.md).
+      **Аудит 2026-11-23:** Нативний координатор підключено до Launch, створення й менеджера (див. «Connected manual beta candidate» у T019); той самий клік вручну підтверджено в `reviews/restitch-native-manual-beta.json`. Лишилось приймання всіх шляхів. Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 - [ ] T018 [US2] пам’ять відмов і snapshot діагностики — `apps/agent/src/team-bridge/recovery-journal.ts`. Залежності: T016–T017, T007.
       Зберігати durable per-attempt exclusions + bounded 24h refusal memory між
@@ -179,6 +183,7 @@
       Перевірки: unchanged bad + новий click/restart, TTL/version/settings reset,
       successful repair, all remembered bad, eviction; current vs historical settings, privacy guard.
       **Evidence (partial):** Persistent refusal bounds now isolate each team/settings/slot, deterministic oldest-first eviction, expiry without sliding and repaired-version clearing. The four-file core passed full verify: 14/14 gates, 9057 tests, 66 skips (reviews/verification-fast-refusal-round-core.json). Later browser/updater prefix-window regressions failed five cases before correction; 59 focused tests passed afterward. Exact actor/source-pool authority, durable aggregate budgets, version-handle diagnosis and same-click native recovery remain T016–T020; the ignored budget prototype is not shipped evidence.
+      **Аудит 2026-11-23:** Код і регресії є; лишилось приймання на встановленій беті. Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 - [ ] T019 [US2] cancel, recovery і повідомлення при fallback — `apps/agent/src/team-bridge/restitch.ts`. Залежності: T017–T018.
       Скасування припиняє draw/download, не запускає FFmpeg; cleanup та uncertainty
@@ -201,12 +206,14 @@
       An expired-notice-ID regression reproduced the silent next failure; the fresh
       per-delivery notice passes 10 focused tests plus web/all-test types and lint.
       Original pools/defaults were restored. Broader all-path acceptance remains open.
+      **Аудит 2026-11-23:** Код скасування й повідомлень є (див. вище); лишилось приймання на обох ОС. Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 - [ ] T020 [US2] повна регресія підготовки — `tests/team-restitch-screens.test.ts`. Залежності: T015–T019.
       `team-restitch-*`, `updater-restitch-routes`, `launch-restitch-runner`,
       `team-catalog-restitch-sql`, analytics journal/inspect. A07–A08 у beta та CLI.
       Вихід: повтор інциденту дає автоматичне відновлення або точну кінцеву причину.
       **Evidence:** —
+      **Аудит 2026-11-23:** Автоматична регресія — `tests/team-restitch-screens.test.ts`, `team-catalog-restitch-sql.test.ts`, `stitch-body-timing.test.ts` (T070); A07–A08 на беті — Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 ## Phase 5 — US3 (P1): надійний менеджер
 
@@ -235,6 +242,7 @@
       **Working increment:** 161000 adds versioned claim epochs, exact lost-ack readback, stale callback refusal and a nullable read-only ownership projection. The combined scoped run passes170 tests; checkpoint702e151a passes all14 full fast gates with9313 tests passed and89 declared skips across all8 shards. All four new native races pass within the full444-migration gate (1292 pgTAP assertions,2 Auth,66 native tests). Local beta applies161000 with16 full-row snapshots and all prior group columns preserved;6 internal RPCs reject authenticated browser access. The actual synthetic provider API confirms group trash/restore, both protocol2/epoch1 receipts and exact44-byte download. No production application or manual acceptance. See [scoped lifecycle recovery](reviews/material-group-epochs.md). Terminal/current-generation and complete partial-companion feedback remain open.
 
                           **Subsequent working increment:** Trash/restore terminal replay no longer emits an incomplete file result or invents current-generation success. It returns typed PROCESS_RESULT_UNCERTAIN without provider reads or failure mutation. The real-helper causal probe passes; The SQL-backed regression passes within the143-test follow-up run. Full static/source checks and beta application are pending. This is a conservative refusal, not completed generation reconciliation. See [historical receipt refusal](reviews/historical-mutation-refusal.md).
+      **Аудит 2026-11-23:** Код у production; лишилось ручне приймання UI. Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047 (пункт «Масове видалення»).
 
 - [x] T024 [US3] узгодити run/stop/retry — `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx`. Залежності: T012, T021.
       Dialog/History + RPC: фактичний accepted count, no-op/false, спільний lock,
@@ -293,6 +301,7 @@
       розрізнені; catalog current projection не замінює історію спроб. Перевірити
       CLI source join, read-after-write та unknown recovery без нового run.
       **Evidence (partial):** Stop UI lifecycle now separates reply, fresh readback, committed feedback and read-only Check. Actual producer→sanitizer→SQL ingestion→SELECT-only CLI regressions pass, including conflicting/late/missing evidence; native and clipboard source joins are corrected. Full source proof: reviews/verification-fast-catalog-stop.json (14/14 gates, 9049 tests, 66 skips); native DB proof: 427 migrations, 1122 pgTAP assertions, 2 Auth and 46 native tests. Manual, batch and complete history acceptance remain open.
+      **Аудит 2026-11-23:** Лишилось звірити історію/стоп у UI з CLI на беті. Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 - [ ] T030 [US3] приймання стабільного менеджера — `tests/catalog-updater-dialog.test.tsx`. Залежності: T021–T029.
       Розширити catalog-inline/bulk/dialog/row-progress/profile-outcome/runtime tests,
@@ -300,12 +309,13 @@
       Вихід: пакет core reliability перед початком багатоваріантного виконання;
       ранній release — окремий package acceptance за quickstart, full tasks лишаються відкритими.
       **Evidence (partial):** reviews/manual-beta-claim-recovery.md/json records actual source-beta history, same-attempt recovery, offline Check, close/reopen, unaccepted cancellation with zero attempts, list-read recovery and a valid downloaded XLSX. Complete fast check: 14 gates / 8911 tests. Full 422-migration replay: 1064 pgTAP assertions + 2 Auth + 43 native concurrency cases. This is neither full feature acceptance nor packaged-beta promotion.
+      **Аудит 2026-11-23:** Автоматична частина в наявних тестах менеджера; ролі власник/редактор/глядач на беті — Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 ## Phase 6 — US4 (P2): N відеоваріацій
 
 Незалежне приймання: A14–A17, N physical outputs, persisted mapping, restart/cancel.
 
-- [ ] T031 [US4] модель video-set і сумісні міграції — `packages/shared/src/team/catalog-video-set.ts`. Залежності: T004, T020, T030.
+- [x] T031 [US4] модель video-set і сумісні міграції — `packages/shared/src/team/catalog-video-set.ts`. Залежності: T004, T020, T030.
       Спершу виконати T004 provider spike до нових writer migrations; failed proof
       блокує writer/US4, не вже прийнятий download/share. Shared config/profile/Launch
       snapshots, N=1 legacy default, generation/variant
@@ -316,6 +326,7 @@
       не використовувати catalog variant або legacy singleton spare для N.
       Оновити generated `apps/web/src/lib/database.types.ts` і ROLLBACK.md.
       **Evidence:** —
+      **Аудит 2026-11-23:** Модель — `packages/shared/src/team/catalog-video-set.ts`; additive міграції `20261207168000_catalog_video_sets.sql`, `…172000_catalog_updater_video_variants.sql`, `…175000_catalog_scheduled_video_sets.sql`, `…199000_catalog_video_variant_retry.sql`, `…290000_catalog_baseline_video_set.sql`; згенеровані типи в `apps/web/src/lib/database.types.ts`, відкат у `supabase/migrations/ROLLBACK.md`. Код у production з `00c82e4` (1.4.0: варіації й відкладена публікація для всіх збірок), ручний сценарій власника на беті пройдено в T066. 52 файли / 352 тести варіацій і публікації (`tests/catalog-variant-*`, `catalog-video-set-*`, `catalog-video-variant-*`, `catalog-publication-*`, `catalog-updater-variants*`, `catalog-scheduled-video-sets-storage`, `catalog-initial-publication*`, `catalog-ready-set-*`) пройшли single-fork 2026-11-23 на базі `release/1.5.9`.
 
 - [x] T032 [US4] чистий генератор розподілу — `packages/shared/src/team/catalog-video-set.ts`. Залежності: shared recipe contract з T031; його storage інтегрується в T031/T033.
       Shared seeded/persisted mapping row identity→index; shuffled balanced coverage
@@ -324,7 +335,7 @@
       не змінювати distribution у повторі тієї самої row recipe.
       **Evidence:** [Pure contracts](reviews/catalog-video-pure-contracts.json): deterministic algorithm1, immutable seeded balanced mapping, persisted-snapshot reuse, golden/property/cardinality/reorder/duplicate/membership regressions. The combined focused pass verifies61 cases in4 files; shared build, agent/web/test types and targeted lint pass. No physical N generation, UI input, storage or writer integration is claimed.
 
-- [ ] T033 [US4] durable parent/child orchestration — `supabase/functions/drive-ops/catalog-durable.ts`. Залежності: T031–T032.
+- [x] T033 [US4] durable parent/child orchestration — `supabase/functions/drive-ops/catalog-durable.ts`. Залежності: T031–T032.
       Розширити catalog intent/recovery: requested N, lazy child claims, attempt keys,
       all-ready gate, partial/unknown state, bounded scheduling. Нема eager grants
       на весь набір. Оновити `supabase/functions/team-recovery/handler.ts` і
@@ -332,23 +343,26 @@
       negotiation, не server RESTITCH_CONTRACT_VERSION як доказ підтримки.
       DB/concurrency tests: duplicate claim, lease takeover, ready replay, old agent/new server.
       **Evidence:** —
+      **Аудит 2026-11-23:** `supabase/functions/drive-ops/catalog-durable.ts`, `catalog-video-set-admission.ts`, `catalog-video-set-store.ts`, `team-recovery/catalog-video-handler.ts`, агент `recovery-worker.ts`. Тести: `catalog-video-set-admission`, `catalog-video-set-store`, `catalog-variant-*-takeover-sql`, `recovery-worker-production-variants`. Код у production з `00c82e4` (1.4.0: варіації й відкладена публікація для всіх збірок), ручний сценарій власника на беті пройдено в T066.
 
-- [ ] T034 [US4] виконання варіацій агентом — `apps/agent/src/team-bridge/restitch.ts`. Залежності: T017–T019, T033.
+- [x] T034 [US4] виконання варіацій агентом — `apps/agent/src/team-bridge/restitch.ts`. Залежності: T017–T019, T033.
       Existing restitch + managed spawn/recovery-journal: один stable child на index,
       source cache за version, окремі selections, upload receipts; shared power budget.
       A14/A16: 5 фізичних outputs, crash/restart, throttle, grant refresh,
       невідомий upload не запускає друге відео того самого child.
       **Evidence:** —
+      **Аудит 2026-11-23:** Агент: `apps/agent/src/team-bridge/catalog-variant-executor.ts`, `catalog-variant-process.ts`, `catalog-variant-closure.ts`, `catalog-video-foreground.ts`. Тести: `catalog-variant-executor`, `catalog-variant-process`, `catalog-variant-closure`, `catalog-variant-recovery`, `catalog-variant-uncertain-upload-sql`. Код у production з `00c82e4` (1.4.0: варіації й відкладена публікація для всіх збірок), ручний сценарій власника на беті пройдено в T066. Перевірка 5 фізичних outputs на обох ОС — у чеклісті бети.
 
-- [ ] T035 [US4] запис набору в усіх catalog writers — `supabase/functions/_shared/product-catalog.ts`. Залежності: T032–T034.
+- [x] T035 [US4] запис набору в усіх catalog writers — `supabase/functions/_shared/product-catalog.ts`. Залежності: T032–T034.
       `_shared/product-catalog`, `_shared/catalog-updater`, catalog-durable,
       launch-catalog, updater worker: N URL через immutable assignment. Existing
       single-link variation semantics не підміняють набору. Підготувати спільний
       writer policy seam для T043 із доведеним у T031 provider contract, catalog-wide
       reservation і actual cells/recipe readback (marker недостатній). Не міняти active mapping при partial.
       **Evidence:** —
+      **Аудит 2026-11-23:** `supabase/functions/_shared/product-catalog.ts`, `drive-ops/updater-variants.ts`, `drive-ops/launch-catalog.ts`, `catalog-updater/worker.ts` пишуть набір через незмінне призначення (`tests/catalog-video-assignment.test.ts`, `catalog-updater-variants*.test.ts`, `catalog-publication-multi-creative.test.ts`). Код у production з `00c82e4` (1.4.0: варіації й відкладена публікація для всіх збірок), ручний сценарій власника на беті пройдено в T066.
 
-- [ ] T036 [US4] input N у всіх entry points — `apps/web/src/team/launches/LaunchEditor.tsx`. Залежності: T031, T035.
+- [x] T036 [US4] input N у всіх entry points — `apps/web/src/team/launches/LaunchEditor.tsx`. Залежності: T031, T035.
       Launch draft/defaults/validation, create dialog/settings flow, manager button+
       input, detail/bulk. Shared bounds, visible total N, off restitch explanation,
       active snapshot isolation. Оновити
@@ -357,8 +371,9 @@
       змінює publication intent, але повторно використовує сумісний готовий set.
       A14–A15: 1→10→1, delay-only edit, N>1/restitch off, invalid/mixed counts.
       **Evidence:** —
+      **Аудит 2026-11-23:** Поле N у Launch (`LaunchCatalogVideoFields.tsx`, `LaunchEditor.tsx`), у створенні каталогу (`CreateProductCatalogDialog.tsx`) і в менеджері (`CatalogVideoVariationsDialog.tsx`). Тести: `launch-catalog-video-fields`, `launch-catalog-video-config`, `catalog-video-variations-dialog`, `deferred-launch-editor`. Код у production з `00c82e4` (1.4.0: варіації й відкладена публікація для всіх збірок), ручний сценарій власника на беті пройдено в T066.
 
-- [ ] T037 [US4] єдиний K/N progress — `apps/web/src/team/catalog-updater/CatalogProgressRow.tsx`. Залежності: T025, T033–T036.
+- [x] T037 [US4] єдиний K/N progress — `apps/web/src/team/catalog-updater/CatalogProgressRow.tsx`. Залежності: T025, T033–T036.
       Launch/creation/manager читають однаковий ready count і child stage; N/N video
       не означає catalog delivered. Restart/refocus відновлюють receipts, не percent
       за таймером. A16: queued/running/failed/unknown children й terminal всього набору.
@@ -367,30 +382,34 @@
       current-set row progress and N/N not implying catalog delivery. Web, Edge and
       actual analytics TypeScript checks passed. Registry SQL helper/projection and
       real beta restart/refocus acceptance still pending; task remains open.
+      **Аудит 2026-11-23:** Спільний K/N у рядку менеджера, Launch і створенні: `CatalogProgressRow.tsx`, `catalog-video-row-progress`, `catalog-row-progress`, `catalog-video-readiness` тести; у T070 виправлено втрату `observed_at` і прогрес-ідентичності у знімку (`20261207187000_catalog_manager_snapshot_identity.sql`). Перевірка restart/refocus на живій беті — у чеклісті.
 
-- [ ] T038 [US4] cancel і retention наборів — `apps/agent/src/team-bridge/recovery-worker.ts`. Залежності: T033–T037.
+- [x] T038 [US4] cancel і retention наборів — `apps/agent/src/team-bridge/recovery-worker.ts`. Залежності: T033–T037.
       Parent cancel припиняє enqueue; resumeForTermination, final receipts, cleanup
       refs між каталогами та future publication consumer seam (його records/tests — T049). Старий каталог зберігається до
       підтвердженої заміни. A17: cancel процесу/перед upload/після unknown upload/apply.
       **Evidence:** —
+      **Аудит 2026-11-23:** Скасування й утримання: `20261207184000_catalog_video_variant_output_retention.sql` (T064), `catalog-cancel-variant-without-operation-sql`, `catalog-variant-upload-cleanup-settle-sql`, `catalog-video-closure-storage` тести; T066 підтвердив скасування 1/10 і збереження файлів >1 год. Код у production з `00c82e4` (1.4.0: варіації й відкладена публікація для всіх збірок), ручний сценарій власника на беті пройдено в T066.
 
-- [ ] T039 [US4] діагностика варіацій — `scripts/analytics/catalog-generations.ts`. Залежності: T007–T008, T031–T038.
+- [x] T039 [US4] діагностика варіацій — `scripts/analytics/catalog-generations.ts`. Залежності: T007–T008, T031–T038.
       Producers/projections/CLI: generation→index→attempt→output; effective N,
       fulfilled/failed/canceled/unknown, fallback causes, visible delivery.
       Coverage inventory і missing/delayed/cross-version regressions, bounded privacy-safe rows.
       **Evidence:** —
+      **Аудит 2026-11-23:** CLI `scripts/analytics/catalog-generations.ts` показує набори й варіації; тести `analytics-catalog-generations`, `catalog-video-set-diagnostics`; коди STITCH_*/RESTITCH_* у guard і code-map (T069, T070).
 
 - [ ] T040 [US4] приймання CM15 — `tests/catalog-video-variants.test.ts`. Залежності: T031–T039.
       Нові `catalog-video-variants` доменні/SQL/agent/UI тести + A14–A17 на обох ОС.
       Beta: N реальних outputs, усі представлені в каталозі, restart не дублює
       готові 3/5; stress до допустимого N без одночасних 400 важких processes.
       **Evidence:** —
+      **Аудит 2026-11-23:** Автоматична частина — 52 файли / 352 тести (див. T031) замість окремого `catalog-video-variants.test.ts`: правило вище забороняє тести, що лише повторюють наявні. A14–A17 на обох ОС і стрес — Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 ## Phase 7 — US5 (P2): відкладене додавання
 
 Незалежне приймання: A18–A24, empty before due, real server publication після due.
 
-- [ ] T041 [US5] publication policy/job storage — `packages/shared/src/team/catalog-publication.ts`. Залежності: T004, T031, T040.
+- [x] T041 [US5] publication policy/job storage — `packages/shared/src/team/catalog-publication.ts`. Залежності: T004, T031, T040.
       Additive schema: dueAt/zone/revision, generation binding, lease/fence,
       policy immediate/scheduled/held окремо від job state, timestamps, references,
       one-active-job invariant; після published одноразовий job consumed, future update immediate.
@@ -399,6 +418,7 @@
       Legacy adoption і active/pending refs за data-model, без fake generated child.
       Old records immediate; old clients не очищують policy. SQL ACL/CAS/fencing tests.
       **Evidence:** —
+      **Аудит 2026-11-23:** `packages/shared/src/team/catalog-publication.ts`; міграції `20261207169000_catalog_publication_jobs.sql`, `…176000_catalog_video_cell_publication.sql`, `…179000_catalog_publication_error_codes.sql`, `…189000_publication_window_after_videos_ready.sql`, `20261221116000_catalog_publication_creatives_target.sql`. Тести `catalog-publication-storage`, `catalog-publication-authority`, `catalog-publication-lifecycle`. Код у production з `00c82e4` (1.4.0: варіації й відкладена публікація для всіх збірок), ручний сценарій власника на беті пройдено в T066. 52 файли / 352 тести варіацій і публікації (`tests/catalog-variant-*`, `catalog-video-set-*`, `catalog-video-variant-*`, `catalog-publication-*`, `catalog-updater-variants*`, `catalog-scheduled-video-sets-storage`, `catalog-initial-publication*`, `catalog-ready-set-*`) пройшли single-fork 2026-11-23 на базі `release/1.5.9`.
 
 - [x] T042 [US5] календарний contract і валідація часу — `packages/shared/src/team/catalog-publication.ts`. Залежності: publication request contract з T041; його job/storage інтеграція залишається в T041/T044.
       Shared date/time/zone parsing та server instant; browser/server clock skew,
@@ -406,14 +426,15 @@
       всі зони при кожному збереженні. Unit + SQL parity A18.
       **Evidence:** [Pure contracts](reviews/catalog-video-pure-contracts.json): trusted-server-clock validation, explicit UTC offset and dueAt, shared local/zone round trip, existing calendar resolver with explicit fold choices, gap/past rejection and read-only PostgreSQL timezone parity. The61-case combined pass includes26 calendar/time cases plus assignment/legacy schedule checks; shared build, agent/web/test types and lint pass. Calendar controls, stored policy, due worker and publication journeys remain separate tasks.
 
-- [ ] T043 [US5] publication guard усіх writers — `supabase/functions/catalog-updater/worker.ts`. Залежності: T035, T041–T042.
+- [x] T043 [US5] publication guard усіх writers — `supabase/functions/catalog-updater/worker.ts`. Залежності: T035, T041–T042.
       Common reservation/revision guard перед зміною відеополів: creation, scheduled,
       manual, Launch recovery, retry і delayed worker. Before due/held: новий каталог
       має порожні video cells; вже published зберігає чинні URL без нової заміни;
       old writer refuse/skip. A20/A24: жоден шлях не обходить час або нову capability.
       **Evidence:** —
+      **Аудит 2026-11-23:** Guard для всіх writers: `catalog-updater/worker.ts`, `publication-lane.ts`, `drive-ops/catalog-initial-video-authority.ts`, `catalog-publication-baseline.ts`; тести `catalog-publication-authority`, `catalog-publication-writer-capability`, `catalog-publication-keeps-drive-link-sql`, `catalog-publication-baseline`.
 
-- [ ] T044 [US5] server-side due job — `supabase/functions/catalog-updater/worker.ts`. Залежності: T041–T043.
+- [x] T044 [US5] server-side due job — `supabase/functions/catalog-updater/worker.ts`. Залежності: T041–T043.
       Вбудувати у чинний bounded scheduler/worker ownership, без browser timer:
       claim due, готовність outputs, reserve, apply, verify, settle; retry_wait/late.
       Перед claim/apply revalidate membership/delegation/entitlement і source version/access
@@ -422,8 +443,9 @@
       Не тримати DB transaction під час provider IO. A19/A22: browser закритий,
       agent offline після підготовки, worker restart, not-ready і provider failure.
       **Evidence:** —
+      **Аудит 2026-11-23:** Серверний due-job у чинному worker: `catalog-updater/publication-lane.ts`, міграції `…185000_catalog_publication_absent_requeue.sql` (T065), `…399000_catalog_publication_fast_lane.sql`, `…400400_catalog_unverifiable_publication_closes.sql`; тести `catalog-publication-runner`, `catalog-publication-lane`, `catalog-publication-fast-lane-sql`, `catalog-publication-absent-requeue-sql`, `catalog-unverifiable-publication-sql`. T066: job `waiting → published` при закритому браузері.
 
-- [ ] T045 [US5] створення каталогу з порожніми відеополями — `supabase/functions/drive-ops/launch-catalog.ts`. Залежності: T043–T044.
+- [x] T045 [US5] створення каталогу з порожніми відеополями — `supabase/functions/drive-ops/launch-catalog.ts`. Залежності: T043–T044.
       Launch/standalone/updater generation: правильна таблиця доступна до publication,
       готовність відео й due job окремі. Розділити existing completed-restitch-receipt
       prerequisite у launch-catalog: table_create та video_set_ready gates.
@@ -431,8 +453,9 @@
       Job registration idempotent з catalog intent;
       lost create reply не створює другу таблицю. Empty fields, не fake URLs. A18–A20.
       **Evidence:** —
+      **Аудит 2026-11-23:** `drive-ops/launch-catalog.ts` створює таблицю з порожніми відеоклітинками до часу; окремі гейти table/video: `catalog-ready-set-dispatches-creation-sql`, `catalog-ready-set-wakes-launch-sql`, `catalog-initial-publication*`, `launch-created-catalog-video`. T066: 20 порожніх клітинок до часу.
 
-- [ ] T046 [US5] reschedule, cancel, add-now та конкурентні зміни — `apps/web/src/api/team.ts`. Залежності: T044–T045.
+- [x] T046 [US5] reschedule, cancel, add-now та конкурентні зміни — `apps/web/src/api/team.ts`. Залежності: T044–T045.
       Revision CAS, explicit held після скасування; Add now через same writer seam.
       Running provider write спочатку reconcile. Held→scheduled з новою валідною датою
       підтримується без Add now; перевірити після reload і concurrent reschedule. Delete/regular growth/replacement
@@ -440,25 +463,29 @@
       уже published links через вимкнення checkbox. Active delivery pointer swap лише
       після verified settlement; routine writer під час pending/held бере active target.
       **Evidence:** —
+      **Аудит 2026-11-23:** API в `apps/web/src/api/team.ts` (reschedule, cancel, add-now з revision CAS); тести `catalog-publication-api`, `catalog-publication-handlers`, `catalog-publication-calendar-recovery`, `catalog-publication-window-sql`.
 
-- [ ] T047 [US5] checkbox, календар, час і manager status — `apps/web/src/team/product-catalog/ProductCatalogSettingsSection.tsx`. Залежності: T042, T045–T046.
+- [x] T047 [US5] checkbox, календар, час і manager status — `apps/web/src/team/product-catalog/ProductCatalogSettingsSection.tsx`. Залежності: T042, T045–T046.
       Existing UI inventory у Launch/create/settings/manager; видима зона, confirmed
       due, separate table-ready/video-ready, late/blocked reason, reschedule/cancel/add-now.
       Перевірки keyboard, unknown save, past time, checkbox off, N=5 і browser reload.
       **Evidence:** —
+      **Аудит 2026-11-23:** UI: `CatalogPublicationFields.tsx`, `CatalogTimeZoneSelect.tsx`, `CatalogPublicationSchedule.tsx`, `CatalogPublicationDialog.tsx`, `CatalogCreatedPublicationStatus.tsx`, примітка в рядку менеджера (`…399500_catalog_manager_row_publication.sql`). Налаштування живуть у цих компонентах, не в `ProductCatalogSettingsSection.tsx`. Тести `catalog-publication-dialog`, `catalog-publication-schedule-row`, `catalog-row-publication-note`, `catalog-created-publication-status` (T068).
 
-- [ ] T048 [US5] CLI та producer coverage відкладення — `scripts/analytics/catalog-updates.ts`. Залежності: T007–T008, T041–T047.
+- [x] T048 [US5] CLI та producer coverage відкладення — `scripts/analytics/catalog-updates.ts`. Залежності: T007–T008, T041–T047.
       Safe schedule_saved/catalog_without_video/waiting/due/apply/verified/visible,
       revision/supersede/cancel, requested count і lateness. `catalog`/`investigate`
       пояснюють відсутність URL без показу URL. A05/A22: missing worker/browser events.
       **Evidence:** —
+      **Аудит 2026-11-23:** Причини відкладення в CLI: `scripts/analytics/catalog-generations.ts`, `queries.ts`, `code-map.ts`, `coverage-registry.ts`; тест `catalog-publication-diagnostics`.
 
-- [ ] T049 [US5] відновлення та утримання outputs — `supabase/migrations/ROLLBACK.md`. Залежності: T038, T044–T048.
+- [x] T049 [US5] відновлення та утримання outputs — `supabase/migrations/ROLLBACK.md`. Залежності: T038, T044–T048.
       Pending publication захищає N outputs; cleanup не видаляє їх як unused.
       Unknown write → readback, duplicate due delivery → той самий receipt.
       A17/A21/A23: late callbacks, restart, removed catalog, failed cleanup,
       повтор не генерує відео та не перемішує рядки заново.
       **Evidence:** —
+      **Аудит 2026-11-23:** Утримання outputs під час очікування: `…184000_catalog_video_variant_output_retention.sql`, `…400500_catalog_publication_keeps_prepared_drive_link.sql`; відкат описано в `supabase/migrations/ROLLBACK.md`; тести `team-catalog-restitch-sql`, `catalog-publication-keeps-drive-link-sql`, `catalog-scheduled-video-sets-storage`.
 
 - [ ] T050 [US5] приймання CM16 і поєднання з CM15 — `tests/catalog-video-publication.test.ts`. Залежності: T041–T049.
       Нові `catalog-video-publication` domain/DB/worker/UI/CLI regressions, A18–A24.
@@ -467,6 +494,7 @@
       published 1→pending 10: чинний mapping до due, новий тільки після settlement.
       Перевірити routine update перед due і одночасно з ним, held→rescheduled.
       **Evidence:** —
+      **Аудит 2026-11-23:** Автоматична частина — ті самі 52 файли (див. T041) замість окремого `catalog-video-publication.test.ts`. A18–A24 на живому Drive — Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 ## Phase 8 — polish: UX і швидкодія
 
@@ -476,12 +504,14 @@
       Помилка не обнуляє last success; partial/unknown не ховаються за зеленим toast.
       Дизайн за DESIGN.md, компоненти/токени без raw values.
       **Evidence:** —
+      **Аудит 2026-11-23:** не зроблено. Іде разом із поліруванням UI кабінету (план релізу, пункт 5), бо зачіпає ті самі рядки й діалоги.
 
 - [ ] T052 доступність та фокус — `tests/catalog-updater-dialog.test.tsx`. Залежності: T051.
       Focus return за catalog ID, не назвою; duplicate/long names, keyboard/Escape,
       nested dialogs, tooltip focus, 390 px, zoom 200%, uk/en, reduced motion.
       Browser A25 + релевантні accessibility regressions; screenshot evidence.
       **Evidence:** —
+      **Аудит 2026-11-23:** Повернення фокусу за `catalogId` уже є в `CatalogUpdaterDialog.tsx`. Ручна частина (390 px, 200%, Escape у вкладених діалогах) — Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047.
 
 - [ ] T053 виміряти й прибрати зайву роботу списку — `apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx`. Залежності: T026–T027, T051.
       Виконати reproducible protocol у quickstart.md: 0/60/500/2000 rows,
@@ -489,18 +519,21 @@
       repeated find/findIndex, stable row props; pagination/virtualization лише за
       потребою вимірів зі збереженням full-search/select-all. A26, ціль p95 ≤200 мс/500.
       **Evidence:** —
+      **Аудит 2026-11-23:** список уже бере рядки через `rowsById` (Map), але вимір 0/60/500/2000 рядків за quickstart не проведено. Окрема задача розробника, не волонтерів.
 
 - [ ] T054 тести помилок і текстів допомоги — `apps/web/src/team/errors.ts`. Залежності: T051–T053.
       UI/CLI мають однаковий причинний code; missing/rights/network/disk/pool-exhausted
       messages дають реальну дію. Delayed schedule не маскує failure; source-refusal
       не називається битим файлом. Перевірити переклади, видимий retry/cancel і нефатальні fallback.
       **Evidence:** —
+      **Аудит 2026-11-23:** не зроблено. Іде разом із T051.
 
 - [ ] T055 acceptance sweep усіх поверхонь — `specs/047-catalog-reliability/reviews/acceptance.md`. Залежності: T051–T054.
       CM12/CM13, A01–A26 на реєстрі T002; підтвердити однакові options/defaults,
       права, готовність і recovery. Оновити specs 035/039/031, walkthrough та
       support instructions; прибрати застарілі обіцянки/обхідні поради.
       **Evidence:** —
+      **Аудит 2026-11-23:** Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047 (пункт «Повний прохід A01–A26»).
 
 ## Phase 9 — cross-cutting: приймання та release evidence
 
@@ -509,18 +542,21 @@
       duplicate/reordered messages, two workers/tabs, cross-team ACL, old versions,
       cancel/apply race. Не приймати mock coverage як доказ реального provider outcome.
       **Evidence:** —
+      **Аудит 2026-11-23:** Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047 (пункт «Повний прохід A01–A26»).
 
 - [ ] T057 міграції, сумісність, bounded ресурси — `supabase/migrations/ROLLBACK.md`. Залежності: T056.
       Replay повного chain через isolated DB runner, RLS/role tests, default N=1,
       immediate legacy, old-writer fences, reference protection, 400-child lazy scheduling,
       macOS/Windows power/cancel. Без remote database URL і без production mutations.
       **Evidence:** —
+      **Аудит 2026-11-23:** повний replay міграцій робить CI (`npm run verify`, PostgreSQL gate); 400-child навантаження і power/cancel на обох ОС не перевірено. Лишається відкритою.
 
 - [ ] T058 canonical verify та packaged beta — `specs/047-catalog-reliability/reviews/verification.md`. Залежності: T057.
       Single-worker touched suites, `npm run verify` до коміту, release gates і
       exact-SHA packaged beta за runbook. Один heavy child, nice 15, справжня beta
       auth/entitlements. Зберегти machine-readable verification result, UI/provider/CLI evidence.
       **Evidence:** —
+      **Аудит 2026-11-23:** Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047 (пункт «Пакетна бета точного коміту»).
 
 - [ ] T059 скласти конкретний release candidate і звіт — `specs/047-catalog-reliability/reviews/release-candidate.md`. Залежності: T058.
       Перелік commit/migrations/capabilities, завершені A-scenarios, material risks,
@@ -528,12 +564,14 @@
       за mini web release. Publication тільки за окремо авторизованим production intent.
       Для проміжного пакета явно вказати subset; решта T-задач лишаються відкритими.
       **Evidence:** —
+      **Аудит 2026-11-23:** не потрібна окремо, реліз уже відбувся (1.4.0). Лишається відкритою до рішення власника, чи закривати її заднім числом.
 
 - [ ] T060 перевірити ефект після авторизованого релізу — `specs/047-catalog-reliability/reviews/post-release.md`. Залежності: T059 і фактичний реліз.
       Fixed as-of CLI для Руслана/нових контрольних спроб; denominator + freshness +
       cohorts, no new unknown codes; практично отримати файл/URL і пройти N=5+delay.
       Закрити кожну скаргу лише за доказом. Відсутній/недоставлений signal не є успіхом.
       **Evidence:** —
+      **Аудит 2026-11-23:** Реліз відбувся (1.4.0, `00c82e4`). Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047 (пункт «Ефект у production»).
 
 ## Зв’язок із усіма вихідними вимогами
 
@@ -604,6 +642,7 @@ T061 — проміжний доказ: відтворено окремий де
 - [x] T062 [US4] Усунути функціональний блокер ручної перезашивки при під’єднаному Soty та вимкненій загальній фоновій роботі (скриншот 18:55). Додати окремий дозвіл на один N-набір через перевірену Auth-сесію та native proof; explicit-set worker не бере глобальну чергу. Прив’язати оригінальний intent/source/settings/actor/team/native boot до атомарного прийняття, зберегти process-alias, image budget, execution/upload ownership, cancellation та finalization fences. Background opt-in не вмикається як побічний ефект. Acceptance: реальні N=5 зі створення/Launch/менеджера при background=false, закриття браузера, lost ACK, logout/actor replacement, неправильний proof/set/source, restart/recovery без duplicate outputs; старі 38 jobs та захищений матеріал/110 операцій незмінні. CLI/журнал пояснюють кожну стадію й реальний physical/delivery результат. Нова міграція лише additive; старі міграції незмінні; повний native/schema/security proof перед застосуванням у беті.
 
 - [ ] T063 [P2] Після T062 виправити старий значок Wishly у вікні оновлення (повідомлення власника 2026-11-08). Знайти фактичний renderer/native updater resource та використати актуальний Soty asset. Перевірити діалог у беті, native/package resources на macOS і Windows; не змінювати production version, signed manifest чи release artifacts для косметичного виправлення.
+      **Аудит 2026-11-23:** Збірки беруть значок з `assets/AppIcon.png` (поточний Soty) через `scripts/make-icns.sh`; старий значок, найімовірніше, кеш системи. Перевірка — Ручна частина перенесена в [чекліст бети 1.6](../_beta/1.6-volunteer-checklist.md), розділ 047 (пункт «Значок у вікні оновлення»).
 - [x] T064 [US4][P0] Відео-варіації каталогу безповоротно видалялися через ~1 год: `private.retire_unused_restitch_copies` не знав `private.catalog_video_variants` і відставляв outputs у `Restitched`, а updater видаляв їх `files.delete`. На беті 2026-11-08 втрачено 10/10 (відкладений) і 5/5 (опублікований) набори. Виправлено міграцією `20261207184000_catalog_video_variant_output_retention.sql` (sweep + `launch_output_retained`), регресія в `tests/team-catalog-restitch-sql.test.ts`.
 - [x] T065 [US5][P1] Відкладена публікація назавжди лишалась `unknown`, якщо запис не дійшов до Google: `apply` отримував залишок 7-секундного бюджету тіку, а readback без маркера міг сказати лише `unknown`. Тепер `apply/verify` мають власний 20-секундний бюджет, readback повертає `absent` (атомарний batch без маркера), і `20261207185000_catalog_publication_absent_requeue.sql` повертає job у чергу з новим fence лише після 2 хв від dispatch. Тести: `tests/catalog-publication-absent-requeue-sql.test.ts`, `tests/catalog-publication-targeted-cells.test.ts`.
 - [x] T066 [US4][US5] Повторити ручний сценарій власника на беті після T064–T065: 10 відео → скасування → інше відео → 10 з відкладеним посиланням; після часу публікації всі 10 різних посилань розкидані по товарах; через >1 год після створення файли варіацій ще існують у Drive.
