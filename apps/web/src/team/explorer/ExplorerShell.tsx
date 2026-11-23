@@ -1,122 +1,69 @@
-import { handoffBrowserDownload } from '../materials/browser-download';
-import { createRestoreBatch } from '../materials/restore-batch';
-import { captureCatalogMutationOwner } from '../catalog-updater/captureCatalogMutationOwner';
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode
-} from 'react';
-import { usablePrep } from '@video-compressor/shared';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
-  CatalogMaterialItem,
   TeamAnalyticsStorage,
   TeamMaterialRow,
   TeamMaterialTagColor,
   TeamPermissions
 } from '@video-compressor/shared';
-import {
-  teamApi,
-  TeamApiError,
-  type DriveCatalogResyncResult,
-  type TeamMaterialSummary
-} from '../../api/team';
-import { downloadTeamFileWithAgent, selectNativeDirectory } from '../../api/client';
-import {
-  Download,
-  ListChecks,
-  ListPlus,
-  MoreHorizontal,
-  Play,
-  Shrink,
-  Trash2,
-  X
-} from 'lucide-react';
+import type { DriveCatalogResyncResult, TeamMaterialSummary } from '../../api/team';
 import { Button } from '../../components/ui';
 import { usePaneArrival } from './usePaneArrival';
 import { crossfadePart } from '../../lib/auto-crossfade';
 import { BeforeChange } from '../../lib/before-change';
 import { moveFromPlaces, rememberPlaces } from '../../lib/layout-move';
-import { DropdownMenu, Popover, SegmentedControl } from '../../components/ui/index';
-import type { MenuItem } from '../../components/ui/index';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { useToasts } from '../../components/toast';
-import { trashMaterialWithTail, type TailClient } from '../materials/tail';
-import { moveWorkspaceMaterials } from './moveCoordinator';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
-import { teamErrorMessageFor } from '../errors';
-import { TeamCatalog, type TeamCatalogClient } from '../catalog/TeamCatalog';
+import type { TeamCatalogClient } from '../catalog/TeamCatalog';
 import { TrashView } from '../catalog/TrashView';
 import type { FolderPickerClient } from '../catalog/FolderPicker';
 import {
   defaultMaterialActionsClient,
-  uploadTeamFile,
   type MaterialActionsClient
 } from '../catalog/material-actions-client';
 import type { TeamRouteQuery, ExplorerView } from '../routes';
-import { Breadcrumb } from './Breadcrumb';
 import { ContentGrid, type ContentGridClient } from './ContentGrid';
 import { useCreativeRanks, type CreativeRanksClient } from '../ranks/useCreativeRanks';
 import { carriesRank } from '../ranks/creativeRanks';
 import { ContentList } from './ContentList';
 import { ExplorerProvider, useExplorer, type ExplorerClient } from './ExplorerProvider';
 import { FolderTree } from './FolderTree';
-import { KindFilterMenu } from './KindFilterMenu';
-import { SortMenu } from './SortMenu';
 import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
 import { PreviewPane } from './PreviewPane';
 import { useAgentQueue } from './useAgentQueue';
 import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
 import { useOptionalAddToTask } from '../tasks/AddToTask';
 import { useExplorerClipboard } from './useExplorerClipboard';
-import { formatShortcut, shortcutOf } from '../palette/shortcuts';
 import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
-import {
-  BATCH_SCOPE_LIMIT,
-  type FolderSubtreeClient,
-  type ProcessableFolder
-} from './FolderScopeDialog';
+import type { FolderSubtreeClient } from './FolderScopeDialog';
 import {
   compressJobs,
   type CompressPlan,
   type CompressPlanItem as CompressPlanItem_
 } from './TeamCompressorDialog';
-import type { RowActionsProps } from './RowActions';
-import type { UploadConflictChoice, UploadConflictRequest } from './UploadConflictDialog';
-import { internalLink } from '../../lib/navigation';
-import { buildTeamRoute } from '../routes';
-import { foldCompanions } from './companions';
+import { useCompanionFold } from './useCompanionFold';
 import { useFolderPage } from './useFolderPage';
 import { useVisibleRowAnchor } from './useVisibleRowAnchor';
 import { useMarqueeSelection } from './useSelectionGestures';
-import { useFolderResync, type FolderResyncClient } from './useFolderResync';
+import type { FolderResyncClient } from './useFolderResync';
 import { SyncStatusPanel } from './SyncStatusPanel';
 import { usePosterFrames } from './usePosterFrames';
-import {
-  buildLocalManifest,
-  buildNativeDirectoryManifest,
-  type LocalDirectoryHandle,
-  type LocalDropEntry,
-  type LocalManifest,
-  type LocalManifestSource
-} from './localManifest';
-import {
-  useOptionalWorkspaceOperations,
-  type WorkspaceUploadRequest
-} from './WorkspaceOperationsProvider';
-import { confirmWorkspaceCatalog, findFolderConflicts } from './catalogPostcondition';
+import { useOptionalWorkspaceOperations } from './WorkspaceOperationsProvider';
 import { useExplorerRestitch } from './useExplorerRestitch';
+import { useExplorerResync } from './useExplorerResync';
+import { useExplorerReveal } from './useExplorerReveal';
+import { usePreparedIds, useStorageKind } from './useExplorerRowFacts';
+import { useExplorerFileOps } from './useExplorerFileOps';
+import { useExplorerUploads } from './useExplorerUploads';
+import { useExplorerKeyboard } from './useExplorerKeyboard';
+import { useExplorerMeasure } from './useExplorerMeasure';
+import { explorerRowActions } from './explorerRowActions';
+import { ExplorerResults } from './ExplorerResults';
+import { ExplorerToolbar } from './ExplorerToolbar';
+import { ExplorerSelection } from './ExplorerSelection';
+import { ExplorerDropZone } from './ExplorerDropZone';
 import { ExplorerProcessStack } from './ExplorerProcessStack';
 import { ExplorerDialogs, type ExplorerFolderScope } from './ExplorerDialogs';
-
-/** A progress tick refreshes the visible folder at most this often (028). */
-const PROGRESS_REFRESH_MIN_MS = 5_000;
 
 export type ExplorerShellClient = ExplorerClient &
   FolderResyncClient &
@@ -147,30 +94,8 @@ export type { ExplorerView };
  * state lives in the address, so a refresh and a pasted link land on the same
  * screen.
  */
-/** The grid never unfolds companions in place; a stable empty set keeps the memo quiet. */
-const NO_COMPANIONS_OPEN: ReadonlySet<string> = new Set();
 
-export function ExplorerShell({
-  teamId,
-  retryGroupId,
-  onRetryComplete,
-  client,
-  revision = 0,
-  query,
-  onQueryChange,
-  onFolderChange,
-  onSearched,
-  onPreview,
-  onCreateTask,
-  onCreateTaskFromSelection,
-  onProcessSelection,
-  onProcessLibrary,
-  onChanged,
-  onReset,
-  actionsClient = defaultMaterialActionsClient,
-  readOnly = false,
-  trashReturnLabel
-}: {
+export type ExplorerShellProps = {
   teamId: string;
   retryGroupId?: string | null;
   onRetryComplete?: () => void;
@@ -196,7 +121,18 @@ export function ExplorerShell({
    * "back to files" would be a small lie about where it goes.
    */
   trashReturnLabel?: string;
-}) {
+};
+
+export function ExplorerShell(props: ExplorerShellProps) {
+  const {
+    teamId,
+    client,
+    revision = 0,
+    query,
+    onFolderChange,
+    actionsClient = defaultMaterialActionsClient,
+    readOnly = false
+  } = props;
   return (
     <ExplorerProvider
       teamId={teamId}
@@ -206,24 +142,10 @@ export function ExplorerShell({
       onFolderChange={onFolderChange}
     >
       <ExplorerBody
-        teamId={teamId}
-        retryGroupId={retryGroupId}
-        onRetryComplete={onRetryComplete}
-        client={client}
+        {...props}
         revision={revision}
-        query={query}
-        onQueryChange={onQueryChange}
-        onSearched={onSearched}
-        onPreview={onPreview}
-        onCreateTask={onCreateTask}
-        onCreateTaskFromSelection={onCreateTaskFromSelection}
-        onProcessSelection={onProcessSelection}
-        onProcessLibrary={onProcessLibrary}
-        onChanged={onChanged}
-        onReset={onReset}
         actionsClient={actionsClient}
         readOnly={readOnly}
-        trashReturnLabel={trashReturnLabel}
       />
     </ExplorerProvider>
   );
@@ -248,28 +170,12 @@ function ExplorerBody({
   actionsClient,
   readOnly,
   trashReturnLabel
-}: {
-  teamId: string;
-  retryGroupId?: string | null;
-  onRetryComplete?: () => void;
-  client: ExplorerShellClient;
+}: ExplorerShellProps & {
   revision: number;
-  query: TeamRouteQuery;
-  onQueryChange: (patch: Partial<TeamRouteQuery>) => void;
-  onSearched: (state: { query: string; filters: TeamRouteQuery['filters'] }) => void;
-  onPreview?: (material: TeamMaterialSummary) => void;
-  onCreateTask?: (asset: { id: string; name: string }) => void;
-  onCreateTaskFromSelection?: (assets: Array<{ id: string; name: string }>) => void;
-  onProcessSelection?: (materialIds: string[], scope?: LibraryBatchScope) => void;
-  onProcessLibrary?: () => void;
-  onChanged?: () => void;
-  onReset?: () => void;
   actionsClient: MaterialActionsClient;
   readOnly: boolean;
-  trashReturnLabel?: string;
 }) {
   const { t } = useI18n();
-  const { push, update, dismiss } = useToasts();
   /* 015 — one running re-stitched delivery per material, held here rather than in the row:
      a delivery outlives the menu that started it and the row that scrolled past. */
   const { restitch, deliveringMaterial, deliverRestitched } = useExplorerRestitch(
@@ -282,7 +188,6 @@ function ExplorerBody({
     notifyStateChanged,
     ranksRevision = 0
   } = useTeam();
-  const lastProgressRefresh = useRef(0);
   // Every write goes dark while storage needs a person (FR-033); nothing is lost.
   const permissions = readOnly ? null : loadedPermissions;
   const explorer = useExplorer();
@@ -316,24 +221,11 @@ function ExplorerBody({
      folder-wide commands need the same walk, so they share one window. */
   const [folderScope, setFolderScope] = useState<ExplorerFolderScope | null>(null);
   const [compressing, setCompressing] = useState<CompressPlanItem_[] | null>(null);
-  const [dropping, setDropping] = useState(false);
-  /** How many files are still going up; the zone stays lit while any is. */
-  const [uploading, setUploading] = useState(0);
-  /**
-   * The name collision the drop is waiting on, and the promise the upload loop
-   * is parked on until it is answered. One at a time: a drop of ten files with
-   * ten collisions asks once and offers to apply that answer to the rest.
-   */
-  const [conflict, setConflict] = useState<{
-    request: UploadConflictRequest;
-    settle: (choice: UploadConflictChoice, forRest: boolean) => void;
-  } | null>(null);
-  const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   const workspaceOperations = useOptionalWorkspaceOperations();
-  const fileInput = useRef<HTMLInputElement>(null);
   const addMenuAnchor = useRef<HTMLButtonElement | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const closeCreateFolder = useCallback(() => setCreatingFolder(false), []);
   const view: ExplorerView = query.view ?? readRememberedView();
   const [sort, setSortState] = useState<ExplorerSort>(() => readRememberedSort());
   const setSort = (next: ExplorerSort) => {
@@ -351,109 +243,22 @@ function ExplorerBody({
   const explorerSurfaceRef = useRef<HTMLDivElement>(null);
   const explorerHeaderRef = useRef<HTMLDivElement>(null);
   const explorerListHeaderRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    const surface = explorerSurfaceRef.current;
-    const header = explorerHeaderRef.current;
-    const listHeader = explorerListHeaderRef.current;
-    if (!surface || !header || !listHeader) return;
-    const measure = () => {
-      surface.style.setProperty(
-        '--explorer-header-height',
-        `${header.getBoundingClientRect().height}px`
-      );
-      surface.style.setProperty(
-        '--explorer-list-header-height',
-        `${listHeader.getBoundingClientRect().height}px`
-      );
-    };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(header);
-    observer.observe(listHeader);
-    return () => observer.disconnect();
-  }, []);
+  useExplorerMeasure(explorerSurfaceRef, explorerHeaderRef, explorerListHeaderRef);
   const captureAnchorRef = useRef<() => void>(() => {});
-  const activeFolderIds = currentFolderId
-    ? pathTo(currentFolderId).map(node => node.driveFileId)
-    : [];
-  if (currentFolderId && !activeFolderIds.includes(currentFolderId))
-    activeFolderIds.push(currentFolderId);
-  /*
-   * The request RPCs admit the space's owner and admins only; the button
-   * says the same, so nobody sees a control the server will refuse (028).
-   */
-  const canResync = !readOnly && (activeTeam?.role === 'owner' || activeTeam?.role === 'admin');
-  const folderResync = useFolderResync({
+  const { canResync, folderResync, syncScopeName, uploadingThisFolder } = useExplorerResync({
     teamId,
-    folderId: currentFolderId ?? '__root__',
-    // The whole-space scan is an ancestor of every folder: inside a child it
-    // shows as running, and no second request is started under it.
-    scopeFolderIds: currentFolderId ? ['__root__', ...activeFolderIds] : ['__root__'],
-    client: {
-      resyncFolder: (id, folder, options) =>
-        folder === '__root__'
-          ? client.resyncDrive!(id, options)
-          : client.resyncFolder!(id, folder, options),
-      getFolderSyncStatus: client.getFolderSyncStatus,
-      findFolderSyncRequest: client.findFolderSyncRequest,
-      findFolderSyncRequestByKey: client.findFolderSyncRequestByKey,
-      cancelFolderSync: client.cancelFolderSync
-    },
+    client,
+    currentFolderId,
+    pathTo,
+    nodeOf,
+    readOnly,
+    role: activeTeam?.role,
+    workspaceOperations,
+    notifyStateChanged,
     onComplete: async () => {
       await Promise.all([page.reloadStrict(), explorer.refreshStrict()]);
-    },
-    /*
-     * Files land in the catalog page by page while the scan runs. Realtime
-     * normally says so; when it is down, the status the person is already
-     * polling says so instead — at most once every five seconds, and only
-     * while the person is watching this scan (028, release C).
-     */
-    onProgress: () => {
-      const now = Date.now();
-      if (now - lastProgressRefresh.current < PROGRESS_REFRESH_MIN_MS) return;
-      lastProgressRefresh.current = now;
-      notifyStateChanged();
-    },
-    onOutcome: outcome =>
-      push({
-        tone: outcome === 'succeeded' ? 'success' : outcome === 'failed' ? 'error' : 'info',
-        text: t(
-          outcome === 'succeeded'
-            ? 'teamFolderResyncDone'
-            : outcome === 'unreachable'
-              ? 'teamFolderResyncUnreachable'
-              : outcome === 'disconnected'
-                ? 'teamFolderResyncDisconnected'
-                : outcome === 'stalled'
-                  ? 'teamFolderResyncStalled'
-                  : outcome === 'blocked'
-                    ? 'teamFolderResyncBlocked'
-                    : outcome === 'canceled'
-                      ? 'teamFolderResyncCanceled'
-                      : outcome === 'detached'
-                        ? 'teamFolderResyncDetached'
-                        : 'teamFolderResyncFailed'
-        )
-      })
+    }
   });
-  // The panel names the job's own scope: inside a child of a syncing folder
-  // it says the folder, inside any folder of a syncing space it says the space.
-  const syncScopeId = folderResync.status?.scopeFolderId ?? currentFolderId ?? '__root__';
-  const syncScopeName =
-    syncScopeId === '__root__'
-      ? t('teamSyncScopeSpace')
-      : (explorer.nodeOf(syncScopeId)?.name ?? syncScopeId);
-  const uploadingThisFolder = Boolean(
-    currentFolderId &&
-    workspaceOperations?.groups.some(
-      group =>
-        group.teamId === teamId &&
-        (group.state === 'preparing' || group.state === 'running') &&
-        (activeFolderIds.includes(group.destination.driveFolderId ?? '') ||
-          group.items.some(item => activeFolderIds.includes(item.resultFolderId ?? '')))
-    )
-  );
   const unindexedFolder = Boolean(currentFolderId && nodeOf(currentFolderId)?.indexedAt === null);
   const contentsPending = folderResync.running || uploadingThisFolder || unindexedFolder;
   const emptyState = uploadingThisFolder
@@ -480,20 +285,10 @@ function ExplorerBody({
     () => sortRows(page.rows, sort, ranks.ranks),
     [page.rows, sort, ranks.ranks]
   );
-  /*
-   * A transcript and a catalog belong to their video (024, US25): the folder shows the video with
-   * a count, and they come out under it on a press. Opened ones are remembered per folder only.
-   */
-  const [openedCompanions, setOpenedCompanions] = useState<ReadonlySet<string>>(new Set());
-  useEffect(() => setOpenedCompanions(new Set()), [currentFolderId]);
-  /*
-   * Only the list unfolds them in place. In the grid a catalog is a grey document tile the size of
-   * a thumbnail: opened, two of them pushed every video after them down a row and looked like
-   * strangers in the folder. There the video's tile lists them itself, so the grid never unfolds.
-   */
-  const folded = useMemo(
-    () => foldCompanions(allRows, view === 'grid' ? NO_COMPANIONS_OPEN : openedCompanions),
-    [allRows, openedCompanions, view]
+  const { folded, openedCompanions, toggleCompanions } = useCompanionFold(
+    allRows,
+    view,
+    currentFolderId
   );
   const sortedRows = folded.rows;
   const rowIds = useMemo(() => sortedRows.map(row => row.id), [sortedRows]);
@@ -509,99 +304,17 @@ function ExplorerBody({
     rows: sortedRows,
     resetKey: `${teamId}|${currentFolderId ?? ''}|${view}|${query.kinds.join(',')}`
   });
-  const toggleCompanions = useCallback((rowId: string) => {
-    setOpenedCompanions(current => {
-      const next = new Set(current);
-      if (!next.delete(rowId)) next.add(rowId);
-      return next;
-    });
-  }, []);
 
-  /*
-   * A file the address names (`item`) — from "show in folder" on a search result or a task's
-   * attachment: once its folder's rows are in, it is selected and scrolled into view, once per
-   * address. A later page is fetched if the file is further down the folder.
-   */
-  const revealedItem = useRef<string | null>(null);
-  const revealItemId = query.itemId;
-  useEffect(() => {
-    if (!revealItemId) {
-      revealedItem.current = null;
-      return;
-    }
-    if (revealedItem.current === revealItemId || searching || query.trash) return;
-    if (query.folderId && explorer.nodes && !nodeOf(query.folderId)) {
-      onQueryChange({ folderId: null, itemId: revealItemId });
-      return;
-    }
-    if (currentFolderId !== (query.folderId ?? null) || page.loading) return;
-    if (!page.rows.some(row => row.id === revealItemId)) {
-      if (page.hasMore) void page.loadMore();
-      return;
-    }
-    revealedItem.current = revealItemId;
-    select(revealItemId);
-    // `open=1` beside it: the address was a file being looked at, so it is
-    // looked at again rather than merely pointed at (024, FR-050).
-    if (query.open) {
-      const row = page.rows.find(candidate => candidate.id === revealItemId);
-      if (row && row.kind !== 'folder') onPreview?.(summaryOf(row));
-    }
-    window.requestAnimationFrame(() => {
-      Array.from(document.querySelectorAll<HTMLElement>('[data-material-id]'))
-        .find(element => element.dataset.materialId === revealItemId)
-        ?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-    });
-  }, [
-    currentFolderId,
-    explorer.nodes,
-    nodeOf,
-    onPreview,
-    onQueryChange,
-    page,
-    query.folderId,
-    query.open,
-    query.trash,
-    revealItemId,
+  const { revealMaterial, pathFor } = useExplorerReveal({
+    query,
     searching,
-    select
-  ]);
-
-  /**
-   * Which of the videos in view have already been looked at.
-   *
-   * One read for the whole page rather than one per row, and re-read when the page changes so
-   * a material that was just prepared elsewhere stops claiming otherwise (FR-021).
-   */
-  const [preparedIds, setPreparedIds] = useState<ReadonlySet<string>>(new Set());
-  useEffect(() => {
-    const videos = page.rows.filter(row => row.kind === 'video');
-    if (videos.length === 0) {
-      setPreparedIds(new Set());
-      return;
-    }
-    let active = true;
-    void teamApi
-      .getMaterialRestitchPrep(
-        teamId,
-        videos.map(row => row.id)
-      )
-      .then(found => {
-        if (!active) return;
-        const ready = new Set<string>();
-        for (const row of videos) {
-          const prep = usablePrep(found.get(row.id) ?? null, row.driveVersion);
-          if (prep && !prep.unsupportedReason) ready.add(row.id);
-        }
-        setPreparedIds(ready);
-      })
-      .catch(() => {
-        // Not knowing is the same as not prepared: the menu simply says nothing.
-      });
-    return () => {
-      active = false;
-    };
-  }, [teamId, page.rows]);
+    explorer,
+    currentFolderId,
+    page,
+    onPreview,
+    onQueryChange
+  });
+  const preparedIds = usePreparedIds(teamId, page.rows);
   // Drive has no picture for some videos and never will. The paired app makes
   // one, for what is on screen, one at a time.
   usePosterFrames({
@@ -611,50 +324,7 @@ function ExplorerBody({
     onRendered: () => void page.reload()
   });
 
-  useEffect(() => {
-    let active = true;
-    if (!client.getConnectionStatus) return;
-    void client
-      .getConnectionStatus(teamId)
-      .then(status => {
-        if (active) setStorageKind(status.driveKind ?? null);
-      })
-      .catch(() => {
-        if (active) setStorageKind(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [client, teamId]);
-
-  /*
-   * Every file operation in this screen goes through the tail module, and it
-   * needs exactly these four. Built once so a drag, a paste, a menu and a
-   * delete cannot drift apart in what they remember to carry.
-   */
-  const tailClient = useMemo<TailClient>(
-    () => ({
-      copyMaterial: input => teamApi.copyMaterial(input),
-      moveMaterial: input => actionsClient.moveMaterial(input),
-      renameMaterial: input => actionsClient.renameMaterial(input),
-      trashMaterial: input => actionsClient.trashMaterial(input)
-    }),
-    [actionsClient]
-  );
-
-  /** What the tail module needs to know about a row the drag only names by id. */
-  const rowFor = useCallback(
-    (materialId: string) => {
-      const row = page.rows.find(candidate => candidate.id === materialId);
-      return {
-        id: materialId,
-        name: row?.name ?? '',
-        category: row?.category ?? null,
-        sourceFolderId: row?.parentFolderId ?? currentFolderId ?? null
-      };
-    },
-    [currentFolderId, page.rows]
-  );
+  const storageKind = useStorageKind(client, teamId);
 
   const changed = useCallback(() => {
     onChanged?.();
@@ -674,6 +344,23 @@ function ExplorerBody({
   const space = useOptionalSpaceAgentQueue();
   const addToTask = useOptionalAddToTask();
   const queue = space?.queue ?? localQueue;
+
+  const { tailClient, dropMaterials, downloadOriginal, trashRows, tagging } = useExplorerFileOps({
+    teamId,
+    actionsClient,
+    page,
+    currentFolderId,
+    permissions,
+    workspaceOperations,
+    changed,
+    clearSelection,
+    select,
+    nodeOf,
+    pathTo,
+    client,
+    canTag
+  });
+
   /* Copy, cut and paste, in their own file for the same reason (024). */
   const clipboard = useExplorerClipboard({
     teamId,
@@ -684,552 +371,51 @@ function ExplorerBody({
     clearSelection
   });
 
-  /*
-   * A trashed video takes its transcript with it, without asking (owner,
-   * 2026-09-02). 012 asked the question because a transcript might have been
-   * shared; it never is — each video owns one, and a copy gets its own — so the
-   * question only stood between a person and the tidy-up they had already
-   * asked for. Both files are recoverable from the trash.
-   */
-
   const setView = (next: ExplorerView) => {
     rememberView(next);
     onQueryChange({ view: next });
   };
 
-  /**
-   * Where a file lives: its folder opens with the file selected. A parent the tree does not know is
-   * the space root (a file directly under it has the root's Drive id as its parent).
-   */
-  const revealMaterial = useCallback(
-    (item: { id: string; parentFolderId?: string | null }) => {
-      const parent = item.parentFolderId ?? null;
-      onQueryChange({
-        q: '',
-        scope: 'folder',
-        filters: undefined,
-        trash: false,
-        folderId: parent && nodeOf(parent) ? parent : null,
-        itemId: item.id
-      });
-    },
-    [nodeOf, onQueryChange]
-  );
+  const { upload, uploadDrop, pickFolder, createFolder, uploading, conflict } = useExplorerUploads({
+    teamId,
+    client,
+    currentFolderId,
+    nodeOf,
+    explorer,
+    page,
+    permissions,
+    workspaceOperations,
+    retryGroupId,
+    onRetryComplete,
+    onChanged,
+    changed,
+    onFolderCreated: closeCreateFolder
+  });
 
-  /** Root-relative path for a search result, from the cached tree. */
-  const pathFor = useCallback(
-    (item: CatalogMaterialItem) => {
-      const parent = item.parentFolderId ?? null;
-      if (!parent || !nodeOf(parent)) return t('teamExplorerRootLabel');
-      return [t('teamExplorerRootLabel'), ...pathTo(parent).map(node => node.name)].join(' / ');
-    },
-    [nodeOf, pathTo, t]
-  );
-
-  /** A drag onto a folder in the tree: move, and offer the way back (FR-026). */
-  const moveTo = useCallback(
-    async (folderDriveId: string, materialIds: string[]) => {
-      if (!permissions?.edit) return;
-      const previous = currentFolderId ?? null;
-      const progressToast = push({
-        tone: 'info',
-        sticky: true,
-        progress: 'indeterminate',
-        text: t('teamExplorerPastingMove', { done: 0, total: materialIds.length })
-      });
-      const outcome = await moveWorkspaceMaterials({
-        teamId,
-        items: materialIds.map(rowFor),
-        destinationFolderId: folderDriveId,
-        conflictMode: 'keep_both',
-        client: tailClient,
-        onProgress: state =>
-          update(progressToast, {
-            progress: state.progress,
-            text: t('teamExplorerPastingMove', { done: state.completed, total: state.total })
-          })
-      });
-      dismiss(progressToast);
-      if (outcome.error) {
-        push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
-        if (outcome.completed > 0) changed();
-        return;
-      }
-      changed();
-      clearSelection();
-      const target = nodeOf(folderDriveId)?.name ?? t('teamExplorerRootLabel');
-      push({
-        tone: 'success',
-        text: `${t('teamToastMoved')} → ${target}`,
-        ...(previous !== null
-          ? {
-              action: {
-                label: t('teamExplorerMovedUndo'),
-                run: () => void moveTo(previous, materialIds)
-              }
-            }
-          : {})
-      });
-    },
-    [
-      changed,
-      clearSelection,
-      currentFolderId,
-      dismiss,
-      nodeOf,
-      permissions?.edit,
-      push,
-      rowFor,
-      t,
-      tailClient,
-      teamId,
-      update
-    ]
-  );
-
-  /** Where a drop can land; nothing is draggable for a reader who may not move files. */
-  const dropMaterials = useMemo(
-    () =>
-      permissions?.edit ? (folder: string, ids: string[]) => void moveTo(folder, ids) : undefined,
-    [moveTo, permissions?.edit]
-  );
-
-  /** Files dropped on the content area, or picked from the "Add files" input. */
-  const upload = useCallback(
-    async (files: FileList | File[] | UploadFile[]) => {
-      const list: UploadFile[] = Array.from(files as ArrayLike<File | UploadFile>).map(item =>
-        'file' in item
-          ? (item as UploadFile)
-          : {
-              file: item as File,
-              relativePath: (item as File).webkitRelativePath || (item as File).name
-            }
-      );
-      if (list.length === 0 || !permissions?.upload) return;
-      // No folder open means the space root, which the server resolves from the
-      // connection. Inferring it from the first top-level folder refused every
-      // upload into an empty space — with a message about Drive being
-      // unavailable, which it was not.
-      const destination = currentFolderId;
-      const folderCache = new Map<string, string>();
-      const folderFor = async (relativePath: string) => {
-        const parts = relativePath.split('/').filter(Boolean).slice(0, -1);
-        let parent = destination;
-        let key = '';
-        for (const part of parts) {
-          key = `${key}/${part}`;
-          const cached = folderCache.get(key);
-          if (cached) {
-            parent = cached;
-            continue;
-          }
-          const created = await teamApi.ensureUploadFolder(teamId, {
-            name: part,
-            parentMaterialId: parent
-          });
-          folderCache.set(key, created.materialId);
-          parent = created.materialId;
-        }
-        return parent;
-      };
-      /*
-       * Each file says it is being sent from the moment it is dropped.
-       *
-       * A drop used to do nothing visible: the highlight left with the pointer
-       * and the next thing on screen was a message, seconds later, that said
-       * only "try again in a moment". A person could not tell whether the drop
-       * had even been taken. One notice per file now carries its whole life —
-       * sent, landed, or refused with the reason and the file's own name — and
-       * the zone stays lit while any of them is in flight.
-       */
-      /*
-       * What the folder already holds, by name. The rows are already on screen,
-       * so the question can be asked before a byte moves — and the material id
-       * is right there, which is what makes "replace" a new version of that
-       * file rather than a second one beside it.
-       */
-      const byName = new Map(page.rows.map(row => [row.name.toLocaleLowerCase(), row]));
-      let forAll: UploadConflictChoice | null = null;
-      setUploading(count => count + list.length);
-      for (const [index, item] of list.entries()) {
-        const file = item.file;
-        let fileDestination: string | null;
-        try {
-          fileDestination = await folderFor(item.relativePath);
-        } catch (cause) {
-          setUploading(count => Math.max(0, count - 1));
-          push({
-            tone: 'error',
-            text: t('teamExplorerUploadFailedFor', {
-              name: file.name,
-              reason: teamErrorMessageFor(cause, t)
-            })
-          });
-          continue;
-        }
-        const clash = byName.get(file.name.toLocaleLowerCase());
-        let choice: UploadConflictChoice = 'keep_both';
-        if (clash) {
-          choice =
-            forAll ??
-            (await new Promise<UploadConflictChoice>(resolve => {
-              setConflict({
-                request: {
-                  fileName: file.name,
-                  existingMaterialId: clash.id,
-                  remaining: list.length - index - 1
-                },
-                settle: (answer, forRest) => {
-                  if (forRest) forAll = answer;
-                  setConflict(null);
-                  resolve(answer);
-                }
-              });
-            }));
-        }
-        if (choice === 'skip') {
-          setUploading(count => Math.max(0, count - 1));
-          push({ tone: 'info', text: t('teamExplorerUploadSkipped', { name: file.name }) });
-          continue;
-        }
-        const notice = push({
-          tone: 'info',
-          sticky: true,
-          text: t('teamExplorerUploading', { name: file.name })
-        });
-        try {
-          await uploadTeamFile({
-            teamId,
-            destinationFolderId: fileDestination,
-            file,
-            conflictMode: 'keep_both',
-            replaceMaterialId: null,
-            // Replacing is a new version of the file already there: it keeps
-            // its place, its tags and what came before it.
-            versionOfMaterialId: choice === 'replace' && clash ? clash.id : null
-          });
-          update(notice, {
-            tone: 'success',
-            sticky: false,
-            text: t('teamExplorerUploadedOne', { name: file.name })
-          });
-        } catch (cause) {
-          update(notice, {
-            tone: 'error',
-            sticky: false,
-            text: t('teamExplorerUploadFailedFor', {
-              name: file.name,
-              reason: teamErrorMessageFor(cause, t)
-            })
-          });
-        } finally {
-          setUploading(count => Math.max(0, count - 1));
-          // Each file lands on its own: what has arrived is on screen before
-          // the next one starts, rather than the whole drop appearing at the
-          // end of the last transfer.
-          changed();
-        }
-      }
-    },
-    [changed, currentFolderId, page.rows, permissions?.upload, push, t, teamId, update]
-  );
-
-  const uploadDrop = useCallback(
-    async (sources: LocalManifestSource[], preparedManifest?: LocalManifest) => {
-      if (!permissions?.upload || (sources.length === 0 && !preparedManifest)) return;
-      if (!workspaceOperations) {
-        if (preparedManifest) throw new Error('DIRECTORY_INTAKE_UNAVAILABLE');
-        // Standalone Explorer instances retain their original upload path.
-        const files = await Promise.all(
-          sources
-            .filter(
-              (source): source is Extract<LocalManifestSource, { kind: 'file' }> =>
-                source.kind === 'file'
-            )
-            .map(source => source.file)
-        );
-        await upload(files);
-        return;
-      }
-      // Capture the destination before any asynchronous directory enumeration.
-      const retryGroup = retryGroupId
-        ? workspaceOperations.groups.find(group => group.id === retryGroupId)
-        : null;
-      if (retryGroupId && !retryGroup) {
-        push({ tone: 'error', text: t('teamErrorUnknown') });
-        return;
-      }
-      const destination = retryGroup?.destination ?? {
-        driveFolderId: currentFolderId,
-        materialId: currentFolderId ? (nodeOf(currentFolderId)?.id ?? null) : null
-      };
-      let forAll: UploadConflictChoice | null = null;
-      let conflictQueue = Promise.resolve();
-      const enumeration = new AbortController();
-      setUploading(count => count + 1);
-      const preparingToast = push({
-        tone: 'info',
-        sticky: true,
-        text: t('teamOperationRunning'),
-        stageLabel: t('teamWorkspaceStagePreparing'),
-        progress: 'indeterminate',
-        action: { label: t('teamOperationCancel'), run: () => enumeration.abort() }
-      });
-      let lastPreparationUpdate = 0;
-      try {
-        const manifest =
-          preparedManifest ??
-          (await buildLocalManifest(sources, {
-            onProgress: counts => {
-              const now = performance.now();
-              if (counts.files + counts.directories > 1 && now - lastPreparationUpdate < 150)
-                return;
-              lastPreparationUpdate = now;
-              update(preparingToast, {
-                detail: t('teamWorkspaceDiscovered', {
-                  files: counts.files,
-                  folders: counts.directories
-                })
-              });
-            },
-            signal: enumeration.signal
-          }));
-        if (enumeration.signal.aborted || manifest.issues.some(issue => issue.code === 'CANCELED'))
-          return;
-        update(preparingToast, {
-          detail: t('teamWorkspaceDiscovered', {
-            files: manifest.totalFiles,
-            folders: manifest.totalDirectories
-          })
-        });
-        dismiss(preparingToast);
-        let remainingConflicts = manifest.totalFiles;
-        const request: WorkspaceUploadRequest = {
-          teamId,
-          destination,
-          manifest,
-          findConflicts: (folderId, names) => findFolderConflicts(client, teamId, folderId, names),
-          onConflict: async ({ name, existingMaterialId }) => {
-            const previous = conflictQueue;
-            let release!: () => void;
-            conflictQueue = new Promise<void>(resolve => {
-              release = resolve;
-            });
-            await previous;
-            try {
-              remainingConflicts = Math.max(0, remainingConflicts - 1);
-              if (forAll) return forAll;
-              return await new Promise<UploadConflictChoice>(resolve => {
-                setConflict({
-                  request: { fileName: name, existingMaterialId, remaining: remainingConflicts },
-                  settle: (choice, rest) => {
-                    if (rest) forAll = choice;
-                    setConflict(null);
-                    resolve(choice);
-                  }
-                });
-              });
-            } finally {
-              release();
-            }
-          },
-          confirmCatalog: async expected => {
-            await confirmWorkspaceCatalog(client, teamId, expected);
-            // The initiating view may have unmounted during the upload. Its
-            // refresh is best-effort; the independent check above is the proof.
-            await Promise.allSettled([page.reloadStrict(), explorer.refreshStrict()]);
-            onChanged?.();
-          }
-        };
-        const group = retryGroup
-          ? await workspaceOperations.retryUploadGroup(retryGroup.id, request)
-          : await workspaceOperations.startUploadGroup(request);
-        if (retryGroup && group.state === 'succeeded') onRetryComplete?.();
-        push({
-          tone:
-            group.state === 'succeeded'
-              ? 'success'
-              : group.state === 'partial' || group.state === 'canceled'
-                ? 'warning'
-                : 'error',
-          text:
-            group.state === 'succeeded'
-              ? t('teamExplorerUploadedOne', { name: manifest.roots[0]?.name ?? '' })
-              : group.state === 'partial'
-                ? t('teamWorkspacePartial')
-                : group.state === 'canceled'
-                  ? t('teamWorkspaceCanceled')
-                  : t('teamExplorerUploadIncomplete')
-        });
-      } catch (cause) {
-        push({
-          tone: 'error',
-          text:
-            retryGroup && cause instanceof Error && cause.message === 'RESELECTION_MISMATCH'
-              ? t('teamWorkspaceReselectMismatch')
-              : teamErrorMessageFor(cause, t)
-        });
-      } finally {
-        dismiss(preparingToast);
-        setUploading(count => Math.max(0, count - 1));
-      }
-    },
-    [
-      currentFolderId,
-      client,
-      dismiss,
-      explorer,
-      nodeOf,
-      onChanged,
-      onRetryComplete,
-      page,
-      permissions?.upload,
-      push,
-      retryGroupId,
-      t,
-      teamId,
-      update,
-      upload,
-      workspaceOperations
-    ]
-  );
-
-  const pickFolder = useCallback(async () => {
-    const picker = (window as Window & { showDirectoryPicker?: () => Promise<unknown> })
-      .showDirectoryPicker;
-    if (!picker) {
-      try {
-        const selection = await selectNativeDirectory();
-        if (selection.kind === 'selected')
-          await uploadDrop([], buildNativeDirectoryManifest(selection));
-      } catch {
-        push({ tone: 'error', text: t('teamExplorerFolderUnsupported') });
-      }
-      return;
-    }
-    try {
-      const handle = (await picker()) as LocalDirectoryHandle;
-      await uploadDrop([{ kind: 'directory_handle', handle }]);
-    } catch (error) {
-      if ((error as { name?: string }).name !== 'AbortError')
-        push({ tone: 'error', text: t('teamExplorerFolderReadFailed') });
-    }
-  }, [push, t, uploadDrop]);
-
-  const createFolder = useCallback(
-    async (name: string) => {
-      try {
-        const parentMaterialId = currentFolderId ? nodeOf(currentFolderId)?.id : null;
-        if (currentFolderId && !parentMaterialId) throw new Error('FOLDER_NOT_FOUND');
-        await teamApi.ensureUploadFolder(teamId, {
-          name,
-          parentMaterialId
-        });
-        setCreatingFolder(false);
-        changed();
-      } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-        throw cause;
-      }
-    },
-    [changed, currentFolderId, nodeOf, push, t, teamId]
-  );
-
-  const actions: RowActionsProps | undefined = permissions
-    ? {
-        teamId,
-        clipboard: {
-          take: (mode, row) =>
-            clipboard.take(mode, [
-              {
-                id: row.id,
-                name: row.name,
-                kind: row.kind,
-                category: row.category,
-                sourceFolderId: row.parentFolderId ?? currentFolderId ?? null
-              }
-            ]),
-          // Offered only when there is something to paste: an action the
-          // registry cannot perform is an action the registry drops.
-          pasteInto: clipboard.has()
-            ? row => {
-                openFolder(row.driveFileId);
-                void clipboard.paste(row.driveFileId);
-              }
-            : undefined
-        },
-        permissions,
-        browseClient: client,
-        actionsClient,
-        storageKind,
-        onChanged: changed,
-        preparedIds,
-        onProductCatalog: (row: TeamMaterialRow) => setCatalogFor(row),
-        onOpen: (row: TeamMaterialRow) => {
-          if (row.kind === 'folder') explorer.openFolder(row.driveFileId);
-          else onPreview?.(summaryOf(row));
-        },
-        ...(onCreateTaskFromSelection
-          ? {
-              onCreateTask: (row: TeamMaterialRow) =>
-                onCreateTaskFromSelection([{ id: row.id, name: row.name }])
-            }
-          : {}),
-        ...(permissions.download
-          ? {
-              onDownloadRestitched: (row: TeamMaterialRow) => void deliverRestitched([row])
-            }
-          : {}),
-        ...(permissions.process
-          ? {
-              onProcess: (row: TeamMaterialRow) => setProcessing({ row }),
-              onCompress: (row: TeamMaterialRow) =>
-                setCompressing([
-                  {
-                    id: row.id,
-                    name: row.name,
-                    folderId: row.parentFolderId ?? currentFolderId ?? null
-                  }
-                ]),
-              onProcessFolder: (row: TeamMaterialRow) =>
-                setFolderScope({ folder: row, intent: 'process' })
-            }
-          : {})
-      }
-    : undefined;
+  const actions = explorerRowActions({
+    teamId,
+    permissions,
+    clipboard,
+    currentFolderId,
+    openFolder,
+    client,
+    actionsClient,
+    storageKind,
+    changed,
+    preparedIds,
+    explorer,
+    onPreview,
+    onCreateTaskFromSelection,
+    deliverRestitched,
+    setCatalogFor,
+    setProcessing,
+    setCompressing,
+    setFolderScope
+  });
 
   // The batch spans folders, so it comes from the accumulated selection map
   // rather than only the rows on the current page.
   const selectedRows = useMemo(() => Array.from(selectedRowsMap.values()), [selectedRowsMap]);
-  /* The videos in the selection, once: three of the bar's actions ask for exactly this
-     and one of them decides whether it is offered at all. */
-  const selectedVideos = useMemo(
-    () => selectedRows.filter(row => row.category === 'video'),
-    [selectedRows]
-  );
-  /*
-   * What the batch can actually take. A folder, a transcript or an image can be
-   * checked like anything else, and passing those on gave a window titled
-   * "Обробка: обрано 1" that scanned nothing and then said "everything is
-   * already current" — which reads as done, not as "not a thing I process".
-   */
-  /*
-   * How many of the selection are not on screen — measured against the rows
-   * shown, not against the folder id.
-   *
-   * At the root `currentFolderId` is null while every row carries the drive's
-   * real root id, so comparing ids called three tiles in plain view "3 з інших
-   * папок". This is also the truer sentence: a selected row hidden by a kind
-   * filter, or waiting behind "Показати ще", is out of sight wherever it lives.
-   */
-  const elsewhere = useMemo(
-    () => selectedRows.filter(row => !page.rows.some(shown => shown.id === row.id)).length,
-    [page.rows, selectedRows]
-  );
-  const processableRows = useMemo(
-    () => selectedRows.filter(row => row.category === 'video' || row.category === 'landing'),
-    [selectedRows]
-  );
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
   const mainRef = useRef<HTMLDivElement | null>(null);
   const paneShown = usePaneArrival(!query.trash && !searching && focused !== null);
@@ -1241,198 +427,7 @@ function ExplorerBody({
     moveFromPlaces(mainRef.current);
   }, [paneShown]);
 
-  /**
-   * The original, saved to this computer.
-   *
-   * The same two doors the row menu already uses: the paired app when the cloud says the file
-   * is its business, the browser otherwise. Repeated here rather than reached for through the
-   * row menu's hook, because the card is not a row and has no menu to borrow from.
-   */
-  const downloadOriginal = useCallback(
-    async (row: TeamMaterialRow) => {
-      try {
-        const grant = await teamApi.requestDownload(teamId, row.id, 'browser').catch(cause => {
-          if (cause instanceof TeamApiError && cause.code === 'AGENT_REQUIRED') {
-            return teamApi.requestDownload(teamId, row.id, 'agent');
-          }
-          throw cause;
-        });
-        if (grant.kind === 'agent') {
-          await downloadTeamFileWithAgent({
-            transferUrl: grant.transferUrl,
-            transferGrant: grant.grant,
-            fileName: row.name
-          });
-          push({ tone: 'success', text: t('teamRestitchDelivered', { name: row.name }) });
-          return;
-        }
-        handoffBrowserDownload(grant.rangeUrl, row.name);
-      } catch (cause) {
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-      }
-    },
-    [push, t, teamId]
-  );
-
-  /** Rows going to the trash from the keyboard or the selection bar, with the way back. */
-  const trashRows = useCallback(
-    async (rows: TeamMaterialRow[]) => {
-      if (!permissions?.delete) return;
-      if (workspaceOperations?.bulkTrash) {
-        await workspaceOperations.bulkTrash
-          .start(rows, tailClient)
-          .catch(cause => push({ tone: 'error', text: teamErrorMessageFor(cause, t) }));
-        return;
-      }
-      const owner = captureCatalogMutationOwner(() => true);
-      if (!owner.current()) return;
-      const trashed: string[] = [];
-      const selectedFolders = new Set(
-        rows.filter(row => row.kind === 'folder').map(row => row.driveFileId)
-      );
-      for (const row of rows) {
-        if (
-          row.parentFolderId &&
-          pathTo(row.parentFolderId).some(folder => selectedFolders.has(folder.driveFileId))
-        )
-          continue;
-        try {
-          // The transcript goes with its video, here as everywhere else.
-          if (!owner.current()) return;
-          await trashMaterialWithTail({
-            owner,
-            teamId,
-            material: { id: row.id, name: row.name, category: row.category },
-            client: tailClient
-          });
-          if (!owner.current()) return;
-          trashed.push(row.id);
-        } catch (cause) {
-          if (!owner.current()) return;
-          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-          continue;
-        }
-      }
-      if (trashed.length === 0) return;
-      select(null);
-      clearSelection();
-      changed();
-      const restore = createRestoreBatch({
-        materialIds: trashed,
-        current: owner.current,
-        restore: (materialId, idempotencyKey) =>
-          actionsClient.restoreMaterial({ teamId, materialId, idempotencyKey, ...owner.options() }),
-        failed: cause => {
-          changed();
-          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-        },
-        completed: () => {
-          changed();
-          push({ tone: 'success', text: t('teamToastRestored') });
-        }
-      });
-      push({
-        tone: 'success',
-        text:
-          trashed.length === 1
-            ? t('teamToastTrashed')
-            : t('teamExplorerTrashedCount', { count: trashed.length }),
-        action: { label: t('teamUndo'), run: () => void restore.run() }
-      });
-    },
-    [
-      actionsClient,
-      workspaceOperations,
-      changed,
-      clearSelection,
-      permissions?.delete,
-      pathTo,
-      push,
-      select,
-      t,
-      tailClient,
-      teamId
-    ]
-  );
-
-  /**
-   * Keyboard on the content area (FR-027): arrows move, Enter opens, Escape
-   * clears, Delete trashes with undo. Keys typed into a field — the rename
-   * form inside a row menu, most of all — are that field's; letting them
-   * through here opened a preview on Enter and toggled the selection on every
-   * space in the new name.
-   */
-
-  /**
-   * Painted first, written after: a dot that waits for a round trip before it
-   * changes reads as a press that did not land, and this is the cheapest write
-   * on the screen. A refusal puts the old colour back and says so.
-   */
-  const setTag = useCallback(
-    async (row: TeamMaterialRow, color: TeamMaterialTagColor | null) => {
-      if (!client.setMaterialTag) return;
-      const previous = row.tagColor ?? null;
-      page.patchRow(row.id, { tagColor: color });
-      try {
-        await client.setMaterialTag({ teamId, materialId: row.id, color });
-      } catch (cause) {
-        page.patchRow(row.id, { tagColor: previous });
-        push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-      }
-    },
-    [client, page, push, t, teamId]
-  );
-  const tagging = canTag ? { canTag: true as const, onSetTag: setTag } : undefined;
-
   const runCompressPlan = (plan: CompressPlan) => queue.enqueue(compressJobs(plan));
-
-  const onContentKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (sortedRows.length === 0) return;
-    const target = event.target instanceof HTMLElement ? event.target : null;
-    if (isEditableTarget(target) || target?.closest('.team-row-menu')) return;
-    const index = sortedRows.findIndex(row => row.id === selectedId);
-    const step = view === 'grid' ? gridColumns(event.currentTarget) : 1;
-    let next: TeamMaterialRow | undefined;
-    switch (event.key) {
-      case 'ArrowDown':
-        next = sortedRows[Math.min(sortedRows.length - 1, index < 0 ? 0 : index + step)];
-        break;
-      case 'ArrowUp':
-        next = sortedRows[Math.max(0, index - step)];
-        break;
-      case 'ArrowRight':
-        if (view !== 'grid') return;
-        next = sortedRows[Math.min(sortedRows.length - 1, index + 1)];
-        break;
-      case 'ArrowLeft':
-        if (view !== 'grid') return;
-        next = sortedRows[Math.max(0, index - 1)];
-        break;
-      case 'Enter':
-        if (!focused) return;
-        if (focused.kind === 'folder') explorer.openFolder(focused.driveFileId);
-        else onPreview?.(summaryOf(focused));
-        break;
-      case 'Escape':
-        select(null);
-        clearSelection();
-        break;
-      case ' ':
-        if (focused) explorer.toggleSelected(focused);
-        break;
-      case 'Delete':
-      case 'Backspace': {
-        const rows = selectedRows.length > 0 ? selectedRows : focused ? [focused] : [];
-        if (rows.length === 0 || !permissions?.delete) return;
-        void trashRows(rows);
-        break;
-      }
-      default:
-        return;
-    }
-    event.preventDefault();
-    if (next) select(next.id);
-  };
 
   const trash = query.trash;
   /*
@@ -1455,117 +450,26 @@ function ExplorerBody({
       </Button>
     ) : undefined;
 
-  /* The explorer stays mounted while another section is showing, hidden. Its
-     document-level shortcuts must not act from there: Cmd+C on a task card copied
-     the explorer's focused file, Cmd+V pasted a duplicate into the open folder,
-     and the copy event Tasks listens for never fired. */
-  const onScreen = () => {
-    const surface = explorerSurfaceRef.current;
-    return Boolean(surface && !surface.closest('[hidden]'));
-  };
-
-  // `/` opens the search from anywhere on the folder screen (FR-027). The
-  // search bar binds the same key once it is mounted; before that there was
-  // nothing listening, so the shortcut only worked when it was not needed.
-  useEffect(() => {
-    if (searching || trash) return;
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (!onScreen()) return;
-      if (isEditableTarget(event.target instanceof HTMLElement ? event.target : null)) return;
-      event.preventDefault();
-      onQueryChange({ scope: 'space' });
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onQueryChange, searching, trash]);
-
-  // Cmd/Ctrl+C copies, +X cuts, +V pastes into the open folder — from anywhere
-  // on the folder screen, because focus rarely sits inside the list. The batch
-  // is the toggled selection (even from other folders), or the focused row.
-  useEffect(() => {
-    if (searching || trash || readOnly) return;
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
-      if (!onScreen()) return;
-      if (isEditableTarget(event.target instanceof HTMLElement ? event.target : null)) return;
-      /* Text first (063): a transcript, its translation or a note selected with the mouse is
-         what Cmd+C means, and inside a dialog the folder is not what the keys are about.
-         Files are copied only when nothing is selected on the page. */
-      if (
-        event.target instanceof Element &&
-        event.target.closest('[role="dialog"], [role="alertdialog"]')
-      )
-        return;
-      const key = event.key.toLowerCase();
-      if ((key === 'c' || key === 'x') && (window.getSelection()?.toString().trim() ?? '') !== '')
-        return;
-      if (key === 'c' || key === 'x') {
-        const rows = selectedRows.length > 0 ? selectedRows : focused ? [focused] : [];
-        if (rows.length === 0) return;
-        clipboard.take(
-          key === 'c' ? 'copy' : 'cut',
-          rows.map(row => ({
-            id: row.id,
-            name: row.name,
-            kind: row.kind,
-            category: row.category,
-            sourceFolderId: row.parentFolderId ?? currentFolderId ?? null
-          }))
-        );
-        push({
-          tone: 'success',
-          text: t(key === 'c' ? 'teamExplorerCopiedCount' : 'teamExplorerCutCount', {
-            count: rows.length
-          })
-        });
-        event.preventDefault();
-        return;
-      }
-      if (key === 'v' && clipboard.has()) {
-        event.preventDefault();
-        void clipboard.paste();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-    /* The handler reads the current selection and the open folder, and this
-       component re-renders on every toast and every page. With no dependency
-       list at all a document-level listener was torn down and rebuilt on each
-       of those. */
-  }, [clipboard, focused, push, readOnly, searching, selectedRows, t, trash]);
-
-  // Cmd/Ctrl+A checks every loaded row of the open folder, as the bar's Select all does — the
-  // page's own select-all would only have painted the text of the screen blue.
-  useEffect(() => {
-    if (searching || trash) return;
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      const target = event.target instanceof HTMLElement ? event.target : null;
-      /* Escape lets go of a selection from anywhere on the folder screen, as ⌘A makes one
-         from anywhere: after ⌘A the focus is on the page, not the list, and the list's own
-         Escape never heard it. The list still handles it first when it has the focus. */
-      if (
-        event.key === 'Escape' &&
-        !event.defaultPrevented &&
-        selectedRows.length > 0 &&
-        onScreen() &&
-        !isEditableTarget(target) &&
-        !target?.closest('[role="dialog"], [role="menu"], .team-explorer-content-keys')
-      ) {
-        explorer.clearSelection();
-        return;
-      }
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
-      if (event.key.toLowerCase() !== 'a') return;
-      if (!onScreen()) return;
-      if (isEditableTarget(target) || target?.closest('[role="dialog"], [role="menu"]')) return;
-      if (sortedRows.length === 0) return;
-      event.preventDefault();
-      explorer.selectRows(sortedRows);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [explorer, searching, selectedRows.length, sortedRows, trash]);
+  const onContentKeyDown = useExplorerKeyboard({
+    surfaceRef: explorerSurfaceRef,
+    sortedRows,
+    selectedId,
+    select,
+    clearSelection,
+    focused,
+    view,
+    explorer,
+    onPreview,
+    selectedRows,
+    permissions,
+    trashRows,
+    searching,
+    trash,
+    readOnly,
+    onQueryChange,
+    clipboard,
+    currentFolderId
+  });
 
   return (
     /* `team-panel`, like Accounts and Tasks: this was the one tab in the space
@@ -1599,384 +503,83 @@ function ExplorerBody({
       />
       <BeforeChange of={paneShown} run={rememberListPlaces} />
       <div ref={explorerHeaderRef} className="team-explorer-header">
-        <div className="team-explorer-toolbar">
-          <Button
-            type="button"
-            variant="ghost"
-            className="team-explorer-folders-toggle"
-            aria-pressed={treeOpen}
-            onClick={() => setTreeOpen(open => !open)}
-          >
-            {t('teamExplorerFoldersToggle')}
-          </Button>
-          {trash ? (
-            <Button type="button" variant="ghost" onClick={() => onQueryChange({ trash: false })}>
-              ← {trashReturnLabel ?? t('teamExplorerBackToFiles')}
-            </Button>
-          ) : (
-            <>
-              {/* The task that sent you here, one press away (024, FR-080). */}
-              {query.back && (
-                <a
-                  className="team-explorer-back-to-task"
-                  href={buildTeamRoute({
-                    spaceId: teamId,
-                    section: 'tasks',
-                    query: { taskId: query.back }
-                  })}
-                  onClick={event =>
-                    internalLink(
-                      event,
-                      buildTeamRoute({
-                        spaceId: teamId,
-                        section: 'tasks',
-                        query: { taskId: query.back }
-                      })
-                    )
-                  }
-                >
-                  ← {t('teamExplorerBackToTask')}
-                </a>
-              )}
-              <Breadcrumb />
-            </>
-          )}
-          <div className="team-explorer-toolbar-actions">
-            {/* In the actions' group, so they wrap with the buttons, and first in it, at the
-              left edge behind a rule (owner, 2026-10-10): how the list is shown, apart
-              from what to do to it. */}
-            {!trash && !searching && (
-              <div className="team-explorer-list-controls">
-                <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
-                {/* Re-sorting is one move, not a reshuffle in a single frame (058). */}
-                <SortMenu
-                  sort={sort}
-                  onChange={next => {
-                    // Another order is the same folder: only the list dissolves (058).
-                    crossfadePart(mainRef.current);
-                    setSort(next);
-                  }}
-                />
-              </div>
-            )}
-            {!trash && (
-              <Button
-                type="button"
-                variant="secondary"
-                aria-pressed={searching}
-                /* The key that does the same thing, on the control that does it
-                 (024, FR-054): a shortcut nobody is told about is a shortcut
-                 only the person who wrote it uses. */
-                title={
-                  searching
-                    ? undefined
-                    : `${t('teamExplorerSearchOpen')} · ${formatShortcut(shortcutOf('search')!.keys)}`
+        <ExplorerToolbar
+          teamId={teamId}
+          treeOpen={treeOpen}
+          onToggleTree={() => setTreeOpen(open => !open)}
+          trash={trash}
+          trashReturnLabel={trashReturnLabel}
+          onLeaveTrash={() => onQueryChange({ trash: false })}
+          backToTask={query.back}
+          searching={searching}
+          onOpenSearch={() => onQueryChange({ scope: 'space' })}
+          onCloseSearch={() => onQueryChange({ q: '', scope: 'folder', filters: undefined })}
+          kinds={query.kinds}
+          onKindsChange={kinds => onQueryChange({ kinds })}
+          sort={sort}
+          onSortChange={next => {
+            // Another order is the same folder: only the list dissolves (058).
+            crossfadePart(mainRef.current);
+            setSort(next);
+          }}
+          canUpload={Boolean(permissions?.upload)}
+          onPickFiles={files =>
+            void uploadDrop(Array.from(files, file => ({ kind: 'file', file })))
+          }
+          onPickFolder={() => void pickFolder()}
+          onCreateFolder={() => setCreatingFolder(true)}
+          addMenuOpen={addMenuOpen}
+          addMenuAnchor={addMenuAnchor}
+          onOpenAddMenu={anchor => {
+            addMenuAnchor.current = anchor;
+            setAddMenuOpen(true);
+          }}
+          onCloseAddMenu={() => setAddMenuOpen(false)}
+          resync={
+            canResync &&
+            client.getFolderSyncStatus &&
+            (currentFolderId ? client.resyncFolder : client.resyncDrive)
+              ? {
+                  busy: folderResync.running || uploadingThisFolder,
+                  inFolder: Boolean(currentFolderId),
+                  onStart: () => void folderResync.start()
                 }
-                onClick={() =>
-                  searching
-                    ? onQueryChange({ q: '', scope: 'folder', filters: undefined })
-                    : onQueryChange({ scope: 'space' })
-                }
-              >
-                {searching ? t('teamExplorerSearchClose') : t('teamExplorerSearchOpen')}
-              </Button>
-            )}
-            {permissions?.upload && !trash && (
-              <>
-                <input
-                  ref={fileInput}
-                  type="file"
-                  multiple
-                  hidden
-                  onChange={event => {
-                    if (event.target.files)
-                      void uploadDrop(
-                        Array.from(event.target.files, file => ({ kind: 'file', file }))
-                      );
-                    event.target.value = '';
-                  }}
-                />
-                <Button type="button" variant="secondary" onClick={() => setCreatingFolder(true)}>
-                  {t('teamExplorerCreateFolder')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="primary"
-                  onClick={event => {
-                    addMenuAnchor.current = event.currentTarget;
-                    setAddMenuOpen(true);
-                  }}
-                >
-                  {t('teamExplorerAddFiles')}
-                </Button>
-                <DropdownMenu
-                  open={addMenuOpen}
-                  onClose={() => setAddMenuOpen(false)}
-                  anchor={addMenuAnchor}
-                  label={t('teamExplorerAddFiles')}
-                  items={[
-                    {
-                      id: 'files',
-                      label: t('teamExplorerAddFiles'),
-                      onSelect: () => fileInput.current?.click()
-                    },
-                    {
-                      id: 'folder',
-                      label: t('teamExplorerAddFolder'),
-                      onSelect: () => void pickFolder()
-                    }
-                  ]}
-                />
-                {canResync &&
-                  client.getFolderSyncStatus &&
-                  (currentFolderId ? client.resyncFolder : client.resyncDrive) && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={folderResync.running || uploadingThisFolder}
-                      aria-busy={folderResync.running || uploadingThisFolder || undefined}
-                      onClick={() => void folderResync.start()}
-                    >
-                      {(folderResync.running || uploadingThisFolder) && (
-                        <span className="ui-spinner" aria-hidden="true" />
-                      )}
-                      {folderResync.running || uploadingThisFolder
-                        ? t('teamFolderResyncRunning')
-                        : currentFolderId
-                          ? t('teamDriveResyncFolder')
-                          : t('teamDriveResync')}
-                    </Button>
-                  )}
-              </>
-            )}
-            {/*
-             * Processing a whole folder or a whole space was reachable only
-             * through an unlabelled ▶ that appeared after something was selected
-             * — and that button then ignored the selection anyway. It is a door
-             * in the toolbar now, open before anything is chosen, and it names
-             * the two scopes that actually exist.
-             */}
-            {permissions?.process && !trash && !searching && (
-              <ProcessMenu
-                folder={currentFolderId ? explorer.nodeOf(currentFolderId) : null}
-                onFolder={folder => setFolderScope({ folder, intent: 'process' })}
-                onCompressFolder={
-                  permissions?.upload
+              : null
+          }
+          process={
+            permissions?.process
+              ? {
+                  folder: currentFolderId ? explorer.nodeOf(currentFolderId) : null,
+                  onFolder: folder => setFolderScope({ folder, intent: 'process' }),
+                  onCompressFolder: permissions?.upload
                     ? folder => setFolderScope({ folder, intent: 'compress' })
-                    : undefined
+                    : undefined,
+                  onSpace: onProcessLibrary
                 }
-                onSpace={onProcessLibrary}
-              />
-            )}
-            {!trash && (
-              /* A choice of two, told as one: it was a pair of `aria-pressed`
-               toggles, which says "this button is down" twice rather than
-               "this is the one of two that is chosen" (021, T088). */
-              <SegmentedControl<'list' | 'grid'>
-                className="team-explorer-view-toggle"
-                label={t('teamExplorerViewLabel')}
-                value={view}
-                onChange={setView}
-                options={[
-                  {
-                    value: 'list',
-                    label: <ListViewIcon />,
-                    title: t('teamExplorerViewList')
-                  },
-                  {
-                    value: 'grid',
-                    label: <GridViewIcon />,
-                    title: t('teamExplorerViewGrid')
-                  }
-                ]}
-              />
-            )}
-          </div>
-          {selectedRows.length > 0 && !trash && (
-            /*
-             * What to do with a selection, in the compressor's idiom.
-             *
-             * It was five full-width buttons of prose that wrapped onto three lines above the
-             * files and pushed them down the page — the bar meant to help was the widest thing
-             * on the screen. Each action is now the icon it already has elsewhere in this
-             * workspace, named on hover and to a screen reader; the count leads, and the way out
-             * sits at the far end where a dismissal belongs.
-             */
-            <div
-              className="team-explorer-selection-bar"
-              role="region"
-              /* A static name: it used to be the same string as the count beside
-               it, so a screen reader said "Обрано: 3" twice on entry. */
-              aria-label={t('teamExplorerSelectionRegion')}
-            >
-              {/* The way out leads, as a bare cross, the way Drive and Gmail draw
-                it: at the far end, in words, it repeated the count beside it and
-                took the room the bin's own label needed, which then scrolled
-                out of sight. Its name still carries the count for a reader. */}
-              <SelectionAction
-                iconOnly
-                label={t('teamExplorerClearSelectionCount', { count: selectedRows.length })}
-                onClick={clearSelection}
-              >
-                <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </SelectionAction>
-              <span className="team-explorer-selection-count">
-                {t('teamExplorerSelectedCount', { count: selectedRows.length })}
-                {/* The selection survives walking into another folder, which is
-                  what makes it useful and what makes the bin a surprise: three
-                  of the five being acted on can be two folders back. */}
-                {elsewhere > 0 && (
-                  <span className="team-explorer-selection-elsewhere">
-                    {t('teamExplorerSelectedElsewhere', { count: elsewhere })}
-                  </span>
-                )}
-              </span>
-              {sortedRows.some(row => !selectedRowsMap.has(row.id)) && (
-                <SelectionAction
-                  label={t('selectAll')}
-                  onClick={() => explorer.selectRows(sortedRows)}
-                >
-                  <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </SelectionAction>
-              )}
-              <div className="team-explorer-selection-actions">
-                {onCreateTaskFromSelection && (
-                  <SelectionAction
-                    label={t('teamExplorerCreateTaskFromSelection')}
-                    onClick={() =>
-                      onCreateTaskFromSelection(
-                        selectedRows.map(row => ({ id: row.id, name: row.name }))
-                      )
-                    }
-                  >
-                    <ListPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </SelectionAction>
-                )}
-                {/*
-                 * The selection, whatever its size. This used to say "Process…"
-                 * over four files and quietly start work on the entire space —
-                 * the selection was never passed anywhere — so it was cut back
-                 * to one file. Now the ids travel with the press, and the count
-                 * in the label is the count of files the batch can take.
-                 */}
-                {onProcessSelection && permissions?.process && processableRows.length > 0 && (
-                  <SelectionAction
-                    primary
-                    label={
-                      processableRows.length === 1
-                        ? t('teamExplorerProcessSelection')
-                        : t('teamExplorerProcessSelectionMany', { count: processableRows.length })
-                    }
-                    onClick={() => {
-                      /* The same bound the folder path already respects: the
-                       scan and the claim refuse a scope over five hundred, and
-                       the selection survives folder changes, so it can get
-                       there. Refused here, it is a sentence; refused by the
-                       RPC, it is "Частина даних некоректна" in a window with
-                       no fields. */
-                      if (processableRows.length > BATCH_SCOPE_LIMIT) {
-                        push({
-                          tone: 'error',
-                          text: t('teamBatchFolderTooMany', {
-                            count: processableRows.length,
-                            limit: BATCH_SCOPE_LIMIT
-                          })
-                        });
-                        return;
-                      }
-                      onProcessSelection(
-                        processableRows.map(row => row.id),
-                        {
-                          kind: 'selection',
-                          count: processableRows.length,
-                          ...(processableRows.length < selectedRows.length
-                            ? { picked: selectedRows.length }
-                            : {})
-                        }
-                      );
-                    }}
-                  >
-                    <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </SelectionAction>
-                )}
-                {permissions?.delete && (
-                  <SelectionAction
-                    label={t('teamFileTrash')}
-                    destructive
-                    onClick={() => void trashRows(selectedRows)}
-                  >
-                    <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </SelectionAction>
-                )}
-                {/* Three acts in words, the rest under "…" — Linear's and
-                  Airtable's bulk bars. With a video in the selection the bar
-                  held six worded acts, the last cut mid-word and the rest a
-                  sideways scroll nobody knew to try. */}
-                <SelectionMore
-                  label={t('teamTaskCardMore')}
-                  items={[
-                    ...(addToTask
-                      ? [
-                          {
-                            id: 'add-to-task',
-                            label: t('materialActionAddToTask'),
-                            icon: (
-                              <ListChecks
-                                size={ICON_SIZE}
-                                strokeWidth={ICON_STROKE}
-                                aria-hidden="true"
-                              />
-                            ),
-                            onSelect: () =>
-                              addToTask(selectedRows.map(row => ({ id: row.id, name: row.name })))
-                          }
-                        ]
-                      : []),
-                    ...(permissions?.process && selectedVideos.length > 0
-                      ? [
-                          {
-                            id: 'compress',
-                            label: t('teamCompressSelected'),
-                            icon: (
-                              <Shrink
-                                size={ICON_SIZE}
-                                strokeWidth={ICON_STROKE}
-                                aria-hidden="true"
-                              />
-                            ),
-                            onSelect: () =>
-                              setCompressing(
-                                selectedVideos.map(row => ({
-                                  id: row.id,
-                                  name: row.name,
-                                  folderId: row.parentFolderId ?? currentFolderId ?? null
-                                }))
-                              )
-                          }
-                        ]
-                      : []),
-                    ...(permissions?.download && selectedVideos.length > 0
-                      ? [
-                          {
-                            id: 'download-restitched',
-                            label: t('teamRestitchDownloadRestitched'),
-                            icon: (
-                              <Download
-                                size={ICON_SIZE}
-                                strokeWidth={ICON_STROKE}
-                                aria-hidden="true"
-                              />
-                            ),
-                            onSelect: () => void deliverRestitched(selectedVideos)
-                          }
-                        ]
-                      : [])
-                  ]}
-                />
-              </div>
-            </div>
+              : null
+          }
+          view={view}
+          onViewChange={setView}
+        >
+          {!trash && (
+            <ExplorerSelection
+              selectedRows={selectedRows}
+              selectedIds={selectedRowsMap}
+              rows={page.rows}
+              sortedRows={sortedRows}
+              currentFolderId={currentFolderId}
+              permissions={permissions}
+              onClear={clearSelection}
+              onSelectAll={() => explorer.selectRows(sortedRows)}
+              onCreateTaskFromSelection={onCreateTaskFromSelection}
+              onProcessSelection={onProcessSelection}
+              trashRows={trashRows}
+              addToTask={addToTask}
+              onCompress={setCompressing}
+              deliverRestitched={deliverRestitched}
+            />
           )}
-        </div>
+        </ExplorerToolbar>
         {folderResync.status && (
           <SyncStatusPanel
             status={folderResync.status}
@@ -1995,30 +598,12 @@ function ExplorerBody({
           </div>
         )}
       </div>
-      <div
-        ref={mainRef}
-        className={`team-explorer-main team-explorer-dropzone${dropping ? ' is-over' : ''}${
-          uploading > 0 ? ' is-uploading' : ''
-        }`}
-        aria-busy={uploading > 0 || undefined}
-        onDragOver={event => {
-          if (!permissions?.upload || !event.dataTransfer.types.includes('Files')) return;
-          event.preventDefault();
-          setDropping(true);
-        }}
-        /* Only when the pointer actually leaves the zone: moving over a tile inside it fired
-           this and the outline blinked all the way across the folder. */
-        onDragLeave={event => {
-          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-          setDropping(false);
-        }}
-        onDrop={event => {
-          if (!event.dataTransfer.types.includes('Files')) return;
-          event.preventDefault();
-          setDropping(false);
-          if (workspaceOperations) void uploadDrop(sourcesFromDrop(event.dataTransfer));
-          else void filesFromDrop(event.dataTransfer).then(files => upload(files));
-        }}
+      <ExplorerDropZone
+        zoneRef={mainRef}
+        uploading={uploading}
+        canUpload={Boolean(permissions?.upload)}
+        onDropSources={workspaceOperations ? sources => void uploadDrop(sources) : undefined}
+        onDropFiles={files => void upload(files)}
       >
         <div ref={explorerListHeaderRef} className="team-explorer-list-header">
           {readOnly && (
@@ -2030,43 +615,19 @@ function ExplorerBody({
         {trash ? (
           <TrashView key={`trash:${teamId}`} teamId={teamId} />
         ) : searching ? (
-          <TeamCatalog
+          <ExplorerResults
             key={`search:${teamId}`}
             teamId={teamId}
             client={client}
+            query={query}
+            currentFolderId={currentFolderId}
             onCreateTask={onCreateTask}
             onReveal={revealMaterial}
-            initialQuery={query.q}
-            initialFilters={query.filters}
             onSearched={onSearched}
-            autoFocusSearch
-            scopeFolderId={currentFolderId}
-            scope={query.scope}
-            kinds={query.kinds}
-            onScopeChange={next =>
-              onQueryChange({ scope: next.scope, ...(next.kinds ? { kinds: next.kinds } : {}) })
-            }
-            onClose={() => onQueryChange({ q: '', scope: 'folder', filters: undefined })}
+            onQueryChange={onQueryChange}
             pathFor={pathFor}
-            tagging={
-              canTag && client.setMaterialTag
-                ? {
-                    canTag: true,
-                    onSetTag: (material, color) => {
-                      page.patchRow(material.id, { tagColor: color });
-                      void client
-                        .setMaterialTag?.({
-                          teamId,
-                          materialId: material.id,
-                          color
-                        })
-                        .catch(cause =>
-                          push({ tone: 'error', text: teamErrorMessageFor(cause, t) })
-                        );
-                    }
-                  }
-                : undefined
-            }
+            canTag={canTag}
+            onPatchRow={page.patchRow}
           />
         ) : (
           <div
@@ -2110,8 +671,7 @@ function ExplorerBody({
             )}
           </div>
         )}
-        {dropping && <p className="team-explorer-muted">{t('teamExplorerDropHint')}</p>}
-      </div>
+      </ExplorerDropZone>
       {paneShown && focused && (
         <PreviewPane
           row={focused}
@@ -2176,7 +736,7 @@ function ExplorerBody({
         conflict={conflict}
         creatingFolder={creatingFolder}
         onCreateFolder={createFolder}
-        onCloseCreateFolder={() => setCreatingFolder(false)}
+        onCloseCreateFolder={closeCreateFolder}
         restitchStates={restitch.states}
         catalogFor={catalogFor}
         onCloseCatalog={() => setCatalogFor(null)}
@@ -2191,78 +751,6 @@ function ExplorerBody({
   );
 }
 
-/** Browsers expose a dropped directory through DataTransferItem entries, not files. */
-function sourcesFromDrop(dataTransfer: DataTransfer): LocalManifestSource[] {
-  const sources: LocalManifestSource[] = [];
-  for (const item of Array.from(dataTransfer.items)) {
-    const entry = item.webkitGetAsEntry?.() as LocalDropEntry | null | undefined;
-    if (entry) sources.push({ kind: 'drop_entry', entry });
-    else {
-      // Entry support can differ between items in one drop. Preserve any
-      // readable loose file alongside directory entries rather than dropping it.
-      const file = item.getAsFile?.();
-      if (file) sources.push({ kind: 'file', file });
-    }
-  }
-  return sources.length > 0
-    ? sources
-    : Array.from(dataTransfer.files).map(file => ({ kind: 'file', file }));
-}
-
-async function filesFromDrop(dataTransfer: DataTransfer): Promise<UploadFile[]> {
-  type DropEntry = {
-    name: string;
-    isFile: boolean;
-    isDirectory: boolean;
-    file: (success: (file: File) => void, failure?: () => void) => void;
-    createReader: () => {
-      readEntries: (success: (entries: DropEntry[]) => void, failure?: () => void) => void;
-    };
-  };
-  const items = Array.from(dataTransfer.items);
-  if (items.length === 0)
-    return Array.from(dataTransfer.files).map(file => ({ file, relativePath: file.name }));
-  const files: UploadFile[] = [];
-  const visit = async (entry: DropEntry, parentPath = ''): Promise<void> => {
-    if (entry.isFile) {
-      await new Promise<void>(resolve =>
-        entry.file(file => {
-          files.push({ file, relativePath: `${parentPath}${file.name}` });
-          resolve();
-        }, resolve)
-      );
-      return;
-    }
-    if (!entry.isDirectory) return;
-    const reader = entry.createReader();
-    const read = (): Promise<void> =>
-      new Promise<void>(resolve =>
-        reader.readEntries(async entries => {
-          if (entries.length === 0) return resolve();
-          for (const child of entries) await visit(child, `${parentPath}${entry.name}/`);
-          await read();
-          resolve();
-        }, resolve)
-      );
-    await read();
-  };
-  for (const item of items) {
-    const entry = ((
-      item as DataTransferItem & { webkitGetAsEntry?: () => DropEntry | null }
-    ).webkitGetAsEntry?.() ?? null) as DropEntry | null;
-    if (entry) await visit(entry, '');
-    else {
-      const file = item.getAsFile?.();
-      if (file) files.push({ file, relativePath: file.name });
-    }
-  }
-  return files.length > 0
-    ? files
-    : Array.from(dataTransfer.files).map(file => ({ file, relativePath: file.name }));
-}
-
-type UploadFile = { file: File; relativePath: string };
-
 const VIEW_KEY = 'soty.team.explorer.view';
 /**
  * What in the list a change of its width or of the note above it moves (058): the block of
@@ -2271,17 +759,6 @@ const VIEW_KEY = 'soty.team.explorer.view';
  */
 const LIST_MOVERS =
   '.team-explorer-content, .team-explorer-tile, .team-explorer-rows :is(.ui-table-cell, .ui-table-header-cell)';
-
-/** Someone typing owns their keys; the explorer's shortcuts never apply there. */
-function isEditableTarget(target: HTMLElement | null): boolean {
-  if (!target) return false;
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement ||
-    target.isContentEditable
-  );
-}
 
 function readRememberedView(): ExplorerView {
   try {
@@ -2299,272 +776,5 @@ function rememberView(view: ExplorerView): void {
   }
 }
 
-function ListViewIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-      <path
-        fill="currentColor"
-        d="M4 5h2v2H4zm4 .25h12v1.5H8zM4 11h2v2H4zm4 .25h12v1.5H8zM4 17h2v2H4zm4 .25h12v1.5H8z"
-      />
-    </svg>
-  );
-}
-
-function GridViewIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-      <path fill="currentColor" d="M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z" />
-    </svg>
-  );
-}
-
-function gridColumns(element: HTMLElement): number {
-  const grid = element.querySelector<HTMLElement>('.team-explorer-grid');
-  if (!grid) return 1;
-  const tiles = grid.querySelectorAll<HTMLElement>('.team-explorer-tile');
-  if (tiles.length < 2) return 1;
-  const firstTop = tiles[0]!.offsetTop;
-  let columns = 1;
-  for (let index = 1; index < tiles.length; index += 1) {
-    if (tiles[index]!.offsetTop !== firstTop) break;
-    columns += 1;
-  }
-  return Math.max(1, columns);
-}
-
-function summaryOf(row: TeamMaterialRow): TeamMaterialSummary {
-  return {
-    id: row.id,
-    teamId: row.teamId,
-    providerId: row.driveFileId,
-    parentFolderId: row.parentFolderId,
-    name: row.name,
-    kind: row.kind === 'folder' ? 'folder' : row.kind === 'shortcut' ? 'shortcut' : 'file',
-    category: row.category,
-    mimeType: row.mimeType,
-    fileExtension: row.fileExtension,
-    sizeBytes: row.sizeBytes,
-    modifiedAt: row.modifiedAt,
-    previewState: row.previewState,
-    landingRender: row.landingRender
-  };
-}
-
 // Keeps the unused-permissions typing honest for callers that pass a partial set.
 export type ExplorerPermissions = TeamPermissions;
-
-/**
- * One action on the selection: an icon, and its name where a name belongs.
- *
- * The bar used to spell each of these out in a button, and at the content column's width the
- * five of them wrapped onto three lines above the files. The names have not gone anywhere —
- * they are the tooltip and the accessible label, exactly as on a file's own card.
- */
-/**
- * Where a batch is started from, and over what.
- *
- * Two scopes, because two exist: the folder that is open, walked with its
- * subfolders, and everything the space holds. Both already worked; neither had
- * a way in that a person could find without first selecting a file.
- */
-function ProcessMenu({
-  folder,
-  onFolder,
-  onCompressFolder,
-  onSpace
-}: {
-  folder: ProcessableFolder | null;
-  onFolder: (folder: ProcessableFolder) => void;
-  onCompressFolder?: (folder: ProcessableFolder) => void;
-  onSpace?: () => void;
-}) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const button = useRef<HTMLButtonElement | null>(null);
-  const list = useRef<HTMLDivElement | null>(null);
-
-  /*
-   * Choosing an item unmounts it, and the window that opens next restores focus
-   * to whatever was focused when it appeared — a detached button, which puts
-   * focus on the body and loses a keyboard user's place entirely. So the
-   * trigger takes focus back first, and the dialog restores to that.
-   */
-  const choose = (run: () => void) => {
-    setOpen(false);
-    button.current?.focus();
-    run();
-  };
-
-  // A menu that says `role="menu"` promises arrow keys; Tab alone was all it
-  // had, and the first item never took focus when the menu opened.
-  useEffect(() => {
-    if (!open) return;
-    const frame = requestAnimationFrame(() => {
-      list.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
-
-  const onListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    /* Tab leaves a menu rather than walking it — the arrows are the walk. The
-       trigger takes focus first: closing on a keydown unmounts the focused item
-       before the browser applies the move, and Tab from a detached element
-       starts again at the top of the document. */
-    if (event.key === 'Tab') {
-      button.current?.focus();
-      setOpen(false);
-      return;
-    }
-    const items = Array.from(
-      list.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []
-    );
-    if (items.length === 0) return;
-    const at = items.indexOf(document.activeElement as HTMLButtonElement);
-    const go = (index: number) => {
-      event.preventDefault();
-      items[(index + items.length) % items.length]?.focus();
-    };
-    if (event.key === 'ArrowDown') go(at + 1);
-    else if (event.key === 'ArrowUp') go(at - 1);
-    else if (event.key === 'Home') go(0);
-    else if (event.key === 'End') go(items.length - 1);
-  };
-
-  /*
-   * At the root there is no folder, so the menu held exactly one item: a press
-   * to open a list of one, then a second press to choose the only thing there.
-   * With one scope the button is the scope.
-   */
-  // At the root there is no folder to process; the whole space is in the space's own menu (024).
-  if (!folder) return null;
-
-  return (
-    <div className="team-explorer-process-menu">
-      <Button
-        type="button"
-        ref={button}
-        variant="secondary"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen(value => !value)}
-      >
-        {t('teamExplorerProcess')}
-      </Button>
-      <Popover
-        open={open}
-        onClose={() => {
-          setOpen(false);
-          button.current?.focus();
-        }}
-        anchor={button}
-        placement="bottom-start"
-        frequent
-        label={t('teamExplorerProcessScope')}
-        surface="none"
-        className="team-explorer-menu"
-      >
-        <div
-          className="team-explorer-menu-items"
-          role="menu"
-          aria-label={t('teamExplorerProcessScope')}
-          ref={list}
-          onKeyDown={onListKeyDown}
-        >
-          {folder && (
-            <button
-              type="button"
-              role="menuitem"
-              className="team-explorer-menu-item"
-              onClick={() => choose(() => onFolder(folder))}
-            >
-              {t('teamExplorerProcessFolder')}
-            </button>
-          )}
-          {folder && onSpace && <hr className="team-explorer-menu-rule" aria-hidden="true" />}
-          {onSpace && (
-            <button
-              type="button"
-              role="menuitem"
-              className="team-explorer-menu-item"
-              onClick={() => choose(onSpace)}
-            >
-              {t('teamExplorerProcessSpace')}
-            </button>
-          )}
-        </div>
-      </Popover>
-      {onCompressFolder && (
-        <Button type="button" variant="secondary" onClick={() => onCompressFolder(folder)}>
-          {t('teamExplorerCompressFolder')}
-        </Button>
-      )}
-    </div>
-  );
-}
-
-/** The bar's "…": the acts a selection needs less often, one press away. */
-function SelectionMore({ label, items }: { label: string; items: MenuItem[] }) {
-  const [open, setOpen] = useState(false);
-  const trigger = useRef<HTMLButtonElement>(null);
-  if (items.length === 0) return null;
-  return (
-    <>
-      <button
-        ref={trigger}
-        type="button"
-        className="team-explorer-selection-action is-icon"
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        data-tip={label}
-        onClick={() => setOpen(true)}
-      >
-        <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      </button>
-      <DropdownMenu
-        open={open}
-        onClose={() => setOpen(false)}
-        anchor={trigger}
-        label={label}
-        items={items}
-      />
-    </>
-  );
-}
-
-function SelectionAction({
-  label,
-  onClick,
-  destructive,
-  primary,
-  iconOnly,
-  children
-}: {
-  label: string;
-  onClick: () => void;
-  /** Drawn as its icon alone; the name stays for a reader and the tooltip. */
-  iconOnly?: boolean;
-  /** The one that throws things away; coloured apart from the rest. */
-  destructive?: boolean;
-  /** The action this screen exists for; it keeps its word at any width. */
-  primary?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className={`team-explorer-selection-action ${destructive ? 'is-destructive' : ''} ${
-        primary ? 'is-primary' : ''
-      } ${iconOnly ? 'is-icon' : ''}`.trim()}
-      aria-label={label}
-      data-tip={label}
-      onClick={onClick}
-    >
-      {children}
-      {/* The word is in the markup and only CSS takes it away, and only where
-          the bar runs out of room. Five unlabelled icons — one of them a bin —
-          asked people to guess, with four hundred pixels of the bar unused. */}
-      {!iconOnly && <span className="team-explorer-selection-action-label">{label}</span>}
-    </button>
-  );
-}

@@ -992,6 +992,7 @@ function build(): Record<string, CodeLocation> {
       'apps/web/src/team/materials/tail.ts',
       'apps/web/src/team/catalog/useMaterialActions.ts',
       'apps/web/src/team/explorer/ExplorerShell.tsx',
+      'apps/web/src/team/explorer/useExplorerFileOps.ts',
       'apps/web/src/team/catalog/TrashView.tsx'
     ],
     check:

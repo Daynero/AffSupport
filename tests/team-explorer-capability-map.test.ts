@@ -73,7 +73,17 @@ describe('the explorer capability map', () => {
   it('routes every former capability to a live explorer action', () => {
     const grid = read('apps/web/src/team/explorer/ContentGrid.tsx');
     const list = read('apps/web/src/team/explorer/ContentList.tsx');
-    const shell = read('apps/web/src/team/explorer/ExplorerShell.tsx');
+    // The shell was split without a change of behaviour (070, FR-001): what it reaches for now
+    // lives in its own modules beside it, so the needles are looked for in all of them.
+    const shell = [
+      'ExplorerShell.tsx',
+      'ExplorerToolbar.tsx',
+      'ExplorerSelection.tsx',
+      'ExplorerResults.tsx',
+      'useExplorerUploads.ts'
+    ]
+      .map(file => read(`apps/web/src/team/explorer/${file}`))
+      .join('\n');
     const pane = read('apps/web/src/team/explorer/PreviewPane.tsx');
     // Row menu (download, rename, move, trash, restore, process, new version).
     expect(grid).toContain('RowActions');
