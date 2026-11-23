@@ -11,6 +11,8 @@ export interface TranscriptExportInput {
   segments: readonly TranscriptSegment[];
   content: TranscriptExportContent;
   format: TranscriptExportFormat;
+  /** Inserted before the extension: `.uk` names a Ukrainian translation's file. */
+  suffix?: string;
 }
 
 export interface TranscriptExportFile {
@@ -78,7 +80,7 @@ export function buildTranscriptExport(input: TranscriptExportInput): TranscriptE
     segment.sourceText.trim() ? [segment.sourceText.trim()] : []
   );
   const base = baseFileName(input.fileName);
-  const suffix = '';
+  const suffix = input.suffix ?? '';
 
   if (input.format === 'txt') {
     const text = body

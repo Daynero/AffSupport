@@ -6,6 +6,7 @@ import {
   CATALOG_IMAGE_COLUMN,
   catalogNonVideoCellUpdates,
   catalogPreservedColumnIndices,
+  catalogPreservedHeaderUpdates,
   catalogVideoColumnIndices
 } from '../_shared/catalog-updater.ts';
 import {
@@ -75,44 +76,59 @@ export function createCatalogNonVideoUpdater(
       !before.version
     )
       throw uncertain();
-    const sheets = await drive.getNativeSpreadsheetSheets(item.driveFileId),
-      sheet = sheets.find(s => s.title === PRODUCT_CATALOG_SHEET_NAME);
-    if (
-      !sheet ||
-      sheets.filter(s => s.title === PRODUCT_CATALOG_SHEET_NAME).length !== 1 ||
-      sheet.columnCount !== PRODUCT_CATALOG_TEMPLATE.length ||
-      sheet.rowCount < productCount + 2
-    )
-      throw new TeamFunctionError('CATALOG_PUBLICATION_PENDING', { retryable: false });
+    // The sheet is Soty's output, and people edit it: paste a column from another catalog,
+    // retype a heading, delete rows, add a column, rename the tab. None of that is a reason
+    // not to update — the update is what puts the sheet back. So nothing below asks what the
+    // cells hold. It finds the tab, keeps the product cells of the columns that belong to the
+    // publication lane as they are, and the write restores everything else: headings, ids and
+    // every product row from the records, an empty sheet around them, a grid large enough.
+    // Production 2026-11-20 (DreamTeam, TR 84_v1): 62 video links pasted under the last
+    // product stopped every update of that catalog for good.
+    const sheets = await drive.getNativeSpreadsheetSheets(item.driveFileId);
+    let sheet = sheets.find(s => s.title === PRODUCT_CATALOG_SHEET_NAME),
+      stable = before;
+    if (!sheet && sheets.length === 1) {
+      // A renamed tab is still the catalog when it is the only one. It gets its name back
+      // first, on its own, so every read and write below addresses it as usual.
+      await drive.renameNativeSpreadsheetSheet({
+        fileId: item.driveFileId,
+        sheetId: sheets[0]!.sheetId,
+        title: PRODUCT_CATALOG_SHEET_NAME
+      });
+      sheet = { ...sheets[0]!, title: PRODUCT_CATALOG_SHEET_NAME };
+      stable = await drive.getFile(item.driveFileId, item.resourceKey);
+    }
+    // Several tabs and none of them the catalog: which one to rewrite is not ours to guess.
+    if (!sheet) throw new TeamFunctionError('SOURCE_CHANGED');
     const id = PRODUCT_CATALOG_TEMPLATE.findIndex(column => column.source.kind === 'contentId');
     const observed = new Map<number, string[]>();
     // 062: an image catalog's H is the publication lane's, read and kept like the video cells.
     const kind = item.creatives?.kind ?? 'video';
     for (const column of catalogPreservedColumnIndices(kind)) {
-      const actual = await drive.readNativeCatalogColumns({
-        fileId: item.driveFileId,
-        sheetName: PRODUCT_CATALOG_SHEET_NAME,
-        columns: [id, column],
-        rowCount: sheet.rowCount,
-        expectedRows: item.productCount + 2
-      });
-      if (
-        actual.length !== 2 ||
-        actual[0]?.length !== item.productCount + 2 ||
-        actual[1]?.length !== item.productCount + 2 ||
-        actual[0][0] !== PRODUCT_CATALOG_TEMPLATE[id]!.description ||
-        actual[0][1] !== PRODUCT_CATALOG_TEMPLATE[id]!.key ||
-        actual[1][0] !== PRODUCT_CATALOG_TEMPLATE[column]!.description ||
-        actual[1][1] !== PRODUCT_CATALOG_TEMPLATE[column]!.key
-      )
-        throw uncertain();
+      // A column someone deleted off the end of the grid holds nothing to keep.
+      const actual =
+        column < sheet.columnCount
+          ? await drive.readNativeCatalogColumns({
+              fileId: item.driveFileId,
+              sheetName: PRODUCT_CATALOG_SHEET_NAME,
+              columns: [id, column],
+              rowCount: sheet.rowCount,
+              expectedRows: item.productCount + 2,
+              tolerant: true
+            })
+          : [[], Array.from({ length: item.productCount + 2 }, () => '')];
+      // The reader's own contract, not the sheet's content: an answer of another shape is
+      // incomplete evidence, and incomplete evidence is never read as empty cells.
+      if (actual.length !== 2 || actual[1]?.length !== item.productCount + 2) throw uncertain();
       observed.set(column, [
-        ...actual[1],
+        PRODUCT_CATALOG_TEMPLATE[column]!.description,
+        PRODUCT_CATALOG_TEMPLATE[column]!.key,
+        ...actual[1].slice(2),
         ...Array.from({ length: productCount - item.productCount }, () => '')
       ]);
     }
     const after = await drive.getFile(item.driveFileId, item.resourceKey);
-    if (after.version !== before.version || after.trashed) throw uncertain();
+    if (after.version !== stable.version || after.trashed) throw uncertain();
     const cells = observed.get(catalogVideoColumnIndices()[0]!);
     if (!cells) throw uncertain();
     const imageCells = kind === 'image' ? observed.get(CATALOG_IMAGE_COLUMN) : undefined;
@@ -127,7 +143,29 @@ export function createCatalogNonVideoUpdater(
         if (rows.length !== productCount + 2) throw uncertain();
         await drive.writeNativeSpreadsheetCells({
           fileId: item.driveFileId,
-          updates: catalogNonVideoCellUpdates(rows, sheet.sheetId, kind),
+          updates: [
+            ...catalogNonVideoCellUpdates(rows, sheet.sheetId, kind),
+            ...catalogPreservedHeaderUpdates(sheet.sheetId, kind),
+            // Rows this update adds have no published link yet. Whatever sits in their
+            // cells now was left under the old last product, and is not a link of theirs.
+            ...(productCount > item.productCount
+              ? catalogPreservedColumnIndices(kind).map(columnIndex => ({
+                  sheetId: sheet.sheetId,
+                  rowIndex: item.productCount + 2,
+                  columnIndex,
+                  values: Array.from({ length: productCount - item.productCount }, () => '')
+                }))
+              : [])
+          ],
+          // Everything in the tab outside the headings and the products is emptied, and a
+          // grid someone shortened is grown back, in the same batch as the cells.
+          frame: {
+            sheetId: sheet.sheetId,
+            rows: productCount + 2,
+            columns: PRODUCT_CATALOG_TEMPLATE.length,
+            gridRows: sheet.rowCount,
+            gridColumns: sheet.columnCount
+          },
           marker: {
             key: CATALOG_NONVIDEO_MARKER,
             value: marker,
@@ -161,8 +199,10 @@ export function createCatalogNonVideoUpdater(
             fileId: item.driveFileId,
             sheetName: PRODUCT_CATALOG_SHEET_NAME,
             columns: [id, column],
-            rowCount: sheet.rowCount,
-            expectedRows: productCount + 2
+            rowCount: Math.max(sheet.rowCount, productCount + 2),
+            expectedRows: productCount + 2,
+            // What someone types under the products after the write is not this write's.
+            tolerant: true
           });
           if (JSON.stringify(actual[1]) !== JSON.stringify(expected)) throw uncertain();
         }

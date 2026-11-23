@@ -9,7 +9,14 @@ import type { MaterialCategory } from '../../../packages/shared/dist/team/materi
 import { TeamFunctionError } from '../_shared/errors.ts';
 
 export const MAX_PREVIEW_RANGE_BYTES = 32 * 1024 * 1024;
-export const MAX_BROWSER_DOWNLOAD_BYTES = 100 * 1024 * 1024;
+/**
+ * A browser download is one plain GET with no Range, and the range endpoint answers that with at
+ * most one 32 MiB range — so a larger file reached the browser as its first 32 MiB, saved as if
+ * whole (owner, 2026-11-22: a 74 MB video downloaded as 32 MiB, «лише 1 хв, а далі порожнеча»).
+ * The browser takes what one answer holds; anything larger goes through the local agent, which
+ * reads every range and checks the whole file.
+ */
+export const MAX_BROWSER_DOWNLOAD_BYTES = MAX_PREVIEW_RANGE_BYTES;
 export const MAX_LANDING_RENDER_SEGMENTS = 64;
 const MAX_EDITABLE_TEXT_BYTES = 1024 * 1024;
 

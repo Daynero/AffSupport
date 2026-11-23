@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableHeaderCell,
   TableRow,
+  Switch,
   User
 } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
@@ -18,10 +19,17 @@ import { useI18n } from '../../i18n';
  */
 export function TariffLegacySpaces({
   spaces,
-  onGrant
+  onGrant,
+  pilot,
+  pilotBusy,
+  onPilot
 }: {
   spaces: readonly AdminLegacySpace[];
   onGrant: (space: AdminLegacySpace) => void;
+  /** 064: the assistant pilot, switched here as on a tariffed space's row. */
+  pilot?: ReadonlyMap<string, boolean>;
+  pilotBusy?: boolean;
+  onPilot?: (teamId: string, enabled: boolean) => void;
 }) {
   const { t } = useI18n();
   return (
@@ -35,13 +43,14 @@ export function TariffLegacySpaces({
         <Table
           size="sm"
           className="admin-table admin-tariff-table"
-          columns="minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr)"
+          columns="minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(5rem, 0.8fr) minmax(0, 1fr)"
           label={t('adminTariffLegacyTitle', { count: spaces.length })}
         >
           <TableHeader>
             <TableHeaderCell>{t('adminTariffSpace')}</TableHeaderCell>
             <TableHeaderCell>{t('adminTariffOwner')}</TableHeaderCell>
             <TableHeaderCell>{t('adminTariffPeople')}</TableHeaderCell>
+            <TableHeaderCell>{t('adminTariffAssistant')}</TableHeaderCell>
             <TableHeaderCell>
               <span className="visually-hidden">{t('adminTariffActions')}</span>
             </TableHeaderCell>
@@ -53,6 +62,18 @@ export function TariffLegacySpaces({
                 <User name={space.ownerEmail ?? '—'} meta={space.ownerName ?? undefined} />
               </TableCell>
               <TableCell>{space.membersUsed}</TableCell>
+              <TableCell>
+                {pilot && onPilot ? (
+                  <Switch
+                    checked={pilot.get(space.teamId) ?? false}
+                    disabled={pilotBusy}
+                    aria-label={t('adminTariffAssistantFor', { space: space.name })}
+                    onChange={enabled => onPilot(space.teamId, enabled)}
+                  />
+                ) : (
+                  '—'
+                )}
+              </TableCell>
               <TableCell>
                 <span className="flex justify-end">
                   <Button

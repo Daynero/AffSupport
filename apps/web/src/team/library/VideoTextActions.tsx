@@ -1,11 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { recordOriginalResultDelivery } from './original-result-analytics';
-import type { LibraryVideoTextVariant, LibraryVideoTextVariants } from '@video-compressor/shared';
+import {
+  splitTranscriptLines,
+  type LibraryVideoTextVariant,
+  type LibraryVideoTextVariants
+} from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui/index';
+import { Alert, Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import { useOptionalToasts } from '../../components/toast';
+import { translationClient, type TranslationClient } from '../../translation/api';
+import { allowanceFigures, formatMinutes } from '../../translation/format';
+import { TranslateLauncher } from '../../translation/TranslateLauncher';
+import { TranslationProgress } from '../../translation/TranslationProgress';
+import {
+  CopyVariantButton,
+  DeleteTranslationButton,
+  TextVariantReader,
+  TextVariantTabs,
+  variantName
+} from '../../translation/TextVariantViews';
+import { useTextVariants, type TextVariant } from '../../translation/useTextVariants';
 import { MediaActionIcon } from './mediaActionIcons';
+import { Eye, RotateCcw } from 'lucide-react';
+import { ICON_STROKE } from '../../components/icons';
 
 export interface VideoTextActionsClient {
   listVideoTextVariants(teamId: string, videoId: string): Promise<LibraryVideoTextVariants>;
@@ -19,10 +38,16 @@ function currentText(variant: LibraryVideoTextVariant | undefined): string | nul
     : null;
 }
 
+/**
+ * The text of one space video, where the video is (012, 024, 063): view, copy, translate and
+ * redo, and every translation of it beside the original.
+ */
 export function VideoTextActions({
   teamId,
   videoId,
+  videoName,
   client = defaultClient,
+  translations = translationClient,
   onTranscribe,
   onRetranscribe,
   onCopied,
@@ -30,25 +55,31 @@ export function VideoTextActions({
 }: {
   teamId: string;
   videoId: string;
+  /** Shown as the viewer's title, so a person knows which video's text is open. */
+  videoName?: string;
   client?: VideoTextActionsClient;
-  onTranscribe: () => void;
+  translations?: TranslationClient;
+  /** Absent where the space cannot process (read-only storage): the text stays readable. */
+  onTranscribe?: () => void;
   /** Re-run the transcription when text already exists (shown beside View/Copy). */
   onRetranscribe?: () => void;
-  /** Notified after a successful copy — lets a host raise its own toast. */
-  onCopied?: () => void;
+  /** Notified after a successful copy, with the name of the text copied. */
+  onCopied?: (variant: string) => void;
   /**
    * Under a heading that already says "transcript", in a narrow pane: the
    * buttons drop the word "text" and fit one line (024, round 8).
    */
   compact?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const toasts = useOptionalToasts();
+  const push = (input: { tone: 'success' | 'error'; text: string }) => toasts?.push(input);
   const [payload, setPayload] = useState<LibraryVideoTextVariants | null>(null);
-  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null);
-  const [viewing, setViewing] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [viewing, setViewing] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const visibleAttempts = useRef(new Set<string>());
+  /** A translation started here opens by itself when it is ready (US1). */
+  const [awaiting, setAwaiting] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -61,8 +92,6 @@ export function VideoTextActions({
           ...value,
           variants: value.variants.filter(variant => variant.kind === 'original')
         });
-        const preferred = value.variants.find(variant => variant.kind === 'original');
-        setSelectedMaterialId(preferred?.materialId ?? null);
       })
       .catch(() => {
         if (active) setPayload(null);
@@ -75,16 +104,46 @@ export function VideoTextActions({
     };
   }, [client, teamId, videoId]);
 
-  const selected = useMemo(
-    () => payload?.variants.find(variant => variant.materialId === selectedMaterialId),
-    [payload, selectedMaterialId]
-  );
+  const selected = payload?.variants.find(variant => currentText(variant) !== null);
   const text = currentText(selected);
-  const readyVariants = payload?.variants.filter(variant => currentText(variant) !== null) ?? [];
+  const segments = useMemo(() => (text ? splitTranscriptLines(text) : null), [text]);
+  const source = useMemo(
+    () =>
+      segments && segments.length > 0
+        ? {
+            scope: 'team_video' as const,
+            teamId,
+            videoId,
+            language: selected?.language ?? null,
+            segments,
+            rawText: text ?? undefined
+          }
+        : null,
+    [segments, selected?.language, teamId, text, videoId]
+  );
+  const state = useTextVariants(source, translations);
+  const shownVariant: TextVariant =
+    (viewing && viewing !== 'original'
+      ? state.translations.find(item => item.key === viewing)
+      : undefined) ?? state.original;
+
+  useEffect(() => {
+    if (!awaiting) return;
+    const done = state.translations.find(
+      item => item.language === awaiting && item.status === 'ready' && !item.stale
+    );
+    const failed = state.translations.find(
+      item => item.language === awaiting && item.status === 'failed'
+    );
+    if (done) {
+      setAwaiting(null);
+      setViewing(done.key);
+    } else if (failed) setAwaiting(null);
+  }, [awaiting, state.translations]);
 
   useEffect(() => {
     if (
-      !viewing ||
+      viewing !== 'original' ||
       !text ||
       !selected?.attemptId ||
       visibleAttempts.current.has(selected.attemptId)
@@ -94,22 +153,14 @@ export function VideoTextActions({
     recordOriginalResultDelivery(selected, 'visible');
   }, [viewing, text, selected]);
 
-  const copy = async () => {
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      if (selected) recordOriginalResultDelivery(selected, 'copied');
-      setCopied(true);
-      onCopied?.();
-      window.setTimeout(() => setCopied(false), 1_500);
-    } catch {
-      setCopied(false);
-    }
+  const copied = (variant: TextVariant, name: string) => {
+    if (variant.kind === 'original' && selected) recordOriginalResultDelivery(selected, 'copied');
+    onCopied?.(name);
   };
 
   if (loading) return <small>{t('creativeLibraryTextLoading')}</small>;
-  if (readyVariants.length === 0) {
-    return payload?.canProcess !== false ? (
+  if (!text) {
+    return payload?.canProcess !== false && onTranscribe ? (
       <Button
         color="neutral"
         variant="ghost"
@@ -122,58 +173,199 @@ export function VideoTextActions({
     ) : null;
   }
 
+  const ready = state.translations.filter(item => item.status === 'ready');
+  const strips = state.translations.filter(
+    item => item.status === 'processing' || item.status === 'failed'
+  );
+  const shownChips = ready.slice(0, 3);
+  const stale = shownVariant.kind === 'translation' && shownVariant.stale;
+  const refresh = allowanceFigures(
+    state.units,
+    state.allowance?.usedUnits ?? 0,
+    state.allowance?.limitUnits ?? 0
+  );
+
   return (
-    <div className="creative-library-text-actions">
-      <Button
-        color="neutral"
-        variant="outline"
-        size="sm"
-        disabled={!text}
-        aria-label={compact ? t('creativeLibraryViewText') : undefined}
-        onClick={() => setViewing(true)}
-      >
-        {t(compact ? 'teamTranscriptViewShort' : 'creativeLibraryViewText')}
-      </Button>
-      {/* Pressed often enough that a flash would become noise: the word changes
-          and nothing moves. */}
-      <Button
-        color="neutral"
-        variant={compact ? 'outline' : 'ghost'}
-        size="sm"
-        disabled={!text}
-        aria-label={compact && !copied ? t('creativeLibraryCopyText') : undefined}
-        onClick={() => void copy()}
-      >
-        {copied
-          ? t('creativeLibraryTextCopied')
-          : t(compact ? 'teamTranscriptCopyShort' : 'creativeLibraryCopyText')}
-      </Button>
-      {onRetranscribe && (
+    <div className="video-text-actions">
+      {/* Four equal actions, each an icon and a word (063, owner 2026-11-21: an icon alone
+          beside labelled buttons read as an afterthought). */}
+      <div className="video-text-actions-grid">
         <Button
+          block
           color="neutral"
-          variant={compact ? 'outline' : 'ghost'}
+          variant="outline"
           size="sm"
-          aria-label={compact ? t('teamTranscriptRedoLong') : undefined}
-          onClick={onRetranscribe}
+          aria-label={t('creativeLibraryViewText')}
+          leading={<Eye size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+          onClick={() => setViewing('original')}
         >
-          {t(compact ? 'teamTranscriptRedoShort' : 'teamTranscriptRedo')}
+          {t(compact ? 'teamTranscriptViewShort' : 'creativeLibraryViewText')}
         </Button>
+        <CopyVariantButton
+          block
+          state={state}
+          scope="team_video"
+          variant="outline"
+          label={t(compact ? 'teamTranscriptCopyShort' : 'creativeLibraryCopyText')}
+          ariaLabel={t('creativeLibraryCopyText')}
+          onCopied={copied}
+        />
+        <TranslateLauncher
+          block
+          state={state}
+          trigger="button"
+          onOpenTranslation={target => setViewing(`translation:${target}`)}
+          onStarted={target => setAwaiting(target)}
+        />
+        {onRetranscribe && (
+          <Button
+            block
+            color="neutral"
+            variant="outline"
+            size="sm"
+            aria-label={t('teamTranscriptRedoLong')}
+            leading={<RotateCcw size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+            onClick={onRetranscribe}
+          >
+            {t(compact ? 'teamTranscriptRedoShort' : 'teamTranscriptRedo')}
+          </Button>
+        )}
+      </div>
+      {shownChips.length > 0 && (
+        <div className="video-text-translations">
+          <span className="video-text-translations-label" id={`${videoId}-translations`}>
+            {t('textTranslationList')}
+          </span>
+          <div
+            className="video-text-chips"
+            role="group"
+            aria-labelledby={`${videoId}-translations`}
+          >
+            {shownChips.map(item => (
+              <Button
+                key={item.key}
+                size="xs"
+                color="neutral"
+                variant="soft"
+                title={item.stale ? t('textTranslationStale') : undefined}
+                trailing={
+                  item.stale ? (
+                    <span className="text-variant-stale-badge">
+                      {t('textTranslationStaleBadge')}
+                    </span>
+                  ) : undefined
+                }
+                onClick={() => setViewing(item.key)}
+              >
+                {variantName(item, language, t('textTranslationOriginal'))}
+              </Button>
+            ))}
+            {ready.length > shownChips.length && (
+              <Button
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                onClick={() => setViewing(ready[shownChips.length]!.key)}
+              >
+                {t('textTranslationMore', { count: ready.length - shownChips.length })}
+              </Button>
+            )}
+          </div>
+        </div>
       )}
-      {viewing && text && (
+      {strips.length > 0 && (
+        <div className="video-text-translating">
+          {strips.map(item => (
+            <TranslationProgress
+              key={item.translationId}
+              variant={item}
+              compact
+              onRetry={item.status === 'failed' ? () => void state.start(item.language) : undefined}
+            />
+          ))}
+        </div>
+      )}
+      {viewing && (
         <Modal
           labelledBy="creative-library-text-title"
-          onClose={() => setViewing(false)}
+          onClose={() => setViewing(null)}
           closeLabel={t('teamCancel')}
           size="xl"
         >
-          <div className="creative-library-text-viewer">
-            <h2 id="creative-library-text-title">{t('creativeLibraryTranscriptTitle')}</h2>
-            <pre>{text}</pre>
-            <div className="team-dialog-actions">
-              <Button color="neutral" variant="outline" onClick={() => void copy()}>
-                {copied ? t('creativeLibraryTextCopied') : t('creativeLibraryCopyText')}
-              </Button>
-              <Button color="primary" variant="solid" onClick={() => setViewing(false)}>
+          <div className="creative-library-text-viewer video-text-viewer">
+            <div className="video-text-viewer-head">
+              <h2 id="creative-library-text-title" title={videoName}>
+                {videoName ?? t('creativeLibraryTranscriptTitle')}
+              </h2>
+              <TextVariantTabs
+                state={state}
+                value={shownVariant.key}
+                onChange={setViewing}
+                scope="team_video"
+              />
+            </div>
+            <div>
+              {shownVariant.kind === 'translation' && shownVariant.status !== 'ready' && (
+                <TranslationProgress
+                  variant={shownVariant}
+                  onRetry={
+                    shownVariant.status === 'failed'
+                      ? () => void state.start(shownVariant.language)
+                      : undefined
+                  }
+                />
+              )}
+              {stale && (
+                <Alert
+                  color="warning"
+                  variant="soft"
+                  live="none"
+                  action={
+                    refresh.fits ? (
+                      <Button
+                        size="sm"
+                        color="neutral"
+                        variant="outline"
+                        onClick={() => void state.start(shownVariant.language)}
+                      >
+                        {t('textTranslationRefresh', {
+                          need: formatMinutes(refresh.need, language)
+                        })}
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  {t('textTranslationStale')}
+                </Alert>
+              )}
+            </div>
+            <div className="video-text-viewer-body">
+              <TextVariantReader variant={shownVariant} />
+            </div>
+            <div className="video-text-viewer-actions">
+              {shownVariant.kind === 'translation' && shownVariant.status !== 'processing' && (
+                <DeleteTranslationButton
+                  state={state}
+                  variant={shownVariant}
+                  onDeleted={name => {
+                    setViewing('original');
+                    push({
+                      tone: 'success',
+                      text: t('textTranslationDeleted', { language: name })
+                    });
+                  }}
+                  onFailed={() => push({ tone: 'error', text: t('textTranslationDeleteFailed') })}
+                />
+              )}
+              <CopyVariantButton
+                state={state}
+                only={shownVariant}
+                scope="team_video"
+                size="md"
+                label={t('creativeLibraryCopyText')}
+                onCopied={copied}
+              />
+              <Button color="primary" variant="solid" onClick={() => setViewing(null)}>
                 {t('creativeLibraryDone')}
               </Button>
             </div>

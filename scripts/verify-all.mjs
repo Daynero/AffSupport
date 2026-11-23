@@ -190,9 +190,10 @@ const PHASES = {
           ...(form === 'release' ? ['--coverage'] : [])
         ],
         // All eight shards remain serial. Hosted Windows reached ~1,000 files
-        // at 45 minutes while still progressing; allow the complete suite and
-        // report merge to finish, retaining a bounded one-hour hang watchdog.
-        timeoutMs: 3_600_000
+        // at 45 minutes while still progressing, and once the Windows-only
+        // failures were fixed the complete suite ran past one hour without a
+        // failing test. Keep a bounded hang watchdog, sized for that full run.
+        timeoutMs: 5_400_000
       }
     ]
   },

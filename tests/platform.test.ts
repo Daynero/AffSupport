@@ -30,7 +30,10 @@ import {
   pauseProcess,
   processPauseSupported,
   resumeProcess,
-  sanitizeFileName
+  ownerOnlyDirectory,
+  sanitizeFileName,
+  syncDirectory,
+  syncExistingFile
 } from '../apps/agent/src/platform/platform.js';
 
 const realPlatform = process.platform;
@@ -301,5 +304,61 @@ describe('sanitizeFileName', () => {
     expect(sanitizeFileName('')).toBe('');
     expect(sanitizeFileName(' ')).toBe('');
     expect(sanitizeFileName('...')).toBe('');
+  });
+});
+
+describe('ownerOnlyDirectory', () => {
+  const entry = (mode: number, { directory = true, link = false } = {}) => ({
+    mode,
+    isDirectory: () => directory,
+    isSymbolicLink: () => link
+  });
+  it('reads POSIX group and other bits, and ignores the synthesized Windows mode', () => {
+    setPlatform('darwin');
+    expect(ownerOnlyDirectory(entry(0o40700))).toBe(true);
+    expect(ownerOnlyDirectory(entry(0o40755))).toBe(false);
+    setPlatform('win32');
+    expect(ownerOnlyDirectory(entry(0o40666))).toBe(true);
+  });
+  it('refuses a link or a non-directory on every platform', () => {
+    for (const platform of ['darwin', 'win32'] as const) {
+      setPlatform(platform);
+      expect(ownerOnlyDirectory(entry(0o40700, { link: true }))).toBe(false);
+      expect(ownerOnlyDirectory(entry(0o100600, { directory: false }))).toBe(false);
+    }
+  });
+});
+
+describe('syncExistingFile', () => {
+  it('flushes a file written by another handle and refuses one that is not there', async () => {
+    const dir = await import('node:fs/promises').then(fs =>
+      fs.mkdtemp(path.join(os.tmpdir(), 'soty-sync-'))
+    );
+    const file = path.join(dir, 'state.json');
+    await import('node:fs/promises').then(fs => fs.writeFile(file, '{}'));
+    await expect(syncExistingFile(file)).resolves.toBeUndefined();
+    await expect(import('node:fs/promises').then(fs => fs.readFile(file, 'utf8'))).resolves.toBe(
+      '{}'
+    );
+    await expect(syncExistingFile(path.join(dir, 'missing.json'))).rejects.toThrow();
+  });
+});
+
+describe('syncDirectory', () => {
+  it('flushes a directory entry on this host, or leaves it to NTFS on a Windows host', async () => {
+    // The real filesystem decides: a Windows runner cannot open a directory to flush it,
+    // so pretending to be Linux there would test Node, not this function.
+    await expect(syncDirectory(os.tmpdir())).resolves.toBeUndefined();
+    const missing = syncDirectory(path.join(os.tmpdir(), 'soty-missing-dir'));
+    if (realPlatform === 'win32') await expect(missing).resolves.toBeUndefined();
+    else await expect(missing).rejects.toThrow();
+  });
+
+  it('leaves it to NTFS on Windows, which cannot open a directory to flush it', async () => {
+    setPlatform('win32');
+    // Never opened: a path that does not exist still resolves.
+    await expect(
+      syncDirectory(path.join(os.tmpdir(), 'soty-missing-dir'))
+    ).resolves.toBeUndefined();
   });
 });

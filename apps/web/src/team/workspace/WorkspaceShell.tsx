@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
+import { AssistantWidget } from '../assistant/AssistantWidget';
 import { flushSync } from 'react-dom';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink, navigateTo, registerRoutePreparer } from '../../lib/navigation';
@@ -1082,6 +1083,7 @@ export function WorkspaceShell({
                   <TariffBanner teamId={teamId} />
                   <UpdaterResumeNotice teamId={teamId} onResumed={catalogUpdater.reload} />
                   <BackgroundRecoveryNotice
+                    teamId={teamId}
                     status={restitchPreparer.backgroundStatus}
                     errorCode={restitchPreparer.setupErrorCode}
                   />
@@ -1410,6 +1412,8 @@ export function WorkspaceShell({
                   ) : (
                     <MaterialPreview teamId={teamId} material={previewing} onClose={closePreview} />
                   ))}
+                {/* 064: the assistant belongs to the whole space, in the corner of every section. */}
+                <AssistantWidget teamId={teamId} canEdit={can('edit') && Boolean(user)} />
               </section>
             </AgentQueueProvider>
           </AddToTaskProvider>

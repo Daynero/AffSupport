@@ -60,3 +60,27 @@ it.each([
   act(() => vi.advanceTimersByTime(Number(hours) * 60 * 60 * 1000));
   expect(view.result.current.date).toBe(nextDay);
 });
+it('catches up on the day when the page comes back after the machine slept through midnight (027 T028)', () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-09-10T20:00:00Z'));
+  const view = renderHook(({ dirty }) => useFinancePeriod(dirty, 'UTC'), {
+    initialProps: { dirty: false }
+  });
+  expect(view.result.current.date).toBe('2026-09-10');
+  // Asleep: the wall clock jumps two days, no timer has fired.
+  vi.setSystemTime(new Date('2026-09-12T08:00:00Z'));
+  expect(view.result.current.today).toBe('2026-09-10');
+  act(() => {
+    window.dispatchEvent(new Event('focus'));
+  });
+  expect(view.result.current.today).toBe('2026-09-12');
+  expect(view.result.current.date).toBe('2026-09-12');
+  // With unsaved input the day the person typed into stays, only "today" moves.
+  view.rerender({ dirty: true });
+  vi.setSystemTime(new Date('2026-09-13T08:00:00Z'));
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect(view.result.current.today).toBe('2026-09-13');
+  expect(view.result.current.date).toBe('2026-09-12');
+});

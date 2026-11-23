@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { Check, Info, Save, Settings2 } from 'lucide-react';
-import { Button, ConfirmDialog, IconButton, Popover } from '../../components/ui/index';
+import { Alert, Button, IconButton, Popover } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 
@@ -12,18 +12,71 @@ export interface LaunchDefaultsActionsProps {
   loading: boolean;
   loadError: boolean;
   buyerMissing: boolean;
-  proposalSource?: Scope | 'builtin';
   disabled: boolean;
   saveDisabled: Record<Scope, boolean>;
   /** Whether the form matches the profile saved for that scope right now. */
   savedScopes?: Record<Scope, boolean>;
   savingScope?: Scope;
   onSave: (scope: Scope) => void;
-  onApply: () => void;
-  onKeep: () => void;
   onRetry: () => void;
   feedback?: ReactNode;
   primaryAction?: ReactNode;
+}
+
+export interface LaunchDefaultsProposalProps {
+  offerName?: string;
+  proposalSource?: Scope | 'builtin';
+  loading: boolean;
+  loadError: boolean;
+  disabled: boolean;
+  onApply: () => void;
+  onKeep: () => void;
+}
+
+/**
+ * «Застосувати налаштування офера?» — asked in place, under the offer that raised it.
+ *
+ * It was a modal in the middle of the form with a clear backdrop: easy to miss, and the
+ * next click — usually on «Баєр», right after the offer — only dismissed it, so the buyer
+ * list «did not open on the first click» (next QA 2026-11-21). Inline it blocks nothing;
+ * leaving it unanswered keeps the form as it is, which is what «Залишити як є» does.
+ */
+export function LaunchDefaultsProposal({
+  offerName,
+  proposalSource,
+  loading,
+  loadError,
+  disabled,
+  onApply,
+  onKeep
+}: LaunchDefaultsProposalProps) {
+  const { t } = useI18n();
+  if (!proposalSource || proposalSource === 'builtin' || loading || loadError || disabled)
+    return null;
+  const title =
+    proposalSource === 'offer' && offerName
+      ? t('launchesDefaultsApplyOfferTitle', { value: offerName })
+      : t('launchesDefaultsApplyTitle');
+  return (
+    <Alert
+      color="info"
+      title={title}
+      aria-label={title}
+      className="launch-defaults-proposal"
+      action={
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={onKeep}>
+            {t('launchesDefaultsApplyNo')}
+          </Button>
+          <Button color="primary" variant="solid" size="sm" onClick={onApply}>
+            {t('launchesDefaultsApplyYes')}
+          </Button>
+        </div>
+      }
+    >
+      {t('launchesDefaultsApplyBody')}
+    </Alert>
+  );
 }
 
 /** Separate loading an existing profile from saving the settings on this form. */
@@ -34,14 +87,11 @@ export function LaunchDefaultsActions({
   loading,
   loadError,
   buyerMissing,
-  proposalSource,
   disabled,
   saveDisabled,
   savedScopes,
   savingScope,
   onSave,
-  onApply,
-  onKeep,
   onRetry,
   primaryAction,
   feedback
@@ -50,10 +100,7 @@ export function LaunchDefaultsActions({
   const id = useId();
   const info = useRef<HTMLButtonElement>(null);
   const [infoOpen, setInfoOpen] = useState(false);
-  const proposal =
-    proposalSource && proposalSource !== 'builtin' && !loading && !loadError && !disabled;
-  if (!manage && !proposal && !loading && !loadError && !buyerMissing && !primaryAction)
-    return null;
+  if (!manage && !loading && !loadError && !buyerMissing && !primaryAction) return null;
   return (
     <section
       className="launch-defaults-actions mx-auto w-full max-w-5xl"
@@ -84,22 +131,6 @@ export function LaunchDefaultsActions({
         <p role="status" className="m-0 text-caption text-warning-text">
           {t('launchesDefaultBuyerMissing')}
         </p>
-      )}
-      {proposal && (
-        <ConfirmDialog
-          nested
-          tone="neutral"
-          title={
-            proposalSource === 'offer' && offerName
-              ? t('launchesDefaultsApplyOfferTitle', { value: offerName })
-              : t('launchesDefaultsApplyTitle')
-          }
-          body={t('launchesDefaultsApplyBody')}
-          confirmLabel={t('launchesDefaultsApplyYes')}
-          cancelLabel={t('launchesDefaultsApplyNo')}
-          onConfirm={onApply}
-          onCancel={onKeep}
-        />
       )}
       {manage && (
         <div className="launch-defaults-heading flex items-center gap-2">

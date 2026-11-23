@@ -106,7 +106,8 @@ export function TaskAttachmentPicker({
   trigger,
   title,
   confirmLabel,
-  single = false
+  single = false,
+  unavailableWith
 }: {
   teamId: string;
   client?: TaskAttachmentPickerClient;
@@ -125,6 +126,14 @@ export function TaskAttachmentPicker({
   confirmLabel?: (count: number) => string;
   /** Reuse the same media browser for a single Creative selection. */
   single?: boolean;
+  /**
+   * Why a file cannot join what is already ticked, or null. Such a file is shown unavailable
+   * with the reason, instead of being accepted and the whole choice refused at the end.
+   */
+  unavailableWith?: (
+    material: TeamMaterialSummary,
+    chosen: TaskAttachmentCandidate[]
+  ) => string | null;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -372,6 +381,10 @@ export function TaskAttachmentPicker({
                     const isFolder = material.kind === 'folder';
                     const isAttached = attachedMaterialIds.has(material.id);
                     const selectedMaterial = selected.has(material.id);
+                    const unavailable =
+                      !isFolder && !selectedMaterial && unavailableWith
+                        ? unavailableWith(material, [...selected.values()])
+                        : null;
                     return (
                       <li key={material.id}>
                         <button
@@ -380,7 +393,7 @@ export function TaskAttachmentPicker({
                             isAttached ? 'is-attached' : ''
                           }`.trim()}
                           aria-pressed={isFolder ? undefined : selectedMaterial}
-                          disabled={isAttached}
+                          disabled={isAttached || unavailable !== null}
                           onClick={() => {
                             if (isFolder) {
                               setPath(current => [
@@ -404,11 +417,13 @@ export function TaskAttachmentPicker({
                             <small>
                               {isAttached
                                 ? t('teamTaskAttachmentAlreadyAdded')
-                                : isFolder
-                                  ? t('teamTaskFolderOpen')
-                                  : found && pathOf
-                                    ? `${pathOf(material.parentFolderId)} · ${t(CATEGORY_LABEL[material.category ?? 'other'])}`
-                                    : t(CATEGORY_LABEL[material.category ?? 'other'])}
+                                : unavailable
+                                  ? unavailable
+                                  : isFolder
+                                    ? t('teamTaskFolderOpen')
+                                    : found && pathOf
+                                      ? `${pathOf(material.parentFolderId)} · ${t(CATEGORY_LABEL[material.category ?? 'other'])}`
+                                      : t(CATEGORY_LABEL[material.category ?? 'other'])}
                             </small>
                           </span>
                           <span className="team-task-picker-check" aria-hidden="true">

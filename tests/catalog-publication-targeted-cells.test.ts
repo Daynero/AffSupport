@@ -229,3 +229,179 @@ it('bounds provider requests with a scoped deadline and keeps the original clien
   await client.writeNativeSpreadsheetCells(input);
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
+
+/**
+ * The frame (2026-11-20, TR 84_v1): a regular update names the product area of the tab, and
+ * the same batch grows a grid someone shortened and empties everything outside the area.
+ */
+const framed = async (
+  frame: { rows: number; columns: number; gridRows: number; gridColumns: number },
+  replies: number
+) => {
+  const fetcher = vi.fn<typeof fetch>(
+    async () =>
+      new Response(
+        JSON.stringify({
+          spreadsheetId: 'file',
+          replies: Array.from({ length: replies }, () => ({}))
+        })
+      )
+  );
+  await new GoogleDriveClient('synthetic-token-long-enough', fetcher).writeNativeSpreadsheetCells({
+    fileId: 'file',
+    updates: [{ sheetId: 7, rowIndex: 0, columnIndex: 0, values: ['d', 'id', 'one'] }],
+    marker: { key: 'soty_catalog_updater', value: 'marker' },
+    frame: { sheetId: 7, ...frame }
+  });
+  return JSON.parse(String(fetcher.mock.calls[0]![1]!.body)).requests as Record<string, any>[];
+};
+
+it('empties every row under the last product, and leaves a column added beside the template', async () => {
+  const requests = await framed({ rows: 3, columns: 31, gridRows: 172, gridColumns: 33 }, 3);
+  expect(requests.map(r => Object.keys(r)[0])).toEqual([
+    'updateCells',
+    'updateCells',
+    'createDeveloperMetadata'
+  ]);
+  // No `rows`: the field is cleared over the range. Values only, the grid keeps its size.
+  expect(requests[0]).toEqual({
+    updateCells: {
+      range: {
+        sheetId: 7,
+        startRowIndex: 3,
+        endRowIndex: 172,
+        startColumnIndex: 0,
+        endColumnIndex: 33
+      },
+      fields: 'userEnteredValue'
+    }
+  });
+  // The two columns someone added: nothing in the batch reaches them in the product rows.
+  expect(requests[1]!.updateCells.start).toEqual({ sheetId: 7, rowIndex: 0, columnIndex: 0 });
+});
+
+it('grows a grid someone shortened before anything is written into it', async () => {
+  const requests = await framed({ rows: 110, columns: 31, gridRows: 40, gridColumns: 28 }, 4);
+  expect(requests.slice(0, 2)).toEqual([
+    { appendDimension: { sheetId: 7, dimension: 'ROWS', length: 70 } },
+    { appendDimension: { sheetId: 7, dimension: 'COLUMNS', length: 3 } }
+  ]);
+  // Exactly the product area afterwards: nothing is left outside it to empty.
+  expect(requests.map(r => Object.keys(r)[0])).toEqual([
+    'appendDimension',
+    'appendDimension',
+    'updateCells',
+    'createDeveloperMetadata'
+  ]);
+});
+
+it('adds nothing to the batch when the grid is exactly the product area', async () => {
+  expect(
+    (await framed({ rows: 3, columns: 31, gridRows: 3, gridColumns: 31 }, 2)).map(
+      r => Object.keys(r)[0]
+    )
+  ).toEqual(['updateCells', 'createDeveloperMetadata']);
+});
+
+it('refuses a frame its own cells do not fit, before any request', async () => {
+  const fetcher = vi.fn<typeof fetch>();
+  const client = new GoogleDriveClient('synthetic-token-long-enough', fetcher);
+  for (const frame of [
+    { sheetId: 7, rows: 2, columns: 31, gridRows: 100, gridColumns: 31 }, // the cells run past it
+    { sheetId: 8, rows: 10, columns: 31, gridRows: 100, gridColumns: 31 }, // another tab
+    { sheetId: 7, rows: 10, columns: 0, gridRows: 100, gridColumns: 31 },
+    { sheetId: 7, rows: 10, columns: 31, gridRows: 0, gridColumns: 31 }
+  ])
+    await expect(
+      client.writeNativeSpreadsheetCells({
+        fileId: 'file',
+        updates: [{ sheetId: 7, rowIndex: 0, columnIndex: 0, values: ['d', 'id', 'one'] }],
+        marker: { key: 'soty_catalog_updater', value: 'marker' },
+        frame
+      })
+    ).rejects.toThrow('INVALID_INPUT');
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
+it('gives a renamed tab its name back with one narrow request', async () => {
+  const fetcher = vi.fn<typeof fetch>(
+    async () => new Response(JSON.stringify({ spreadsheetId: 'file', replies: [{}] }))
+  );
+  const client = new GoogleDriveClient('synthetic-token-long-enough', fetcher);
+  await client.renameNativeSpreadsheetSheet({
+    fileId: 'file',
+    sheetId: 7,
+    title: 'catalog_products'
+  });
+  expect(JSON.parse(String(fetcher.mock.calls[0]![1]!.body)).requests).toEqual([
+    {
+      updateSheetProperties: {
+        properties: { sheetId: 7, title: 'catalog_products' },
+        fields: 'title'
+      }
+    }
+  ]);
+  await expect(
+    client.renameNativeSpreadsheetSheet({ fileId: 'file', sheetId: 7, title: 'Лист 1' })
+  ).rejects.toThrow('INVALID_INPUT');
+});
+
+/**
+ * The publication lane reads only the product rows (2026-11-20, TR 84_v1). Here the lane's
+ * reads go through the real client over a sheet that still has another catalog's 60 links
+ * under its two products: asked for the whole column, the provider would answer with all of
+ * them; asked for the product rows, it never shows them.
+ */
+it('publishes into a sheet with another catalog’s links left under the last product', async () => {
+  const sheet: Record<string, string[]> = {
+    A: ['description', 'id', 'two', 'one'],
+    Z: [
+      'description',
+      'video[0].url',
+      'https://example.test/other-catalog.mp4',
+      'https://example.test/other-catalog.mp4',
+      ...Array.from({ length: 60 }, () => 'https://example.test/other-catalog.mp4')
+    ]
+  };
+  const fetcher = vi.fn<typeof fetch>(async url => {
+    const valueRanges = new URL(String(url)).searchParams.getAll('ranges').map(range => {
+      const asked = /^catalog_products!([A-Z]+)1:\1(\d+)$/u.exec(range)!;
+      return {
+        range,
+        majorDimension: 'COLUMNS',
+        values: [sheet[asked[1]!]!.slice(0, Number(asked[2]))]
+      };
+    });
+    return new Response(JSON.stringify({ spreadsheetId: 'file', valueRanges }));
+  });
+  const reader = new GoogleDriveClient('synthetic-token-long-enough', fetcher);
+  const d = {
+    ...drive(),
+    readNativeCatalogColumns: vi.fn(
+      (input: Parameters<typeof reader.readNativeCatalogColumns>[0]) =>
+        reader.readNativeCatalogColumns(input)
+    )
+  };
+  await applyPublicationCells(d as never, frozen);
+  expect(new URL(String(fetcher.mock.calls[0]![0])).searchParams.getAll('ranges')).toEqual([
+    'catalog_products!A1:A4',
+    'catalog_products!Z1:Z4'
+  ]);
+  // Each product gets its own link, by id; the 60 cells below are neither read nor written.
+  expect(d.writeNativeSpreadsheetCells).toHaveBeenCalledWith(
+    expect.objectContaining({
+      updates: [
+        {
+          sheetId: 7,
+          rowIndex: 2,
+          columnIndex: 25,
+          values: ['https://example.test/two', 'https://example.test/one']
+        }
+      ]
+    })
+  );
+  // And the write is then confirmed over the same sheet.
+  sheet.Z!.splice(2, 2, 'https://example.test/two', 'https://example.test/one');
+  d.readNativeSpreadsheetMarkers.mockResolvedValue(['fence:abc']);
+  expect(await verifyPublicationCells(d as never, frozen)).toMatchObject({ outcome: 'verified' });
+});

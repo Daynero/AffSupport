@@ -25,6 +25,7 @@ import {
 import { ToastProvider } from '../components/toast';
 import { TariffsPanel } from './admin/TariffsPanel';
 import { ReleaseTestersCard } from './admin/ReleaseTestersCard';
+import { AiBudgetPanel } from './admin/AiBudgetPanel';
 import { ImagePoolPanel } from './admin/ImagePoolPanel';
 import { TariffsSkeleton } from './admin/TariffsSkeleton';
 import { formatSize } from '../format';
@@ -218,6 +219,31 @@ export default function AdminPage() {
     const supabase = requireSupabaseClient();
     const args = { p_start_date: dates.start, p_end_date: dates.end };
     const consent = consentFilter === '' ? null : consentFilter === 'true';
+    // next 2026-11-22: a heavy read now and then ran past the 8 s statement timeout while the
+    // database was busy, and one slow chart turned the whole tab into «не вдалося». The tab now
+    // retries once, and a chart that still fails shows empty instead of hiding the rest.
+    const readAll = () =>
+      Promise.all([
+        supabase.rpc('admin_overview', args),
+        supabase.rpc('admin_daily_activity', args),
+        supabase.rpc('admin_tool_usage', args),
+        supabase.rpc('admin_agent_versions', args),
+        supabase.rpc('admin_list_users', {
+          p_search: search,
+          p_marketing_consent: consent ?? undefined,
+          p_account_status: statusFilter || undefined,
+          p_limit: pageSize,
+          p_offset: page * pageSize
+        }),
+        supabase.rpc('admin_active_support_goal'),
+        supabase.rpc('admin_list_team_workspace_waitlist'),
+        supabase.rpc('admin_list_windows_app_waitlist')
+      ]);
+    let results = await readAll();
+    if (results.some(result => result.error)) {
+      await new Promise(resolve => setTimeout(resolve, 1200));
+      results = await readAll();
+    }
     const [
       overviewResult,
       dailyResult,
@@ -227,25 +253,8 @@ export default function AdminPage() {
       supportGoalResult,
       waitlistResult,
       windowsWaitlistResult
-    ] = await Promise.all([
-      supabase.rpc('admin_overview', args),
-      supabase.rpc('admin_daily_activity', args),
-      supabase.rpc('admin_tool_usage', args),
-      supabase.rpc('admin_agent_versions', args),
-      supabase.rpc('admin_list_users', {
-        p_search: search,
-        p_marketing_consent: consent ?? undefined,
-        p_account_status: statusFilter || undefined,
-        p_limit: pageSize,
-        p_offset: page * pageSize
-      }),
-      supabase.rpc('admin_active_support_goal'),
-      supabase.rpc('admin_list_team_workspace_waitlist'),
-      supabase.rpc('admin_list_windows_app_waitlist')
-    ]);
-    const failed = [overviewResult, dailyResult, usageResult, versionsResult, usersResult].some(
-      result => result.error
-    );
+    ] = results;
+    const failed = [overviewResult, usersResult].some(result => result.error);
     const parsedOverview = overviewResult.data ? parseAdminOverview(overviewResult.data) : null;
     if (failed || !parsedOverview) {
       setError(true);
@@ -402,6 +411,7 @@ export default function AdminPage() {
         items={[
           { id: 'tariffs', label: t('adminTabTariffs') },
           { id: 'imagePool', label: t('adminTabImagePool') },
+          { id: 'aiBudget', label: t('aiBudgetTitle') },
           { id: 'analytics', label: t('adminTabAnalytics') }
         ]}
       />
@@ -415,6 +425,10 @@ export default function AdminPage() {
       ) : tab === 'imagePool' ? (
         <div role="tabpanel" id="admin-panel-imagePool" aria-labelledby="tab-imagePool">
           <ImagePoolPanel />
+        </div>
+      ) : tab === 'aiBudget' ? (
+        <div role="tabpanel" id="admin-panel-aiBudget" aria-labelledby="tab-aiBudget">
+          <AiBudgetPanel />
         </div>
       ) : (
         <div role="tabpanel" id="admin-panel-analytics" aria-labelledby="tab-analytics">
@@ -746,7 +760,7 @@ export default function AdminPage() {
   );
 }
 
-type AdminTab = 'tariffs' | 'imagePool' | 'analytics';
+type AdminTab = 'tariffs' | 'imagePool' | 'aiBudget' | 'analytics';
 
 type SupportGoalForm = { titleUk: string; titleEn: string; target: string; raised: string };
 

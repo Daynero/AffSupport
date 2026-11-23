@@ -107,3 +107,41 @@ it('keeps a single amount while changing campaign count, clears hidden bounds an
   expect(current!).toMatchObject({ budgetMode: 'auto', budgets: null, minBudget: undefined });
   expect(screen.getByRole('spinbutton', { name: 'Minimum' }).getAttribute('value')).toBe('10');
 });
+it('says when the automatic range is too narrow for one budget per campaign (next QA 2026-11-21)', () => {
+  // 30 campaigns between 5 $ and 30 $ have only 26 different budgets: the preview went
+  // blank and nothing said why.
+  function Editor() {
+    const [config, setConfig] = useState({
+      ...newLaunchDraft(),
+      campaignCount: 30,
+      minBudget: 6,
+      maxBudget: 30
+    });
+    return (
+      <LaunchEditor
+        teamId="team"
+        config={config}
+        sources={null}
+        accounts={[]}
+        offers={[]}
+        buyers={[]}
+        disabled={false}
+        onRefreshSources={() => {}}
+        onChange={patch => setConfig(previous => ({ ...previous, ...patch }))}
+      />
+    );
+  }
+  render(<Editor />);
+  const minimum = screen.getByRole('spinbutton', { name: 'Minimum' });
+  fireEvent.focus(minimum);
+  fireEvent.change(minimum, { target: { value: '5' } });
+  fireEvent.blur(minimum);
+  expect(screen.getByRole('alert').textContent).toBe(
+    'For 30 campaigns, “To” must be at least 29 $ above “From”: each campaign gets a budget of its own.'
+  );
+  expect(minimum.getAttribute('aria-invalid')).toBe('true');
+  fireEvent.focus(minimum);
+  fireEvent.change(minimum, { target: { value: '1' } });
+  fireEvent.blur(minimum);
+  expect(screen.queryByRole('alert')).toBeNull();
+});

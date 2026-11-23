@@ -5,6 +5,35 @@
 .launch-editor-compact .launch-editor-section + .launch-editor-section {
   padding-top: var(--space-3);
 }
+/* The catalog shelf folds away whole: it carries its own gap and rule inside the collapse,
+   so a closed shelf leaves no double gap behind, and the section after it keeps its rule. */
+.launch-editor-compact .launch-editor-collapse {
+  margin-top: calc(var(--space-4) * -1);
+}
+.launch-editor-compact .launch-editor-collapse > .ui-collapse-body > .launch-editor-section {
+  margin-top: var(--space-4);
+  border-top: 1px solid var(--color-neutral-border);
+  padding-top: var(--space-3);
+}
+.launch-editor-compact .launch-editor-collapse + .launch-editor-section {
+  border-top: 1px solid var(--color-neutral-border);
+  padding-top: var(--space-3);
+}
+/* What appears beside a choice fades in rather than cutting in. */
+.launch-editor-compact .launch-editor-appear {
+  animation: ui-fade-in var(--dur-section) var(--ease-fade) both;
+}
+/* Every choice row is as tall as the fields beside it: «Каталог / Без каталогу» stood 46px
+   among 38px fields, the budget 40px, and «Чоловіки / Жінки / Усі» drew its segments
+   shorter than the date buttons next to it (next QA 2026-11-21). */
+.launch-editor-compact .ui-segmented {
+  box-sizing: border-box;
+  height: var(--control-height-md);
+}
+.launch-editor-compact .ui-segmented button {
+  min-height: 0;
+  height: 100%;
+}
 .launch-editor-compact .launch-editor-section-heading h3 {
   font-size: var(--text-label);
   color: var(--color-neutral-text-muted);
@@ -12,8 +41,20 @@
 .launch-editor-compact .launch-editor-creative {
   max-width: none;
 }
-.launch-editor-compact .launch-editor-source-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+/* Three sources and the refresh on one line only where they fit: unconditional, this rule
+   undid the single column a phone gets, and РК, Офер and Баєр shrank to «Обр…» (next QA
+   2026-11-21). */
+@media (min-width: 640px) {
+  .launch-editor-compact .launch-editor-source-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  }
+}
+/* One column: the refresh no longer drops to a label's line, it closes the sources. */
+@media (max-width: 639px) {
+  .launch-editor-compact .launch-editor-refresh {
+    margin-top: 0;
+    justify-self: end;
+  }
 }
 .launch-editor-compact .ui-field-label {
   min-height: var(--space-6);
@@ -57,14 +98,19 @@
   white-space: nowrap;
   user-select: text;
 }
+/* The link starts on the same line as the creative beside it and is as tall: it was set in a
+   72px box and centred, a step below the drop zone (next QA 2026-11-21). */
 .launch-editor-link-field .ui-field-control {
   display: flex;
-  align-items: center;
-  min-height: calc(var(--space-6) * 3);
+  align-items: flex-start;
+}
+.launch-editor-compact .launch-creative-drop {
+  min-height: var(--control-height-lg);
 }
 .launch-editor-url {
   width: 100%;
-  min-height: 0;
+  min-height: var(--control-height-lg);
+  padding-block: calc((var(--control-height-lg) - 1lh) / 2 - 1px);
   max-height: calc(var(--space-6) * 5);
   overflow-y: auto;
   resize: none;
@@ -100,28 +146,158 @@
 .launch-editor-compact .launch-editor-budget-preview {
   gap: var(--space-1);
 }
-.launch-editor-compact .launch-editor-budget-preview > span {
+.launch-editor-compact .launch-editor-budget-preview > span,
+.launch-editor-compact .launch-editor-budget-ruler > span {
   border: 0;
   padding-inline: var(--space-1);
   background: transparent;
 }
-.launch-editor-compact .launch-editor-method {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  column-gap: var(--space-4);
+/* The automatic budgets take the rest of the row, one line, as many as fit; «+N» stands
+   only for those that do not (LaunchBudgetPreview measures an invisible copy). */
+.launch-editor-compact .launch-editor-budget-row > .ui-field:has(.launch-editor-auto-budget) {
+  min-width: 0;
+  flex: 1 1 auto;
 }
-.launch-editor-compact .launch-editor-method > .launch-editor-section-heading {
+.launch-editor-compact .launch-editor-auto-budget {
+  flex-wrap: nowrap;
+}
+.launch-editor-compact .launch-editor-budget-fit {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+}
+.launch-editor-compact .launch-editor-budget-preview {
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+/* The measuring copy sits beside the output, not in it, so it takes the output's type
+   explicitly: in the larger type of the row around it every budget measured wider than it
+   is drawn, and three that fitted went into «+3» (next QA 2026-11-21). */
+.launch-editor-budget-ruler {
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  display: flex;
+  gap: var(--space-1);
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+/* The catalog shelf: the options on the left as a column of rows, the stitch duration on
+   the right. Each row is as tall as its tallest control before anything is switched on, so
+   a switch never moves under the pointer; what an option adds sits beside it — in its row,
+   or, for the duration, in the half of the shelf the switches left empty, wide enough to
+   set by hand (next QA 2026-11-21). Narrow, the duration goes under the switches. */
+.launch-editor-compact .launch-editor-catalog-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  align-items: start;
+  gap: 0 var(--space-6);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.launch-editor-catalog-switches {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+.launch-editor-catalog-row {
+  display: flex;
+  min-width: 0;
+  min-height: var(--control-height-lg);
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: center;
+  gap: 0 var(--space-5);
+}
+.launch-editor-catalog-row:empty {
+  display: none;
+}
+/* The switch keeps the full row height in either state, so the field that joins it on the
+   same line cannot shift it, and a hint that wraps goes under it. */
+.launch-editor-compact .launch-editor-restitch {
+  display: flex;
+  min-width: 0;
+  min-height: var(--control-height-lg);
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+}
+/* «Варіації відео [ 2 ]» on the switch's own line: a caption and a small field, not a
+   labelled block that made the row thick. Its hint and its error follow on the same line. */
+/* The field keeps to the rest of the switch's line, so a long error or hint never pushes
+   it down under the switch; they wrap under the field instead (next QA 2026-11-21). The row
+   is aligned to its top, and the field set down to the switch's centre line, so a two-line
+   error grows the row downwards and the switch stays where it was. */
+.launch-editor-catalog-row:has(> .launch-editor-variations) {
+  align-items: flex-start;
+}
+.launch-editor-variations {
+  min-width: 0;
+  flex: 1 1 0;
+  padding-top: calc((var(--control-height-lg) - var(--control-height-sm)) / 2);
+}
+.launch-editor-variations .ui-field-error,
+.launch-editor-variations .ui-field-help {
   flex-basis: 100%;
 }
-.launch-editor-compact .launch-editor-catalog-options {
-  display: contents;
+.launch-editor-variations > .ui-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
 }
-.launch-editor-compact .launch-editor-restitch {
-  min-width: 0;
-  flex: 0 0 auto;
-  min-height: var(--control-height-md);
-  justify-content: center;
+.launch-editor-variations .ui-field-control {
+  display: flex;
+}
+.launch-editor-variations .ui-field-label {
+  min-height: 0;
+  font-weight: var(--weight-body);
+}
+.launch-editor-variations .ui-input {
+  width: calc(var(--control-height-lg) * 1.5);
+  min-height: var(--control-height-sm);
+  height: var(--control-height-sm);
+}
+.launch-editor-compact .launch-editor-catalog-publication {
+  gap: 0;
+}
+/* Every switch on the shelf stands in a row of the same height with nothing between the
+   rows, so the spacing is one rhythm whatever is switched on (next QA 2026-11-21: the
+   delayed-publication switch hugged the fields that opened under it). */
+.launch-editor-compact .launch-editor-catalog-publication > .ui-switch {
+  min-height: var(--control-height-lg);
+}
+/* What an option opens is its own group, set in under the option's label — the switch
+   track is as wide as a medium control is tall, and the label follows a gap on — so it
+   reads as part of that option and not as a heap under the switches. */
+.launch-editor-compact .launch-editor-catalog-publication > .catalog-publication-controls,
+.launch-editor-compact .launch-editor-catalog-publication > .launch-publication-error,
+.launch-editor-compact .launch-editor-catalog-publication > .ui-field-help {
+  margin-inline-start: calc(var(--control-height-md) + var(--space-3));
+}
+.launch-editor-compact .launch-editor-catalog-publication > .catalog-publication-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
+  padding-bottom: var(--space-2);
+}
+/* The duration's name stands on the first row's line, and its panel starts under it. */
+.launch-editor-compact .launch-duration-open {
+  gap: 0;
+}
+.launch-editor-compact .launch-duration-open > .ui-field-label {
+  min-height: var(--control-height-lg);
+}
+.launch-editor-compact .launch-duration-open .restitch-duration-control {
+  max-width: none;
 }
 .launch-editor-catalog-advanced {
   flex-basis: 100%;
@@ -208,14 +384,6 @@
 .launch-creative-replace {
   flex-shrink: 0;
 }
-.launch-duration-disclosure {
-  flex-basis: 100%;
-  min-width: 0;
-}
-.launch-duration-disclosure .restitch-duration-control {
-  max-width: 40rem;
-  padding-block: var(--space-3);
-}
 
 .catalog-rename-warning {
   font-size: var(--text-label);
@@ -245,6 +413,15 @@
 }
 .launch-editor-sub-accordion .ui-accordion-item {
   min-width: 0;
+}
+/* «Підстановка значень у посилання» is a shelf of its own, drawn like the catalog's: it read
+   as loose text between the link and «Кампанії» (next QA 2026-11-21). */
+.launch-editor-compact .launch-editor-sub-accordion {
+  margin-top: var(--space-1);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-subtle);
 }
 .launch-editor-sub-accordion .ui-accordion-aside {
   min-width: 0;
@@ -290,4 +467,75 @@
 .launch-editor-compact .launch-editor-campaigns .launch-editor-fields-row {
   align-items: flex-start;
   gap: var(--space-4) var(--space-6);
+}
+/* The drop zone is one target: a press anywhere on it opens «Обрати», and it says so — a
+   firmer dashed edge, the upload mark in the accent, and the hover the drag already wears
+   (next QA 2026-11-21: it read as a faint line with a small button at its far end). */
+.launch-editor-compact .launch-creative-drop {
+  border-color: var(--color-neutral-border-strong);
+  background: var(--color-neutral-surface-subtle);
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-control) var(--ease-standard),
+    background-color var(--dur-control) var(--ease-standard),
+    color var(--dur-control) var(--ease-standard);
+}
+.launch-editor-compact .launch-creative-drop > svg {
+  color: var(--color-secondary-text);
+}
+.launch-editor-compact .launch-creative-drop:hover,
+.launch-editor-compact .launch-creative-drop[data-dragging] {
+  border-color: var(--color-secondary-border);
+  background: var(--color-secondary-softer);
+  color: var(--color-neutral-text);
+}
+.launch-editor-compact .launch-creative-drop[data-disabled],
+.launch-editor-compact .launch-creative-drop[data-busy] {
+  cursor: default;
+}
+.launch-editor-compact .launch-creative-drop[data-disabled]:hover {
+  border-color: var(--color-neutral-border-strong);
+  background: var(--color-neutral-surface-subtle);
+  color: var(--color-neutral-text-muted);
+}
+/* The audience row lines its controls up from the top, so an error under «Вік» grows that
+   field downwards instead of lifting it above its neighbours (next QA 2026-11-21: aligned to
+   the bottom, the age field rose by the error's height). The unlabelled controls are set
+   down by a field's label and the gap under it, onto the fields' line. */
+.launch-editor-compact .launch-editor-audience-row {
+  align-items: flex-start;
+}
+.launch-editor-compact .launch-editor-audience-row > .ui-segmented,
+.launch-editor-compact .launch-editor-audience-row > .ui-switch {
+  margin-top: calc(var(--space-6) + 6px);
+}
+/* A field stretched to the height of a neighbour that shows an error keeps its label and
+   control at the top: as a grid it spread the extra height between them, and «Кількість
+   кампаній» dropped by half the error beside «Кількість оголошень» (next QA 2026-11-21). */
+.launch-editor-compact .ui-field {
+  align-content: start;
+}
+.launch-editor-compact .launch-editor-counts {
+  align-items: flex-start;
+}
+/* The creative and the ad account are chosen, not typed: their boxes take the error edge too. */
+.launch-editor-compact .ui-field.is-invalid .launch-creative-drop,
+.launch-editor-compact .ui-field.is-invalid > .ui-field-control .ui-button--outline {
+  border-color: var(--color-error-solid);
+}
+/* «Згенерувати запуск» lands on the first field with an error and flashes it once, so the
+   eye finds it after the scroll (LaunchEditor; next QA 2026-11-21). */
+.launch-editor-compact .is-attention {
+  border-radius: var(--radius-md);
+  animation: launch-field-attention calc(var(--motion-slow) * 5) var(--ease-out-curve);
+}
+@keyframes launch-field-attention {
+  0%,
+  35% {
+    box-shadow: 0 0 0 4px var(--color-error-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 4px transparent;
+  }
 }

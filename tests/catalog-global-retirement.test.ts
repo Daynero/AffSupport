@@ -70,7 +70,7 @@ it('retains external references until the immutable deadline and unlinks only me
     [GLOBAL_IMAGE]
   );
   expect(protectedImage!.state).toBe('ready');
-});
+}, 30_000);
 it('holds physical v1 deletion through team removal and credits only the confirmed purge once', async () => {
   const fixture = await globalTestDb();
   const d = fixture.db,
@@ -154,7 +154,7 @@ it('holds physical v1 deletion through team removal and credits only the confirm
   } finally {
     await d.close();
   }
-});
+}, 30_000);
 it('captures managed tombstones whose team was already deleted before T0', async () => {
   const fixture = await globalTestDb();
   const d = fixture.db,
@@ -182,4 +182,4 @@ it('captures managed tombstones whose team was already deleted before T0', async
   } finally {
     await d.close();
   }
-});
+}, 30_000);

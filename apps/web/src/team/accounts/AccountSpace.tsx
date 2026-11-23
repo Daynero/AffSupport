@@ -1,7 +1,5 @@
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { teamApi } from '../../api/team';
-import { buildTeamRoute } from '../routes';
-import { internalLink } from '../../lib/navigation';
 /**
  * The Accounts section of a space (017): which agent sits under which account,
  * which of them are free and what is running on the rest.
@@ -1556,36 +1554,8 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
           {accounts.assignmentCoverage === 'partial' && !client && (
             <p className="team-accounts-notice">{t('launchesAssignmentPartial')}</p>
           )}
-          {accounts.launchSummaries.some(launch => launch.unmatchedReason) && (
-            <section className="account-unmatched-launches">
-              <h3>{t('accountsUnmatchedLaunches')}</h3>
-              {accounts.launchSummaries
-                .filter(launch => launch.unmatchedReason)
-                .map(launch => (
-                  <a
-                    key={launch.id}
-                    className="account-linked-launch"
-                    href={buildTeamRoute({
-                      spaceId: teamId,
-                      section: 'launches',
-                      query: { launchId: launch.id }
-                    })}
-                    onClick={event =>
-                      internalLink(
-                        event,
-                        buildTeamRoute({
-                          spaceId: teamId,
-                          section: 'launches',
-                          query: { launchId: launch.id }
-                        })
-                      )
-                    }
-                  >
-                    {launch.creativeAlias || t('launchesTitle')} · {t('accountsHistorical')}
-                  </a>
-                ))}
-            </section>
-          )}
+          {/* Launches that lost their ad account are not listed here (owner, 2026-11-22): they
+              stay in Launches, where they are found by date and offer. */}
           {listEmpty && !creating && (
             <Empty
               className="team-accounts-empty"

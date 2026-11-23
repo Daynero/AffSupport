@@ -58,6 +58,7 @@ export type {
 } from './Choice';
 
 export {
+  Collapse,
   Empty,
   FadeImage,
   Progress,
@@ -68,6 +69,7 @@ export {
   Tooltip
 } from './Feedback';
 export type {
+  CollapseProps,
   EmptyProps,
   ProgressProps,
   RevealProps,

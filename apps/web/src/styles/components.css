@@ -935,8 +935,11 @@
   font-size: var(--text-caption);
   font-variant-numeric: tabular-nums;
 }
-.launch-editor-budget-preview > span {
+.launch-editor-budget-preview > span,
+.launch-editor-budget-ruler > span {
   display: inline-flex;
+  flex: 0 0 auto;
+  white-space: nowrap;
   align-items: center;
   height: var(--control-height-md);
   padding: 0 var(--space-2);
@@ -1116,14 +1119,10 @@
   color: var(--color-warning-text);
   font-size: var(--text-caption);
 }
-/* Reserve the longest localized notice at the current width, including zoom/wrapping. */
-.launch-editor-url-warning::before {
-  content: attr(data-reserve);
-  visibility: hidden;
-  grid-area: 1 / 1;
-}
-.launch-editor-url-warning > span {
-  grid-area: 1 / 1;
+/* No notice, no room: a line reserved for it stood empty under every link (next QA
+   2026-11-21). The live region stays in the document, so the notice is still announced. */
+.launch-editor-url-warning:has(> span:empty) {
+  margin-top: calc(var(--space-3) * -1);
 }
 .launch-editor-sub-content {
   display: flex;
@@ -1968,8 +1967,20 @@
 .ui-select-trigger :focus-visible {
   outline: none;
 }
+/* One red for every control with an error: a select drew the pale border token while the
+   inputs beside it drew the solid one, and «Офер» looked less wrong than «РК» (next QA
+   2026-11-21). */
 .ui-select.is-invalid .ui-select-trigger {
-  border-color: var(--color-error-border);
+  border-color: var(--color-error-solid);
+}
+/* A field that shows an error shows it on the control too, not only in the line under it:
+   the line alone did not say which box to fix (next QA 2026-11-21). */
+.ui-field.is-invalid > .ui-field-control .ui-input,
+.ui-field.is-invalid > .ui-field-control .ui-textarea {
+  border-color: var(--color-error-solid);
+}
+.ui-field.is-invalid > .ui-field-control .ui-select-trigger {
+  border-color: var(--color-error-solid);
 }
 .ui-select.is-disabled .ui-select-trigger {
   cursor: not-allowed;
@@ -2382,6 +2393,19 @@
 .ui-slider-track[data-fill-start='true'] {
   border-inline-start-color: var(--color-secondary-solid);
 }
+.ui-slider-track[data-fill-end='true'] {
+  border-inline-end-color: var(--color-secondary-solid);
+}
+/* The fill begins where that reserved space ends; rounded there, the two read as a
+   short pill and a bar with a notch between them. The track's own radius rounds the end. */
+.ui-slider-track[data-fill-start='true'] .ui-slider-fill {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+.ui-slider-track[data-fill-end='true'] .ui-slider-fill {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
 .ui-slider--lg .ui-slider-thumb {
   width: var(--space-5);
   height: var(--space-5);
@@ -2514,6 +2538,30 @@
    in its final place from the first frame. */
 .ui-reveal.is-arriving {
   animation: ui-fade-in var(--motion-base) var(--ease-fade) both;
+}
+
+/* Collapse: a form part that opens to its own height. Rows 0fr→1fr is the one layout
+   transition allowed, and only for disclosures; the content fades with it. */
+.ui-collapse {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--dur-section) var(--ease-standard),
+    opacity var(--dur-section) var(--ease-fade);
+}
+.ui-collapse.is-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.ui-collapse-body {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.ui-collapse.is-settled > .ui-collapse-body {
+  overflow: visible;
 }
 
 .ui-route-skeleton {
@@ -3811,7 +3859,7 @@
   outline-offset: 2px;
 }
 .ui-input-number.is-invalid .ui-input-number-group {
-  border-color: var(--color-error-border);
+  border-color: var(--color-error-solid);
 }
 
 /* The wrapper a slider grows only when its keyboard step differs from its drag
@@ -3991,13 +4039,13 @@
 .ui-time-wheel {
   display: flex;
   align-items: stretch;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 .ui-time-wheel-column {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  width: calc(var(--control-height-md) * 2);
+  gap: var(--space-1);
+  width: calc(var(--control-height-md) * 1.75);
   min-width: 0;
 }
 .ui-time-wheel-label {
@@ -4008,49 +4056,57 @@
 .ui-time-wheel-frame {
   position: relative;
 }
+/* The chosen row is marked the way a chosen segment is — a soft fill and its edge — and
+   the rows above and below fade out, so the wheel reads as one control and not a column
+   of loose large numbers (next QA 2026-11-21). */
 .ui-time-wheel-frame::before {
   content: '';
   position: absolute;
-  inset: calc(var(--control-height-md) * 2) 0 auto;
-  height: var(--control-height-md);
+  inset: calc(var(--control-height-sm) * 2) 0 auto;
+  height: var(--control-height-sm);
   border: 1px solid var(--color-secondary-border);
-  border-radius: var(--radius-md);
-  background: var(--color-secondary-softer);
+  border-radius: var(--radius-sm);
+  background: var(--color-secondary-soft);
   pointer-events: none;
 }
 .ui-time-wheel-list {
   position: relative;
-  height: calc(var(--control-height-md) * 5);
-  padding-block: calc(var(--control-height-md) * 2);
+  height: calc(var(--control-height-sm) * 5);
+  padding-block: calc(var(--control-height-sm) * 2);
   box-sizing: border-box;
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-snap-type: y mandatory;
   scrollbar-width: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
+  mask-image: linear-gradient(transparent, black 35%, black 65%, transparent);
 }
 .ui-time-wheel-list::-webkit-scrollbar {
   display: none;
 }
 .ui-time-wheel-list:focus-visible {
   outline: 2px solid var(--color-focus-ring);
-  outline-offset: var(--space-1);
+  outline-offset: 2px;
 }
 .ui-time-wheel-option {
   display: block;
   width: 100%;
-  height: var(--control-height-md);
-  min-height: var(--control-height-md);
+  height: var(--control-height-sm);
+  min-height: var(--control-height-sm);
   padding: 0;
   border: 0;
+  outline: none;
   background: transparent;
   color: var(--color-neutral-text-muted);
   font-family: inherit;
-  font-size: var(--text-title);
+  font-size: var(--text-body);
   font-variant-numeric: tabular-nums;
   text-align: center;
   scroll-snap-align: center;
   cursor: pointer;
+}
+.ui-time-wheel-option:hover {
+  color: var(--color-neutral-text);
 }
 .ui-time-wheel-option[aria-selected='true'] {
   color: var(--color-secondary-text);
@@ -4058,8 +4114,8 @@
 }
 .ui-time-wheel-separator {
   align-self: center;
-  padding-top: calc(var(--text-caption) + var(--space-2));
-  font-size: var(--text-title);
+  padding-top: calc(var(--text-caption) + var(--space-1));
+  font-size: var(--text-body);
   color: var(--color-neutral-text-muted);
 }
 
@@ -4755,6 +4811,19 @@
 
 .ui-button.launch-account-trigger {
   white-space: nowrap;
+}
+/* РК is chosen like «Офер» and «Баєр» beside it, so it is drawn like them: the field's
+   edge, surface and weight, and a muted «Обрати РК» until one is chosen — it stood out as a
+   bold bright button between two quiet selects (next QA 2026-11-21). */
+.launch-editor-compact .ui-button.launch-account-trigger {
+  border-color: var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text);
+  font-weight: var(--weight-body);
+}
+.launch-account-trigger .launch-account-placeholder {
+  color: var(--color-neutral-text-muted);
 }
 .launch-account-trigger .ui-button-label {
   flex: 1;

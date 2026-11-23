@@ -8213,6 +8213,42 @@ export type GeneratedDatabase = {
           role: string;
         }[];
       };
+      ai_allowance_status: { Args: { p_feature: string }; Returns: Json };
+      ai_credits_status: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_ai_budget_overview: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_ai_set_month_limit: { Args: { p_limit: number }; Returns: Json };
+      admin_ai_set_base_grant: { Args: { p_grant: number }; Returns: Json };
+      admin_ai_set_user_grant: { Args: { p_email: string; p_grant: number | null }; Returns: Json };
+      admin_ai_set_assistant_enabled: { Args: { p_enabled: boolean }; Returns: Json };
+      admin_ai_assistant_spaces: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_ai_set_assistant_space: { Args: { p_team: string; p_enabled: boolean }; Returns: Json };
+      assistant_open: { Args: { p_team: string }; Returns: Json };
+      assistant_open_dialog: { Args: { p_team: string; p_dialog: string | null }; Returns: Json };
+      assistant_new_dialog: { Args: { p_team: string }; Returns: Json };
+      assistant_card_dismissed: { Args: { p_card: string }; Returns: Json };
+      assistant_card_claim: { Args: { p_card: string }; Returns: Json };
+      assistant_card_finish: {
+        Args: { p_card: string; p_state: string; p_result: Json | null };
+        Returns: Json;
+      };
+      assistant_card_confirmed: { Args: { p_card: string }; Returns: Json };
+      admin_ai_grant_bonus: {
+        Args: { p_email: string; p_amount: number; p_note: string | null };
+        Returns: Json;
+      };
+      assistant_launch_marks: { Args: { p_team: string; p_ids: string[] }; Returns: string[] };
+      assistant_review_launched: { Args: { p_card: string; p_batch_key: string }; Returns: Json };
+      save_launch_offer_defaults_masked: {
+        Args: {
+          p_team: string;
+          p_offer: string;
+          p_mask: string[];
+          p_before: Json;
+          p_values: Json;
+          p_key: string;
+        };
+        Returns: Json;
+      };
       ack_space_tariff_toast: { Args: { p_event: string }; Returns: boolean };
       add_team_account_agent: {
         Args: {
@@ -9209,6 +9245,8 @@ export type GeneratedDatabase = {
       get_team_task_progress_max_default: { Args: { p_team: string }; Returns: number };
       get_team_vocab_and_facets: { Args: { p_team: string }; Returns: Json };
       get_transcript_delete_pref: { Args: Record<PropertyKey, never>; Returns: string };
+      get_transcript_translation: { Args: { p_id: string }; Returns: Json };
+      delete_transcript_translation: { Args: { p_id: string }; Returns: Json };
       get_upload_batch: { Args: { p_batch: string; p_team: string }; Returns: Json };
       heartbeat_library_job: {
         Args: {
@@ -9737,7 +9775,12 @@ export type GeneratedDatabase = {
           updated_at: string;
         }[];
       };
+      list_personal_translations: {
+        Args: { p_document_key: string; p_fingerprint: string };
+        Returns: Json;
+      };
       list_video_text_variants: { Args: { p_team: string; p_video: string }; Returns: Json };
+      list_video_translations: { Args: { p_team: string; p_video: string }; Returns: Json };
       lookup_invitable_account: {
         Args: { p_email: string; p_team: string };
         Returns: {

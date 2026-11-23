@@ -1,0 +1,1301 @@
+/**
+ * 064: the space's assistant — a button in the bottom-right corner of every section that opens a
+ * small window and folds back into the button. Today it prepares launches; later it answers about
+ * budgets, finds creatives, translates. Dialogs are kept as in any AI chat: a list, a new one,
+ * and each lives seven days after its last message.
+ *
+ * Cards come from the server, built from stored rows. Their actions are free and never call a
+ * model: open a draft, «Запустити N» (the launch section's own batch, with the versions the card
+ * showed), undo, answer a question, save an offer default. Only a typed message costs credits,
+ * and its price is on the send button.
+ */
+import {
+  AlertTriangle,
+  ArrowUp,
+  ArrowUpRight,
+  CheckCircle2,
+  ChevronDown,
+  Minus,
+  Play,
+  Sparkles,
+  SquarePen,
+  Trash2,
+  Unlink,
+  Undo2
+} from 'lucide-react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode
+} from 'react';
+import { createPortal } from 'react-dom';
+import {
+  assistantMessagePrice,
+  ASSISTANT_MESSAGE_MAX_CHARACTERS,
+  characterCount,
+  quickAssistantIntent,
+  type AssistantCard,
+  type AssistantMessage,
+  type AssistantRow
+} from '@video-compressor/shared';
+import {
+  assistantApi,
+  type AssistantConversation,
+  type AssistantDialog
+} from '../../api/assistant';
+import { launchApi } from '../../api/launches';
+import { agentReleaseApi } from '../../api/team-agent-release';
+import { TeamApiError } from '../../api/team';
+import { CreditsButton } from '../../credits/CreditsButton';
+import { Button, DropdownMenu, IconButton, Spinner } from '../../components/ui/index.js';
+import { CreditIcon, ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
+import { kyivTime, refreshCredits, setCredits, useCredits } from '../../credits/store';
+import { assistantDraftsKey, useI18n, type TranslationKey } from '../../i18n';
+import { teamErrorMessageFor } from '../errors';
+import { observeAssistant } from './analytics';
+import { launchRows, notifyLaunchesChanged, openLaunch } from './bridge';
+import { runToolCard } from './tool-runner';
+import { TableCard, ToolReviewCard } from './ToolCards';
+
+/** Refusals that mean the card's rows changed after it was shown: asking again shows them fresh. */
+const STALE_CODES = new Set([
+  'FINANCE_CONFLICT',
+  'PLACEMENT_CONFLICT',
+  'SOURCE_CHANGED',
+  'REVIEW_CHANGED',
+  'LAUNCH_VERSION_CONFLICT',
+  'ACCOUNT_LIFECYCLE_CONFLICT',
+  'VERSION_CONFLICT'
+]);
+
+const REASON_COPY: Readonly<Record<string, TranslationKey>> = {
+  INSUFFICIENT_CREDITS: 'aiInsufficientCredits',
+  AI_MONTH_EXHAUSTED: 'aiMonthExhausted',
+  PRICE_CHANGED: 'aiPriceChanged',
+  MODEL_UNAVAILABLE: 'assistantModelUnavailable',
+  MODEL_OUTPUT_REJECTED: 'assistantOutputRejected',
+  PLAN_TOO_LARGE: 'assistantPlanTooLarge',
+  REVIEW_CHANGED: 'assistantAlreadyAnswered',
+  EDIT_CONFLICT: 'assistantEditConflict',
+  NO_CONTEXT_CARD: 'assistantNoContext',
+  USE_BUTTONS: 'assistantUseButtons',
+  DEFAULTS_FORBIDDEN: 'assistantDefaultsForbidden',
+  OFFER_NOT_FOUND: 'assistantNotFoundQuoted',
+  ACCOUNT_NOT_FOUND: 'assistantNotFoundQuoted',
+  MATERIAL_NOT_FOUND: 'assistantNotFoundQuoted',
+  NOT_FOUND: 'assistantNotFoundQuoted',
+  NO_FREE_ACCOUNTS: 'assistantNoFreeAccounts',
+  OFFER_CREATE_FORBIDDEN: 'assistantOfferForbidden',
+  ACCOUNT_CREATE_FORBIDDEN: 'assistantAccountForbidden',
+  NOTES_NOT_FOUND: 'assistantNotesNotFound',
+  NOTES_TRANSLATE_FAILED: 'assistantNotesTranslateFailed',
+  FIELD_FORM_ONLY: 'assistantFieldFormOnly',
+  FIELD_NOT_SUPPORTED: 'assistantFieldFormOnly',
+  INVALID_VALUE: 'assistantInvalidValue',
+  NOT_SAID: 'assistantNotSaid',
+  OP_NOT_ALLOWED: 'assistantInvalidValue',
+  NOT_CATALOG: 'assistantNotCatalog',
+  LAUNCHED: 'assistantLaunchedRow',
+  CHANGED_AFTER: 'assistantChangedAfter',
+  FIELD_CHANGED: 'assistantFieldChanged',
+  INVALID_DATE: 'assistantInvalidDate',
+  FUTURE_FINANCE_DATE: 'assistantFutureDate',
+  PERIOD_TOO_LONG: 'assistantPeriodTooLong',
+  INVALID_AMOUNT: 'assistantInvalidAmount',
+  DUPLICATE_TARGET: 'assistantDuplicateTarget',
+  TOO_MANY: 'assistantTooMany',
+  AMBIGUOUS_FOLDER: 'assistantAmbiguousFolder',
+  FOLDER_NOT_FOUND: 'assistantFolderNotFound',
+  INVALID_NAME: 'assistantInvalidName',
+  NAME_CONFLICT: 'assistantNameConflict',
+  NOTHING_TO_CHANGE: 'assistantNothingToChange',
+  PERSON_NOT_FOUND: 'assistantPersonNotFound',
+  AMBIGUOUS_PERSON: 'assistantAmbiguousPerson',
+  INVALID_EMAIL: 'assistantInvalidEmail',
+  PERMISSION_DENIED: 'assistantPermissionDenied',
+  OWNER_TRANSFER_REQUIRED: 'assistantOwnerRole',
+  AMBIGUOUS_TARGET: 'assistantAmbiguousTarget',
+  FOLDER_MOVE_UNSUPPORTED: 'assistantFolderMoveUnsupported',
+  INVALID_INPUT: 'assistantInvalidValue'
+};
+
+/** What a blocked draft still needs, in words of the form. */
+const FIELD_COPY: ReadonlyArray<[RegExp, TranslationKey]> = [
+  [/^agentRowId$/u, 'assistantFieldAccount'],
+  [/^offerId$/u, 'assistantFieldOffer'],
+  [/^buyerId$/u, 'assistantFieldBuyer'],
+  [/^(materialId|creatives|creativeAlias|creativeKind)$/u, 'assistantFieldCreative'],
+  [/^originalUrl$/u, 'assistantFieldUrl'],
+  [/^(launchDate|timezone)$/u, 'assistantFieldDate'],
+  [/^(minBudget|maxBudget|budgets|budgetMode)$/u, 'assistantFieldBudget'],
+  [/^(campaignCount|adsCount)$/u, 'assistantFieldCampaigns'],
+  [/^catalog/u, 'assistantFieldCatalog']
+];
+
+const PROFILE_FIELD_COPY: Readonly<Record<string, TranslationKey>> = {
+  campaignCount: 'assistantFieldCampaignCount',
+  adsCount: 'assistantFieldAdsCount',
+  minBudget: 'assistantFieldMinBudget',
+  maxBudget: 'assistantFieldMaxBudget',
+  budgetMode: 'assistantFieldBudgetMode',
+  budgets: 'assistantFieldBudgets',
+  'catalog.productCount': 'assistantFieldProducts',
+  'catalog.copyVideoToR2': 'assistantFieldR2',
+  'catalog.restitchEnabled': 'assistantFieldRestitch',
+  originalUrl: 'assistantProfileUrl',
+  buyerId: 'assistantProfileBuyer',
+  launchDate: 'assistantProfileDate',
+  'subConfig.sub1': 'assistantFieldSub1',
+  'subConfig.sub2': 'assistantFieldSub2',
+  'subConfig.sub3': 'assistantFieldSub3',
+  notes: 'assistantFieldNotes'
+};
+
+const OPEN_KEY = 'soty.assistant.open';
+
+// Open is remembered for this tab only (owner, 2026-11-23: the window covered too much): moving
+// between sections keeps it as it was, a new visit starts with the small button.
+function readOpen(): boolean {
+  try {
+    return sessionStorage.getItem(OPEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeOpen(value: boolean): void {
+  try {
+    sessionStorage.setItem(OPEN_KEY, value ? '1' : '0');
+  } catch {
+    /* a per-viewer convenience only */
+  }
+}
+
+function key(): string {
+  return crypto.randomUUID().replace(/-/gu, '');
+}
+
+function stem(name: string): string {
+  return name.replace(/\.[A-Za-z0-9]{1,5}$/u, '');
+}
+
+interface ReleaseAgent {
+  agentRowId: string;
+  label: string;
+  launches: number;
+  runs: number;
+  legacy: number;
+}
+
+export interface AssistantWidgetProps {
+  teamId: string;
+  canEdit: boolean;
+}
+
+export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
+  const { t, language } = useI18n();
+  const credits = useCredits(canEdit);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [messages, setMessages] = useState<AssistantMessage[]>([]);
+  const [dialogId, setDialogId] = useState<string | null>(null);
+  const [dialogs, setDialogs] = useState<AssistantDialog[]>([]);
+  const [text, setText] = useState('');
+  // What is waiting, kept apart so one wait does not light up every button in the dialog: the
+  // model reading a message, one card acting (its own buttons only), a dialog being opened.
+  const [thinking, setThinking] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const busy = thinking || pending !== null || switching;
+  const [error, setError] = useState<string | null>(null);
+  const [panel, setPanel] = useState(readOpen);
+  const [menu, setMenu] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const pendingKey = useRef<{ text: string; key: string } | null>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const list = useRef<HTMLOListElement>(null);
+  const menuAnchor = useRef<HTMLButtonElement>(null);
+  const fab = useRef<HTMLButtonElement>(null);
+
+  const apply = (conversation: AssistantConversation) => {
+    setDialogId(conversation.conversationId);
+    setDialogs(conversation.dialogs);
+    setMessages(conversation.messages);
+    setCredits(conversation.credits);
+    setError(null);
+  };
+
+  useEffect(() => {
+    if (!canEdit) return;
+    let live = true;
+    assistantApi
+      .open(teamId)
+      .then(conversation => {
+        if (!live) return;
+        setEnabled(conversation.enabled);
+        apply(conversation);
+      })
+      .catch(() => live && setEnabled(false));
+    const reveal = () => {
+      setPanel(true);
+      writeOpen(true);
+      requestAnimationFrame(() => input.current?.focus());
+    };
+    window.addEventListener('soty:open-assistant', reveal);
+    return () => {
+      live = false;
+      window.removeEventListener('soty:open-assistant', reveal);
+    };
+  }, [teamId, canEdit]);
+
+  useEffect(() => {
+    const last = list.current?.lastElementChild as HTMLElement | null | undefined;
+    if (last && typeof last.scrollIntoView === 'function')
+      last.scrollIntoView({ block: 'nearest' });
+  }, [messages.length, panel, error]);
+
+  // The field grows with the text, from one line to about six.
+  useLayoutEffect(() => {
+    const field = input.current;
+    if (!field) return;
+    field.style.height = 'auto';
+    field.style.height = `${Math.min(field.scrollHeight, 160)}px`;
+  }, [text, enabled, panel]);
+
+  // The card «у другому» refers to: the newest card with rows.
+  const contextCard = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const card = messages[i]!.cards.find(
+        c =>
+          (c.kind === 'result' || c.kind === 'review') &&
+          Array.isArray(c.payload.rows) &&
+          (c.payload.rows as unknown[]).length > 0
+      );
+      if (card) return card.id;
+    }
+    return null;
+  }, [messages]);
+
+  if (!canEdit || enabled !== true) return null;
+
+  const trimmed = text.trim();
+  const free = quickAssistantIntent(trimmed) !== null;
+  const price = trimmed ? (free ? 0 : assistantMessagePrice(trimmed)) : null;
+  const count = characterCount(text);
+  const available = credits.status?.available ?? null;
+  const short =
+    price !== null && price > 0 && available !== null && available < price ? price - available : 0;
+  const tooLong = count > ASSISTANT_MESSAGE_MAX_CHARACTERS;
+
+  // Opening puts the cursor in the field. Folding gives focus back to the corner button only
+  // from the keyboard (Escape): after a mouse click its focus ring was a stray frame.
+  const toggle = (value: boolean, fromKeyboard = false) => {
+    setPanel(value);
+    writeOpen(value);
+    if (value) requestAnimationFrame(() => input.current?.focus());
+    else if (fromKeyboard) requestAnimationFrame(() => fab.current?.focus());
+  };
+
+  const switchDialog = async (next: string) => {
+    // A reply on its way belongs to the dialog it was sent from.
+    if (busy) return;
+    setSwitching(true);
+    try {
+      apply(
+        next === 'new'
+          ? await assistantApi.newDialog(teamId)
+          : await assistantApi.open(teamId, next)
+      );
+      requestAnimationFrame(() => input.current?.focus());
+    } catch (caught) {
+      setError(teamErrorMessageFor(caught, t));
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  const dayLabel = (date: string | null) => {
+    if (!date) return null;
+    const today = new Date();
+    const local = (offset: number) => {
+      const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset);
+      return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    };
+    if (date === local(0)) return t('assistantToday');
+    if (date === local(1)) return t('assistantTomorrow');
+    return new Date(`${date}T12:00:00`).toLocaleDateString(language, {
+      day: 'numeric',
+      month: 'short'
+    });
+  };
+
+  const reasonText = (code: string, written?: string) => {
+    const copy = REASON_COPY[code];
+    return copy
+      ? t(copy, { written: written ?? '', text: written ?? '' })
+      : t('assistantUnavailable');
+  };
+
+  const missing = (item: AssistantRow) => {
+    if (item.blocked.some(entry => entry.code === 'GENERATING')) return t('assistantGeneratingRow');
+    if (item.blocked.some(entry => entry.code === 'LAUNCHED')) return t('assistantLaunchedRow');
+    const words = new Set<string>();
+    for (const entry of item.blocked) {
+      const match = FIELD_COPY.find(([pattern]) => pattern.test(entry.field));
+      words.add(t(match ? match[1] : 'assistantFieldOther'));
+    }
+    return words.size ? t('assistantMissing', { fields: [...words].join(', ') }) : null;
+  };
+
+  const take = async (
+    run: () => Promise<{ message: AssistantMessage | null; credits: unknown }>,
+    optimistic?: AssistantMessage,
+    cardId?: string
+  ) => {
+    if (cardId) setPending(cardId);
+    else setThinking(true);
+    setError(null);
+    if (optimistic) setMessages(current => [...current, optimistic]);
+    try {
+      const reply = await run();
+      setCredits(reply.credits as never);
+      if (reply.message) setMessages(current => [...current, reply.message!]);
+      if (optimistic && dialogId && !dialogs.find(dialog => dialog.id === dialogId)?.title) {
+        // The first message names the dialog on the server; show it without another read.
+        const title = optimistic.text.slice(0, 80);
+        setDialogs(current =>
+          current.some(dialog => dialog.id === dialogId)
+            ? current.map(dialog => (dialog.id === dialogId ? { ...dialog, title } : dialog))
+            : [{ id: dialogId, title, lastActiveAt: new Date().toISOString() }, ...current]
+        );
+      }
+      notifyLaunchesChanged(teamId);
+      return true;
+    } catch (caught) {
+      setError(teamErrorMessageFor(caught, t));
+      // Not sent: the text stays in the field, not as a message that looks delivered.
+      if (optimistic)
+        setMessages(current => current.filter(message => message.id !== optimistic.id));
+      void refreshCredits();
+      return false;
+    } finally {
+      if (cardId) setPending(null);
+      else setThinking(false);
+    }
+  };
+
+  /**
+   * Claims an action card before anything runs. Refused — run in another tab, cancelled, already
+   * done — the dialog is read again so it shows what really happened, and nothing runs.
+   */
+  const claim = async (card: AssistantCard) => {
+    try {
+      await assistantApi.cardClaim(card.id);
+      return true;
+    } catch (caught) {
+      const code = caught instanceof TeamApiError ? caught.code : null;
+      setError(
+        code === 'REVIEW_CHANGED' ? t('assistantCardHandled') : teamErrorMessageFor(caught, t)
+      );
+      if (dialogId)
+        void assistantApi
+          .open(teamId, dialogId)
+          .then(apply)
+          .catch(() => undefined);
+      return false;
+    }
+  };
+
+  /** Where a claimed card ends, with its counts, so a reload shows the same as now. */
+  const finish = (
+    card: AssistantCard,
+    state: 'confirmed' | 'open' | 'stale',
+    result: Record<string, number>
+  ) => {
+    markCard(card.id, { state, payload: { ...card.payload, ...result } });
+    void assistantApi.cardFinish(card.id, state, result).catch(() => undefined);
+  };
+
+  const send = async () => {
+    if (busy || !trimmed || price === null || short > 0 || tooLong) return;
+    const clientKey = pendingKey.current?.text === trimmed ? pendingKey.current.key : key();
+    pendingKey.current = { text: trimmed, key: clientKey };
+    const flow = observeAssistant('send');
+    const ok = await take(
+      () =>
+        assistantApi.send({
+          teamId,
+          dialogId,
+          text: trimmed,
+          clientKey,
+          price,
+          contextCardId: contextCard,
+          // The last request that did something — a question or a refusal is not what «те саме»
+          // means (found on next 2026-11-22: it picked its own «що саме повторити?»).
+          previousCommandIds: [...messages]
+            .reverse()
+            .filter(
+              message =>
+                message.role === 'assistant' &&
+                message.commandId &&
+                message.cards.some(card => card.kind !== 'question' && card.kind !== 'refusal')
+            )
+            .slice(0, 3)
+            .map(message => message.commandId!)
+        }),
+      {
+        id: -Date.now(),
+        role: 'user',
+        text: trimmed,
+        price,
+        commandId: null,
+        createdAt: new Date().toISOString(),
+        cards: []
+      }
+    );
+    flow.finish(ok ? 'success' : 'failure');
+    // The field takes the next message, whether the button or a key sent this one.
+    requestAnimationFrame(() => input.current?.focus());
+    if (ok) {
+      pendingKey.current = null;
+      setText('');
+    }
+  };
+
+  // Enter sends, Shift+Enter breaks the line, as in every chat; Escape folds the window.
+  const onKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void send();
+    } else if (event.key === 'Escape' && !text) {
+      toggle(false, true);
+    }
+  };
+
+  const markCard = (cardId: string, patch: Partial<AssistantCard>) =>
+    setMessages(current =>
+      current.map(message => ({
+        ...message,
+        cards: message.cards.map(card => (card.id === cardId ? { ...card, ...patch } : card))
+      }))
+    );
+
+  const launch = async (card: AssistantCard) => {
+    const rows = ((card.payload.rows as AssistantRow[]) ?? []).filter(
+      item => item.blocked.length === 0
+    );
+    if (!rows.length || busy) return;
+    const batchKey =
+      typeof card.payload.batchKey === 'string' ? card.payload.batchKey : crypto.randomUUID();
+    // The key lives on the card from the first press: a retry sends the same batch, not a new one.
+    markCard(card.id, { payload: { ...card.payload, batchKey } });
+    const flow = observeAssistant('launch');
+    setPending(card.id);
+    setError(null);
+    let claimed = false;
+    try {
+      await assistantApi.reviewLaunched(card.id, batchKey);
+      claimed = true;
+      await launchRows(
+        teamId,
+        rows.map(item => ({ launchId: item.launchId, version: item.version })),
+        batchKey
+      );
+      markCard(card.id, { state: 'launched', payload: { ...card.payload, batchKey } });
+      flow.finish('success');
+    } catch (caught) {
+      flow.finish('failure');
+      // The batch was not accepted: the card must not go on saying «Передано в генерацію».
+      if (claimed) {
+        markCard(card.id, { state: 'open', payload: { ...card.payload, batchKey } });
+        void assistantApi.cardFinish(card.id, 'open', null).catch(() => undefined);
+      }
+      // A card from earlier in the dialog shows drafts as they were; changed or removed since,
+      // they are not launched, and the person is told how to get a current card.
+      const code = caught instanceof TeamApiError ? caught.code : null;
+      setError(
+        code === 'REVIEW_CHANGED' || code === 'NOT_FOUND' || code === 'LAUNCH_VERSION_CONFLICT'
+          ? t('assistantCardStale')
+          : teamErrorMessageFor(caught, t)
+      );
+    } finally {
+      setPending(null);
+    }
+  };
+
+  // «Видалити N»: the person's own archive of each draft, with the version the card showed.
+  const archive = async (card: AssistantCard) => {
+    const rows = (card.payload.rows as AssistantRow[]) ?? [];
+    if (!rows.length || busy) return;
+    setPending(card.id);
+    setError(null);
+    if (!(await claim(card))) {
+      setPending(null);
+      return;
+    }
+    let failed = 0;
+    for (const item of rows) {
+      try {
+        await launchApi.archive(teamId, item.launchId, item.version, key(), false);
+      } catch {
+        failed++;
+      }
+    }
+    finish(card, failed < rows.length ? 'confirmed' : 'open', {
+      archived: rows.length - failed,
+      failed
+    });
+    if (failed) setError(t('assistantArchiveFailed', { count: failed }));
+    notifyLaunchesChanged(teamId);
+    setPending(null);
+  };
+
+  // «Звільнити N»: each ad account released as in Accounts — read its version, then release.
+  const release = async (card: AssistantCard) => {
+    const agents = ((card.payload.agents as ReleaseAgent[]) ?? []).filter(agent => !agent.legacy);
+    if (!agents.length || busy) return;
+    setPending(card.id);
+    setError(null);
+    if (!(await claim(card))) {
+      setPending(null);
+      return;
+    }
+    let failed = 0;
+    for (const agent of agents) {
+      try {
+        const state = await agentReleaseApi.read(teamId, agent.agentRowId);
+        await agentReleaseApi.release({
+          teamId,
+          agentRowId: agent.agentRowId,
+          expectedVersion: String(state.version),
+          requestKey: crypto.randomUUID()
+        });
+      } catch {
+        failed++;
+      }
+    }
+    finish(card, failed < agents.length ? 'confirmed' : 'open', {
+      released: agents.length - failed,
+      failed
+    });
+    if (failed) setError(t('assistantReleaseFailed', { count: failed }));
+    notifyLaunchesChanged(teamId);
+    setPending(null);
+  };
+
+  // A tool card's button: the rows go through the screens' own API, then the card remembers it.
+  const runTool = async (card: AssistantCard) => {
+    if (busy) return;
+    setPending(card.id);
+    setError(null);
+    if (!(await claim(card))) {
+      setPending(null);
+      return;
+    }
+    try {
+      const outcome = await runToolCard(
+        teamId,
+        card.id,
+        card.payload as Parameters<typeof runToolCard>[2]
+      );
+      const counts = { done: outcome.done, failed: outcome.failed };
+      // Nothing went because what the card showed has changed since: the card is spent — pressing
+      // again would fail the same way — and the person is told to ask again for a fresh one.
+      const stale = outcome.done === 0 && outcome.code !== null && STALE_CODES.has(outcome.code);
+      finish(card, outcome.done > 0 ? 'confirmed' : stale ? 'stale' : 'open', counts);
+      if (stale) {
+        setError(t('assistantToolStale'));
+      }
+      // Why it failed, in the words the screens use for the same refusal.
+      else if (outcome.failed > 0)
+        setError(
+          [
+            t('assistantToolFailedShort', { count: outcome.failed }),
+            outcome.code
+              ? teamErrorMessageFor(new TeamApiError(outcome.code as never, false), t)
+              : null
+          ]
+            .filter(Boolean)
+            .join(' ')
+        );
+      notifyLaunchesChanged(teamId);
+    } catch (caught) {
+      // Nothing is known to have run: the card is open again for another try.
+      finish(card, 'open', { done: 0, failed: 0 });
+      setError(teamErrorMessageFor(caught, t));
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const releaseCard = (card: AssistantCard) => {
+    const agents = (card.payload.agents as ReleaseAgent[]) ?? [];
+    const releasable = agents.filter(agent => !agent.legacy);
+    const done = card.state === 'confirmed';
+    const runs = releasable.reduce((sum, agent) => sum + agent.runs, 0);
+    return (
+      <section key={card.id} className="assistant-card">
+        <p className="assistant-card-title">
+          <Unlink size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          {agents.length
+            ? t('assistantReleaseTitle', { count: agents.length })
+            : t('assistantReleaseNone')}
+        </p>
+        {agents.length > 0 && (
+          <ul className="assistant-rows">
+            {agents.map(agent => (
+              <li key={agent.agentRowId} className="assistant-row">
+                <span className="assistant-row-line">
+                  <span className="assistant-chip">{agent.label}</span>
+                  <span className="assistant-row-facts">
+                    {[
+                      agent.launches
+                        ? t('assistantReleaseLaunches', { count: agent.launches })
+                        : null,
+                      agent.runs ? t('assistantReleaseRuns', { count: agent.runs }) : null
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </span>
+                {agent.legacy > 0 && (
+                  <span className="assistant-row-line is-sub">
+                    <span className="assistant-row-need">
+                      <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                      {t('assistantReleaseLegacy')}
+                    </span>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {runs > 0 && !done && <p className="assistant-note">{t('assistantReleaseRunsNote')}</p>}
+        {releasable.length > 0 && (
+          <div className="assistant-card-actions">
+            {done ? (
+              <span className="assistant-note is-success">
+                <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {t('assistantReleased', {
+                  count:
+                    typeof card.payload.released === 'number'
+                      ? card.payload.released
+                      : releasable.length
+                })}
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                color="warning"
+                variant="soft"
+                loading={pending === card.id}
+                disabled={busy && pending !== card.id}
+                leading={<Unlink size={16} strokeWidth={ICON_STROKE} />}
+                onClick={() => void release(card)}
+              >
+                {t('assistantRelease', { count: releasable.length })}
+              </Button>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  const answer = (card: AssistantCard, optionId: string) => {
+    markCard(card.id, { state: 'answered', payload: { ...card.payload, answer: optionId } });
+    void take(() => assistantApi.answer(teamId, dialogId, card.id, optionId, key())).then(ok => {
+      if (!ok) markCard(card.id, { state: 'open', payload: { ...card.payload } });
+    });
+  };
+
+  // «Кампаній: — → 3», not «campaignCount: — → 3»: the words of the form, values without JSON.
+  const fieldName = (path: string) => {
+    const key = PROFILE_FIELD_COPY[path];
+    return key ? t(key) : path;
+  };
+  const fieldValue = (raw: string | null) => {
+    if (raw === null) return '—';
+    let value: unknown = raw;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      /* a plain string */
+    }
+    if (value === true) return t('assistantValueYes');
+    if (value === false) return t('assistantValueNo');
+    if (value === null || value === '') return '—';
+    if (value === 'auto') return t('assistantBudgetRange');
+    if (value === 'single') return t('assistantBudgetSingle');
+    if (value === 'manual') return t('assistantBudgetManual');
+    if (Array.isArray(value)) return value.join(', ');
+    return String(value);
+  };
+
+  const row = (item: AssistantRow, openable: boolean) => {
+    const need = missing(item);
+    const facts = [
+      item.campaignCount !== null
+        ? t('assistantCampaignsShort', { count: item.campaignCount })
+        : null,
+      item.productCount !== null ? t('assistantProductsShort', { count: item.productCount }) : null,
+      item.budget ? `${item.budget} $` : null,
+      item.r2 ? t('assistantR2Short') : null
+    ].filter(Boolean);
+    return (
+      <li key={item.launchId} className="assistant-row">
+        <span className="assistant-row-line">
+          <span className={`assistant-chip${item.account ? '' : ' is-missing'}`}>
+            {item.account ?? t('assistantFieldAccount')}
+          </span>
+          {item.offer && <span className="assistant-row-offer">{item.offer}</span>}
+          {item.creatives.map(name => (
+            <span key={name} className="assistant-chip is-creative">
+              {stem(name)}
+            </span>
+          ))}
+          {openable && (
+            <IconButton
+              size="xs"
+              variant="ghost"
+              className="assistant-row-open"
+              label={t('assistantOpenLaunch')}
+              onClick={() => {
+                // The launch opens over the space; the window folds so it does not cover the form.
+                openLaunch(teamId, item.launchId);
+                toggle(false);
+              }}
+            >
+              <ArrowUpRight size={14} strokeWidth={ICON_STROKE} />
+            </IconButton>
+          )}
+        </span>
+        {(facts.length > 0 || need) && (
+          <span className="assistant-row-line is-sub">
+            {facts.length > 0 && <span className="assistant-row-facts">{facts.join(' · ')}</span>}
+            {need && (
+              <span className="assistant-row-need">
+                <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {need}
+              </span>
+            )}
+          </span>
+        )}
+      </li>
+    );
+  };
+
+  const rowsCard = (card: AssistantCard, message: AssistantMessage) => {
+    const payload = card.payload as Record<string, unknown>;
+    const rows = (payload.rows as AssistantRow[] | undefined) ?? [];
+    const unresolved = (payload.unresolved as Array<{ code: string; written: string }>) ?? [];
+    const ready = rows.filter(item => item.blocked.length === 0).length;
+    const date = dayLabel(
+      typeof payload.date === 'string' ? payload.date : (rows[0]?.launchDate ?? null)
+    );
+    const launched = card.state === 'launched';
+    const removing = payload.purpose === 'archive';
+    const removed = removing && card.state === 'confirmed';
+    const kept = typeof payload.launchedKept === 'number' ? payload.launchedKept : 0;
+    const generatingKept = typeof payload.generatingKept === 'number' ? payload.generatingKept : 0;
+    const launchedIncluded =
+      typeof payload.launchedIncluded === 'number' ? payload.launchedIncluded : 0;
+    const created = Array.isArray(payload.createdOffers) ? (payload.createdOffers as string[]) : [];
+    // Drafts that cannot go yet and are not simply launched: the card says so and what to write.
+    const unfinished = rows.filter(
+      item => item.blocked.length > 0 && !item.blocked.some(entry => entry.code === 'LAUNCHED')
+    ).length;
+    const settled = removing || launched || card.state === 'undone';
+    return (
+      <section
+        key={card.id}
+        className={`assistant-card${card.state === 'undone' ? ' is-undone' : ''}`}
+      >
+        {rows.length > 0 && (
+          <p className="assistant-card-title">
+            {removing ? (
+              <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            ) : unfinished > 0 ? (
+              <AlertTriangle
+                className="assistant-card-warning"
+                size={16}
+                strokeWidth={ICON_STROKE}
+                aria-hidden="true"
+              />
+            ) : (
+              <CheckCircle2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            )}
+            {[
+              removing
+                ? t(
+                    launchedIncluded > 0
+                      ? 'assistantArchiveTitleLaunches'
+                      : 'assistantArchiveTitle',
+                    {
+                      count: rows.length
+                    }
+                  )
+                : t(assistantDraftsKey(language, rows.length), { count: rows.length }),
+              date
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        )}
+        {created.length > 0 && (
+          <p className="assistant-note is-success">
+            <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t('assistantOfferCreated', { name: created.join(', ') })}
+          </p>
+        )}
+        {rows.length === 0 && card.kind === 'review' && (
+          <p className="assistant-note">
+            {t(removing ? 'assistantArchiveEmpty' : 'assistantReviewEmpty')}
+          </p>
+        )}
+        {kept > 0 && (
+          <p className="assistant-note">{t('assistantArchiveKeptLaunched', { count: kept })}</p>
+        )}
+        {removing && launchedIncluded > 0 && !removed && (
+          <p className="assistant-note">
+            {t('assistantArchiveLaunchedIncluded', { count: launchedIncluded })}
+          </p>
+        )}
+        {removing && generatingKept > 0 && (
+          <p className="assistant-note is-warning">
+            {t('assistantArchiveGeneratingKept', { count: generatingKept })}
+          </p>
+        )}
+        {rows.length > 0 && (
+          <ul className="assistant-rows">
+            {rows.map(item => row(item, !removed && card.state !== 'undone'))}
+          </ul>
+        )}
+        {unresolved.length > 0 && (
+          <ul className="assistant-notes">
+            {unresolved.map((item, index) => (
+              <li key={index} className="assistant-note is-warning">
+                <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {reasonText(item.code, item.written)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {unfinished > 0 && !settled && (
+          <p className="assistant-note is-warning">
+            {t('assistantNotReady', { count: unfinished })}
+          </p>
+        )}
+        {payload.truncated === true && (
+          <p className="assistant-note">{t('assistantReviewTruncated')}</p>
+        )}
+        {rows.length > 0 && removing && (
+          <div className="assistant-card-actions">
+            {removed ? (
+              <span className="assistant-note is-success">
+                <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {t('assistantArchived', {
+                  count: typeof payload.archived === 'number' ? payload.archived : rows.length
+                })}
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                color="error"
+                variant="soft"
+                loading={pending === card.id}
+                disabled={busy && pending !== card.id}
+                leading={<Trash2 size={16} strokeWidth={ICON_STROKE} />}
+                onClick={() => void archive(card)}
+              >
+                {t('assistantArchive', { count: rows.length })}
+              </Button>
+            )}
+          </div>
+        )}
+        {rows.length > 0 && !removing && card.state === 'undone' && (
+          <p className="assistant-note">
+            <Undo2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t('assistantCardUndone')}
+          </p>
+        )}
+        {rows.length > 0 && !removing && card.state !== 'undone' && (
+          <div className="assistant-card-actions">
+            {launched ? (
+              <span className="assistant-note is-success">
+                <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                {t('assistantLaunched')}
+              </span>
+            ) : (
+              ready > 0 && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  loading={pending === card.id}
+                  disabled={busy && pending !== card.id}
+                  leading={<Play size={16} strokeWidth={ICON_STROKE} />}
+                  onClick={() => void launch(card)}
+                >
+                  {t('assistantLaunch', { count: ready })}
+                </Button>
+              )
+            )}
+            {card.kind === 'result' && message.commandId && !launched && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                leading={<Undo2 size={16} strokeWidth={ICON_STROKE} />}
+                onClick={() =>
+                  void take(
+                    () => assistantApi.undo(teamId, dialogId, message.commandId!, key()),
+                    undefined,
+                    card.id
+                  ).then(ok => {
+                    if (ok) markCard(card.id, { state: 'undone' });
+                  })
+                }
+              >
+                {t('assistantUndo')}
+              </Button>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  };
+
+  const renderCard = (card: AssistantCard, message: AssistantMessage) => {
+    const payload = card.payload as Record<string, unknown>;
+    switch (card.kind) {
+      case 'table':
+        return <TableCard key={card.id} card={card} />;
+      case 'result':
+      case 'review':
+        if (payload.purpose === 'release') return releaseCard(card);
+        if (payload.purpose === 'tool')
+          return (
+            <ToolReviewCard
+              key={card.id}
+              card={card}
+              pending={pending === card.id}
+              disabled={busy && pending !== card.id}
+              onRun={() => void runTool(card)}
+              onDismiss={() => {
+                markCard(card.id, { state: 'stale' });
+                void assistantApi.cardDismissed(card.id).catch(() => undefined);
+              }}
+            />
+          );
+        return rowsCard(card, message);
+      case 'question': {
+        const options = (payload.options as Array<{ id: string; label: string }>) ?? [];
+        return (
+          <div key={card.id} className="assistant-question">
+            <p className="assistant-text">{String(payload.about ?? '')}</p>
+            <div className="assistant-card-actions">
+              {options.map(option => (
+                <Button
+                  key={option.id}
+                  size="xs"
+                  variant={
+                    card.state === 'answered' && payload.answer === option.id ? 'soft' : 'outline'
+                  }
+                  disabled={thinking || card.state !== 'open'}
+                  onClick={() => answer(card, option.id)}
+                >
+                  {stem(option.label)}
+                </Button>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      case 'profile': {
+        const changes =
+          (payload.changes as Array<{ field: string; from: string | null; to: string }>) ?? [];
+        return (
+          <section key={card.id} className="assistant-card">
+            <p className="assistant-card-title">
+              {t('assistantProfileTitle', { offer: String(payload.offer ?? '') })}
+            </p>
+            <div className="assistant-card-actions">
+              {changes.map((change, index) => (
+                <span key={index} className="assistant-chip">
+                  {`${fieldName(change.field)}: ${fieldValue(change.from)} → ${fieldValue(change.to)}`}
+                </span>
+              ))}
+            </div>
+            {card.state === 'open' && (
+              <div className="assistant-card-actions">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  loading={pending === card.id}
+                  disabled={busy && pending !== card.id}
+                  onClick={() =>
+                    void take(
+                      () => assistantApi.confirmProfile(teamId, dialogId, card.id, key()),
+                      undefined,
+                      card.id
+                    ).then(ok => {
+                      if (ok) markCard(card.id, { state: 'confirmed' });
+                    })
+                  }
+                >
+                  {t('assistantProfileSave')}
+                </Button>
+              </div>
+            )}
+          </section>
+        );
+      }
+      case 'status': {
+        if (Array.isArray(payload.accountsCreated))
+          return (
+            <div key={card.id}>
+              {(payload.accountsCreated as Array<{ name: string; agents: string[] }>).map(
+                account => (
+                  <p key={account.name} className="assistant-note is-success">
+                    <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    {account.agents.length
+                      ? t('assistantAccountCreated', {
+                          name: account.name,
+                          agents: account.agents.join(', ')
+                        })
+                      : t('assistantAccountCreatedEmpty', { name: account.name })}
+                  </p>
+                )
+              )}
+            </div>
+          );
+        if (Array.isArray(payload.offersCreated))
+          return (
+            <p key={card.id} className="assistant-note is-success">
+              <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {t('assistantOfferCreated', { name: (payload.offersCreated as string[]).join(', ') })}
+            </p>
+          );
+        if (typeof payload.profileSaved === 'string')
+          return (
+            <p key={card.id} className="assistant-note is-success">
+              <CheckCircle2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {t('assistantProfileSaved', { offer: payload.profileSaved })}
+            </p>
+          );
+        const kept = (payload.kept as Array<{ code: string }>) ?? [];
+        return (
+          <p key={card.id} className="assistant-note">
+            <Undo2 size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {t('assistantUndone', { count: Number(payload.undone ?? 0) })}
+            {kept.length > 0 &&
+              ` · ${t('assistantKept', { count: kept.length })}: ${[...new Set(kept.map(k => reasonText(k.code)))].join('; ')}`}
+          </p>
+        );
+      }
+      case 'refusal': {
+        const details = (payload.details as Record<string, unknown> | undefined) ?? {};
+        return (
+          <p key={card.id} className="assistant-note is-warning" role="status">
+            <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {reasonText(
+              String(payload.code),
+              typeof details.text === 'string' ? details.text : undefined
+            )}
+          </p>
+        );
+      }
+      default:
+        return null;
+    }
+  };
+
+  const sendLabel = price
+    ? t(price === 1 ? 'assistantSendPrice' : 'assistantSendPriceFew', { price })
+    : t('assistantSendFree');
+  // A dialog is named by its first message; shown as a title, it starts with a capital letter.
+  const titled = (title: string | null) =>
+    title ? title.charAt(0).toLocaleUpperCase(language) + title.slice(1) : null;
+  const currentTitle =
+    titled(dialogs.find(dialog => dialog.id === dialogId)?.title ?? null) ?? t('assistantTitle');
+  // Today's dialogs differ by the hour, older ones by the day.
+  const when = (at: string) => {
+    const date = new Date(at);
+    return date.toDateString() === new Date().toDateString()
+      ? date.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })
+      : date.toLocaleDateString(language, { day: 'numeric', month: 'short' });
+  };
+
+  // On the page itself, not inside the section: a section's route transition moves its content,
+  // and a fixed corner inside moving content jumped with every click between sections.
+  const dock = (content: ReactNode) => createPortal(content, document.body);
+
+  if (!panel) {
+    return dock(
+      <div className="assistant-dock">
+        <Button
+          ref={fab}
+          size="md"
+          variant="primary"
+          className="assistant-fab"
+          leading={<Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+          onClick={() => toggle(true)}
+        >
+          {t('assistantTitle')}
+        </Button>
+      </div>
+    );
+  }
+
+  return dock(
+    <div className="assistant-dock">
+      <section className="assistant-window" aria-label={t('assistantTitle')}>
+        <header className="assistant-head">
+          <button
+            ref={menuAnchor}
+            type="button"
+            className="assistant-dialog-switch"
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            onClick={() => setMenu(value => !value)}
+          >
+            <CreditIcon size={18} />
+            <span className="assistant-dialog-title">{currentTitle}</span>
+            <ChevronDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </button>
+          <DropdownMenu
+            open={menu}
+            onClose={() => setMenu(false)}
+            anchor={menuAnchor}
+            label={t('assistantDialogs')}
+            selection="single"
+            maxHeight={360}
+            items={[
+              { heading: t('assistantDialogs') },
+              ...dialogs.map(dialog => ({
+                id: dialog.id,
+                label: titled(dialog.title) ?? t('assistantNewDialog'),
+                checked: dialog.id === dialogId,
+                trailing: when(dialog.lastActiveAt),
+                onSelect: () => void switchDialog(dialog.id)
+              }))
+            ]}
+          />
+          <CreditsButton compact offerAssistant={false} />
+          <IconButton
+            size="sm"
+            label={t('assistantNewDialog')}
+            disabled={switching || thinking}
+            onClick={() => void switchDialog('new')}
+          >
+            <SquarePen size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+          </IconButton>
+          <IconButton size="sm" label={t('assistantMinimize')} onClick={() => toggle(false)}>
+            <Minus size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+          </IconButton>
+        </header>
+        <ol
+          ref={list}
+          className={`assistant-thread${switching ? ' is-switching' : ''}`}
+          aria-live="polite"
+          aria-busy={switching || thinking}
+        >
+          {messages.length === 0 && (
+            <li className="assistant-empty">
+              <p className="assistant-text">{t('assistantEmpty')}</p>
+              <div className="assistant-examples">
+                {(
+                  [
+                    'assistantExample1',
+                    'assistantExample2',
+                    'assistantExample3',
+                    'assistantExample4'
+                  ] as const
+                ).map(example => (
+                  <Button
+                    key={example}
+                    size="xs"
+                    variant="outline"
+                    onClick={() => setText(t(example))}
+                  >
+                    {t(example)}
+                  </Button>
+                ))}
+              </div>
+            </li>
+          )}
+          {messages.map(message => (
+            <li key={message.id} className={`assistant-message is-${message.role}`}>
+              {message.text && <p className="assistant-text">{message.text}</p>}
+              {message.cards.map(card => renderCard(card, message))}
+            </li>
+          ))}
+          {thinking && (
+            <li className="assistant-message is-assistant">
+              <p className="assistant-note">
+                <Spinner /> {t('assistantThinking')}
+              </p>
+            </li>
+          )}
+        </ol>
+        {error && (
+          <p className="assistant-note is-warning assistant-error" role="alert">
+            <AlertTriangle size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {error}
+          </p>
+        )}
+        <div
+          className={`assistant-bar${focused ? ' is-focused' : ''}${tooLong ? ' is-invalid' : ''}`}
+        >
+          <textarea
+            ref={input}
+            rows={1}
+            className="assistant-input"
+            value={text}
+            aria-label={t('assistantTitle')}
+            placeholder={t('assistantPlaceholderShort')}
+            aria-invalid={tooLong || undefined}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onChange={event => setText(event.target.value)}
+            onKeyDown={onKey}
+          />
+          {count > ASSISTANT_MESSAGE_MAX_CHARACTERS - 500 && (
+            <span className="assistant-note">{t('assistantCounter', { count })}</span>
+          )}
+          {short > 0 && credits.status ? (
+            <span className="assistant-note is-warning">
+              {t('assistantShort', {
+                missing: short,
+                time: kyivTime(credits.status.resetsAt, language)
+              })}
+            </span>
+          ) : (
+            price !== null &&
+            price > 0 && (
+              <span className="assistant-price" aria-hidden="true">
+                <CreditIcon size={15} />
+                {price}
+              </span>
+            )
+          )}
+          <IconButton
+            size="sm"
+            color="primary"
+            variant="solid"
+            label={sendLabel}
+            loading={thinking}
+            disabled={busy || !trimmed || price === null || short > 0 || tooLong}
+            onClick={() => void send()}
+          >
+            <ArrowUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+          </IconButton>
+        </div>
+        <p className="assistant-retention">{t('assistantRetention')}</p>
+      </section>
+    </div>
+  );
+}

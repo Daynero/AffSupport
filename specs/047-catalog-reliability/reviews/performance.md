@@ -1,6 +1,6 @@
 # A26 catalog manager performance
 
-Status: **browser latency NOT MEASURED; T053 remains open**. The automated harness below checks counts and semantics only. It does not treat jsdom duration, React Profiler duration or test-run wall time as input-to-paint latency. No p50/p95 or SLA result is claimed.
+Status: **browser latency MEASURED on 2026-11-23; the 500-row target is met for selection only, so T053 remains open**. See “Measured run (2026-11-23)” below for the numbers, the environment and what is still owed.
 
 ## Reproducible synthetic fixture
 
@@ -21,18 +21,30 @@ Status: **browser latency NOT MEASURED; T053 remains open**. The automated harne
 
 ## Raw evidence
 
-`performance.raw.json` is an explicit **NOT MEASURED** template. Empty samples and null percentiles are unknown, not zero and not a pass. Fill baseline and after records only from actual browser measurements. Retain raw trace/frame artifacts, environment, source/bundle IDs, cold-load samples and any failed/aborted action. T053 cannot close from automated count guards alone.
+`performance.raw.json` holds the reviewed summaries of the 2026-11-23 browser run (baseline and after). Second-OS parity is still an explicit **NOT MEASURED** record; its null percentiles are unknown, not zero and not a pass. Retain raw trace/frame artifacts, environment, source/bundle IDs, cold-load samples and any failed/aborted action. T053 cannot close from automated count guards alone.
 
-| Size | Browser baseline | Browser after | Search p95 | Selection p95 | Details p95 |
-| ---: | ---------------- | ------------- | ---------- | ------------- | ----------- |
-|    0 | Not measured     | Not measured  | Unknown    | Unknown       | Unknown     |
-|   60 | Not measured     | Not measured  | Unknown    | Unknown       | Unknown     |
-|  500 | Not measured     | Not measured  | Unknown    | Unknown       | Unknown     |
-| 2000 | Not measured     | Not measured  | Unknown    | Unknown       | Unknown     |
+| Size | Cold entry→draw p95 | Search p95 | Selection p95 | Details open p95 | Details close p95 |
+| ---: | ------------------: | ---------: | ------------: | ---------------: | ----------------: |
+|    0 |              102 ms |      15 ms |           N/A |              N/A |               N/A |
+|   60 |              692 ms |     337 ms |        190 ms |           227 ms |            401 ms |
+|  500 |              661 ms | **369 ms** |    **188 ms** |       **222 ms** |        **414 ms** |
+| 2000 |              646 ms |     356 ms |        194 ms |           216 ms |            387 ms |
 
-## Prepared real-browser runner (not executed yet)
+“After” phase, 50 verified samples per action (10 per cold load), nearest-rank percentiles. Baseline numbers are in `performance.raw.json`.
 
-`node scripts/catalog-manager-browser-performance.mjs` without `--execute` only prints usage. The runner has **not been executed**. All 3 pure proof guards passed in `28510`; full script types (`64686`), owned fixture/entry types (`33346`) and scoped lint (`38678`) passed. These checks do not launch a browser or establish any measured latency. It uses the already installed `playwright-core` and existing Chromium executable; it never installs or downloads a browser. No beta app, backend, auth flag, product route or deployment is changed. It launches a separate temporary browser context with a test-only synthetic `AuthContextOverride`, a frozen fixture client and rejected writes. That is **not authentication or entitlement acceptance**.
+## Measured run (2026-11-23)
+
+- **Scope.** Baseline commit `87c203c` (the `release/1.5.9` base) against the working tree of `047-catalog-close`. The Dialog bytes are identical in both phases (sha256 `d1171daa…`), so the baseline/after difference is run-to-run noise, not an improvement. The earlier reference baseline `702e151` could not be used: its compiled CSS differs from the current cascade, and the runner refuses to compare different CSS by design.
+- **Environment.** Linux cloud VM, Intel Xeon 2.10 GHz, 4 vCPU, 16 GiB RAM, headless Chromium 153 (pre-installed Playwright build), viewport 1440×900, no CPU or network throttling, process at nice 15. This is not a person’s Mac or Windows computer, and absolute numbers are expected to be slower than on a current Mac.
+- **Proof.** Every action sample has a renderer `Paint`→`DrawFrame` proof and a screenshot; the runner kept 0 errors at every size. Traces and PNGs were reviewed in the ephemeral run directory and are not stored in the repository.
+- **Runner status `unexpected_network`.** The frozen page still asks `catalog-video-r2` for availability and signals on the synthetic `127.0.0.1:1` origin. All of those requests were blocked and none left the machine, but the runner marks the run accordingly. Freezing those two reads in the fixture is part of the remaining work.
+- **Result at 500 rows.** Selection passes (188 ms ≤ 200 ms). Search (369 ms), details open (222 ms) and details close (414 ms) miss the target.
+- **Where the time goes.** The cost follows the number of rendered rows, not the catalog size: with 0 rows, search takes 15 ms; with 60 rows it takes 337 ms; at 500 and 2000 rows the window stays at 60 DOM rows and the time stays flat. Each row in the window is re-rendered on every change, including selection and details, because the row body is inline JSX in the Dialog and `rows` is rebuilt on every render, so the `shown` memo never hits. Reads stay at 0 during actions at all sizes.
+- **What closes T053.** Extract the row into a memoised component with stable props, so selection and details re-render one row and search renders only new rows; keep the `rows` array identity stable; freeze the two r2 reads in the fixture; then run the same command again on the same machine class and on a Mac. React commit counts stay unknown in a production build.
+
+## Real-browser runner
+
+`node scripts/catalog-manager-browser-performance.mjs` without `--execute` only prints usage. It was first executed on 2026-11-23 (see above). All 3 pure proof guards passed in `28510`; full script types (`64686`), owned fixture/entry types (`33346`) and scoped lint (`38678`) passed. These checks do not launch a browser or establish any measured latency. It uses the already installed `playwright-core` and existing Chromium executable; it never installs or downloads a browser. No beta app, backend, auth flag, product route or deployment is changed. It launches a separate temporary browser context with a test-only synthetic `AuthContextOverride`, a frozen fixture client and rejected writes. That is **not authentication or entitlement acceptance**.
 
 After the parent explicitly releases the single heavy slot, the concrete full command is:
 

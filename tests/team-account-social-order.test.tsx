@@ -366,7 +366,7 @@ it('does not claim applied when an accepted move cannot reread canonical overvie
   ).toBe(false);
 });
 
-it('keeps linked launch identities after a rename and exposes unmatched historical launches', async () => {
+it('keeps linked launch identities after a rename and does not list launches without an ad account', async () => {
   const initial = fixture();
   initial.launchCoverage = 'partial';
   const launch = {
@@ -407,9 +407,9 @@ it('keeps linked launch identities after a rename and exposes unmatched historic
   expect(screen.getByRole('link', { name: 'Beta · running' }).getAttribute('href')).toContain(
     'launch-b'
   );
-  const historical = screen.getByRole('link', { name: /Historical ·/ });
-  expect(historical.getAttribute('href')).toContain('launch-old');
-  expect(view.container.querySelector('.account-unmatched-launches')).toBeTruthy();
+  // A launch that lost its ad account is not listed under the accounts (owner, 2026-11-22).
+  expect(screen.queryByRole('link', { name: /Historical ·/ })).toBeNull();
+  expect(view.container.querySelector('.account-unmatched-launches')).toBeNull();
   const renamed = {
     ...initial,
     accounts: initial.accounts.map(account => ({
@@ -439,8 +439,6 @@ it('keeps linked launch identities after a rename and exposes unmatched historic
   try {
     fireEvent.click(linked);
     expect(window.location.href).toContain('launch-a');
-    fireEvent.click(historical);
-    expect(window.location.href).toContain('launch-old');
   } finally {
     window.history.replaceState({}, '', previousURL);
   }

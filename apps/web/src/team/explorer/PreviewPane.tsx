@@ -1,4 +1,4 @@
-import { Rocket } from 'lucide-react';
+import { AudioLines, Rocket } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Button } from '../../components/ui/index';
 import { buildTeamRoute } from '../routes';
@@ -14,7 +14,6 @@ import type {
   ThumbnailSession
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { ProgressBar } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { KIND_LABEL, KIND_REASON, PREVIEWABLE_KINDS, previewSummary } from './rowKinds';
 import { KindIcon } from './KindIcon';
@@ -22,6 +21,7 @@ import { useExplorer } from './ExplorerProvider';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
 import { PaneActions } from './PaneActions';
 import { VideoTextActions } from '../library/VideoTextActions';
+import { WorkStrip } from '../../translation/TranslationProgress';
 import { useToasts } from '../../components/toast';
 import { MaterialDetail } from '../materials/MaterialDetail';
 import { useMaterialCompanions } from '../materials/useMaterialCompanions';
@@ -349,28 +349,28 @@ export function PreviewPane({
        * displays the original transcript directly, with its view, copy and retry actions.
        * `copyText` stays unwired in `PaneActions` to avoid a duplicate shortcut.
        */}
-      {row.category === 'video' && onTranscribe && (
+      {row.category === 'video' && (
         <div className="team-explorer-pane-transcript">
           <p className="team-explorer-pane-transcript-title">{t('teamTranscriptSection')}</p>
           {transcribing && transcribing.videoId === row.id ? (
-            <div className="team-explorer-pane-transcribing" aria-live="polite">
-              <div className="team-explorer-pane-transcribing-head">
-                <span>{t('teamTranscriptInProgress')}</span>
-                <span>{Math.round(transcribing.progress)}%</span>
-              </div>
-              <ProgressBar
-                value={transcribing.progress}
-                active
+            <div className="team-explorer-pane-transcribing">
+              <WorkStrip
+                compact
+                icon={<AudioLines size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
                 label={t('teamTranscriptInProgress')}
+                percent={transcribing.progress}
               />
             </div>
           ) : (
             <VideoTextActions
               teamId={teamId}
               videoId={row.id}
-              onTranscribe={() => onTranscribe(row)}
-              onRetranscribe={() => onTranscribe(row, { fresh: true })}
-              onCopied={() => push({ tone: 'success', text: t('teamTranscriptCopied') })}
+              onTranscribe={onTranscribe ? () => onTranscribe(row) : undefined}
+              onRetranscribe={onTranscribe ? () => onTranscribe(row, { fresh: true }) : undefined}
+              videoName={row.name}
+              onCopied={variant =>
+                push({ tone: 'success', text: t('textTranslationCopied', { variant }) })
+              }
               compact
             />
           )}

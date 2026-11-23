@@ -136,6 +136,21 @@ describe('deriving the backend plan', () => {
     ).toEqual([...FUNCTIONS].sort());
   });
 
+  it('redeploys every function when the shared package they bundle changes', () => {
+    // 1.5.9: the creatives target lived in packages/shared and reached no function.
+    for (const changed of [
+      'packages/shared/src/team/catalog-publication-lifecycle.ts',
+      'packages/shared/package.json'
+    ])
+      expect(functionsNeedingDeploy({ changedPaths: [changed], functions: FUNCTIONS })).toEqual(
+        [...FUNCTIONS].sort()
+      );
+    // Its tests and docs are not bundled.
+    expect(
+      functionsNeedingDeploy({ changedPaths: ['packages/shared/README.md'], functions: FUNCTIONS })
+    ).toEqual([]);
+  });
+
   it('redeploys only the functions whose own files changed', () => {
     expect(
       functionsNeedingDeploy({

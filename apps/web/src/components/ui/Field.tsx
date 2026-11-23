@@ -466,7 +466,18 @@ export function InputTags({
 /** Open only on an intentional press or input, never on restored dialog focus. */
 function SelectMenuInput(props: InputHTMLAttributes<HTMLInputElement>) {
   const state = useContext(ComboBoxStateContext);
-  return <HeroInput {...props} onClick={() => state?.open(null, 'manual')} />;
+  return (
+    <HeroInput
+      {...props}
+      onClick={() => state?.open(null, 'manual')}
+      onKeyDown={event => {
+        // React Aria lets Escape go on from an empty combo box, so the dialog around it
+        // closed with the list: Escape on «Офер» threw away the whole launch editor (next
+        // QA 2026-11-21). While the list is open, Escape is the list's alone.
+        if (event.key === 'Escape' && state?.isOpen) event.stopPropagation();
+      }}
+    />
+  );
 }
 
 /** The searchable closed-choice control in the inventory contract (024). */

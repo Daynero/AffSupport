@@ -16,8 +16,10 @@ export function CatalogCreationVideoFields({
   productCount,
   disabled,
   part = 'all',
-  creativeCopies
+  creativeCopies,
+  media
 }: {
+  media?: 'video' | 'image';
   value: CatalogCreationVideoDraft;
   onChange(value: CatalogCreationVideoDraft): void;
   restitch: boolean;
@@ -33,10 +35,16 @@ export function CatalogCreationVideoFields({
   const change = (patch: Partial<CatalogCreationVideoDraft>) => onChange({ ...value, ...patch });
   const count = Number(value.variationCount);
   const minimum = creativeCopies && creativeCopies.length > 1 ? creativeCopies.length : 1;
+  // No upper bound while the product count is itself invalid: it has its own error, and «from
+  // 1 to 0 variations» said nothing true (next QA 2026-11-21).
+  const productLimit =
+    Number.isSafeInteger(productCount) && productCount >= 1 ? productCount : null;
   const tooFew = value.variationCount !== '' && Number.isInteger(count) && count < minimum;
   const invalid =
     value.variationCount !== '' &&
-    (!Number.isInteger(count) || count < minimum || count > productCount);
+    (!Number.isInteger(count) ||
+      count < minimum ||
+      (productLimit !== null && count > productLimit));
   const split =
     minimum > 1 && !invalid && value.variationCount !== ''
       ? distributeVariations(creativeCopies!, count).join(' · ')
@@ -51,10 +59,9 @@ export function CatalogCreationVideoFields({
             tooFew
               ? t('launchVariationsAtLeastCreatives', { count: minimum })
               : invalid
-                ? t('catalogVideoVariationLimit', { count: productCount })
+                ? t('catalogVideoVariationLimit', { count: productLimit ?? productCount })
                 : undefined
           }
-          hint={split ? t('launchDistributionVariationHint', { split }) : undefined}
         >
           <Input
             id={countId}
@@ -63,14 +70,27 @@ export function CatalogCreationVideoFields({
             value={value.variationCount}
             disabled={disabled}
             aria-invalid={invalid}
+            aria-describedby={split ? `${countId}-split` : undefined}
             onChange={event =>
               change({ variationCount: event.target.value.replace(/[^\d]/gu, '').slice(0, 3) })
             }
           />
+          {/* Under the field, where its error would be: inside the label it ran on into the
+              field's name — «Варіації відео Варіації роздаються…» (next, 2026-11-21). */}
+          {split && (
+            <p id={`${countId}-split`} className="ui-field-help">
+              {t('launchDistributionVariationHint', { split })}
+            </p>
+          )}
         </FormField>
       )}
       {part !== 'variations' && (
-        <CatalogPublicationFields value={value} onChange={change} disabled={disabled} />
+        <CatalogPublicationFields
+          value={value}
+          onChange={change}
+          disabled={disabled}
+          media={media}
+        />
       )}
     </>
   );

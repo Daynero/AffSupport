@@ -11,3 +11,14 @@ import '../../../packages/shared/dist/team/catalog-video-r2.d.ts';
 import '../../../packages/shared/dist/team/catalog-publication-source.d.ts';
 import '../../../packages/shared/dist/team/catalog-global-images.d.ts';
 import '../../../packages/shared/dist/team/catalog-global-alias.d.ts';
+import '../../../packages/shared/dist/team/transcript-translation.d.ts';
+// 064: the launch assistant and credits.
+import '../../../packages/shared/dist/team/ai-credits.d.ts';
+import '../../../packages/shared/dist/team/assistant.d.ts';
+import '../../../packages/shared/dist/team/assistant-apply.d.ts';
+import '../../../packages/shared/dist/team/launches/defaults-merge.d.ts';
+import '../../../packages/shared/dist/team/launches/fields.d.ts';
+import '../../../packages/shared/dist/team/launches/naming.d.ts';
+// 064: the assistant's money tools read the Accounts report.
+import '../../../packages/shared/dist/team/agent-finance.d.ts';
+import '../../../packages/shared/dist/team/agent-finance-report.d.ts';

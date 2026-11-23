@@ -123,6 +123,25 @@ describe('explorer keyboard', () => {
     expect(screen.queryByRole('region', { name: 'What to do with the selection' })).toBeNull();
   });
 
+  it('leaves Cmd+C to the browser while text is selected, and copies the file otherwise', async () => {
+    // 063: a transcript or its translation selected with the mouse is what Cmd+C means.
+    renderShell(makeClient([row(1)]));
+    await screen.findByText('file-1.png');
+    const area = document.querySelector<HTMLElement>('.team-explorer-content-keys')!;
+    fireEvent.keyDown(area, { key: 'ArrowDown' });
+    const text = document.createElement('p');
+    text.textContent = 'Обіцяю тобі, вибір тепер у твоїх руках.';
+    document.body.append(text);
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    expect(fireEvent.keyDown(document.body, { key: 'c', metaKey: true })).toBe(true);
+    window.getSelection()!.removeAllRanges();
+    text.remove();
+    expect(fireEvent.keyDown(document.body, { key: 'c', metaKey: true })).toBe(false);
+  });
+
   it('follows the selected row in the pane', async () => {
     renderShell(makeClient([row(1)]));
     await screen.findByText('file-1.png');

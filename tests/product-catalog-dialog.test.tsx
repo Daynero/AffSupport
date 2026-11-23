@@ -1950,7 +1950,7 @@ it('shows current N progress after the scheduled blank catalog was already creat
     expect(screen.getByText(catalog.name)).toBeTruthy();
     expect(screen.getByText(/catalog is created with empty video fields/)).toBeTruthy();
     // 1.4.3: a restitched deferred catalog names its scheduled time too.
-    expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
+    expect(await screen.findByText(/Creative-link publication is scheduled for/)).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Cancel video generation' }));
     expect(
       await screen.findByText('Video generation canceled. The created catalog is preserved.')

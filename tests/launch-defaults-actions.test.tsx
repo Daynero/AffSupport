@@ -5,12 +5,38 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import {
   LaunchDefaultsActions,
-  type LaunchDefaultsActionsProps
+  LaunchDefaultsProposal,
+  type LaunchDefaultsActionsProps,
+  type LaunchDefaultsProposalProps
 } from '../apps/web/src/team/launches/LaunchDefaultsActions';
 afterEach(cleanup);
-it('never traps a locked generation behind a disabled defaults confirmation', () => {
-  setup({ proposalSource: 'offer', disabled: true });
-  expect(screen.queryByRole('dialog', { name: /^Apply the .*settings\?$/ })).toBeNull();
+function proposal(overrides: Partial<LaunchDefaultsProposalProps> = {}) {
+  const props: LaunchDefaultsProposalProps = {
+    offerName: 'Offer A',
+    proposalSource: 'offer',
+    loading: false,
+    loadError: false,
+    disabled: false,
+    onApply: vi.fn(),
+    onKeep: vi.fn(),
+    ...overrides
+  };
+  return { ...render(<LaunchDefaultsProposal {...props} />), props, user: userEvent.setup() };
+}
+it('never traps a locked generation behind a disabled defaults question', () => {
+  proposal({ disabled: true });
+  expect(screen.queryByRole('status', { name: /^Apply the .*settings\?$/ })).toBeNull();
+});
+it('asks in place, never as a dialog that swallows the next click (next QA 2026-11-21)', () => {
+  proposal();
+  expect(screen.getByRole('status', { name: 'Apply the “Offer A” settings?' })).toBeTruthy();
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+it('asks nothing for the builtin profile, while loading or after a failed load', () => {
+  proposal({ proposalSource: 'builtin' });
+  proposal({ loading: true });
+  proposal({ loadError: true });
+  expect(screen.queryByRole('button', { name: /Apply/ })).toBeNull();
 });
 function setup(overrides: Partial<LaunchDefaultsActionsProps> = {}) {
   const props: LaunchDefaultsActionsProps = {
@@ -23,15 +49,13 @@ function setup(overrides: Partial<LaunchDefaultsActionsProps> = {}) {
     disabled: false,
     saveDisabled: { offer: false, workspace: false },
     onSave: vi.fn(),
-    onApply: vi.fn(),
-    onKeep: vi.fn(),
     onRetry: vi.fn(),
     ...overrides
   };
   return { ...render(<LaunchDefaultsActions {...props} />), props, user: userEvent.setup() };
 }
 it('keeps the two save scopes explicit and never shows a builtin reset decision', async () => {
-  const { user, props } = setup({ proposalSource: 'builtin' });
+  const { user, props } = setup();
   expect(screen.queryByRole('button', { name: /Apply/ })).toBeNull();
   expect(screen.getByText('Offer: Offer A')).toBeTruthy();
   expect(screen.getByText('For offers without their own settings')).toBeTruthy();
@@ -53,12 +77,11 @@ it('opens profile help by keyboard and restores focus after Escape', async () =>
   expect(document.activeElement).toBe(trigger);
 });
 it('separates applying a saved profile from saving current values', async () => {
-  const { user, props } = setup({ proposalSource: 'offer' });
-  expect(screen.getByRole('dialog', { name: 'Apply the “Offer A” settings?' })).toBeTruthy();
+  const { user, props } = proposal();
+  expect(screen.getByRole('status', { name: 'Apply the “Offer A” settings?' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Keep as is' }));
   expect(props.onKeep).toHaveBeenCalledOnce();
   expect(props.onApply).not.toHaveBeenCalled();
-  expect(props.onSave).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Apply' }));
   expect(props.onApply).toHaveBeenCalledOnce();
 });
@@ -67,7 +90,6 @@ it('explains missing offer and exposes a failed load retry without a stale apply
     hasOffer: false,
     offerName: undefined,
     loadError: true,
-    proposalSource: 'offer',
     saveDisabled: { offer: true, workspace: false }
   });
   expect(screen.getByText('Select an offer first')).toBeTruthy();
@@ -86,9 +108,8 @@ it('blocks both scopes during a pending save and hides save actions from non-man
   expect(screen.getByRole('button', { name: 'Save for offer' }).getAttribute('aria-busy')).toBe(
     'true'
   );
-  rerender(<LaunchDefaultsActions {...props} manage={false} proposalSource="workspace" />);
+  rerender(<LaunchDefaultsActions {...props} manage={false} />);
   expect(screen.queryByRole('button', { name: 'Save for offer' })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Apply' })).toBeTruthy();
 });
 it('says which saved profile the form matches for as long as it does', () => {
   const { rerender, props } = setup({ savedScopes: { offer: true, workspace: false } });

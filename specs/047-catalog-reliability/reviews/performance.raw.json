@@ -1,16 +1,496 @@
 {
-  "status": "not_measured",
+  "status": "measured_target_failed",
+  "measuredAt": "2026-11-23T11:36:32.372Z",
   "fixtureSeed": 47,
   "sizes": [0, 60, 500, 2000],
-  "viewport": { "width": 1440, "height": 900 },
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
   "warmupsPerAction": 10,
   "samplesPerAction": 50,
   "coldLoadsPerSize": 10,
-  "measurementBoundary": "input_handler_to_verified_paint",
-  "latencyTarget": { "rows": 500, "eachActionP95MsAtMost": 200 },
-  "baseline": { "status": "not_measured", "source": null, "bundleDigest": null, "environment": null, "runs": [] },
-  "after": { "status": "not_measured", "source": null, "bundleDigest": null, "environment": null, "runs": [] },
-  "secondOsParity": { "status": "not_measured", "environment": null, "runs": [] },
-  "p50Ms": null,
-  "p95Ms": null
+  "measurementBoundary": "input_handler_to_verified_renderer_draw_frame",
+  "latencyTarget": {
+    "rows": 500,
+    "eachActionP95MsAtMost": 200
+  },
+  "scope": "one historical Dialog file versus working-tree Dialog, common current dependencies/CSS/fixture; NOT whole historical app or semantic beta auth acceptance",
+  "lockDigest": "8f9cfd70fb6208c3be81a3421ee7501518c3081909ce966956205918e42145a8",
+  "sourceHashes": {
+    "tests/support/catalog-manager-browser-entry.tsx": "78dc862566112fbca4f91c6c15778973e61b3e9bad19d68937f3f6bb01c95857",
+    "tests/support/catalog-manager-performance-harness.tsx": "8282c1c57d2ed4b4a8a71049da792738df7775c31c5a4bed02d85030cd19ff4c",
+    "tests/fixtures/catalog-manager-performance.ts": "5b372e3c3eb81c4a628835065fe2171fc7fb14887e752a57f42a97d6db61468e"
+  },
+  "environment": {
+    "os": "linux",
+    "osRelease": "6.18.44-fc-v726",
+    "arch": "x64",
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cpuCount": 4,
+    "totalRam": 16869113856,
+    "initialFreeRam": 16096215040,
+    "nice": 15,
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "cpuThrottleRate": 1,
+    "networkThrottle": "none",
+    "declaredPowerPercent": 100,
+    "powerVerification": "operator declaration; record actual power/AC evidence separately",
+    "headless": true,
+    "browserExecutable": "preinstalled Playwright Chromium",
+    "browserVersion": "153.0.8010.12",
+    "machine": "Linux cloud container (CI-class VM), not a person’s Mac or Windows computer"
+  },
+  "runnerStatusNote": "Runner marks every size unexpected_network because the frozen page still tries catalog-video-r2 availability/signals on the synthetic 127.0.0.1:1 origin; all such requests were blocked, none left the machine, and every action sample still has verified paint proof.",
+  "target500": {
+    "search": {
+      "baselineP95Ms": 400.932,
+      "afterP95Ms": 368.986,
+      "passed": false
+    },
+    "selection": {
+      "baselineP95Ms": 203.938,
+      "afterP95Ms": 188.469,
+      "passed": true
+    },
+    "detailsOpen": {
+      "baselineP95Ms": 255.207,
+      "afterP95Ms": 222.289,
+      "passed": false
+    },
+    "detailsClose": {
+      "baselineP95Ms": 417.305,
+      "afterP95Ms": 414.216,
+      "passed": false
+    }
+  },
+  "baseline": {
+    "status": "measured",
+    "source": {
+      "commit": "87c203c316a523eadca4cb16c6139e54c41a61e5",
+      "dialogSha256": "d1171daaa2204bde15d86d77858635813fa7755e6446bcea8f450bfa2a57042f"
+    },
+    "dialogGeneratedDigest": "0a66dfdfb30b6b8227f0fc356a5061d4548802f917576adba446b642ae22c3f8",
+    "cssContentDigests": ["455c0c5c2f443f28f3fe952b53e20e848b01b47b1545de6827b4e940d7f476d4"],
+    "runs": [
+      {
+        "size": 0,
+        "runnerStatus": "unexpected_network",
+        "errors": 0,
+        "cold": {
+          "samples": 10,
+          "verified": 10,
+          "entryToDrawP50Ms": 114.5,
+          "entryToDrawP95Ms": 140.8,
+          "navigationToDrawP95Ms": 303.2
+        },
+        "search": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 11.343,
+          "p95Ms": 16.712,
+          "maximumDomRows": 0,
+          "injectedReadCallsDelta": 0
+        },
+        "selection": {
+          "status": "not_applicable",
+          "samples": 0,
+          "verified": 0,
+          "p50Ms": null,
+          "p95Ms": null,
+          "maximumDomRows": null,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsOpen": {
+          "status": "not_applicable",
+          "samples": 0,
+          "verified": 0,
+          "p50Ms": null,
+          "p95Ms": null,
+          "maximumDomRows": null,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsClose": {
+          "status": "not_applicable",
+          "samples": 0,
+          "verified": 0,
+          "p50Ms": null,
+          "p95Ms": null,
+          "maximumDomRows": null,
+          "injectedReadCallsDelta": 0
+        }
+      },
+      {
+        "size": 60,
+        "runnerStatus": "unexpected_network",
+        "errors": 0,
+        "cold": {
+          "samples": 10,
+          "verified": 10,
+          "entryToDrawP50Ms": 632,
+          "entryToDrawP95Ms": 757.6,
+          "navigationToDrawP95Ms": 908.3
+        },
+        "search": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 122.303,
+          "p95Ms": 282.885,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "selection": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 150.931,
+          "p95Ms": 204.562,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsOpen": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 193.739,
+          "p95Ms": 258.149,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsClose": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 370.134,
+          "p95Ms": 415.7,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        }
+      },
+      {
+        "size": 500,
+        "runnerStatus": "unexpected_network",
+        "errors": 0,
+        "cold": {
+          "samples": 10,
+          "verified": 10,
+          "entryToDrawP50Ms": 537.5,
+          "entryToDrawP95Ms": 711.8,
+          "navigationToDrawP95Ms": 876.9
+        },
+        "search": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 302.481,
+          "p95Ms": 400.932,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "selection": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 146.391,
+          "p95Ms": 203.938,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsOpen": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 185.371,
+          "p95Ms": 255.207,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsClose": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 365.053,
+          "p95Ms": 417.305,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        }
+      },
+      {
+        "size": 2000,
+        "runnerStatus": "unexpected_network",
+        "errors": 0,
+        "cold": {
+          "samples": 10,
+          "verified": 10,
+          "entryToDrawP50Ms": 510.4,
+          "entryToDrawP95Ms": 770.9,
+          "navigationToDrawP95Ms": 917.6
+        },
+        "search": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 266.052,
+          "p95Ms": 359.431,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "selection": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 149.361,
+          "p95Ms": 199.841,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsOpen": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 162.889,
+          "p95Ms": 250.979,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsClose": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 353.862,
+          "p95Ms": 398.503,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        }
+      }
+    ]
+  },
+  "after": {
+    "status": "measured",
+    "source": {
+      "commit": "a744efe9aa5d4143e127f04b24fb71102c21622e",
+      "dialogSha256": "d1171daaa2204bde15d86d77858635813fa7755e6446bcea8f450bfa2a57042f",
+      "dirty": "M scripts/catalog-manager-browser-performance.mjs (runner only; Dialog bytes equal)"
+    },
+    "dialogGeneratedDigest": "0a66dfdfb30b6b8227f0fc356a5061d4548802f917576adba446b642ae22c3f8",
+    "cssContentDigests": ["455c0c5c2f443f28f3fe952b53e20e848b01b47b1545de6827b4e940d7f476d4"],
+    "runs": [
+      {
+        "size": 0,
+        "runnerStatus": "unexpected_network",
+        "errors": 0,
+        "cold": {
+          "samples": 10,
+          "verified": 10,
+          "entryToDrawP50Ms": 87.1,
+          "entryToDrawP95Ms": 102,
+          "navigationToDrawP95Ms": 220.9
+        },
+        "search": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 6.48,
+          "p95Ms": 14.753,
+          "maximumDomRows": 0,
+          "injectedReadCallsDelta": 0
+        },
+        "selection": {
+          "status": "not_applicable",
+          "samples": 0,
+          "verified": 0,
+          "p50Ms": null,
+          "p95Ms": null,
+          "maximumDomRows": null,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsOpen": {
+          "status": "not_applicable",
+          "samples": 0,
+          "verified": 0,
+          "p50Ms": null,
+          "p95Ms": null,
+          "maximumDomRows": null,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsClose": {
+          "status": "not_applicable",
+          "samples": 0,
+          "verified": 0,
+          "p50Ms": null,
+          "p95Ms": null,
+          "maximumDomRows": null,
+          "injectedReadCallsDelta": 0
+        }
+      },
+      {
+        "size": 60,
+        "runnerStatus": "unexpected_network",
+        "errors": 0,
+        "cold": {
+          "samples": 10,
+          "verified": 10,
+          "entryToDrawP50Ms": 573.9,
+          "entryToDrawP95Ms": 692,
+          "navigationToDrawP95Ms": 835.3
+        },
+        "search": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 115.493,
+          "p95Ms": 336.846,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "selection": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 143.691,
+          "p95Ms": 189.846,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsOpen": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 179.113,
+          "p95Ms": 227.49,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsClose": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 365.387,
+          "p95Ms": 401.426,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        }
+      },
+      {
+        "size": 500,
+        "runnerStatus": "unexpected_network",
+        "errors": 0,
+        "cold": {
+          "samples": 10,
+          "verified": 10,
+          "entryToDrawP50Ms": 529,
+          "entryToDrawP95Ms": 661.4,
+          "navigationToDrawP95Ms": 801.6
+        },
+        "search": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 270.207,
+          "p95Ms": 368.986,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "selection": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 141.104,
+          "p95Ms": 188.469,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsOpen": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 160.46,
+          "p95Ms": 222.289,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsClose": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 366.739,
+          "p95Ms": 414.216,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        }
+      },
+      {
+        "size": 2000,
+        "runnerStatus": "unexpected_network",
+        "errors": 0,
+        "cold": {
+          "samples": 10,
+          "verified": 10,
+          "entryToDrawP50Ms": 529.6,
+          "entryToDrawP95Ms": 646,
+          "navigationToDrawP95Ms": 834
+        },
+        "search": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 256.247,
+          "p95Ms": 356.126,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "selection": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 149.042,
+          "p95Ms": 194.037,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsOpen": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 156.898,
+          "p95Ms": 216.45,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        },
+        "detailsClose": {
+          "status": "measured",
+          "samples": 50,
+          "verified": 50,
+          "p50Ms": 354.268,
+          "p95Ms": 386.579,
+          "maximumDomRows": 60,
+          "injectedReadCallsDelta": 0
+        }
+      }
+    ]
+  },
+  "secondOsParity": {
+    "status": "not_measured",
+    "environment": null,
+    "runs": []
+  },
+  "retainedArtifacts": "Traces and per-sample PNGs were produced and reviewed in the run directory of an ephemeral container and are not kept in the repository.",
+  "limitations": [
+    "React commits unknown when production Profiler callback is disabled",
+    "Renderer Paint/DrawFrame proof is not physical monitor presentation",
+    "Same current dependency/CSS graph in both phases; this does not measure historical changes outside CatalogUpdaterDialog",
+    "Browser network requests and blocked cross-origin attempts retained separately",
+    "Headless Chromium on a shared 4-vCPU cloud VM at nice 15; absolute numbers are expected to be slower than on a current Mac",
+    "React commit counts unknown (production profiler disabled)"
+  ],
+  "remainingAcceptance": [
+    "second OS functional/stress parity",
+    "scope-limited baseline interpretation and trace/screenshot review",
+    "actual app power/AC evidence"
+  ]
 }

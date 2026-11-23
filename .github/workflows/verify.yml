@@ -97,8 +97,8 @@ jobs:
   test-windows:
     name: test-windows
     runs-on: windows-latest
-    # The serial suite owns 60 minutes; allow native probes, setup and evidence upload.
-    timeout-minutes: 75
+    # The serial suite owns 90 minutes; allow native probes, setup and evidence upload.
+    timeout-minutes: 105
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

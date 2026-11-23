@@ -275,6 +275,8 @@ export * from './launches/persistence.js';
 export * from './launches/lifecycle.js';
 
 export * from './launches/defaults.js';
+export * from './launches/defaults-merge.js';
+export * from './launches/creative-patch.js';
 
 export * from './launches/notes.js';
 

@@ -38,6 +38,33 @@ export const TEAM_PROCESS_ERROR_CODES = ['PROCESS_RESULT_UNCERTAIN'] as const;
 /** 046 additive retirement catalog, installed by the cutover migration. */
 export const TEAM_RETIREMENT_ERROR_CODES = ['FEATURE_RETIRED'] as const;
 
+/** 063 transcript translation through Claude; seeded by 20261222112000_translation_error_codes.sql. */
+export const TEAM_TRANSLATION_ERROR_CODES = [
+  'TRANSLATION_ALLOWANCE_EXCEEDED',
+  'TRANSLATION_SOURCE_UNAVAILABLE',
+  'TRANSLATION_UNAVAILABLE',
+  'TRANSLATION_REFUSED',
+  'TRANSLATION_FAILED',
+  'TRANSLATION_TIMEOUT'
+] as const;
+
+/** 064 credits and the launch assistant; seeded by 20261223090000_assistant_error_codes.sql. */
+export const TEAM_ASSISTANT_ERROR_CODES = [
+  'INSUFFICIENT_CREDITS',
+  'AI_MONTH_EXHAUSTED',
+  'PRICE_CHANGED',
+  'CLIENT_UPGRADE',
+  'ASSISTANT_DISABLED',
+  'ASSISTANT_FORBIDDEN',
+  'MESSAGE_TOO_LONG',
+  'MODEL_UNAVAILABLE',
+  'MODEL_OUTPUT_REJECTED',
+  'PLAN_TOO_LARGE',
+  'REVIEW_CHANGED',
+  'EDIT_CONFLICT',
+  'KEY_REUSED'
+] as const;
+
 /** Installed with the commercial access boundary; keep the historical seed immutable. */
 export const TEAM_COMMERCIAL_ERROR_CODES = ['GOOGLE_ACCOUNT_NOT_APPROVED'] as const;
 
@@ -102,6 +129,8 @@ export const TEAM_ERROR_CODES = [
   ...TEAM_ACCOUNT_ERROR_CODES,
   ...TEAM_PROCESS_ERROR_CODES,
   ...TEAM_RETIREMENT_ERROR_CODES,
+  ...TEAM_TRANSLATION_ERROR_CODES,
+  ...TEAM_ASSISTANT_ERROR_CODES,
   'LAUNCH_VERSION_CONFLICT',
   'LAUNCH_BUSY',
   'LAUNCH_URL_INVALID',

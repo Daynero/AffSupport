@@ -357,7 +357,10 @@ export function createTargetedCatalogPublicationIo(
       sheetName: PRODUCT_CATALOG_SHEET_NAME,
       columns: [idColumn, videoColumn],
       rowCount: sheet.rowCount,
-      expectedRows: c.productCount + 2
+      expectedRows: c.productCount + 2,
+      // Only the product rows are this lane's: what someone left under them neither stops
+      // the publication nor is touched by it (the next update empties it).
+      tolerant: true
     });
     const id = PRODUCT_CATALOG_TEMPLATE[idColumn]!,
       video = PRODUCT_CATALOG_TEMPLATE[videoColumn]!;

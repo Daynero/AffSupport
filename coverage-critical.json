@@ -116,6 +116,13 @@
     "packages/shared/src/team/catalog-global-alias.ts": 90,
     "packages/shared/src/native-app-updates.ts": 99,
     "packages/shared/src/team/catalog-content.ts": 99,
-    "packages/shared/src/team/catalog-video-replacement.ts": 95
+    "packages/shared/src/team/catalog-video-replacement.ts": 95,
+    "packages/shared/src/team/ai-credits.ts": 95,
+    "packages/shared/src/team/assistant-apply.ts": 85,
+    "packages/shared/src/team/assistant.ts": 94,
+    "packages/shared/src/team/transcript-translation.ts": 94,
+    "packages/shared/src/team/launches/creative-patch.ts": 84,
+    "packages/shared/src/team/launches/defaults-merge.ts": 86,
+    "packages/shared/src/team/launches/fields.ts": 96
   }
 }

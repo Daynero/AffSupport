@@ -157,6 +157,43 @@ export function Reveal({ busy, placeholder, children, className }: RevealProps) 
   );
 }
 
+export interface CollapseProps {
+  open: boolean;
+  children: ReactNode;
+  /** Classes for the outer box, which takes the content's place in its parent's flow. */
+  className?: string;
+}
+
+/**
+ * A part of a form that opens to its own height and closes back to nothing,
+ * instead of cutting in or out (next QA 2026-11-21: «Каталог / Без каталогу»
+ * threw the catalog shelf in and out in one frame).
+ *
+ * The rows go `0fr`→`1fr` — the one layout transition the token check allows,
+ * reserved for disclosures — with the content fading alongside. The content
+ * stays mounted while closed, inert and hidden from assistive technology, so
+ * closing has something to fold away. It clips only while it moves or is
+ * closed: once open it lets focus rings and shadows spill over as usual.
+ */
+export function Collapse({ open, children, className }: CollapseProps) {
+  const [settled, setSettled] = useState(open);
+  useEffect(() => {
+    if (!open) setSettled(false);
+  }, [open]);
+  return (
+    <div
+      className={uiClasses('collapse', { className, states: { open, settled: open && settled } })}
+      aria-hidden={open ? undefined : true}
+      inert={!open}
+      onTransitionEnd={event => {
+        if (event.target === event.currentTarget && open) setSettled(true);
+      }}
+    >
+      <div className="ui-collapse-body">{children}</div>
+    </div>
+  );
+}
+
 export interface RouteSkeletonProps {
   /** The shape of the screen that is coming (lib/motion-registry.ts). */
   variant: RouteSkeletonVariant;

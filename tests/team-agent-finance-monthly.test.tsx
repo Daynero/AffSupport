@@ -72,3 +72,44 @@ it('restores the monthly tab after returning from a day', () => {
   expect(screen.getByRole('tabpanel', { name: 'Top-up statement' })).toBeTruthy();
   expect(screen.queryByRole('region', { name: 'Monthly matrix' })).toBeNull();
 });
+it('returns from a day to the same place in the matrix and focuses the day that was opened (027 T019)', () => {
+  const snapshot: FinanceSnapshot = {
+    schemaVersion: 1,
+    teamId: 't',
+    teamName: 'T',
+    from: '2026-09-01',
+    to: '2026-09-30',
+    currency: 'USD',
+    generatedAt: 'now',
+    accounts: [],
+    agents: [],
+    placements: [],
+    fields: []
+  };
+  const onContextChange = vi.fn();
+  render(
+    <MonthlyFinanceSummary
+      report={buildFinanceReport(snapshot)}
+      onDay={vi.fn()}
+      today="2026-10-03"
+      initialContext={{
+        metric: 'topup',
+        view: 'matrix',
+        scrollLeft: 40,
+        scrollTop: 120,
+        focusedDay: '2026-09-17'
+      }}
+      onContextChange={onContextChange}
+    />
+  );
+  const region = screen.getByRole('region', { name: 'Monthly matrix' });
+  expect(region.scrollLeft).toBe(40);
+  expect(region.scrollTop).toBe(120);
+  expect(document.activeElement?.getAttribute('data-finance-day')).toBe('2026-09-17');
+  // Scrolling is remembered for the next return, with the metric kept.
+  region.scrollTop = 300;
+  fireEvent.scroll(region);
+  expect(onContextChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ metric: 'topup', view: 'matrix', scrollTop: 300, scrollLeft: 40 })
+  );
+});

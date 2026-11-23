@@ -167,6 +167,9 @@ export interface RecoveryWorkerOptions {
   record?: (code: string, props: Record<string, string | number | boolean>) => void;
 }
 /** One persisted claim per delegation; all media runs through the existing bridge/governor. */
+/** How long a credential the server refused waits before the worker asks the server again. */
+export const REJECTED_REASK_MS = 3_600_000;
+
 export class TeamRecoveryWorker {
   #variantControllers = new Map<string, AbortController>();
   #variantStates = new Map<
@@ -177,6 +180,11 @@ export class TeamRecoveryWorker {
   #checkpoints: RecoveryCheckpoint[] = [];
   #enrollments = new Map<string, RecoveryEnrollment>();
   #expiredCredentials = new Set<string>();
+  // Credentials the server refused while this process runs (AUTH_REQUIRED). The space is not
+  // parked until a restart any more (incident 2026-11-22: two spaces sat «Готуємо відео…» for
+  // two days after the server healed): the page may set it up again at once, and the worker
+  // asks the server itself once an hour.
+  #rejectedCredentials = new Set<string>();
   #redeeming = new Set<{ teamId: string; cancelled?: boolean }>();
   #timers = new Map<string, ReturnType<typeof setTimeout>>();
   #running = new Map<string, Promise<void>>();
@@ -528,12 +536,18 @@ export class TeamRecoveryWorker {
             (this.options.allowed && !this.options.allowed()) ||
             checkpoint?.reason === 'permission_revoked' ||
             (checkpoint?.reason === 'needs_agent_setup' &&
-              !this.#expiredCredentials.has(registration?.delegationId ?? '')) ||
+              !this.#expiredCredentials.has(registration?.delegationId ?? '') &&
+              !this.#rejectedCredentials.has(registration?.delegationId ?? '')) ||
             this.#setupRequired
           ? 'blocked'
           : pending
             ? 'pending'
-            : registration && !this.#expiredCredentials.has(registration.delegationId)
+            : registration &&
+                !this.#expiredCredentials.has(registration.delegationId) &&
+                !(
+                  checkpoint?.reason === 'needs_agent_setup' &&
+                  this.#rejectedCredentials.has(registration.delegationId)
+                )
               ? 'ready'
               : 'eligible';
     return {
@@ -1019,7 +1033,9 @@ export class TeamRecoveryWorker {
         // good, until someone pressed «Відновити» (1.4.3). Old journals without
         // episode history start one bounded episode after the retained cooldown.
         const selfResumes =
-          saved.reason === 'checkpoint_unavailable' || saved.reason === 'retry_exhausted';
+          saved.reason === 'checkpoint_unavailable' ||
+          saved.reason === 'retry_exhausted' ||
+          (saved.reason === 'needs_agent_setup' && this.#rejectedCredentials.has(r.delegationId));
         if (!selfResumes) return;
         const recent = (history ?? []).filter(t => t > this.#now() - 3_600_000);
         // Spaced, not bunched (owner QA 2026-11-15): three tries in four minutes used
@@ -1382,6 +1398,10 @@ export class TeamRecoveryWorker {
         ] as const
       ).find(candidate => candidate === code);
       if (permanentCode) {
+        if (permanentCode === 'AUTH_REQUIRED') {
+          this.#rejectedCredentials.add(r.delegationId);
+          this.#retryNotBefore.set(r.delegationId, this.#now() + REJECTED_REASK_MS);
+        }
         await this.#checkpoint(
           r,
           requestId,
@@ -1390,6 +1410,7 @@ export class TeamRecoveryWorker {
           permanentCode === 'PERMISSION_DENIED' ? 'permission_revoked' : 'needs_agent_setup',
           permanentCode
         );
+        if (permanentCode === 'AUTH_REQUIRED') this.#schedule(r, REJECTED_REASK_MS);
         return;
       }
       let episode = this.#failures.get(r.delegationId);
