@@ -1,5 +1,16 @@
-import { useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
-import { ArrowLeft, ChevronDown, FolderTree, LayoutGrid, List } from 'lucide-react';
+import { useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import {
+  ArrowLeft,
+  ChevronDown,
+  FolderTree,
+  LayoutGrid,
+  List,
+  MoreHorizontal,
+  Play,
+  RefreshCw,
+  Shrink,
+  Trash2
+} from 'lucide-react';
 
 import {
   Button,
@@ -7,10 +18,10 @@ import {
   FileTrigger,
   IconButton,
   Link,
-  Popover,
   SearchField,
   SegmentedControl,
-  type FileTriggerHandle
+  type FileTriggerHandle,
+  type MenuEntry
 } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
@@ -75,6 +86,7 @@ export function ExplorerToolbar({
   onCloseAddMenu,
   resync,
   process,
+  onOpenTrash,
   view,
   onViewChange,
   children
@@ -104,6 +116,7 @@ export function ExplorerToolbar({
   onCloseAddMenu: () => void;
   resync: ExplorerToolbarResync | null;
   process: ExplorerToolbarProcess | null;
+  onOpenTrash: () => void;
   view: ExplorerView;
   onViewChange: (view: ExplorerView) => void;
   children?: ReactNode;
@@ -218,18 +231,8 @@ export function ExplorerToolbar({
                 }
               ]}
             />
-            {resync && (
-              <Button variant="secondary" disabled={resync.busy} onClick={resync.onStart}>
-                {resync.busy
-                  ? t('teamFolderResyncRunning')
-                  : resync.inFolder
-                    ? t('teamDriveResyncFolder')
-                    : t('teamDriveResync')}
-              </Button>
-            )}
           </>
         )}
-        {process && !trash && !searching && <ProcessMenu {...process} />}
         {!trash && (
           /* A choice of two, told as one (021, T088). */
           <SegmentedControl<'list' | 'grid'>
@@ -251,150 +254,128 @@ export function ExplorerToolbar({
             ]}
           />
         )}
+        {!trash && (
+          <MoreMenu
+            items={moreActions({
+              t,
+              searching,
+              resync,
+              process,
+              canUpload,
+              onOpenTrash
+            })}
+          />
+        )}
       </div>
       {children}
     </div>
   );
 }
 
+type Translate = ReturnType<typeof useI18n>['t'];
+
 /**
- * Where a batch is started from, and over what.
- *
- * Two scopes, because two exist: the folder that is open, walked with its
- * subfolders, and everything the space holds. Both already worked; neither had
- * a way in that a person could find without first selecting a file.
+ * What the "…" holds (070, FR-004): the work that is rare here, each with its name. The Drive
+ * scan says when one is already running instead of starting a second; processing and
+ * compressing take this folder (processing at the root takes the space); the trash is always
+ * one press away.
  */
-function ProcessMenu({
-  folder,
-  onFolder,
-  onCompressFolder,
-  onSpace
+function moreActions({
+  t,
+  searching,
+  resync,
+  process,
+  canUpload,
+  onOpenTrash
 }: {
-  folder: ProcessableFolder | null;
-  onFolder: (folder: ProcessableFolder) => void;
-  onCompressFolder?: (folder: ProcessableFolder) => void;
-  onSpace?: () => void;
-}) {
+  t: Translate;
+  searching: boolean;
+  resync: ExplorerToolbarResync | null;
+  process: ExplorerToolbarProcess | null;
+  canUpload: boolean;
+  onOpenTrash: () => void;
+}): MenuEntry[] {
+  const work: MenuEntry[] = [];
+  if (resync && canUpload) {
+    work.push({
+      id: 'sync',
+      label: resync.busy
+        ? t('teamExplorerMenuSyncRunning')
+        : resync.inFolder
+          ? t('teamExplorerMenuSyncFolder')
+          : t('teamExplorerMenuSyncSpace'),
+      icon: <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+      // Present and explained, not dead: the panel under the toolbar shows the running scan.
+      disabled: resync.busy,
+      note: resync.busy ? t('teamExplorerMenuSyncRunningNote') : undefined,
+      onSelect: resync.onStart
+    });
+  }
+  if (process && !searching) {
+    const folder = process.folder;
+    if (folder) {
+      work.push({
+        id: 'process-folder',
+        label: t('teamExplorerMenuProcessFolder'),
+        icon: <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+        onSelect: () => process.onFolder(folder)
+      });
+      if (process.onCompressFolder) {
+        const compress = process.onCompressFolder;
+        work.push({
+          id: 'compress-folder',
+          label: t('teamExplorerMenuCompressFolder'),
+          icon: <Shrink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+          onSelect: () => compress(folder)
+        });
+      }
+    } else if (process.onSpace) {
+      work.push({
+        id: 'process-space',
+        label: t('teamProcessWholeSpace'),
+        icon: <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+        onSelect: process.onSpace
+      });
+    }
+  }
+  return [
+    ...work,
+    ...(work.length > 0 ? (['separator'] as const) : []),
+    {
+      id: 'trash',
+      label: t('teamTrashEntry'),
+      icon: <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+      onSelect: onOpenTrash
+    }
+  ];
+}
+
+/** The row's "…": an icon with a name, opening the inventory's menu. */
+function MoreMenu({ items }: { items: MenuEntry[] }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const button = useRef<HTMLButtonElement | null>(null);
-  const list = useRef<HTMLDivElement | null>(null);
-
-  /*
-   * Choosing an item unmounts it, and the window that opens next restores focus
-   * to whatever was focused when it appeared — a detached button, which puts
-   * focus on the body and loses a keyboard user's place entirely. So the
-   * trigger takes focus back first, and the dialog restores to that.
-   */
-  const choose = (run: () => void) => {
-    setOpen(false);
-    button.current?.focus();
-    run();
-  };
-
-  // A menu that says `role="menu"` promises arrow keys; Tab alone was all it
-  // had, and the first item never took focus when the menu opened.
-  useEffect(() => {
-    if (!open) return;
-    const frame = requestAnimationFrame(() => {
-      list.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
-
-  const onListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    /* Tab leaves a menu rather than walking it — the arrows are the walk. The
-       trigger takes focus first: closing on a keydown unmounts the focused item
-       before the browser applies the move, and Tab from a detached element
-       starts again at the top of the document. */
-    if (event.key === 'Tab') {
-      button.current?.focus();
-      setOpen(false);
-      return;
-    }
-    const items = Array.from(
-      list.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []
-    );
-    if (items.length === 0) return;
-    const at = items.indexOf(document.activeElement as HTMLButtonElement);
-    const go = (index: number) => {
-      event.preventDefault();
-      items[(index + items.length) % items.length]?.focus();
-    };
-    if (event.key === 'ArrowDown') go(at + 1);
-    else if (event.key === 'ArrowUp') go(at - 1);
-    else if (event.key === 'Home') go(0);
-    else if (event.key === 'End') go(items.length - 1);
-  };
-
-  /*
-   * At the root there is no folder, so the menu held exactly one item: a press
-   * to open a list of one, then a second press to choose the only thing there.
-   * With one scope the button is the scope.
-   */
-  // At the root there is no folder to process; the whole space is in the space's own menu (024).
-  if (!folder) return null;
-
+  const trigger = useRef<HTMLButtonElement | null>(null);
   return (
-    <div className="team-explorer-process-menu">
-      <Button
-        type="button"
-        ref={button}
-        variant="secondary"
+    <>
+      <IconButton
+        ref={trigger}
+        className="team-explorer-more"
+        label={t('teamExplorerMoreActions')}
+        /* An obvious "…" carries no tooltip (docs/DESIGN.md); the name stays. */
+        title=""
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(value => !value)}
       >
-        {t('teamExplorerProcess')}
-      </Button>
-      <Popover
+        <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+      </IconButton>
+      <DropdownMenu
         open={open}
-        onClose={() => {
-          setOpen(false);
-          button.current?.focus();
-        }}
-        anchor={button}
-        placement="bottom-start"
-        frequent
-        label={t('teamExplorerProcessScope')}
-        surface="none"
-        className="team-explorer-menu"
-      >
-        <div
-          className="team-explorer-menu-items"
-          role="menu"
-          aria-label={t('teamExplorerProcessScope')}
-          ref={list}
-          onKeyDown={onListKeyDown}
-        >
-          {folder && (
-            <button
-              type="button"
-              role="menuitem"
-              className="team-explorer-menu-item"
-              onClick={() => choose(() => onFolder(folder))}
-            >
-              {t('teamExplorerProcessFolder')}
-            </button>
-          )}
-          {folder && onSpace && <hr className="team-explorer-menu-rule" aria-hidden="true" />}
-          {onSpace && (
-            <button
-              type="button"
-              role="menuitem"
-              className="team-explorer-menu-item"
-              onClick={() => choose(onSpace)}
-            >
-              {t('teamExplorerProcessSpace')}
-            </button>
-          )}
-        </div>
-      </Popover>
-      {onCompressFolder && (
-        <Button type="button" variant="secondary" onClick={() => onCompressFolder(folder)}>
-          {t('teamExplorerCompressFolder')}
-        </Button>
-      )}
-    </div>
+        onClose={() => setOpen(false)}
+        anchor={trigger}
+        label={t('teamExplorerMoreActions')}
+        items={items}
+      />
+    </>
   );
 }

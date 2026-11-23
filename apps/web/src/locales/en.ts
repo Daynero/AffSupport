@@ -2340,8 +2340,10 @@ export const en = {
   teamDriveApprovalRequired: 'Google OAuth approval is required for this environment.',
   teamDriveIndependentAcl: 'Soty permissions are independent from direct Google Drive permissions.',
   teamDriveResync: 'Sync now',
-  teamDriveResyncFolder: 'Sync this folder',
-  teamFolderResyncRunning: 'Syncing…',
+  teamExplorerMenuSyncFolder: 'Sync this folder with Drive',
+  teamExplorerMenuSyncSpace: 'Sync with Drive',
+  teamExplorerMenuSyncRunning: 'Syncing with Drive…',
+  teamExplorerMenuSyncRunningNote: 'Already running — its progress is under the toolbar.',
   teamFolderResyncDone: 'Folder synced',
   teamFolderResyncFailed: 'Could not sync or refresh this folder. Try again.',
   teamFolderResyncTimeout:
@@ -4144,9 +4146,8 @@ export const en = {
   teamExplorerCreateTask: 'Create task',
   teamExplorerProcessSelection: 'Process',
   teamExplorerProcessSelectionMany: 'Process {count}',
-  teamExplorerProcess: 'Process',
-  teamExplorerProcessFolder: 'This folder and everything in it',
-  teamExplorerProcessSpace: 'Everything in the space',
+  teamExplorerMoreActions: 'More actions',
+  teamExplorerMenuProcessFolder: 'Process this folder…',
   teamExplorerProcessEverything: 'Process everything',
   teamProcessWholeSpace: 'Process the whole space…',
   teamExplorerTrashFoldersOnly: 'Folders do not go to the trash — pick files instead.',
@@ -4158,7 +4159,6 @@ export const en = {
   teamExplorerPreviewsDone: 'Landing previews refreshed: {count}',
   teamExplorerPreviewsPartial: 'Landing previews: {done} refreshed, {failed} failed.',
   teamExplorerTrashSkippedFolders: 'Folders were left where they are: {count}.',
-  teamExplorerProcessScope: 'What to process',
   /* One batch, one way of naming what it is about: the space, a folder, or the
      files that were picked. "Creative Library" said nothing a person could
      point at in the explorer. */
@@ -4190,7 +4190,7 @@ export const en = {
   teamBatchScopeShortSpace: 'the whole space',
   teamBatchScopeShortFolder: 'the folder “{name}”',
   teamBatchScopeShortSelection: 'the {count} files you picked',
-  teamExplorerCompressFolder: 'Compress everything in this folder',
+  teamExplorerMenuCompressFolder: 'Compress this folder…',
   teamExplorerUpload: 'Upload',
   teamExplorerUploadFiles: 'Files…',
   teamExplorerUploadFolder: 'Folder…',

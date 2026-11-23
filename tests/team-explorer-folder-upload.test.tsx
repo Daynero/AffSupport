@@ -119,6 +119,17 @@ function syncStatus(
 }
 
 let testClient: ExplorerShellClient;
+
+/** The Drive scan lives in the toolbar's "…" (070, T013); this opens it and finds the item. */
+async function moreItem(name: RegExp) {
+  fireEvent.click(await screen.findByRole('button', { name: 'More actions' }));
+  return screen.findByRole('menuitem', { name });
+}
+async function closeMore() {
+  fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+}
+
 beforeEach(() => localStorage.setItem('wishly.active-team.v1', team.id));
 afterEach(() => {
   cleanup();
@@ -136,11 +147,11 @@ describe('folder intake in Explorer', () => {
     const status = vi.fn().mockResolvedValue(syncStatus('full-job', 'succeeded', '__root__'));
     testClient.getFolderSyncStatus = status;
     render(shell(null));
-    fireEvent.click(await screen.findByRole('button', { name: 'Sync now' }));
+    fireEvent.click(await moreItem(/^Sync with Drive/));
     expect(testClient.resyncDrive).toHaveBeenCalledWith(team.id, expect.anything());
     await waitFor(() => expect(testClient.listFolderPage).toHaveBeenCalledTimes(2));
     expect(status).toHaveBeenLastCalledWith(team.id, 'full-job', expect.anything());
-    expect(screen.getByRole('button', { name: 'Sync now' })).toBeTruthy();
+    expect((await moreItem(/^Sync with Drive/)).getAttribute('aria-disabled')).not.toBe('true');
   });
 
   it.each(['list', 'grid'] as const)(
@@ -156,7 +167,7 @@ describe('folder intake in Explorer', () => {
     }
   );
 
-  it('keeps an ancestor sync visible in a child, with a labeled and disabled sync button', async () => {
+  it('keeps an ancestor sync visible in a child, with a labeled and disabled sync item', async () => {
     testClient = client();
     testClient.listFolderTree = vi
       .fn()
@@ -166,15 +177,17 @@ describe('folder intake in Explorer', () => {
       .fn()
       .mockResolvedValue(syncStatus('job-parent', 'running', 'drive-a'));
     const view = render(shell('drive-a'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Sync this folder' }));
-    expect(await screen.findByRole('button', { name: 'Syncing…' })).toHaveProperty(
-      'disabled',
-      true
-    );
+    fireEvent.click(await moreItem(/^Sync this folder with Drive/));
+    // No second run: the item says the scan is going and cannot be chosen (070, US1-5).
+    const running = await moreItem(/^Syncing with Drive…/);
+    expect(running.getAttribute('aria-disabled')).toBe('true');
+    expect(running.textContent).toContain('Already running');
+    fireEvent.click(running);
+    await closeMore();
     view.rerender(shell('drive-b'));
     expect(await screen.findByText('Syncing this folder’s contents…')).toBeTruthy();
     expect(screen.queryByText('This folder is empty.')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Syncing…' })).toHaveProperty('disabled', true);
+    expect((await moreItem(/^Syncing with Drive…/)).getAttribute('aria-disabled')).toBe('true');
     expect(testClient.resyncFolder).toHaveBeenCalledTimes(1);
   });
 
@@ -224,7 +237,7 @@ describe('folder intake in Explorer', () => {
     );
     expect(await screen.findByText('Adding files to this folder…')).toBeTruthy();
     expect(screen.queryByText('This folder is empty.')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Syncing…' })).toHaveProperty('disabled', true);
+    expect((await moreItem(/^Syncing with Drive…/)).getAttribute('aria-disabled')).toBe('true');
   });
 
   it('reselects into the original destination through retry, never a fresh group', async () => {
@@ -521,7 +534,9 @@ describe('who may sync, and where the space scan shows (028)', () => {
       </ToastProvider>
     );
     expect(await screen.findByRole('button', { name: 'Upload' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Sync now' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+    await screen.findByRole('menuitem', { name: 'Trash' });
+    expect(screen.queryByRole('menuitem', { name: /Sync/ })).toBeNull();
   });
 
   it('a running space scan is visible inside a child folder and blocks a second request', async () => {
@@ -533,10 +548,8 @@ describe('who may sync, and where the space scan shows (028)', () => {
       .mockResolvedValue(syncStatus('job-root', 'running', '__root__'));
     localStorage.setItem(`soty:folder-resync:${team.id}:__root__`, 'job-root');
     render(shell('drive-a'));
-    expect(await screen.findByRole('button', { name: 'Syncing…' })).toHaveProperty(
-      'disabled',
-      true
-    );
+    await waitFor(() => expect(testClient.getFolderSyncStatus).toHaveBeenCalled());
+    expect((await moreItem(/^Syncing with Drive…/)).getAttribute('aria-disabled')).toBe('true');
     expect(testClient.getFolderSyncStatus).toHaveBeenCalledWith(
       team.id,
       'job-root',

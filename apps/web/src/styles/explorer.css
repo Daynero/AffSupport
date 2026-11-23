@@ -299,16 +299,6 @@
 .team-explorer-breadcrumb-folded {
   display: inline-flex;
 }
-/* The menus' own element inside the shared popover surface; it takes no space
-   of its own. */
-.team-explorer-menu-items {
-  display: contents;
-}
-
-.team-explorer-menu {
-  min-width: max-content;
-  max-width: min(320px, calc(100vw - 2 * var(--space-4)));
-}
 /* An empty folder is an answer, given once and in the middle of the space it is
    about — not a muted line hugging the top-left corner of a card that shrank to
    fit it. */
@@ -1081,88 +1071,6 @@
   align-items: center;
   gap: 2px;
 }
-/* The toolbar's "Process": the same anchoring as the sort menu, so the two
-   popovers in this toolbar behave identically. */
-.team-explorer-process-menu {
-  position: relative;
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-.team-explorer-process-menu .team-explorer-menu {
-  /* Opens under its button, and wide enough to say what it says: at the shared
-     220px every one of these four scopes wrapped onto two lines, which read as
-     eight items rather than four.
-
-     Anchored to the button's right edge, because that is where the button is —
-     the toolbar's actions are pushed right, so a left-anchored 360px popover
-     ran off the screen on anything narrower than a laptop. */
-  right: 0;
-  left: auto;
-  min-width: max-content;
-  max-width: min(360px, calc(100vw - 2 * var(--space-4)));
-}
-/* Placed by the component (021): portalled past the toolbar and flipped when
-   the window is short. */
-.team-explorer-menu {
-  z-index: var(--layer-popover);
-  min-width: 220px;
-  padding: var(--space-1);
-  /* The stronger border, not the plain one: on dark the menu and the panel it
-     opens over were the same colour, and the shadow under it fell on a surface
-     too dark to show it — four items floating with no edge. */
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-lg);
-}
-
-.team-explorer-menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  min-height: 36px;
-  padding: 0 var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text);
-  font: inherit;
-  /* The shared menu's size. The menu is portalled to the body, so it inherited
-     the page's reading size and stood louder than the toolbar that opened it —
-     and the process menu's own rules, written under its button, never reached
-     it (024). */
-  font-size: var(--text-label);
-  white-space: nowrap;
-  text-align: left;
-  cursor: pointer;
-}
-/* A tint of the text colour, not a fixed surface: `--color-surface-muted` is
-   darker than the raised menu on the dark theme, so hovering an item made it
-   recede instead of lifting. */
-.team-explorer-menu-item:hover {
-  background: color-mix(in srgb, var(--color-text) 9%, transparent);
-}
-/* Focus is the ring; hover is the tint. Resolving both to the same fill lit two
-   rows at once when the pointer rested away from the arrow keys. */
-.team-explorer-menu-item:focus-visible {
-  background: color-mix(in srgb, var(--color-text) 14%, transparent);
-  outline-offset: -3px;
-}
-/* Two scopes in one menu: what is inside this folder, and what is in the whole
-   space. The rule is the seam between them. */
-.team-explorer-menu-rule {
-  margin: var(--space-1) var(--space-2);
-  border: 0;
-  border-top: 1px solid var(--color-border-strong);
-}
-/* The focused item is the item, not a ring floating over the one below it. */
-.team-explorer-menu-item.is-checked {
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
 .team-explorer-kinds {
   display: flex;
   flex-wrap: wrap;

@@ -411,7 +411,7 @@ describe('the batch entry points', () => {
     thumbnailReadyCount: 0
   };
 
-  function renderInFolder(rows: TeamMaterialRow[]) {
+  function renderInFolder(rows: TeamMaterialRow[], folderId: string | null = FOLDER.driveFileId) {
     // The provider reads the active space from storage; without it the space has
     // no permissions and the toolbar renders no actions at all.
     localStorage.setItem('wishly.active-team.v1', TEAM.id);
@@ -425,7 +425,7 @@ describe('the batch entry points', () => {
           <ExplorerShell
             teamId={TEAM.id}
             client={client}
-            query={{ ...emptyTeamRouteQuery(), view: 'list', folderId: FOLDER.driveFileId }}
+            query={{ ...emptyTeamRouteQuery(), view: 'list', folderId }}
             onQueryChange={vi.fn()}
             onFolderChange={vi.fn()}
             onSearched={vi.fn()}
@@ -439,36 +439,33 @@ describe('the batch entry points', () => {
     return { onProcessSelection, onProcessLibrary };
   }
 
-  it('opens the scope menu from the keyboard and gives focus back on Escape', async () => {
+  it('holds the folder work in the toolbar "…", named, and gives focus back on Escape (070, T013)', async () => {
     const user = userEvent.setup();
-    const { onProcessLibrary } = renderInFolder([row(1), row(2)]);
-    const button = await screen.findByRole('button', { name: 'Process' });
+    renderInFolder([row(1), row(2)]);
+    const button = await screen.findByRole('button', { name: 'More actions' });
+    // The rare work left the row: no Process or Compress button beside the primary.
+    expect(screen.queryByRole('button', { name: 'Process' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Compress this folder…' })).toBeNull();
 
     button.focus();
     await user.keyboard('{Enter}');
     const items = await screen.findAllByRole('menuitem');
-    expect(items.map(item => item.textContent)).toEqual([
-      'This folder and everything in it',
-      'Everything in the space'
+    expect(items.map(item => item.textContent?.trim())).toEqual([
+      'Process this folder…',
+      'Compress this folder…',
+      'Trash'
     ]);
-    expect(screen.getByRole('button', { name: 'Compress everything in this folder' })).toBeTruthy();
-    await waitFor(() => expect(document.activeElement).toBe(items[0]));
-
-    await user.keyboard('{ArrowDown}');
-    expect(document.activeElement).toBe(items[1]);
-    await user.keyboard('{End}');
-    expect(document.activeElement).toBe(items[1]);
-
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('menuitem')).toBeNull());
     expect(document.activeElement).toBe(button);
+  });
 
-    await user.click(button);
-    await user.click(await screen.findByRole('menuitem', { name: 'Everything in the space' }));
+  it('offers the whole space from the "…" at the root, where there is no folder to process', async () => {
+    const user = userEvent.setup();
+    const { onProcessLibrary } = renderInFolder([row(1)], null);
+    await user.click(await screen.findByRole('button', { name: 'More actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Process the whole space…' }));
     expect(onProcessLibrary).toHaveBeenCalledTimes(1);
-    // The trigger takes focus back before the window opens, so the window has
-    // something live to restore to when it closes.
-    expect(document.activeElement).toBe(button);
   });
 
   it('hands the batch every chosen file it can take, and counts only those', async () => {

@@ -551,6 +551,7 @@ function ExplorerBody({
                 }
               : null
           }
+          onOpenTrash={() => onQueryChange({ trash: true })}
           view={view}
           onViewChange={setView}
         >
