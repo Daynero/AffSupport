@@ -20,7 +20,8 @@ describe('durable workload receipt', () => {
       await writeUpdateReceipt(root, body);
       const file = path.join(root, 'workload.json');
       expect(JSON.parse(await readFile(file, 'utf8'))).toEqual(body);
-      expect((await lstat(file)).mode & 0o077).toBe(0);
+      // NTFS has no group/other bits: Node reports 0o666 there and privacy is the profile ACL.
+      if (process.platform !== 'win32') expect((await lstat(file)).mode & 0o077).toBe(0);
       await syncUpdateStateFiles([file]);
       await expect(readFile(path.join(root, 'native.json'))).rejects.toThrow();
     } finally {
