@@ -125,7 +125,7 @@ function ProcessBatchScope({
   const { t } = useI18n();
   return (
     <ProcessLibraryDialog
-      scope={ready?.library ?? scope}
+      scope={ready?.library ?? chosenScope(state, origin, scope)}
       scopeChooser={<ProcessScopeChooser state={state} origin={origin} locked={running} />}
       blocked={!running && !applied}
       blockedReason={
@@ -134,6 +134,19 @@ function ProcessBatchScope({
       onClose={onClose}
     />
   );
+}
+
+/** The scope chosen, in words, before its answer is in — for the title. */
+function chosenScope(
+  state: ProcessScopeState,
+  origin: ProcessOrigin,
+  fallback: LibraryBatchScope
+): LibraryBatchScope {
+  if (state.kind === 'folder' && origin.folder) return { kind: 'folder', name: origin.folder.name };
+  if (state.kind === 'selection')
+    return { kind: 'selection', count: origin.selection?.length ?? 0 };
+  if (state.kind === 'space') return { kind: 'space' };
+  return fallback;
 }
 
 /** Why Start is off, said beside it; a scope being handed over says nothing — it is a moment. */
@@ -164,6 +177,12 @@ export function ProcessScopeChooser({
   const { kinds, kind, setKind } = state;
   return (
     <div className="team-process-scope">
+      {kinds.length > 1 && (
+        /* Named on screen as well, the way the compressor names "where to save" below it. */
+        <span className="ui-field-label" aria-hidden="true">
+          {t(origin.intent === 'compress' ? 'processScopeCompressLabel' : 'processScopeLabel')}
+        </span>
+      )}
       {kinds.length > 1 && (
         <RadioGroup<ProcessScopeKind>
           label={t(
@@ -271,6 +290,16 @@ function scopeDescription(
     const name = origin.folder?.name ?? '';
     const counts = state.folderCounts;
     if (!counts) return t('teamBatchScopeFolder', { name });
+    const files =
+      origin.intent === 'compress'
+        ? counts.videos.length
+        : counts.videos.length + counts.landings.length;
+    /* "0 subfolders" is not a fact worth a clause. */
+    if (counts.foldersVisited <= 1)
+      return t(
+        origin.intent === 'compress' ? 'processScopeFolderFlatVideos' : 'processScopeFolderFlat',
+        { name, files }
+      );
     return t(
       origin.intent === 'compress' ? 'processScopeFolderVideos' : 'teamBatchScopeFolderCounted',
       {
@@ -283,6 +312,8 @@ function scopeDescription(
       }
     );
   }
-  const selection = origin.selection ?? [];
-  return selection.length === 1 ? (selection[0]?.name ?? '') : t('processScopeSelectionHint');
+  /* The files themselves, as far as a line holds them: "the 2 you picked" says less than their names. */
+  const names = (origin.selection ?? []).map(file => file.name);
+  if (names.length === 0) return t('processScopeSelectionHint');
+  return names.length > 3 ? `${names.slice(0, 3).join(', ')}, …` : names.join(', ');
 }

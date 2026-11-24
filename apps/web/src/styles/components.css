@@ -2364,7 +2364,9 @@
   background: var(--color-secondary-softer);
 }
 .ui-radio input {
-  margin-top: 3px;
+  flex: none;
+  margin-top: var(--space-1);
+  accent-color: var(--color-secondary-solid);
 }
 .ui-radio-copy {
   display: grid;
@@ -2372,6 +2374,7 @@
   min-width: 0;
 }
 .ui-radio-label {
+  font-size: var(--text-label);
   font-weight: var(--weight-label);
 }
 .ui-radio-description {

@@ -128,7 +128,9 @@ export function ProcessLibraryDialog({
     >
       <section className="team-batch">
         <h2 id="team-batch-window-title" tabIndex={-1}>
-          {batchTitle(batch.scope, t)}
+          {/* The run's own name while it runs; before that, the scope on screen —
+              a chooser that says "this folder" under "the whole space" was two answers. */}
+          {batchTitle(running || !scopeChooser ? batch.scope : scope, t)}
         </h2>
         {/* The scope again, in a full sentence: the title has to be short, and
             "the whole space" versus "the 4 files you picked" is exactly the

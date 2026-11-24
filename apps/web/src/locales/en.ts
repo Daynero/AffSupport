@@ -4234,6 +4234,8 @@ export const en = {
   processScopeSpace: 'The whole space',
   processScopeFolderVideos:
     'Folder “{name}”, subfolders included — {folders} subfolders, {files} videos',
+  processScopeFolderFlat: 'Folder “{name}” — {files} videos and landings',
+  processScopeFolderFlatVideos: 'Folder “{name}” — {files} videos',
   processScopeSelectionTooMany:
     '{count} selected — more than one batch can take ({limit}). Select fewer, or choose the whole space.',
   processScopeSelectionNone:

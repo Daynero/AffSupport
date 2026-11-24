@@ -4209,6 +4209,8 @@ export const uk: Record<keyof typeof en, string> = {
   processScopeFolder: 'Ця папка',
   processScopeSpace: 'Весь простір',
   processScopeFolderVideos: 'Папка «{name}» з підпапками — підпапок: {folders}, відео: {files}',
+  processScopeFolderFlat: 'Папка «{name}» — відео й лендінгів: {files}',
+  processScopeFolderFlatVideos: 'Папка «{name}» — відео: {files}',
   processScopeSelectionTooMany:
     'Виділено {count} — більше, ніж бере одна обробка ({limit}). Виділіть менше або оберіть увесь простір.',
   processScopeSelectionNone: 'Серед виділених немає відео чи лендінгів — обробляти нічого.',

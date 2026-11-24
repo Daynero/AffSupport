@@ -205,17 +205,23 @@ export function useProcessScope(
   >({ state: 'idle' });
   const folder = origin.folder ?? null;
   const wantsFolder = kind === 'folder' && folder !== null;
-  /* Which folder the read was started for; the read itself is not a dependency. */
-  const started = useRef<string | null>(null);
+  /* Answers kept by folder: coming back to "this folder" does not walk it again. */
+  const walked = useRef(new Map<string, FolderSubtree>());
 
   useEffect(() => {
-    if (!wantsFolder || !folder || started.current === folder.driveFileId) return;
-    started.current = folder.driveFileId;
+    if (!wantsFolder || !folder) return;
+    const id = folder.driveFileId;
+    const known = walked.current.get(id);
+    if (known) {
+      setSubtree({ state: 'done', result: known });
+      return;
+    }
     let active = true;
     setSubtree({ state: 'walking' });
     void client
-      .listFolderSubtree(teamId, folder.driveFileId)
+      .listFolderSubtree(teamId, id)
       .then(result => {
+        walked.current.set(id, result);
         if (active) setSubtree({ state: 'done', result });
       })
       .catch(() => {
@@ -223,12 +229,6 @@ export function useProcessScope(
       });
     return () => {
       active = false;
-      /* Left before the answer came: the next visit asks again rather than waiting forever. */
-      setSubtree(current => {
-        if (current.state !== 'walking') return current;
-        started.current = null;
-        return { state: 'idle' };
-      });
     };
   }, [client, folder, teamId, wantsFolder]);
 

@@ -11045,10 +11045,14 @@ body {
 /* The scope question at the top of the batch and compressor windows (070, T061). */
 .team-process-scope {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 .team-process-scope-status:empty {
   display: none;
+}
+.team-process-scope-status .team-batch-scanning {
+  color: var(--color-text-muted);
+  font-size: var(--text-label);
 }
 .team-batch-progress {
   display: grid;
@@ -13141,18 +13145,23 @@ button.team-landing-tile:hover {
 /* The compact team compressor window (013 B2). */
 .team-compress-dialog {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-4);
+}
+/* What the defaults are — a caption, not a second heading (070, phase 8). */
+.team-compress-dialog > .team-explorer-muted {
+  font-size: var(--text-caption);
 }
 .team-compress-suffix .ui-input {
   width: 160px;
 }
+/* The destinations read as the same kind of choice as the scope above them:
+   full-width rows, no second box around a group that already has a name. */
 .team-compress-destination {
   display: grid;
   gap: var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
-  justify-items: start;
+}
+.team-compress-destination > .ui-button {
+  justify-self: start;
 }
 
 /* The name-ending sits on its own tidy row, flush with the control above. */
