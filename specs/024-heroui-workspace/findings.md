@@ -37,3 +37,30 @@ was done about each. Written while the work was fresh; the sweep (T140–T148) a
 - **`tests/landing-preview-catalog.test.ts`** asserts peak render concurrency against
   `availableParallelism() - 2`; under load on this machine it measures 2 instead of 4. Agent
   code, untouched by 024.
+
+## Closed in 070 (T139–T148 moved to 070 T068–T076)
+
+The sweep that 024 left open was finished as the last phase of 070; its full record is
+`specs/070-explorer-cabinet-polish/findings.md` («Фаза 9», «Фаза 9б»). In short:
+
+- **What the migration had skipped.** The inventory itself had four faults that only showed
+  once a screen was assembled from it alone (070 T068): a `Table` whose content-sized column
+  put cells beside their captions, a `Pagination` that took the page's body size, a `Select`
+  smaller than the `Input` beside it, and a `Button` that with no props was a grey neutral
+  plate rather than the action. All four are fixed in the inventory; the button's 63 bare
+  callers now say `color="neutral"`. The old `styles.css` still sets `body` to the section
+  step, so anything without a step of its own reads as a heading — each case found on the
+  beta was given its step; the global rule goes with the last legacy screens.
+- **What it taught the system.** The token, Tailwind and raw-control gates now fail rather
+  than report; the shim `components/ui.tsx` is gone; dictionaries load per language; the
+  stylesheet lost 4 540 lines of dead or duplicated rules with a computed-style proof that
+  no screen changed. An anchored layer that fits the window now shows whole instead of a
+  scrolled sliver (a phone's calendar), and an absolutely placed child of a scrolling table
+  is clipped by it.
+- **Deliberately not done.** The old `components/Modal` still frames the task pickers and the
+  palette (it shares the inventory's dialog stack, focus and Escape; moving them is a visual
+  rewrite of four dialogs, not a fix); the compressor, transcription, landing and admin
+  screens still draw from the old sheets; the narrow launch editor's close button wraps.
+  `apps/agent`, `packages/shared/src` and `config/production.env` are not changed by 070's
+  own commits; `packaging` is, for the owner's first-launch item (Launcher.swift and the
+  Windows host), and `supabase/functions/drive-ops` for the trim-on-drop item.
