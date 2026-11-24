@@ -4,7 +4,7 @@ import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { TranscriptionJob } from '@video-compressor/shared';
-import type { Translate } from '../apps/web/src/components/ui.js';
+import type { Translate } from '../apps/web/src/i18n.js';
 import {
   TranscriptionRow,
   type TranscriptionRowActions

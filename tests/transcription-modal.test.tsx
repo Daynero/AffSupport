@@ -11,7 +11,7 @@ import {
   type TranscriptTranslation,
   type TranslationStreamEvent
 } from '@video-compressor/shared';
-import type { Translate } from '../apps/web/src/components/ui.js';
+import type { Translate } from '../apps/web/src/i18n.js';
 
 const api = vi.hoisted(() => ({
   transcriptionDocument: vi.fn(),

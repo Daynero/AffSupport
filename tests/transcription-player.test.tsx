@@ -3,7 +3,7 @@
 import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Translate } from '../apps/web/src/components/ui.js';
+import type { Translate } from '../apps/web/src/i18n.js';
 import { TranscriptPlayer } from '../apps/web/src/transcription/TranscriptPlayer.js';
 
 const t = ((key: string) => key) as unknown as Translate;
