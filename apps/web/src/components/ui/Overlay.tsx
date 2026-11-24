@@ -145,6 +145,10 @@ function copyLiveState(from: HTMLElement, to: HTMLElement) {
     if (!target) return;
     if (source.scrollTop) target.scrollTop = source.scrollTop;
     if (source.scrollLeft) target.scrollLeft = source.scrollLeft;
+    // A file input's value can only be set to empty: copying a chosen file's name threw
+    // InvalidStateError out of the exit motion when the upload menu closed on its pick
+    // (070 T069). The copy only has to look the same, and a file input draws nothing.
+    if (source instanceof HTMLInputElement && source.type === 'file') return;
     if (
       source instanceof HTMLInputElement ||
       source instanceof HTMLTextAreaElement ||

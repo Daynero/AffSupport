@@ -111,7 +111,9 @@ function copyState(from: HTMLElement, to: HTMLElement): Array<() => void> {
         b.scrollTop = scrollTop;
         b.scrollLeft = scrollLeft;
       });
-    if (a instanceof HTMLInputElement && b instanceof HTMLInputElement) {
+    // A file input's value can only be set to empty: copying a chosen file threw
+    // InvalidStateError and broke the crossfade the explorer's upload starts (070 T069).
+    if (a instanceof HTMLInputElement && b instanceof HTMLInputElement && a.type !== 'file') {
       b.value = a.value;
       b.checked = a.checked;
     } else if (a instanceof HTMLTextAreaElement && b instanceof HTMLTextAreaElement)
