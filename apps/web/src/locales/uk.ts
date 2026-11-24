@@ -2782,6 +2782,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamProcessTranscription: 'Транскрипція',
   teamProcessLanding: 'Оптимізатор лендінгів',
   teamProcessImageEmbedding: 'Додавання зображень',
+  teamProcessImageEmbeddingCaption: 'Додати заставки до відео.',
   teamProvenanceTitle: 'Історія файлу',
   teamProvenanceInherited: 'Успадковані метадані',
   teamProvenanceVersionBranch: 'Гілка версій',

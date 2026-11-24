@@ -2796,6 +2796,7 @@ export const en = {
   teamProcessTranscription: 'Transcription',
   teamProcessLanding: 'Landing optimizer',
   teamProcessImageEmbedding: 'Image embedding',
+  teamProcessImageEmbeddingCaption: 'Add screens to the video.',
   teamProvenanceTitle: 'File history',
   teamProvenanceInherited: 'Inherited metadata',
   teamProvenanceVersionBranch: 'Version branch',

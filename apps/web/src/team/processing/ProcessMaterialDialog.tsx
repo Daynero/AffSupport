@@ -1,5 +1,6 @@
 import { AGENT_TOOL_CONTRACTS } from '@video-compressor/shared';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
+import { AudioLines, FolderOpen, ImagePlus, Shrink, SlidersHorizontal } from 'lucide-react';
 import type {
   CatalogMaterialItem,
   TeamProcessStartResult,
@@ -8,14 +9,14 @@ import type {
 import type { TeamProcessStartInput } from '../../api/team';
 import { teamApi } from '../../api/team';
 import type { Availability } from '../../AgentContext';
-import { Button } from '../../components/ui';
 import { ReconnectAction } from '../../components/ReconnectAction';
-import { useI18n } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Modal } from '../../components/Modal';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessage } from '../errors';
-import { Alert } from '../../components/ui/index';
+import { Alert, Button, FormField, Input, RadioGroup } from '../../components/ui/index';
 
 type TeamProcessTool = 'compressor' | 'imageEmbedding' | 'transcription' | 'landingOptimizer';
 
@@ -111,30 +112,29 @@ export function ProcessMaterialDialog({
     }
   };
 
+  const outputId = useId();
+  const titleId = useId();
+
   return (
     <Modal
-      labelledBy="team-process-title"
-      size="lg"
+      labelledBy={titleId}
+      size="md"
       className="team-process-dialog"
       onClose={onClose}
+      closeLabel={t('teamClose')}
+      initialFocus={`[id="${outputId}"]`}
     >
-      <div className="team-panel-heading">
-        <h3 id="team-process-title">{t('teamProcessTitle', { name: material.name })}</h3>
-        <Button type="button" variant="ghost" onClick={onClose}>
-          {t('teamCancel')}
-        </Button>
-      </div>
+      <h2 id={titleId}>{t('teamProcessTitle', { name: material.name })}</h2>
 
       {/* The reason, not a boolean (032 FR-013): "update Soty" is said only of
           an agent that answered and is too old; a lost link asks for the link. */}
       {agentAvailability === 'too_old' && (
-        <p className="team-inline-error" role="alert">
+        <Alert color="warning" variant="soft" live="alert">
           {t('teamProcessAgentUpdate')}
-        </p>
+        </Alert>
       )}
       {agentAvailability === 'disconnected' && (
         <Alert
-          className="team-inline-error"
           color="warning"
           variant="soft"
           live="alert"
@@ -144,47 +144,63 @@ export function ProcessMaterialDialog({
         </Alert>
       )}
       {agentAvailability === 'blocked' && (
-        <p className="team-inline-error" role="alert">
+        <Alert color="warning" variant="soft" live="alert">
           {t('linkBrowserBlocked')}
-        </p>
+        </Alert>
       )}
       {agentAvailability === 'account' && (
-        <p className="team-inline-error" role="alert">
+        <Alert color="warning" variant="soft" live="alert">
           {t('entitlementBlocked')}
-        </p>
+        </Alert>
       )}
       {agentReady && !compatible && (
-        <p className="team-inline-error" role="alert">
+        <Alert color="warning" variant="soft" live="alert">
           {t('teamProcessToolUpdate')}
-        </p>
+        </Alert>
       )}
-      <label>
-        {t('teamProcessTool')}
-        <select
+      {/* A choice with names and a line each (070, T060): this was a `<select>`
+          whose options were the tools' names and nothing else, so "Додавання
+          зображень" beside "Компресор відео" said nothing about which one makes
+          the file smaller. One tool needs no choice at all — it is named. */}
+      {tools.length > 1 ? (
+        <RadioGroup
+          label={t('teamProcessTool')}
           value={toolId}
-          onChange={event => {
-            const next = event.target.value as TeamProcessTool;
+          onChange={next => {
             setToolId(next);
             setOutputName(suggestedOutputName(material, next));
           }}
-        >
-          {tools.map(tool => (
-            <option key={tool} value={tool}>
-              {toolLabel(tool, t)}
-            </option>
-          ))}
-        </select>
-      </label>
+          options={tools.map(tool => ({
+            value: tool,
+            label: toolLabel(tool, t),
+            description: t(TOOL_CAPTION[tool]),
+            icon: toolIcon(tool)
+          }))}
+        />
+      ) : tools[0] ? (
+        <p className="team-process-only-tool">
+          {toolIcon(tools[0])}
+          <span>
+            <strong>{toolLabel(tools[0], t)}</strong>
+            <small>{t(TOOL_CAPTION[tools[0]])}</small>
+          </span>
+        </p>
+      ) : null}
       {/* A destination is chosen by looking at the folders, not by typing a
           Drive id nothing in the interface ever shows. The old field also
           pre-rendered "no destination" as an error before anyone had done
           anything wrong; the button carries that state instead now. */}
-      <div className="team-process-destination">
-        <span className="team-field-label">{t('teamFileDestination')}</span>
-        <Button type="button" variant="secondary" onClick={() => setPickingFolder(true)}>
+      <FormField label={t('teamFileDestination')}>
+        <Button
+          color="neutral"
+          variant="outline"
+          className="team-process-destination"
+          onClick={() => setPickingFolder(true)}
+        >
+          <FolderOpen size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           {destinationName ?? t('teamFolderPickerChoose')}
         </Button>
-      </div>
+      </FormField>
       {pickingFolder && (
         <FolderPicker
           teamId={teamId}
@@ -198,14 +214,13 @@ export function ProcessMaterialDialog({
           }}
         />
       )}
-      <label>
-        {t('teamProcessOutputName')}
-        <input
-          id="team-process-output-name"
+      <FormField label={t('teamProcessOutputName')} htmlFor={outputId}>
+        <Input
+          id={outputId}
           value={outputName}
           onChange={event => setOutputName(event.target.value)}
         />
-      </label>
+      </FormField>
 
       {conflict && (
         <Alert
@@ -214,7 +229,7 @@ export function ProcessMaterialDialog({
           variant="soft"
           live="alert"
           action={
-            <Button type="button" onClick={() => void start('keep_both')}>
+            <Button color="neutral" variant="outline" onClick={() => void start('keep_both')}>
               {t('teamFileKeepBoth')}
             </Button>
           }
@@ -223,9 +238,12 @@ export function ProcessMaterialDialog({
         </Alert>
       )}
       <div className="team-dialog-actions">
+        <Button color="neutral" variant="ghost" onClick={onClose}>
+          {t('teamCancel')}
+        </Button>
         <Button
-          type="button"
-          variant="primary"
+          color="primary"
+          variant="solid"
           loading={busy}
           disabled={!compatible || !destination || !outputName.trim()}
           onClick={() => void start('cancel')}
@@ -235,6 +253,26 @@ export function ProcessMaterialDialog({
       </div>
     </Modal>
   );
+}
+
+/** One line under each tool's name — the home screen's own caption where the tool has a page. */
+const TOOL_CAPTION: Record<TeamProcessTool, TranslationKey> = {
+  compressor: 'videoCompressorCaption',
+  transcription: 'transcriptionCaption',
+  imageEmbedding: 'teamProcessImageEmbeddingCaption',
+  landingOptimizer: 'landingOptimizerCaption'
+};
+
+function toolIcon(tool: TeamProcessTool) {
+  const Icon =
+    tool === 'transcription'
+      ? AudioLines
+      : tool === 'landingOptimizer'
+        ? SlidersHorizontal
+        : tool === 'imageEmbedding'
+          ? ImagePlus
+          : Shrink;
+  return <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />;
 }
 
 function toolsForMaterial(material: ProcessableMaterial): TeamProcessTool[] {
