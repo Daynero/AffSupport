@@ -733,7 +733,8 @@ function AccountSpaceContent({
     const frame = requestAnimationFrame(() => {
       panel.current
         ?.querySelector<HTMLElement>(`[data-agent-row-id="${CSS.escape(focusedAgent)}"]`)
-        ?.scrollIntoView({ block: 'center' });
+        // Optional, as in AccountGroup: an engine without it (jsdom) has nothing to scroll.
+        ?.scrollIntoView?.({ block: 'center' });
     });
     const timer = window.setTimeout(() => setFocusedAgent(null), 2400);
     return () => {
