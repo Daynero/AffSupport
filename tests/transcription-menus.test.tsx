@@ -316,6 +316,23 @@ describe('anchored layer', () => {
     ).toBeLessThanOrEqual(344);
   });
 
+  // 070 T069: a calendar under a phone's toolbar fitted the window but neither side of its
+  // trigger, and opened as a scrolled sliver with its month out of sight.
+  it('slides over its trigger to show whole when it fits the window but neither side', () => {
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    const view = render(<Host open={false} />);
+    const anchor = screen.getByTestId('anchor');
+    const layer = screen.getByTestId('layer');
+    rect(anchor, { top: 410, bottom: 442, left: 30, right: 62 });
+    Object.defineProperty(layer, 'offsetHeight', { configurable: true, value: 552 });
+    Object.defineProperty(layer, 'scrollHeight', { configurable: true, value: 552 });
+    Object.defineProperty(layer, 'offsetWidth', { configurable: true, value: 320 });
+    act(() => view.rerender(<Host open />));
+    expect(Number.parseFloat(layer.style.maxHeight)).toBe(552);
+    expect(Number.parseFloat(layer.style.top) + 552).toBeLessThanOrEqual(792);
+  });
+
   it('honours a preferred top placement when both sides have room', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
     const view = render(<Host open={false} />);

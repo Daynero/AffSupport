@@ -84,9 +84,14 @@ export function useAnchoredLayer(
       // On a short window neither side may fit even one complete action.
       // Use the free viewport then, rather than a sliver beside the trigger.
       const useViewport = Math.max(above, below) < Math.min(wanted, 120);
+      // A layer that fits the window but neither side of its trigger slides over the trigger
+      // and shows whole (070 T069): a calendar under a phone's toolbar opened as a 344 px
+      // scrolled sliver, its month and weekdays out of sight above.
+      const slides =
+        !useViewport && wanted > (upward ? above : below) && wanted <= bottomEdge - topEdge;
       const shown = Math.max(
         0,
-        Math.min(wanted, useViewport ? bottomEdge - topEdge : upward ? above : below)
+        Math.min(wanted, useViewport || slides ? bottomEdge - topEdge : upward ? above : below)
       );
       const preferredTop = useViewport
         ? topEdge
