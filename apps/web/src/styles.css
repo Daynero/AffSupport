@@ -2892,9 +2892,12 @@ input.is-invalid {
     width: 100%;
   }
 
+  /* The sentence, then its action under it — a column, not a wrapped row: in the tool pages'
+     grid a wrapped row measured one line short and the reconnect hung out under the box
+     (070 T069). */
   .blocking-message {
     align-items: flex-start;
-    flex-wrap: wrap;
+    flex-direction: column;
   }
 }
 

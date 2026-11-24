@@ -69,7 +69,7 @@ import {
   updateCompressorSettings,
   uploadScreenImage
 } from './api';
-import { Button, Checkbox, EmptyState, HelpTip, RadioGroup } from '../components/ui/index';
+import { Alert, Button, Checkbox, EmptyState, HelpTip, RadioGroup } from '../components/ui/index';
 
 const SETTINGS_OPEN_KEY = 'wishly.stitcher.settings-open.v1';
 
@@ -303,22 +303,29 @@ export function Stitcher() {
 
   return (
     <main className="workspace stitcher-page">
+      {/* The inventory's alert, as the other tools say it (070 T069): a raw panel ran the
+          title into the tool's tagline ("Soty від'єднаноТе саме відео…") over the hexagons. */}
       {!connected && (
-        <section className="blocking-message blocking-neutral" role="alert">
-          <div>
-            <strong>{t('agentDisconnected')}</strong>
-            <span>{t('stitcherSubtitle')}</span>
-          </div>
-          <ReconnectAction surface="stitcher" />
-        </section>
+        <Alert
+          className="blocking-message"
+          color="neutral"
+          variant="subtle"
+          live="alert"
+          title={t('agentDisconnected')}
+          action={<ReconnectAction surface="stitcher" />}
+        >
+          {t('stitcherSubtitle')}
+        </Alert>
       )}
       {connected && stateError && (
-        <section className="blocking-message blocking-neutral" role="alert">
-          <div>
-            <strong>{t('linkStateNotRead')}</strong>
-          </div>
-          <ReconnectAction surface="stitcher" />
-        </section>
+        <Alert
+          className="blocking-message"
+          color="neutral"
+          variant="subtle"
+          live="alert"
+          title={t('linkStateNotRead')}
+          action={<ReconnectAction surface="stitcher" />}
+        />
       )}
 
       <section className="add-files-section" aria-label={t('stitcherChoose')}>
