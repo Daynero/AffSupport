@@ -18,19 +18,9 @@ import { PaletteHost } from '../palette/PaletteHost';
 import { HistoryDialog } from './HistoryDialog';
 import { rememberRecent } from '../palette/recent';
 import { ShortcutSheet } from '../palette/ShortcutSheet';
-import { formatShortcut, matches, shortcutOf } from '../palette/shortcuts';
-import {
-  ChevronDown,
-  ChevronRight,
-  History as HistoryIcon,
-  Keyboard,
-  Search,
-  Settings,
-  Sparkles,
-  Trash2
-} from 'lucide-react';
+import { matches } from '../palette/shortcuts';
+import { ChevronRight } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { DropdownMenu } from '../../components/ui/index';
 import { trackTeamWorkspaceSession } from '../../analytics/service';
 import { useTeam } from '../TeamContext';
 import { useOptionalAgent } from '../../AgentContext';
@@ -43,21 +33,17 @@ import { MaterialPreview } from '../preview/MaterialPreview';
 import { LandingFullView } from '../landings/LandingFullView';
 import type { CatalogMaterialItem } from '@video-compressor/shared';
 import type { TaskAccountScope } from '../tasks/useTasks';
-import { StorageChip, type StorageChipClient } from '../storage/StorageChip';
+import type { StorageChipClient } from '../storage/StorageChip';
 import { useStorageHealth, type StorageHealthClient } from '../storage/useStorageHealth';
 import type { SpaceSettingsClient } from './SpaceSettings';
 import { SettingsDialog } from './SettingsDialog';
-import { CatalogUpdaterChip } from '../catalog-updater/CatalogUpdaterChip';
 import { CatalogUpdaterDialog } from '../catalog-updater/CatalogUpdaterDialog';
 import { useCatalogUpdater } from '../catalog-updater/useCatalogUpdater';
 import { TariffBanner } from '../tariffs/TariffBanner';
 import { UpdaterResumeNotice } from '../tariffs/UpdaterResumeNotice';
 import { useRestitchPreparer } from '../catalog-updater/useRestitchPreparer';
 import { MembersSection } from './MembersSection';
-import { SpaceSwitcher } from './SpaceSwitcher';
-import { RealtimeChip } from './RealtimeChip';
-import { AgentLinkChip } from './AgentLinkChip';
-import { BackgroundWorkChip } from './BackgroundWorkChip';
+import { SpaceHeader } from './SpaceHeader';
 import { LibraryProcessingProvider } from '../library/LibraryProcessingProvider';
 import { AgentQueueProvider } from '../processing/AgentQueueProvider';
 import { AddToTaskProvider } from '../tasks/AddToTask';
@@ -80,7 +66,7 @@ import {
   type TeamSection
 } from '../routes';
 import type { CatalogSearchFilters } from '@video-compressor/shared';
-import { RouteSkeleton, Tabs } from '../../components/ui/index';
+import { IconButton, RouteSkeleton, Tabs } from '../../components/ui/index';
 
 /**
  * The sections loaded on demand (024, 058).
@@ -315,8 +301,6 @@ export function WorkspaceShell({
   }, [health?.kind, section]);
   const [batchSelectionOpen, setBatchSelectionOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
-  const spaceMenuTrigger = useRef<HTMLButtonElement>(null);
   /** Which materials the batch is about; empty is the whole space. */
   const [batchSources, setBatchSources] = useState<string[]>([]);
   /* The same set said in words, for the window's title. The explorer knows
@@ -866,6 +850,18 @@ export function WorkspaceShell({
       observer?.disconnect();
     };
   }, [teamId]);
+  /* The open section is always in view on a strip that scrolls (070, T078): a link into
+     Members on a phone opened the section with its tab past the edge. */
+  const shownSection = pendingSection ?? section;
+  useEffect(() => {
+    const tabs = sectionTabsRef.current?.querySelector<HTMLElement>('.team-space-tabs');
+    const tab = tabs?.querySelector<HTMLElement>('.ui-tab.is-selected');
+    if (!tabs || !tab || tabs.scrollWidth <= tabs.clientWidth) return;
+    const left =
+      tab.getBoundingClientRect().left - tabs.getBoundingClientRect().left + tabs.scrollLeft;
+    if (left < tabs.scrollLeft || left + tab.offsetWidth > tabs.scrollLeft + tabs.clientWidth)
+      tabs.scrollLeft = Math.max(0, left - (tabs.clientWidth - tab.offsetWidth) / 2);
+  }, [shownSection]);
   const chromeRef = useCallback((chrome: HTMLDivElement | null) => {
     chromeObserver.current?.disconnect();
     chromeObserver.current = null;
@@ -922,162 +918,55 @@ export function WorkspaceShell({
                 sections and the utilities sat straight on the hexagon field,
                 and a lit cell swallowed whatever crossed it. */}
                 <div ref={chromeRef} className="team-space-shell-chrome">
-                  <header className="team-space-shell-header">
-                    <div className="team-space-shell-identity">
-                      <SpaceSwitcher
-                        activeTeam={activeTeam}
-                        teams={teams}
-                        headingId="team-space-shell-title"
-                      />
-                    </div>
-                    <div className="team-space-shell-utilities">
-                      {activeTeam && (
-                        <StorageChip
-                          teamId={teamId}
-                          health={health}
-                          client={client}
-                          isOwner={activeTeam.role === 'owner'}
-                          canManage={activeTeam.role === 'owner' || activeTeam.role === 'admin'}
-                          settingsHref={explorerRoute({ settings: true })}
-                          onRefresh={refreshHealth}
-                          staleSince={healthStaleSince}
-                          open={Boolean(query?.storage)}
-                          onOpenChange={next => navigateTo(hereRoute({ storage: next }), !next)}
-                        />
-                      )}
-                      <RealtimeChip />
-                      <AgentLinkChip />
-                      <BackgroundWorkChip
-                        /* The chip only appears while a batch is running, so opening it
-                   must show *that* batch. Resetting the scope here retitled a
-                   folder run "the whole space" and widened what a second press
-                   of Start would touch. */
-                        onOpen={() => navigateTo(hereRoute({ process: true }))}
-                      />
-                      <CatalogUpdaterChip
-                        state={catalogUpdater.state}
-                        offsetMs={catalogUpdater.offsetMs}
-                        href={explorerRoute({ updater: true })}
-                        onNavigate={event => internalLink(event, explorerRoute({ updater: true }))}
-                      />
-                      {/* One way in, said on screen (024, FR-094): the palette had
-                    only a chord, which is a feature for whoever read the code. */}
-                      <button
-                        type="button"
-                        className="team-space-shell-utility-link team-space-shell-find"
-                        aria-label={`${t('teamSpaceFind')} (${formatShortcut(shortcutOf('palette')!.keys)})`}
-                        onClick={() => navigateTo(explorerRoute({ palette: true }), true)}
-                      >
-                        <Search size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                        {t('teamSpaceFind')}
-                        <kbd>{formatShortcut(shortcutOf('palette')!.keys)}</kbd>
-                      </button>
-                      {/* Space settings and secondary actions share this menu.
-                          The catalog manager remains directly accessible in the header. */}
-                      <button
-                        ref={spaceMenuTrigger}
-                        type="button"
-                        className="team-space-shell-utility-link"
-                        aria-haspopup="menu"
-                        aria-expanded={spaceMenuOpen}
-                        onClick={() => setSpaceMenuOpen(true)}
-                      >
-                        {t('teamSpaceMenu')}
-                        <ChevronDown size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                      </button>
-                      <DropdownMenu
-                        open={spaceMenuOpen}
-                        onClose={() => setSpaceMenuOpen(false)}
-                        anchor={spaceMenuTrigger}
-                        label={t('teamSpaceMenu')}
-                        items={[
-                          {
-                            id: 'settings',
-                            label: t('teamSpaceSettings'),
-                            icon: (
-                              <Settings
-                                size={ICON_SIZE}
-                                strokeWidth={ICON_STROKE}
-                                aria-hidden="true"
-                              />
-                            ),
-                            onSelect: () => navigateTo(explorerRoute({ settings: true }))
-                          },
-                          /* Grouped by what they are about (024): the space itself, the work it
-                           runs, its record and its bin, then help. Six rows in one run read as
-                           one block. */
-                          'separator',
-                          /* The whole space at once, in the space's menu (024): at the root it
-                           was a bare "Process everything" beside "Add files" — rare, heavy,
-                           and it looked like the next step. A folder's own "Process" menu
-                           and a selection's "Process N" stay where the files are. */
-                          ...(can('process') && browsable
-                            ? [
-                                {
-                                  id: 'process-space',
-                                  label: t('teamProcessWholeSpace'),
-                                  icon: (
-                                    <Sparkles
-                                      size={ICON_SIZE}
-                                      strokeWidth={ICON_STROKE}
-                                      aria-hidden="true"
-                                    />
-                                  ),
-                                  onSelect: () => {
-                                    setBatchSources([]);
-                                    setBatchScope({ kind: 'space' });
-                                    navigateTo(hereRoute({ process: true }));
-                                  }
-                                }
-                              ]
-                            : []),
-                          'separator',
-                          ...(activeTeam?.role === 'owner' || activeTeam?.role === 'admin'
-                            ? [
-                                {
-                                  id: 'history',
-                                  label: t('teamAuditTitle'),
-                                  icon: (
-                                    <HistoryIcon
-                                      size={ICON_SIZE}
-                                      strokeWidth={ICON_STROKE}
-                                      aria-hidden="true"
-                                    />
-                                  ),
-                                  onSelect: () => navigateTo(explorerRoute({ history: true }))
-                                }
-                              ]
-                            : []),
-                          {
-                            id: 'trash',
-                            label: t('teamTrashEntry'),
-                            icon: (
-                              <Trash2
-                                size={ICON_SIZE}
-                                strokeWidth={ICON_STROKE}
-                                aria-hidden="true"
-                              />
-                            ),
-                            onSelect: () => navigateTo(explorerRoute({ trash: true }))
-                          },
-                          'separator',
-                          {
-                            id: 'shortcuts',
-                            label: t('shortcutSheet'),
-                            icon: (
-                              <Keyboard
-                                size={ICON_SIZE}
-                                strokeWidth={ICON_STROKE}
-                                aria-hidden="true"
-                              />
-                            ),
-                            trailing: formatShortcut(shortcutOf('shortcuts')!.keys),
-                            onSelect: () => setShortcutsOpen(true)
+                  <SpaceHeader
+                    activeTeam={activeTeam}
+                    teams={teams}
+                    health={
+                      activeTeam
+                        ? {
+                            teamId,
+                            client,
+                            storage: health,
+                            staleSince: healthStaleSince,
+                            onRefreshStorage: refreshHealth,
+                            isOwner: activeTeam.role === 'owner',
+                            canManage: activeTeam.role === 'owner' || activeTeam.role === 'admin',
+                            settingsHref: explorerRoute({ settings: true }),
+                            storageOpen: Boolean(query?.storage),
+                            onStorageOpenChange: next =>
+                              navigateTo(hereRoute({ storage: next }), !next),
+                            updater: catalogUpdater.state,
+                            updaterOffsetMs: catalogUpdater.offsetMs,
+                            updaterHref: explorerRoute({ updater: true }),
+                            onUpdaterNavigate: event =>
+                              internalLink(event, explorerRoute({ updater: true })),
+                            /* The chip only appears while a batch is running, so opening it
+                               must show *that* batch: resetting the scope here retitled a
+                               folder run "the whole space". */
+                            onOpenProcess: () => navigateTo(hereRoute({ process: true }))
                           }
-                        ]}
-                      />
-                    </div>
-                  </header>
+                        : null
+                    }
+                    onFind={() => navigateTo(explorerRoute({ palette: true }), true)}
+                    menu={{
+                      onSettings: () => navigateTo(explorerRoute({ settings: true })),
+                      onUpdater: () => navigateTo(explorerRoute({ updater: true })),
+                      onProcessSpace:
+                        can('process') && browsable
+                          ? () => {
+                              setBatchSources([]);
+                              setBatchScope({ kind: 'space' });
+                              navigateTo(hereRoute({ process: true }));
+                            }
+                          : undefined,
+                      onHistory:
+                        activeTeam?.role === 'owner' || activeTeam?.role === 'admin'
+                          ? () => navigateTo(explorerRoute({ history: true }))
+                          : undefined,
+                      onTrash: () => navigateTo(explorerRoute({ trash: true })),
+                      onShortcuts: () => setShortcutsOpen(true)
+                    }}
+                  />
 
                   {/* 034 — the term running out, and the updater the pause left off. */}
                   <TariffBanner teamId={teamId} />
@@ -1092,7 +981,10 @@ export function WorkspaceShell({
           and the active one is announced rather than merely coloured. The strip
           is the inventory's (021, T082), which grew the address variant for
           exactly this. */}
-                  <div ref={sectionTabsRef} className="team-space-tabs-frame">
+                  <div
+                    ref={sectionTabsRef}
+                    className={`team-space-tabs-frame${moreSections ? ' has-more' : ''}`}
+                  >
                     <Tabs
                       className="team-space-tabs"
                       label={t('teamSectionsNavLabel')}
@@ -1122,19 +1014,23 @@ export function WorkspaceShell({
                         href: sectionRoute(tab.section)
                       }))}
                     />
-                    <button
-                      type="button"
+                    {/* The way to the sections past the edge (070, T078): on a phone five
+                        tabs are wider than the strip, and a cut «Ак…» was the only hint. */}
+                    <IconButton
+                      size="sm"
+                      variant="ghost"
                       className={`team-space-tabs-next${moreSections ? '' : ' is-hidden'}`}
-                      aria-label={t('teamMoreSections')}
+                      label={t('teamMoreSections')}
+                      title=""
                       tabIndex={moreSections ? 0 : -1}
                       onClick={() =>
                         sectionTabsRef.current
                           ?.querySelector<HTMLElement>('.team-space-tabs')
-                          ?.scrollBy({ left: 160 })
+                          ?.scrollBy({ left: 160, behavior: 'smooth' })
                       }
                     >
                       <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    </button>
+                    </IconButton>
                   </div>
                 </div>
 

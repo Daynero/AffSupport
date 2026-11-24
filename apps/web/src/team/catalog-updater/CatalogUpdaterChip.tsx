@@ -8,33 +8,29 @@ import { teamErrorMessageFor } from '../errors';
 import { Tooltip } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 
-/** Scheduled work is waiting, not continuously running. Spare copies are preparation, not progress. */
-export function CatalogUpdaterChip({
-  state,
-  offsetMs,
-  href,
-  onNavigate
-}: {
-  state: CatalogUpdaterState | null;
-  offsetMs: number;
-  href: string;
-  onNavigate: (event: MouseEvent<HTMLAnchorElement>) => void;
-}) {
+export interface UpdaterSummary {
+  attention: boolean;
+  oneOff: boolean;
+  active: boolean;
+  /** "2 on a schedule", or null for a one-off run. */
+  scheduled: string | null;
+  titleCount: number | null | undefined;
+  /** The one line that says where the updater is: next run, running now, needs a look. */
+  status: string;
+  details: string;
+}
+
+/**
+ * What the updater is doing, in words (070, US5): the chip says it while there is something to
+ * say, and the space's health panel says it on its row when there is not.
+ */
+export function useUpdaterSummary(
+  state: CatalogUpdaterState | null,
+  offsetMs: number
+): UpdaterSummary | null {
   const { t, language } = useI18n();
   const remaining = useRemaining(state?.nextRunAt ?? null, offsetMs);
-  if (!state || (state.state !== 'running' && !state.activeCount)) {
-    return (
-      <a
-        className="team-space-shell-utility-link inline-flex items-center gap-1"
-        href={href}
-        onClick={onNavigate}
-      >
-        <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        {t('catalogUpdaterEntry')}
-      </a>
-    );
-  }
-
+  if (!state || (state.state !== 'running' && !state.activeCount)) return null;
   const attention = state.failingCount > 0 || Boolean(state.restitchBlockedCode);
   const oneOff = state.state === 'stopped' || state.nextRunAt === null;
   const active = (state.activeCount ?? 0) > 0;
@@ -74,6 +70,36 @@ export function CatalogUpdaterChip({
   ]
     .filter(Boolean)
     .join(' · ');
+  return { attention, oneOff, active, scheduled, titleCount, status, details };
+}
+
+/** Scheduled work is waiting, not continuously running. Spare copies are preparation, not progress. */
+export function CatalogUpdaterChip({
+  state,
+  offsetMs,
+  href,
+  onNavigate
+}: {
+  state: CatalogUpdaterState | null;
+  offsetMs: number;
+  href: string;
+  onNavigate: (event: MouseEvent<HTMLAnchorElement>) => void;
+}) {
+  const { t } = useI18n();
+  const summary = useUpdaterSummary(state, offsetMs);
+  if (!summary) {
+    return (
+      <a
+        className="team-space-shell-utility-link inline-flex items-center gap-1"
+        href={href}
+        onClick={onNavigate}
+      >
+        <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        {t('catalogUpdaterEntry')}
+      </a>
+    );
+  }
+  const { attention, oneOff, active, scheduled, titleCount, status, details } = summary;
   const Icon = attention ? TriangleAlert : CalendarClock;
 
   return (

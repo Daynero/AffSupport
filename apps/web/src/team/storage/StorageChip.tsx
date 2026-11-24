@@ -136,7 +136,8 @@ export function StorageChip({
   onRefresh,
   open: openProp,
   onOpenChange,
-  staleSince = null
+  staleSince = null,
+  showChip = true
 }: {
   teamId: string;
   health: StorageHealth | null;
@@ -155,6 +156,12 @@ export function StorageChip({
    */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Whether the chip itself is drawn (070, US5). The space's health decides which
+   * of its sources earn a chip; the detail stays mounted either way, so its
+   * address (`storage=1`) opens it from the health panel too.
+   */
+  showChip?: boolean;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -191,6 +198,8 @@ export function StorageChip({
   const tone: ChipTone =
     stale ||
     health.kind === 'attention' ||
+    /* No storage at all is not "fine" in green (070, US5): a person has to connect one. */
+    health.kind === 'disconnected' ||
     health.syncHealth === 'delayed' ||
     health.coverage === 'partial' ||
     health.coverage === 'permission_limited'
@@ -258,28 +267,29 @@ export function StorageChip({
           up to date · 64 hours ago" was the header's permanent first word. The
           chip speaks when there is something to know; the detail stays one
           address away (`storage=1`) and in the settings. */}
-      {(stale ||
-        health.kind !== 'connected' ||
-        health.syncHealth === 'delayed' ||
-        health.coverage === 'partial' ||
-        health.coverage === 'permission_limited') && (
-        <WorkspaceChip
-          tone={tone}
-          busy={busyState && !stale}
-          className="team-storage-chip"
-          label={
-            stale
+      {showChip &&
+        (stale ||
+          health.kind !== 'connected' ||
+          health.syncHealth === 'delayed' ||
+          health.coverage === 'partial' ||
+          health.coverage === 'permission_limited') && (
+          <WorkspaceChip
+            tone={tone}
+            busy={busyState && !stale}
+            className="team-storage-chip"
+            label={
+              stale
+                ? t('teamStorageChipStale', { count: staleMinutes ?? 0 })
+                : chipCopy(health, t, render?.paused)
+            }
+            opensDialog
+            onPress={() => setOpen(true)}
+          >
+            {stale
               ? t('teamStorageChipStale', { count: staleMinutes ?? 0 })
-              : chipCopy(health, t, render?.paused)
-          }
-          opensDialog
-          onPress={() => setOpen(true)}
-        >
-          {stale
-            ? t('teamStorageChipStale', { count: staleMinutes ?? 0 })
-            : chipCopy(health, t, render?.paused)}
-        </WorkspaceChip>
-      )}
+              : chipCopy(health, t, render?.paused)}
+          </WorkspaceChip>
+        )}
       {open && (
         <Modal
           labelledBy={titleId}

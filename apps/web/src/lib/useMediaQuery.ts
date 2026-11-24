@@ -39,3 +39,11 @@ export function useMediaQuery(query: string, fallback = false): boolean {
  * spelled here, as `check-design-tokens.mjs` allows for the five steps.
  */
 export const NARROW_LG_QUERY = '(max-width: 1024px)';
+
+/**
+ * Up to the `sm` step (640 px, `--breakpoint-sm`): a phone. The bars that
+ * swap a worded control for its icon (070, T077, T078) render the other
+ * control here, not only hide one — two buttons with one name would be two
+ * buttons to a reader.
+ */
+export const NARROW_SM_QUERY = '(max-width: 640px)';
