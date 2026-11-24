@@ -918,7 +918,16 @@ export default function CompressorPage() {
  * number, and the theme and language move into the account menu. The beta
  * badge sits beside the mark in every width rather than floating over content.
  */
-export function Header({ connection, t }: { connection: ConnectionState; t: Translate }) {
+export function Header({
+  connection,
+  t,
+  reconnect = true
+}: {
+  connection: ConnectionState;
+  t: Translate;
+  /** False where the page beside it already offers the reconnect (a space's header). */
+  reconnect?: boolean;
+}) {
   const narrow = useMediaQuery(NARROW_SM_QUERY);
   return (
     <header className="topbar">
@@ -947,7 +956,7 @@ export function Header({ connection, t }: { connection: ConnectionState; t: Tran
             was carried by a class — visible, and invisible to anything that is
             not looking at pixels. */}
         {!narrow && <LanguageSwitch />}
-        <ConnectionBadge state={connection} t={t} narrow={narrow} />
+        <ConnectionBadge state={connection} t={t} narrow={narrow} reconnect={reconnect} />
         <UserMenu />
       </div>
     </header>
@@ -957,12 +966,15 @@ export function Header({ connection, t }: { connection: ConnectionState; t: Tran
 export function ConnectionBadge({
   state,
   t,
-  narrow = false
+  narrow = false,
+  reconnect = true
 }: {
   state: ConnectionState;
   t: Translate;
   /** A phone's bar: the reconnect is its arrow, not its word. */
   narrow?: boolean;
+  /** False where the page already shows the same reconnect (070 T069). */
+  reconnect?: boolean;
 }) {
   const keys: Record<ConnectionState, TranslationKey> = {
     checking: 'connectingAgent',
@@ -988,7 +1000,7 @@ export function ConnectionBadge({
       {/* The way out, beside the fact (032, FR-010). A browser that blocks
           loopback blocks every retry, so there the one action is the Agent's
           own copy of this page. */}
-      {RECONNECTABLE.has(state) && (
+      {reconnect && RECONNECTABLE.has(state) && (
         <ReconnectAction surface="header_badge" compact iconOnly={narrow} />
       )}
       {state === 'connection_blocked' && (

@@ -193,6 +193,13 @@ describe('the header badge', () => {
     expect(screen.queryByRole('button', { name: RECONNECT })).toBeNull();
   });
 
+  // 070 T069: in a space the header's agent chip carries the reconnect; the bar keeps the fact.
+  it('leaves the reconnect to the page when the page already offers it', () => {
+    render(<ConnectionBadge state="disconnected" t={t} reconnect={false} />);
+    expect(screen.getByText(t('agentDisconnected'))).toBeTruthy();
+    expect(screen.queryByRole('button', { name: RECONNECT })).toBeNull();
+  });
+
   it('offers the Agent copy of this page, not a retry, when the browser blocks loopback', () => {
     history.replaceState(null, '', '/transcription');
     render(<ConnectionBadge state="connection_blocked" t={t} />);

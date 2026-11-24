@@ -74,13 +74,20 @@ function ApplicationShell({ path, route }: { path: string; route: string }) {
   const { t } = useI18n();
   // Status only: this sits above every page and has no interest in a
   // progress tick.
-  const { connection } = useAgentStatus();
+  const { connection, teamWorkspaceAvailability } = useAgentStatus();
   // The tab the installer came from follows the app into the space once it connects (070).
   useInstallHandoff(connection, path);
+  // Inside a space the header's agent chip carries the reconnect (070 T031); the bar keeps
+  // the fact and drops its own copy of the button, so the screen has one (070 T069).
+  const spaceReconnects =
+    teamWorkspaceAvailability === 'disconnected' &&
+    connection !== 'checking' &&
+    connection !== 'connecting' &&
+    parseTeamRoute(route)?.kind === 'space';
   return (
     <div className="app-shell">
       <HintLayer />
-      <Header connection={connection} t={t} />
+      <Header connection={connection} t={t} reconnect={!spaceReconnects} />
       <div className="page-viewport">
         <ProtectedApplication path={path} route={route} />
       </div>
