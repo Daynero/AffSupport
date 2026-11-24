@@ -2737,6 +2737,26 @@
   width: 18px;
   height: 18px;
 }
+/* The language switch while the chosen language is still on its way (070 T069):
+   the choice has moved and breathes until the words arrive, so the switch never
+   looks dead on a slow line. Asked for less motion, it is simply dimmed. */
+.language-switch.is-pending {
+  cursor: progress;
+}
+.language-switch.is-pending .is-selected {
+  animation: ui-pending-breathe var(--motion-progress) var(--ease-out-curve) infinite alternate;
+}
+@keyframes ui-pending-breathe {
+  to {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .language-switch.is-pending .is-selected {
+    animation: none;
+    opacity: 0.6;
+  }
+}
 @keyframes ui-spin {
   to {
     transform: rotate(360deg);
