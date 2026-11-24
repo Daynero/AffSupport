@@ -45,7 +45,6 @@ import { EnvironmentBadge } from './components/EnvironmentBadge';
 import { NARROW_SM_QUERY, useMediaQuery } from './lib/useMediaQuery';
 import { PowerThrottle } from './components/PowerThrottle';
 import { ThemeToggle } from './components/ThemeToggle';
-import { useCompactToolbar } from './components/useCompactToolbar';
 import { useAgent } from './AgentContext';
 import { internalLink, usePageEntrance } from './lib/navigation';
 import { UserMenu } from './components/UserMenu';
@@ -69,7 +68,8 @@ import {
   EmptyState,
   Progress,
   Spinner,
-  uiClasses
+  uiClasses,
+  useCompactToolbar
 } from './components/ui/index';
 import { LanguageSwitch } from './components/LanguageSwitch';
 import { ReconnectAction } from './components/ReconnectAction';
@@ -1198,9 +1198,15 @@ export function Onboarding({
         <span className="agent-search-dot" aria-hidden="true" />
         {t('lookingForAgent')}
       </p>
-      <button className="text-button" onClick={() => setHelp(!help)} aria-expanded={help}>
+      <Button
+        variant="link"
+        color="primary"
+        className="onboarding-help-toggle"
+        aria-expanded={help}
+        onClick={() => setHelp(!help)}
+      >
         {t('installationHelp')}
-      </button>
+      </Button>
       {help && (
         <div className="installation-help">
           <h3>{t('installTitle')}</h3>

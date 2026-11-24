@@ -53,7 +53,6 @@ import { DropZone } from '../components/DropZone';
 import { ReconnectAction } from '../components/ReconnectAction';
 import { useToolStateRead } from '../lib/use-tool-state-read';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
-import { useCompactToolbar } from '../components/useCompactToolbar';
 import { compactPath } from '../format';
 import { landingCountKey, useI18n, type Translate } from '../i18n';
 import { usePageEntrance } from '../lib/navigation';
@@ -68,7 +67,8 @@ import {
   HelpTip,
   RadioGroup,
   Spinner,
-  Switch
+  Switch,
+  useCompactToolbar
 } from '../components/ui/index';
 
 interface ToastMessage {

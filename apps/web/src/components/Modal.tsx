@@ -1,5 +1,7 @@
 import { useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
+import { IconButton } from './ui/Button';
 import { FOCUSABLE_SELECTOR, useDialogBehaviour, useExitMotionRef } from './ui/Overlay';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -153,10 +155,12 @@ export function Modal({
         style={style}
         {...data}
       >
+        {/* The inventory's icon button at the touch size, pinned to the corner by
+            `.modal-close`; the glyph used to be a text "✕" at the 3xl type step. */}
         {onClose && closeLabel && (
-          <button type="button" className="modal-close" aria-label={closeLabel} onClick={onClose}>
-            ✕
-          </button>
+          <IconButton label={closeLabel} size="lg" className="modal-close" onClick={onClose}>
+            <X aria-hidden="true" />
+          </IconButton>
         )}
         {children}
       </div>

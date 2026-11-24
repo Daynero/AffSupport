@@ -107,6 +107,14 @@ export { Splitter } from './Splitter';
 export type { SplitterProps } from './Splitter';
 
 export { Breadcrumb, Link, Pagination, Tabs, Toolbar } from './Navigation';
+/* A row of actions that gives up words before room, measured rather than guessed (070 T034). */
+export { useCompactToolbar, useToolbarStages } from './useCompactToolbar';
+export type {
+  CompactToolbar,
+  ToolbarStage,
+  ToolbarStages,
+  ToolbarStagesOptions
+} from './useCompactToolbar';
 export type {
   BreadcrumbProps,
   Crumb,

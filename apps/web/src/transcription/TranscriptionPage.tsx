@@ -40,7 +40,6 @@ import { useAgent } from '../AgentContext';
 import { useAgentEventStream } from '../api/useAgentEventStream';
 import { DropZone } from '../components/DropZone';
 
-import { useCompactToolbar } from '../components/useCompactToolbar';
 import { toggleSelection } from '../queue-ui';
 import { useI18n } from '../i18n';
 import { describeError } from './errors';
@@ -76,7 +75,15 @@ import {
   type TranscriptExportContent,
   type TranscriptExportFormat
 } from './export';
-import { Alert, Button, Checkbox, EmptyState, Progress, Spinner } from '../components/ui/index';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  EmptyState,
+  Progress,
+  Spinner,
+  useCompactToolbar
+} from '../components/ui/index';
 import { ReconnectAction } from '../components/ReconnectAction';
 import { useToolStateRead } from '../lib/use-tool-state-read';
 

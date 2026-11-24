@@ -4,7 +4,7 @@ import React from 'react';
 import { act, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TranscriptionMediaPreview } from '@video-compressor/shared';
-import { useCompactToolbar } from '../apps/web/src/components/useCompactToolbar.js';
+import { useCompactToolbar } from '../apps/web/src/components/ui/useCompactToolbar.js';
 import { useMediaPreview } from '../apps/web/src/transcription/useMediaPreview.js';
 
 const media = vi.hoisted(() => ({

@@ -82,36 +82,25 @@
   min-width: 0;
 }
 
-.lv-recent-row > button:first-child {
-  display: flex;
+/* The row is the inventory's Button (070 T037): its plate, hover, focus ring and press are the
+   inventory's; what stays here is the row's shape — a folder, two lines and a chevron, left
+   aligned and as tall as the two lines need. */
+.lv-recent-row > .lv-recent-open {
   flex: 1 1 auto;
   min-width: 0;
-  align-items: center;
+  height: auto;
+  justify-content: flex-start;
   gap: var(--space-3);
-  padding: 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text);
-  background: var(--color-surface-subtle);
-  cursor: pointer;
-  text-align: left;
-  transition:
-    border-color var(--dur-micro) var(--ease-standard),
-    background var(--dur-micro) var(--ease-standard);
+  font-weight: inherit;
+  white-space: normal;
+  text-align: start;
 }
 
-.lv-recent-row > button:first-child:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-  background: var(--color-accent-soft);
+.lv-recent-open > .ui-button-label {
+  flex: 1 1 auto;
 }
 
-.lv-recent-row > button:first-child:disabled {
-  cursor: progress;
-  opacity: 0.6;
-}
-
-.lv-recent-row > button:first-child > svg {
-  flex: 0 0 auto;
+.lv-recent-open > .ui-button-leading {
   color: var(--color-accent);
 }
 
@@ -133,7 +122,7 @@
   font-size: var(--text-md);
 }
 
-.lv-recent-row.is-unavailable > button:first-child {
+.lv-recent-row.is-unavailable > .lv-recent-open {
   opacity: 0.6;
 }
 
@@ -526,133 +515,9 @@
 
 /* Menus -------------------------------------------------------------------- */
 
-.lv-menu {
-  /* Portalled to the body while the viewer is a fixed layer above the app: without its own
-     place in the order it opened underneath the very toolbar that summoned it. */
-  z-index: var(--layer-modal-nested);
-  display: grid;
-  width: max-content;
-  min-width: 220px;
-  max-width: min(360px, calc(100vw - 16px));
-  gap: 2px;
-  padding: 6px;
-  overflow-y: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-menu);
-}
-
-/* The menu's own element, between the popover surface and its entries so the
-   arrow-key walk has something to own; it takes no space of its own. */
-.lv-menu-items {
-  display: contents;
-}
-
-.lv-menu-heading {
-  padding: 8px 10px 4px;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  font-weight: 750;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.lv-menu-separator {
-  height: 1px;
-  margin: 4px 2px;
-  background: var(--color-border);
-}
-
-.lv-menu-item {
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-lg);
-  text-align: left;
-}
-
-.lv-menu-item > svg:first-child {
-  flex: 0 0 auto;
-  color: var(--color-text-muted);
-}
-
-.lv-menu-item-copy {
-  display: grid;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.lv-menu-item-copy > small {
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--text-base);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lv-menu-item-copy > strong {
-  overflow: hidden;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lv-menu-item-check {
-  flex: 0 0 auto;
-  color: var(--color-accent);
-}
-
-.lv-menu-item:hover:not(:disabled),
-.lv-menu-item:focus-visible {
-  outline: 0;
-  background: var(--color-surface-muted);
-}
-
-.lv-menu-item[aria-checked='true'],
-.lv-menu-item[aria-current='true'] {
-  background: var(--color-accent-soft);
-}
-
-.lv-menu-item[aria-checked='true'] > svg:first-child {
-  color: var(--color-accent-hover);
-}
-
-.lv-menu-item:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.lv-menu-item.is-danger {
-  color: var(--color-error);
-}
-
-.lv-menu-item.is-danger > svg:first-child {
-  color: inherit;
-}
-
-.lv-menu-item.is-danger:hover:not(:disabled) {
-  background: var(--color-error-soft);
-}
-
-.lv-menu-item.is-add {
-  border: 1px dashed var(--color-border);
-  color: var(--color-accent-hover);
-  font-weight: 600;
-}
-
-.lv-menu-item.is-add > svg:first-child {
-  color: inherit;
-}
+/* The toolbar's menus are the inventory's `DropdownMenu` (070 T037): its surface sits on the
+   anchored layer, above the viewer's own fixed layer, and its items, headings, ticks and
+   separators are the inventory's. Only the trigger is the toolbar's. */
 
 /* Sidebar ------------------------------------------------------------------ */
 

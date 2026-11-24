@@ -2,7 +2,7 @@ import { ChevronDown, RefreshCw, RotateCcw } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
 import { GalleryIconButton } from './internal/GalleryIconButton';
-import { MenuItem, ViewerMenu } from './internal/ViewerMenu';
+import { ViewerMenu } from './internal/ViewerMenu';
 
 /**
  * "Refresh the folder" picks up new and changed landings; the caret beside it holds the
@@ -42,36 +42,23 @@ export function LandingRefreshControl({
           label={t('landingGalleryRefreshMore')}
           triggerClassName="lv-refresh-more"
           trigger={<ChevronDown size={16} strokeWidth={2} aria-hidden="true" />}
-        >
-          {close => (
-            <>
-              <MenuItem
-                icon={
-                  <RefreshCw size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                }
-                disabled={running || !hasSelection}
-                onClick={() => {
-                  close();
-                  onRefreshCurrent();
-                }}
-              >
-                {t('landingGalleryRefreshCurrent')}
-              </MenuItem>
-              <MenuItem
-                icon={
-                  <RotateCcw size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                }
-                disabled={running}
-                onClick={() => {
-                  close();
-                  onRebuildAll();
-                }}
-              >
-                {t('landingGalleryRebuildAll')}
-              </MenuItem>
-            </>
-          )}
-        </ViewerMenu>
+          items={[
+            {
+              id: 'refresh-current',
+              icon: <RefreshCw size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+              label: t('landingGalleryRefreshCurrent'),
+              disabled: running || !hasSelection,
+              onSelect: onRefreshCurrent
+            },
+            {
+              id: 'rebuild-all',
+              icon: <RotateCcw size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+              label: t('landingGalleryRebuildAll'),
+              disabled: running,
+              onSelect: onRebuildAll
+            }
+          ]}
+        />
       )}
     </div>
   );

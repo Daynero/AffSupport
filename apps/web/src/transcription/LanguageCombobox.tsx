@@ -1,5 +1,5 @@
 import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Popover } from '../components/ui/index';
+import { Input, Popover } from '../components/ui/index';
 import type { Language } from '../i18n';
 import { languageDisplayName } from './language';
 
@@ -137,7 +137,12 @@ export const LanguageCombobox = memo(function LanguageCombobox({
         }
       }}
     >
-      <input
+      {/* The inventory's field around the one combobox the product writes by hand (070 T035):
+          `SelectMenu` is React Aria's combobox, which opens on typing rather than on focus,
+          selects nothing on focus, has no chip-sized inline form and no pinned group above
+          the alphabet — the four things this picker is for. */}
+      <Input
+        size={compact ? 'xs' : 'md'}
         role="combobox"
         aria-label={ariaLabelledBy ? undefined : label}
         aria-labelledby={ariaLabelledBy}
@@ -149,9 +154,9 @@ export const LanguageCombobox = memo(function LanguageCombobox({
           open && filtered[activeIndex] ? optionId(filtered[activeIndex].code) : undefined
         }
         disabled={disabled}
-        // Lets a chip-sized picker hug the name it shows, where the stylesheet leaves the
-        // field's width to its content; ignored wherever the field is given a width.
-        size={compact ? Math.max(6, shown.length + 1) : undefined}
+        // Lets a chip-sized picker hug the name it shows: about one character per letter,
+        // as the input's own `size` attribute measured it.
+        style={compact ? { width: `${Math.max(6, shown.length + 1)}ch` } : undefined}
         value={shown}
         onFocus={event => {
           setOpen(true);

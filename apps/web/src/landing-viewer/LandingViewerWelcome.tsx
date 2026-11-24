@@ -5,7 +5,7 @@ import { DropZone } from '../components/DropZone';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
 import { GalleryIconButton } from './internal/GalleryIconButton';
-import { Card, ErrorState } from '../components/ui/index';
+import { Button, Card, ErrorState } from '../components/ui/index';
 
 /**
  * The tool before a folder is open: the compressor's drop zone, then the folders opened
@@ -124,8 +124,15 @@ function RecentList({
             key={catalog.id}
             className={`lv-recent-row ${catalog.sourceAvailable ? '' : 'is-unavailable'}`.trim()}
           >
-            <button type="button" onClick={() => activate(catalog.id)}>
-              <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <Button
+              color="neutral"
+              variant="subtle"
+              size="lg"
+              className="lv-recent-open"
+              leading={<Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+              trailing={<ChevronRight size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+              onClick={() => activate(catalog.id)}
+            >
               <span className="lv-recent-row-copy">
                 <strong>{catalog.name}</strong>
                 <small>
@@ -134,8 +141,7 @@ function RecentList({
                     : t('landingGalleryUnavailable')}
                 </small>
               </span>
-              <ChevronRight size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
+            </Button>
             {canRemove && (
               <GalleryIconButton
                 label={t('landingGalleryRemoveCatalog')}
