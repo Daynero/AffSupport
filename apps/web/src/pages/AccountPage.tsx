@@ -34,10 +34,15 @@
  *                 Save: the state word on the title line says "Saving…",
  *                 "Saved" or "Could not save". The email is shown once, here,
  *                 with where it comes from, because it cannot be edited.
+ *   Appearance    the theme (070, T032): the header's own choice, shown here
+ *                 too, because a phone's header no longer carries it.
  *   Spaces        every space with the person's role and a way in.
- *   Local app     what it is, in a sentence; the version as a value; the update
- *                 check as a chip of its own; the download only when there is
- *                 something to download. The beta environment is a footnote.
+ *   This computer the local app — what it is, in a sentence; the version as a
+ *                 value; the update check as a chip of its own; the download
+ *                 only when there is something to download. Below that, while
+ *                 the app is connected, the settings that live in the app
+ *                 rather than in the account (068's quick 2FA). The beta
+ *                 environment is a footnote.
  *   Session       sign out, and what signing out does not take away.
  *
  * Account deletion has no UI in this product (the edge function exists; the
@@ -55,12 +60,22 @@
  */
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Languages, LogOut, MonitorSmartphone, UserRound, UsersRound } from 'lucide-react';
+import {
+  Languages,
+  LogOut,
+  MonitorSmartphone,
+  Moon,
+  Palette,
+  Sun,
+  SunMoon,
+  UserRound,
+  UsersRound
+} from 'lucide-react';
 import { useAuth, type EditableProfilePatch } from '../auth/AuthContext';
 import { analytics } from '../analytics/service';
 import { useAgent } from '../AgentContext';
 import { teamApi, type TeamContextSnapshot } from '../api/team';
-import { ICON_STROKE } from '../components/icons';
+import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { InstallerDownload } from '../components/InstallerDownload';
 import { ToastProvider } from '../components/toast';
 import { linkReasonText, ReconnectAction } from '../components/ReconnectAction';
@@ -81,6 +96,7 @@ import { useI18n, type Language, type TranslationKey } from '../i18n';
 import { configuredEnvironment } from '../lib/config';
 import type { Profile } from '../lib/database.types';
 import { internalLink, usePageEntrance } from '../lib/navigation';
+import { useTheme, type Theme } from '../lib/theme';
 import { installedReleaseStatus } from '../release-manifest';
 import { InvitationList, type InvitationListClient } from '../team/lobby/InvitationList';
 import { buildTeamRoute } from '../team/routes';
@@ -196,6 +212,7 @@ function AccountSections({ profile, provider }: { profile: Profile; provider: st
         </Card>
       )}
       <ProfileSection profile={profile} provider={provider} />
+      <AppearanceSection />
       <SpacesSection invitationsEmpty={pending === 0 && !linkedInvitationId} />
       <LocalAppSection />
       <SessionSection />
@@ -362,6 +379,67 @@ function ProfileSection({ profile, provider }: { profile: Profile; provider: str
           send({ marketing_consent: next });
         }}
       />
+    </SettingsSection>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Appearance
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The theme, as the header's sun-and-moon sets it (070, T032). One hook, one
+ * storage key: a choice made here is the header's state at once, and a choice
+ * made in another tab arrives through `storage` and moves both.
+ *
+ * Kept apart from the profile on purpose: the language is the account's and
+ * follows the person to another computer; the theme is this browser's and
+ * does not. The description says so, so nobody waits for it to follow.
+ */
+function AppearanceSection() {
+  const { t } = useI18n();
+  const { theme, setTheme } = useTheme();
+  return (
+    <SettingsSection
+      icon={Palette}
+      titleId="account-appearance-title"
+      title={t('accountAppearanceTitle')}
+      description={t('accountAppearanceDescription')}
+      className="account-appearance"
+    >
+      <div className="account-preference">
+        <span className="account-preference-label">
+          <SunMoon size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          {t('accountTheme')}
+        </span>
+        <SegmentedControl<Theme>
+          label={t('accountTheme')}
+          size="sm"
+          value={theme}
+          onChange={next => setTheme(next)}
+          // Each option shows its word, so none carries a tooltip repeating it.
+          options={[
+            {
+              value: 'light',
+              label: (
+                <>
+                  <Sun size={ICON_SIZE - 4} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {t('accountThemeLight')}
+                </>
+              )
+            },
+            {
+              value: 'dark',
+              label: (
+                <>
+                  <Moon size={ICON_SIZE - 4} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  {t('accountThemeDark')}
+                </>
+              )
+            }
+          ]}
+        />
+      </div>
     </SettingsSection>
   );
 }
@@ -541,6 +619,7 @@ function LocalAppSection() {
           )}
         </span>
       </div>
+      {connected && <ThisComputerSettings />}
       {state === 'unknown' && (
         <p className="account-muted">
           {t(beta ? 'accountLocalAppBetaHint' : 'accountLocalAppUnknownHint')}
@@ -553,6 +632,19 @@ function LocalAppSection() {
       )}
     </SettingsSection>
   );
+}
+
+/**
+ * The settings that live in the local app rather than in the account (070,
+ * T032; 068 A9). They are read from and written to the app on this computer,
+ * so they exist only while it is connected — offline there is nothing true to
+ * show, and the card above already says how to bring the app back.
+ *
+ * 068 T023 puts the quick-2FA row here. Until a row exists nothing is drawn: an
+ * empty frame with a heading would be a promise the page cannot keep.
+ */
+function ThisComputerSettings() {
+  return null;
 }
 
 // ---------------------------------------------------------------------------------------------

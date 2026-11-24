@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Session, User } from '@supabase/supabase-js';
 
@@ -34,6 +34,7 @@ import {
 } from '../apps/web/src/auth/AuthScreens';
 import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/AgentContext';
 import AccountPage from '../apps/web/src/pages/AccountPage';
+import { ThemeToggle } from '../apps/web/src/components/ThemeToggle';
 import type { Profile } from '../apps/web/src/lib/database.types';
 import { adminAuthStub } from './support/auth-stub.js';
 import { agentContextStub } from './support/agent-stub.js';
@@ -257,6 +258,40 @@ describe('profile onboarding, account and blocked state', () => {
     await waitFor(() => expect(updateProfile).toHaveBeenCalledWith({ language: 'uk' }));
     expect(localStorage.getItem('language')).toBe('uk');
     expect(await screen.findByText('Профіль')).toBeTruthy();
+  });
+
+  it('shows the header’s theme and follows a change made in another tab', async () => {
+    // 070, T032: one choice in two places. The account page and the header's
+    // sun-and-moon read and write the same key, so neither can disagree.
+    localStorage.setItem('theme', 'light');
+    document.documentElement.dataset.theme = 'light';
+    render(
+      <AuthContextOverride value={authValue({ status: 'authenticated', user, session, profile })}>
+        <AgentContextOverride value={agentValue}>
+          <ThemeToggle />
+          <AccountPage />
+        </AgentContextOverride>
+      </AuthContextOverride>
+    );
+    expect(screen.getByRole('radio', { name: 'Light' }).getAttribute('aria-checked')).toBe('true');
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Dark' }));
+    expect(localStorage.getItem('theme')).toBe('dark');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(
+      screen.getByRole('button', { name: 'Switch to light mode' }).getAttribute('aria-pressed')
+    ).toBe('true');
+
+    // Another tab chose light: the controls move, and so does the page itself.
+    act(() => {
+      localStorage.setItem('theme', 'light');
+      window.dispatchEvent(new StorageEvent('storage', { key: 'theme', newValue: 'light' }));
+    });
+    expect(screen.getByRole('radio', { name: 'Light' }).getAttribute('aria-checked')).toBe('true');
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(
+      screen.getByRole('button', { name: 'Switch to dark mode' }).getAttribute('aria-pressed')
+    ).toBe('false');
   });
 
   it('says the installed version and the update check as two separate facts', () => {

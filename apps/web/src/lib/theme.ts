@@ -69,13 +69,21 @@ export function useTheme() {
 
   useEffect(() => {
     const sync = (event: Event) => {
+      const fromAnotherTab = event instanceof StorageEvent;
       const next =
         event instanceof CustomEvent
           ? event.detail
-          : event instanceof StorageEvent && event.key === STORAGE_KEY
+          : fromAnotherTab && event.key === STORAGE_KEY
             ? event.newValue
             : null;
-      if (next === 'light' || next === 'dark') setThemeState(next);
+      if (next !== 'light' && next !== 'dark') return;
+      themeRef.current = next;
+      setThemeState(next);
+      // A change made in another tab arrives only as a storage event, and the
+      // page has to wear it too (070, T032): the controls used to follow while
+      // the colours stayed where they were. Without the fade — this tab was in
+      // the background when it happened.
+      if (fromAnotherTab) applyTheme(next);
     };
     window.addEventListener(CHANGE_EVENT, sync);
     window.addEventListener('storage', sync);
