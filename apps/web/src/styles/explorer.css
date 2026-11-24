@@ -648,8 +648,10 @@
      fill whatever width was left, so opening the details pane — which takes a third of the row —
      resized every tile on the page at once. A capped track re-flows instead of re-sizing, which
      is what a file manager does. */
-  grid-template-columns: repeat(auto-fill, minmax(184px, 232px));
-  justify-content: start;
+  /* Tiles stretch to fill the row (070): a capped track left a column-wide strip of nothing
+     at the row's end at 1024 and 1440. They re-size when the pane opens, as Drive's do. */
+  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+  justify-content: stretch;
   gap: var(--space-3);
 }
 .team-explorer-tile {
