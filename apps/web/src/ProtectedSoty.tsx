@@ -8,6 +8,7 @@ import { useFeatureLock, type FeatureId } from './lib/feature-flags';
 import { toolByPath, type WebTool } from './lib/tool-registry';
 import { useI18n } from './i18n';
 import { navigateTo, registerRoutePreparer } from './lib/navigation';
+import { useInstallHandoff } from './lib/install-handoff';
 import { recoverableLazy } from './lib/recoverable-lazy';
 import { HintLayer, RouteSkeleton } from './components/ui/index';
 import AccountPage from './pages/AccountPage';
@@ -74,6 +75,8 @@ function ApplicationShell({ path, route }: { path: string; route: string }) {
   // Status only: this sits above every page and has no interest in a
   // progress tick.
   const { connection } = useAgentStatus();
+  // The tab the installer came from follows the app into the space once it connects (070).
+  useInstallHandoff(connection, path);
   return (
     <div className="app-shell">
       <HintLayer />

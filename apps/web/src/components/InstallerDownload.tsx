@@ -7,6 +7,7 @@ import {
   type DownloadPlatform
 } from '../release-manifest';
 import { markAgentInstallStarted } from '../api/client';
+import { markInstallStartedHere } from '../lib/install-handoff';
 import { analytics } from '../analytics/service';
 import type { AnalyticsProperties } from '../analytics/events';
 import { currentBrowserPlatform, platformFromAgentCapabilities } from '../lib/platform';
@@ -25,7 +26,7 @@ export function InstallerDownload({
   /** The tool that asked for the installer, kept on the event as before 049. */
   toolIdentifier?: AnalyticsProperties['tool_identifier'];
 }) {
-  const { releaseManifest, agentRuntime, capabilities } = useAgent();
+  const { releaseManifest, agentRuntime, capabilities, connection } = useAgent();
   const { t } = useI18n();
   const unavailableId = useId();
   const result = resolveInstallerDownload(releaseManifest.manifest, agentRuntime);
@@ -68,6 +69,8 @@ export function InstallerDownload({
             href={selection.url}
             onClick={() => {
               markAgentInstallStarted();
+              // An install while the app is away: this tab follows it in once it connects.
+              if (intent === 'install' && connection !== 'connected') markInstallStartedHere();
               analytics.track(intent === 'update' ? 'update_started' : 'install_download_clicked', {
                 installer_target: platform,
                 ...(toolIdentifier ? { tool_identifier: toolIdentifier } : {})

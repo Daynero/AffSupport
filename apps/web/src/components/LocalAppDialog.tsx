@@ -16,6 +16,7 @@ import {
   platformFromAgentCapabilities
 } from '../lib/platform';
 import { analytics } from '../analytics/service';
+import { markInstallStartedHere } from '../lib/install-handoff';
 import { InstallerDownload } from './InstallerDownload';
 import { openNativeAppUpdate } from '../updates/openNativeAppUpdate';
 import { Modal } from './Modal';
@@ -116,7 +117,11 @@ export default function LocalAppDialog({
   };
 
   const trackDownload = (installerTarget: DownloadPlatform) => {
-    if (!needsUpdate) markAgentInstallStarted();
+    if (!needsUpdate) {
+      markAgentInstallStarted();
+      // This tab follows the app into the space once it connects (070).
+      if (connection !== 'connected') markInstallStartedHere();
+    }
     analytics.track(needsUpdate ? 'update_started' : 'install_download_clicked', {
       tool_identifier: toolIdentifier,
       installer_target: installerTarget
