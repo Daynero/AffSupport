@@ -306,8 +306,10 @@ function TrashViewScope({
                 {/* A word, not a bordered button on every row (024, benchmarked on
                     Drive's trash): the list is read as a list of files, and the
                     one thing to do to each is said quietly beside it. */}
+                {/* Neutral, not honey (070 T069): a honey word on every row was a column of
+                    the surface's loudest colour, ten primaries in a list. */}
                 <Button
-                  color="primary"
+                  color="neutral"
                   variant="ghost"
                   size="sm"
                   loading={restoringId === item.id}
