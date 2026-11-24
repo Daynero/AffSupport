@@ -544,6 +544,40 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
     expect(produced.verification.withinTolerance).toBe(true);
   }, 120_000);
 
+  // Production 2026-11-24 (onemedia, «KZ v12»): a creative whose sound ends before its picture
+  // failed every re-stitch with BODY_RECOVERY_VERIFICATION_FAILED.
+  it('stitches a creative whose sound ends before its picture', async () => {
+    const shortSound = path.join(directory, 'short-sound.mp4');
+    await ffmpeg([
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'testsrc2=size=320x320:rate=30:duration=6',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:sample_rate=48000:duration=4.5',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'ultrafast',
+      '-crf',
+      '28',
+      '-pix_fmt',
+      'yuv420p',
+      '-g',
+      '30',
+      '-c:a',
+      'aac',
+      shortSound
+    ]);
+    const { produced } = await stitch(shortSound);
+    expect(produced.ok, produced.ok ? '' : produced.error).toBe(true);
+    if (!produced.ok) return;
+    expect(produced.verification.withinTolerance).toBe(true);
+  }, 120_000);
+
   it('places the end screen after every B-frame of the cut body', async () => {
     const profile = unwrap(await probeSource(bframeCut));
     const screens = { ...SCREENS, startImageId: null, endDurationSeconds: 1200 };
