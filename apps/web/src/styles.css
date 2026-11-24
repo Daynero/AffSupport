@@ -4013,6 +4013,17 @@ body:has(.public-home) {
    choices does not step (070: the inventory's disabled button is shorter). */
 .platform-download-unavailable {
   min-height: 58px;
+  border-style: dashed;
+}
+.platform-download-unavailable .ui-button-label {
+  display: grid;
+  justify-items: center;
+  gap: 0;
+}
+.platform-download-reason {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-body);
 }
 
 .platform-download-button:hover {

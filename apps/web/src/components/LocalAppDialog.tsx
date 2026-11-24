@@ -146,6 +146,8 @@ export default function LocalAppDialog({
       {t('macIntel')}
     </a>
   ) : (
+    /* Said, not only greyed (070 T069): beside the lavender choices a disabled outline read as one
+       more option. The word under the name is the reason; the hint says the rest. */
     <Button
       variant="outline"
       color="neutral"
@@ -154,7 +156,8 @@ export default function LocalAppDialog({
       disabled
       title={t('installerUnavailable')}
     >
-      {t('macIntel')}
+      <span className="platform-download-name">{t('macIntel')}</span>
+      <small className="platform-download-reason">{t('notAvailable')}</small>
     </Button>
   );
   const windowsAction = windowsDownload.available ? (
