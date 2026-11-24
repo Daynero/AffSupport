@@ -318,6 +318,27 @@ func firstLaunchSiteURL(origin: String) -> URL? {
   else { return nil }
   return base.appendingPathComponent("team")
 }
+
+/// Which site the first start opens. A next build is the production build byte for byte
+/// (promote ships the bytes tested on next), so the build cannot say it came from next; the
+/// one thing that can is this Mac's own opt-in to next updates (`SotyUpdateChannel` =
+/// `next`, see `NativeUpdateManifestChannel`). With it, and only when the built origin is
+/// the production site the update manifests belong to, the first start opens the next
+/// site those manifests name. A tester who has not opted in yet lands on production.
+func firstLaunchSiteOrigin(built: String, info: [String: Any], preference: Any?) -> String {
+  func site(_ manifest: Any?) -> String? {
+    guard let value = manifest as? String, let url = URLComponents(string: value),
+      url.scheme == "https", let host = url.host, !host.isEmpty, url.port == nil,
+      url.path == "/.well-known/wishly/stable.json"
+    else { return nil }
+    return "https://\(host)"
+  }
+  guard preference as? String == "next",
+    let production = site(info["SotyUpdateManifestURL"]), production == built,
+    let next = site(info["SotyUpdateNextManifestURL"]), next != production
+  else { return built }
+  return next
+}
 // End first launch.
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -350,6 +371,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var agentReady = false
   /// Set once, on the first start for this user (see `claimFirstLaunch`).
   private var openSiteWhenReady = false
+  /// The first start opens the site; the Finder offer, 1.5 s after readiness, landed on
+  /// top of the page the person came for and took its focus (070 T069). On that start it
+  /// waits: the offer is not marked as made, so the next start of Soty makes it.
+  private var finderOfferDeferred = false
   private var pendingFinderJobIDs = Set<String>()
   private var finderPollScheduled = false
   private var finderPollInFlight = false
@@ -385,6 +410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       // Asked before the Agent starts: its first start writes the very state that says
       // Soty has run here before.
       openSiteWhenReady = decideFirstLaunch()
+      finderOfferDeferred = openSiteWhenReady
       initializeNativeUpdates()
       startAgentWhenPortIsFree()
     } else if ProcessInfo.processInfo.environment["AGENT_UPDATE_HANDOFF"] == "1" {
@@ -1487,7 +1513,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func openSiteOnFirstLaunch() {
     guard openSiteWhenReady else { return }
     openSiteWhenReady = false
-    guard let site = firstLaunchSiteURL(origin: "__PUBLIC_SITE_ORIGIN__") else { return }
+    let origin = firstLaunchSiteOrigin(
+      built: "__PUBLIC_SITE_ORIGIN__", info: Bundle.main.infoDictionary ?? [:],
+      preference: UserDefaults.standard.object(forKey: "SotyUpdateChannel"))
+    guard let site = firstLaunchSiteURL(origin: origin) else { return }
     NSWorkspace.shared.open(site)
   }
 
@@ -1496,6 +1525,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       // A fixture relaunch must not change the owner's Finder preference or open setup.
       effectiveSupportDirectoryName == supportDirectoryName,
       ProcessInfo.processInfo.environment["NO_OPEN"] != "1",
+      !finderOfferDeferred,
       !FIFinderSyncController.isExtensionEnabled,
       !UserDefaults.standard.bool(forKey: finderIntegrationOfferKey)
     else { return }

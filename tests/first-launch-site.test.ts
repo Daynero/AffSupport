@@ -46,8 +46,19 @@ describe('first launch opens the site (wiring)', () => {
     expect(decide).toContain('effectiveSupportDirectoryName != supportDirectoryName');
     expect(decide).toContain('environment["NO_OPEN"] == "1"');
     expect(decide).toContain('environment["AGENT_UPDATE_HANDOFF"] == "1"');
-    // The site the build is configured for — prod, next or beta — never a written-in address.
-    expect(launcher).toContain('firstLaunchSiteURL(origin: "__PUBLIC_SITE_ORIGIN__")');
+    // The site the build is configured for — prod or beta — never a written-in address; next
+    // only through this Mac's own opt-in to next updates (070 T069).
+    expect(launcher).toContain('built: "__PUBLIC_SITE_ORIGIN__"');
+    expect(launcher).toContain('UserDefaults.standard.object(forKey: "SotyUpdateChannel")');
+    // The Finder offer does not land on top of the site the first start opened: it waits for
+    // the next start, unmarked (070 T069).
+    expect(finishLaunching).toContain('finderOfferDeferred = openSiteWhenReady');
+    const offer = between(
+      launcher,
+      'private func scheduleFinderIntegrationOffer()',
+      'UserDefaults.standard.set(true, forKey: finderIntegrationOfferKey)'
+    );
+    expect(offer).toContain('!finderOfferDeferred,');
     // A second start while Soty runs is not a first launch either.
     const existingInstance = between(
       launcher,
@@ -147,6 +158,18 @@ require(firstLaunchSiteURL(origin: "https://next.soty.pp.ua")?.absoluteString ==
 require(firstLaunchSiteURL(origin: "http://127.0.0.1:43140")?.absoluteString == "http://127.0.0.1:43140/team", "BETA_URL")
 require(firstLaunchSiteURL(origin: "") == nil, "EMPTY_ORIGIN")
 require(firstLaunchSiteURL(origin: "file:///etc") == nil, "FILE_ORIGIN")
+
+let manifests: [String: Any] = [
+  "SotyUpdateManifestURL": "https://soty.pp.ua/.well-known/wishly/stable.json",
+  "SotyUpdateNextManifestURL": "https://next.soty.pp.ua/.well-known/wishly/stable.json"
+]
+require(firstLaunchSiteOrigin(built: "https://soty.pp.ua", info: manifests, preference: nil) == "https://soty.pp.ua", "NO_OPT_IN_STAYS_PROD")
+require(firstLaunchSiteOrigin(built: "https://soty.pp.ua", info: manifests, preference: "next") == "https://next.soty.pp.ua", "OPT_IN_OPENS_NEXT")
+require(firstLaunchSiteOrigin(built: "https://soty.pp.ua", info: manifests, preference: "beta") == "https://soty.pp.ua", "OTHER_PREFERENCE_STAYS_PROD")
+require(firstLaunchSiteOrigin(built: "http://127.0.0.1:43140", info: manifests, preference: "next") == "http://127.0.0.1:43140", "BETA_NEVER_LEAVES")
+var damaged = manifests; damaged["SotyUpdateNextManifestURL"] = "https://evil.test/x.json"
+require(firstLaunchSiteOrigin(built: "https://soty.pp.ua", info: damaged, preference: "next") == "https://soty.pp.ua", "DAMAGED_NEXT_STAYS_PROD")
+require(firstLaunchSiteOrigin(built: "https://soty.pp.ua", info: [:], preference: "next") == "https://soty.pp.ua", "NO_MANIFESTS_STAYS_PROD")
 print("OK")
 `
       );
