@@ -395,9 +395,12 @@ export function SearchField({
       className={uiClasses('search-field', { size, states: { disabled }, className })}
     >
       <HeroSearchField.Group className="ui-search-field-group">
-        <HeroSearchField.SearchIcon
-          render={iconProps => <Search {...iconProps} size={16} strokeWidth={1.75} />}
-        />
+        {/* The glyph as the child, which the library clones: a `render` prop is not one it
+            reads, so it reached the DOM as an attribute (a React warning on every search box)
+            and the library's own magnifier was drawn instead of this one (070). */}
+        <HeroSearchField.SearchIcon>
+          <Search size={16} strokeWidth={1.75} aria-hidden="true" />
+        </HeroSearchField.SearchIcon>
         <HeroSearchField.Input placeholder={placeholder} />
         <HeroSearchField.ClearButton>
           <X size={14} strokeWidth={2} aria-hidden="true" />
