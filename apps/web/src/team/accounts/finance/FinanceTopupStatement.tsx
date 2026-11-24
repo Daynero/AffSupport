@@ -16,7 +16,7 @@ export function FinanceTopupStatement({
       {report.topups.length ? (
         report.topups.map(row => (
           <div key={`${row.date}/${row.accountId}/${row.agentRowId}`}>
-            <Button size="sm" onClick={() => onDay(row.date)}>
+            <Button color="neutral" size="sm" onClick={() => onDay(row.date)}>
               {row.date}
             </Button>{' '}
             {row.accountName} / {row.agentId} · {formatFinanceAmount(row.value)} USD

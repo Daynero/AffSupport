@@ -473,19 +473,21 @@ export function LaunchGenerationProgress({
       {showError && activeRestitch && restitchMediaError(code) && onUseOriginalVideo && (
         <div className="flex flex-col items-start gap-3 rounded-control bg-surface p-3">
           <p className="m-0 text-caption text-muted">{t('launchesOriginalVideoHint')}</p>
-          <Button disabled={disabled} onClick={onUseOriginalVideo}>
+          <Button color="neutral" disabled={disabled} onClick={onUseOriginalVideo}>
             {t('launchesUseOriginalVideo')}
           </Button>
         </div>
       )}
       <div className="launch-progress-actions flex flex-wrap items-center gap-2">
         {onOpenRestitchSettings && restitchSettingsError(code) && (
-          <Button onClick={onOpenRestitchSettings}>{t('launchesOpenRestitchSettings')}</Button>
+          <Button color="neutral" onClick={onOpenRestitchSettings}>
+            {t('launchesOpenRestitchSettings')}
+          </Button>
         )}
         {!cancelling &&
           (current?.state !== 'succeeded' || videoPending) &&
           current?.state !== 'canceled' && (
-            <Button disabled={disabled} onClick={onCancel}>
+            <Button color="neutral" disabled={disabled} onClick={onCancel}>
               {t(current?.state === 'succeeded' ? 'catalogVideoCancel' : 'launchesCancel')}
             </Button>
           )}

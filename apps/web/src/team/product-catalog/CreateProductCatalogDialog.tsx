@@ -1137,11 +1137,11 @@ export function CreateProductCatalogDialog({
               )}
               {videoKey.current && (
                 <div className="team-dialog-actions">
-                  <Button type="button" onClick={() => void checkVideo()}>
+                  <Button color="neutral" type="button" onClick={() => void checkVideo()}>
                     {t('catalogPublicationCheck')}
                   </Button>
                   {!['ready', 'canceled', 'cancel_requested'].includes(createdVideo.state) && (
-                    <Button type="button" onClick={() => void checkVideo(true)}>
+                    <Button color="neutral" type="button" onClick={() => void checkVideo(true)}>
                       {t('catalogVideoCancel')}
                     </Button>
                   )}
@@ -1443,16 +1443,17 @@ export function CreateProductCatalogDialog({
           )}
           {videoTracked && (
             <div className="team-dialog-actions">
-              <Button type="button" onClick={() => void checkVideo()}>
+              <Button color="neutral" type="button" onClick={() => void checkVideo()}>
                 {t('catalogPublicationCheck')}
               </Button>
               {(showVideoUnknown || (allVideosReady && resumeOffered)) && (
-                <Button type="button" onClick={() => void checkVideo(false, true)}>
+                <Button color="neutral" type="button" onClick={() => void checkVideo(false, true)}>
                   {t('catalogVideoResume')}
                 </Button>
               )}
               {videoPending?.state !== 'canceled' && videoPending?.state !== 'cancel_requested' && (
                 <Button
+                  color="neutral"
                   type="button"
                   aria-label={t('catalogVideoCancel')}
                   onClick={() => void checkVideo(true)}
@@ -1462,7 +1463,7 @@ export function CreateProductCatalogDialog({
               )}
               {(videoPending?.state === 'canceled' ||
                 videoPending?.state === 'cancel_requested') && (
-                <Button type="button" onClick={dismissVideo}>
+                <Button color="neutral" type="button" onClick={dismissVideo}>
                   {t('productCatalogDone')}
                 </Button>
               )}

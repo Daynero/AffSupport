@@ -101,6 +101,7 @@ export function LegacyFinanceReview({
       busy={busy}
       footer={
         <Button
+          color="neutral"
           disabled={!row || busy || !value || !date}
           onClick={() => {
             const cents = parseFinanceMoney(value);

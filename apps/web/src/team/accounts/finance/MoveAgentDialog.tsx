@@ -155,6 +155,7 @@ export function MoveAgentDialog({
       busy={busy}
       footer={
         <Button
+          color="neutral"
           disabled={busy || (!uncertain && (checking || !eligibility || !target))}
           onClick={() => {
             void move();

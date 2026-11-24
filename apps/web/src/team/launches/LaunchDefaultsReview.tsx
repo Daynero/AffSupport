@@ -124,7 +124,7 @@ export function LaunchDefaultsReview({
       ) : (
         <p>{t(offerName ? 'launchesDefaultsOfferMissing' : 'launchesDefaultsMissing')}</p>
       )}
-      <Button disabled={disabled} onClick={onReview}>
+      <Button color="neutral" disabled={disabled} onClick={onReview}>
         {t('launchesDefaultsReviewed')}
       </Button>
     </Card>

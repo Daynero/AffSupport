@@ -639,6 +639,7 @@ export function CatalogImageImport({
                   )}
                 </span>
                 <Button
+                  color="neutral"
                   disabled={state.loading || state.refreshing}
                   loading={state.refreshing}
                   onClick={() => void checkStatus()}
@@ -1370,7 +1371,7 @@ export function CatalogImageImport({
                   statusJob.entries.some(entry => entry.state === 'waiting_source') && (
                     <>
                       <p className="team-inline-note">{t('catalogImagesReselect')}</p>
-                      <Button onClick={() => setSurface('upload')}>
+                      <Button color="neutral" onClick={() => setSurface('upload')}>
                         {t('catalogImagesContinueUpload')}
                       </Button>
                     </>

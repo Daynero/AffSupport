@@ -80,7 +80,7 @@ export function LaunchHistory({
               )}
             </Badge>
             {editable && (
-              <Button disabled={disabled} onClick={() => onRestore(row.id)}>
+              <Button color="neutral" disabled={disabled} onClick={() => onRestore(row.id)}>
                 {t('launchesRestore')}
               </Button>
             )}

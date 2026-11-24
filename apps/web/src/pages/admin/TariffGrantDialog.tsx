@@ -301,7 +301,7 @@ export function TariffGrantDialog({
           <Alert
             color="warning"
             action={
-              <Button disabled={busy} onClick={() => void resumePending()}>
+              <Button color="neutral" disabled={busy} onClick={() => void resumePending()}>
                 {t('adminTariffGrantResume')}
               </Button>
             }

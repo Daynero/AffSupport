@@ -1410,7 +1410,11 @@ function UnifiedFinanceDialogs() {
           title={`${t('financePeriodDetails')} · ${detailsRange[0]} — ${detailsRange[1]}`}
           size="lg"
           onClose={() => f.setPeriodDetails(false)}
-          footer={<Button onClick={() => f.setPeriodDetails(false)}>{t('teamClose')}</Button>}
+          footer={
+            <Button color="neutral" onClick={() => f.setPeriodDetails(false)}>
+              {t('teamClose')}
+            </Button>
+          }
         >
           {(f.reportRange ? f.reports.error : f.error) ? (
             <ErrorState
@@ -1467,6 +1471,7 @@ function UnifiedFinanceDialogs() {
           onClose={() => f.setCorrection(null)}
           footer={
             <Button
+              color="neutral"
               disabled={f.pending}
               onClick={() => {
                 void f.saveSubset([f.correction!.agent]);
@@ -1645,7 +1650,7 @@ function UnifiedFinanceDialogs() {
           onClose={() => f.setRoute(null)}
           footer={
             <>
-              <Button disabled={f.pending} onClick={() => f.setRoute(null)}>
+              <Button color="neutral" disabled={f.pending} onClick={() => f.setRoute(null)}>
                 {t('financeStay')}
               </Button>
               <Button

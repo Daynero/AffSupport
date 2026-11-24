@@ -151,7 +151,11 @@ export function FinanceHistoryDrawer({
               {formatFinanceAmount(row.requested_topup_units)}
             </p>
           ))}
-          {onReviewLegacy && <Button onClick={onReviewLegacy}>{t('financeImport')}</Button>}
+          {onReviewLegacy && (
+            <Button color="neutral" onClick={onReviewLegacy}>
+              {t('financeImport')}
+            </Button>
+          )}
         </section>
       )}
       <ol ref={list} className="m-0 flex list-none flex-col gap-3 p-0">
@@ -221,7 +225,9 @@ export function FinanceHistoryDrawer({
         />
       )}
       {cursor && !loading && (
-        <Button onClick={() => setPage(p => p + 1)}>{t('financeHistory')}</Button>
+        <Button color="neutral" onClick={() => setPage(p => p + 1)}>
+          {t('financeHistory')}
+        </Button>
       )}
     </Drawer>
   );

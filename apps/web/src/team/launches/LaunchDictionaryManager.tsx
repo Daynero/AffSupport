@@ -139,7 +139,10 @@ export function LaunchDictionaryManager({
             />
             {error && <div role="alert">{error}</div>}
             {pending.current && !busy && (
-              <Button onClick={() => void run(pending.current!.row, pending.current!.operation)}>
+              <Button
+                color="neutral"
+                onClick={() => void run(pending.current!.row, pending.current!.operation)}
+              >
                 {t('teamOperationRetry')}
               </Button>
             )}

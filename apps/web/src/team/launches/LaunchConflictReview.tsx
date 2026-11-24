@@ -24,7 +24,7 @@ export function LaunchConflictReview({
   return (
     <Card role="section" title={t('launchesConflictTitle')}>
       <p>{t('launchesConflictHelp')}</p>
-      <Button disabled={disabled} onClick={onReload}>
+      <Button color="neutral" disabled={disabled} onClick={onReload}>
         {t('teamTextEditorReload')}
       </Button>
       {current && (
@@ -52,7 +52,11 @@ export function LaunchConflictReview({
           )}
           {!canKeep && <p className="text-warning-text">{t('launchesConflictBaselineChanged')}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button disabled={disabled || decisionDisabled || !canKeep} onClick={onKeep}>
+            <Button
+              color="neutral"
+              disabled={disabled || decisionDisabled || !canKeep}
+              onClick={onKeep}
+            >
               {t('launchesConflictKeep')}
             </Button>
             <Button variant="ghost" disabled={disabled || decisionDisabled} onClick={onTake}>

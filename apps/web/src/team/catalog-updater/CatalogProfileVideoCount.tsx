@@ -88,6 +88,7 @@ export function CatalogProfileVideoCount({
       {dirty && (
         <>
           <Button
+            color="neutral"
             size="sm"
             disabled={disabled || pending || conflict || invalid || draft === ''}
             onClick={() => void save()}

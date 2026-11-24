@@ -760,7 +760,9 @@ export function LandingViewer({
                   {t('landingGalleryRefreshFolder')}
                 </Button>
               ) : capabilities.chooseFolder ? (
-                <Button onClick={chooseFolder}>{t('landingGalleryChooseAnother')}</Button>
+                <Button color="neutral" onClick={chooseFolder}>
+                  {t('landingGalleryChooseAnother')}
+                </Button>
               ) : undefined
             }
           />

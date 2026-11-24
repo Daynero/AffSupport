@@ -310,6 +310,7 @@ export function CatalogPublicationDialog({
         <>
           <p role="status">{t('catalogPublicationUnknown')}</p>
           <Button
+            color="neutral"
             disabled={verification.pending}
             onClick={() => void (unknown ? read(unknown) : verification.check())}
           >
@@ -331,6 +332,7 @@ export function CatalogPublicationDialog({
             }}
           />
           <Button
+            color="neutral"
             disabled={pending || verification.pending || !snapshot || saved}
             onClick={() => void save()}
           >
@@ -381,6 +383,7 @@ export function CatalogPublicationDialog({
         !unknown &&
         !verification.unknown && (
           <Button
+            color="neutral"
             disabled={pending || verification.pending}
             onClick={() => void verification.verify(snapshot.revision)}
           >
@@ -400,7 +403,11 @@ export function CatalogPublicationDialog({
         </p>
       )}
       {(!snapshot || error) && !unknown && !verification.unknown && (
-        <Button disabled={pending || verification.pending} onClick={() => void read()}>
+        <Button
+          color="neutral"
+          disabled={pending || verification.pending}
+          onClick={() => void read()}
+        >
           {t('catalogPublicationCheck')}
         </Button>
       )}

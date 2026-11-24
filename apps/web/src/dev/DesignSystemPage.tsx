@@ -719,7 +719,9 @@ export default function DesignSystemPage() {
             </Tooltip>
           </Row>
           <Row title="overlays">
-            <Button onClick={() => setModal(true)}>Open modal</Button>
+            <Button color="neutral" onClick={() => setModal(true)}>
+              Open modal
+            </Button>
             <Button color="error" variant="soft" onClick={() => setConfirm(true)}>
               Open confirmation
             </Button>

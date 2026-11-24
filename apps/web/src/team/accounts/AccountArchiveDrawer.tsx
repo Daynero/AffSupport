@@ -315,6 +315,7 @@ export function AccountArchiveDrawer({
       )}
       {next && !loading && (
         <Button
+          color="neutral"
           onClick={() => {
             const current = () =>
               lifetime.current.active &&

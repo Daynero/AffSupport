@@ -434,7 +434,7 @@ export function CatalogVideoVariationsDialog({
         </p>
       )}
       <div className="team-dialog-actions">
-        <Button onClick={() => void read()} disabled={pending}>
+        <Button color="neutral" onClick={() => void read()} disabled={pending}>
           {t('catalogPublicationCheck')}
         </Button>
         {request.current &&
@@ -442,16 +442,17 @@ export function CatalogVideoVariationsDialog({
             snapshot?.state === 'accepted' ||
             snapshot?.state === 'unknown' ||
             Boolean(snapshot?.failureCode)) && (
-            <Button onClick={() => void resume()} disabled={pending}>
+            <Button color="neutral" onClick={() => void resume()} disabled={pending}>
               {t('catalogVideoResume')}
             </Button>
           )}
         {request.current && snapshot?.state !== 'cancel_requested' && (
-          <Button onClick={() => void cancel()} disabled={pending}>
+          <Button color="neutral" onClick={() => void cancel()} disabled={pending}>
             {t('catalogVideoCancel')}
           </Button>
         )}
         <Button
+          color="neutral"
           onClick={() => void start()}
           disabled={active || invalid || count === '' || !row.profile}
         >

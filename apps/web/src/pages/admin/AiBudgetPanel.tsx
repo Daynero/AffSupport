@@ -202,6 +202,7 @@ export function AiBudgetPanel() {
               <InputNumber id={fieldIds.limit} min={1} value={limit} onChange={setLimit} />
             </FormField>
             <Button
+              color="neutral"
               type="submit"
               loading={busy === 'limit'}
               disabled={busy !== null || !(limit > 0)}
@@ -220,6 +221,7 @@ export function AiBudgetPanel() {
               <InputNumber id={fieldIds.base} min={0} step={1} value={base} onChange={setBase} />
             </FormField>
             <Button
+              color="neutral"
               type="submit"
               loading={busy === 'base'}
               disabled={busy !== null || !(base >= 0)}
@@ -284,6 +286,7 @@ export function AiBudgetPanel() {
               <InputNumber id={fieldIds.grant} min={0} step={1} value={grant} onChange={setGrant} />
             </FormField>
             <Button
+              color="neutral"
               type="submit"
               loading={busy === 'grant'}
               disabled={busy !== null || !email || !(grant >= 0)}
@@ -322,6 +325,7 @@ export function AiBudgetPanel() {
               <InputNumber id={fieldIds.bonus} step={1} value={bonus} onChange={setBonus} />
             </FormField>
             <Button
+              color="neutral"
               type="submit"
               loading={busy === 'bonus'}
               disabled={busy !== null || !email || !bonus}

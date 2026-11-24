@@ -242,7 +242,7 @@ export function useMaterialActionHost({
             <>
               <ErrorState className="team-inline-error" message={link.error} />
               {!link.awaitingConfirmation && link.visible.result.sharing !== 'uncertain' && (
-                <Button loading={link.busy} onClick={() => void link.check()}>
+                <Button color="neutral" loading={link.busy} onClick={() => void link.check()}>
                   {t('materialLinkCheck')}
                 </Button>
               )}
@@ -257,7 +257,7 @@ export function useMaterialActionHost({
                     : 'materialLinkPending'
                 )}
               </p>
-              <Button loading={link.busy} onClick={() => void link.check()}>
+              <Button color="neutral" loading={link.busy} onClick={() => void link.check()}>
                 {t('materialLinkCheck')}
               </Button>
             </div>
@@ -277,14 +277,14 @@ export function useMaterialActionHost({
                       disabled={link.busy}
                       onChange={link.setRemember}
                     />
-                    <Button loading={link.busy} onClick={() => void link.approve()}>
+                    <Button color="neutral" loading={link.busy} onClick={() => void link.approve()}>
                       {t('creativeLibraryShareApprove')}
                     </Button>
                   </>
                 )}
               </div>
             ) : permissions.edit ? (
-              <Button disabled={link.busy} onClick={() => void link.open('share')}>
+              <Button color="neutral" disabled={link.busy} onClick={() => void link.open('share')}>
                 {t('materialActionShare')}
               </Button>
             ) : null
@@ -293,20 +293,24 @@ export function useMaterialActionHost({
             !link.awaitingConfirmation &&
             link.visible.result.sharing !== 'uncertain' &&
             !link.error && (
-              <Button loading={link.busy} onClick={() => void link.check()}>
+              <Button color="neutral" loading={link.busy} onClick={() => void link.check()}>
                 {t('materialLinkCheck')}
               </Button>
             )}
           <div className="team-dialog-actions">
-            <Button onClick={link.copy}>{t('materialActionCopyLink')}</Button>
-            <Button onClick={link.openUrl}>{t('materialActionOpen')}</Button>
+            <Button color="neutral" onClick={link.copy}>
+              {t('materialActionCopyLink')}
+            </Button>
+            <Button color="neutral" onClick={link.openUrl}>
+              {t('materialActionOpen')}
+            </Button>
           </div>
         </Modal>
       )}
       {!link.visible && link.error && (
         <Modal nested size="sm" title={t('materialLinkTitle')} onClose={link.dismiss}>
           <ErrorState message={link.error} />
-          <Button loading={link.busy} onClick={() => void link.check()}>
+          <Button color="neutral" loading={link.busy} onClick={() => void link.check()}>
             {t('materialLinkCheck')}
           </Button>
         </Modal>

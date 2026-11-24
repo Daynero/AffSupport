@@ -82,6 +82,7 @@ export function InstallerDownload({
           </a>
         ) : (
           <Button
+            color="neutral"
             key={platform}
             disabled
             aria-describedby={unavailableId}

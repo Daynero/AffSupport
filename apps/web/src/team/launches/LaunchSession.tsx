@@ -1469,7 +1469,7 @@ export function LaunchSession({
   const generationRetryActions = (
     <>
       {!cancellationPending && generation.hasUnresolvedRequest && (
-        <Button disabled={generation.busy} onClick={() => void generate()}>
+        <Button color="neutral" disabled={generation.busy} onClick={() => void generate()}>
           {t(generation.pendingStage === 'cancel' ? 'launchesProgressRetryCancel' : 'retry')}
         </Button>
       )}
@@ -1479,6 +1479,7 @@ export function LaunchSession({
         detail?.generation?.requestKey &&
         !['succeeded', 'canceled'].includes(detail.generation.state) && (
           <Button
+            color="neutral"
             disabled={
               working || generation.busy || draft.dirty || (overridesDirty && !unchangedApproval)
             }
@@ -1652,7 +1653,7 @@ export function LaunchSession({
         )}
       {!showProgress && generationRetryActions}
       {saveIntent.current && (
-        <Button disabled={working} onClick={() => void run(save)}>
+        <Button color="neutral" disabled={working} onClick={() => void run(save)}>
           {t('retry')}
         </Button>
       )}
@@ -1664,10 +1665,13 @@ export function LaunchSession({
         </Alert>
       )}
       {!showProgress && error && restitchSettingsError(requestErrorCode) && (
-        <Button onClick={openRestitchSettings}>{t('launchesOpenRestitchSettings')}</Button>
+        <Button color="neutral" onClick={openRestitchSettings}>
+          {t('launchesOpenRestitchSettings')}
+        </Button>
       )}
       {defaultsConflict && manage && (
         <Button
+          color="neutral"
           disabled={locked}
           onClick={() =>
             void run(async () => {

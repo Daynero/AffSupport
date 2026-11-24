@@ -158,7 +158,11 @@ export function Button({
   const ref = useMergedRef(node, forwarded);
   useNativeAttributes(node, { title, 'aria-busy': loading ? 'true' : undefined });
   const legacy = isLegacy(variant) ? LEGACY[variant] : null;
-  const resolvedColor = color ?? legacy?.color ?? 'neutral';
+  // A button that names neither colour nor variant is the surface's action: the
+  // library's default, and what a reader of `<Button>Save</Button>` expects (070
+  // T069 — it was a grey neutral plate). A variant alone still means a quieter
+  // neutral button; every other caller states `color="neutral"`.
+  const resolvedColor = color ?? legacy?.color ?? (variant === undefined ? 'primary' : 'neutral');
   const resolvedVariant = legacy?.variant ?? (variant as UiVariant | undefined) ?? 'solid';
 
   return (

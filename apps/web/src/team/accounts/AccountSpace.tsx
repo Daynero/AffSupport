@@ -1712,7 +1712,7 @@ function AccountSpaceContent({
           }}
           footer={
             <>
-              <Button disabled={archiveBusy} onClick={() => setArchiveTarget(null)}>
+              <Button color="neutral" disabled={archiveBusy} onClick={() => setArchiveTarget(null)}>
                 {t('financeCancel')}
               </Button>
               {finance.getAffectedDrafts(archiveTarget.agents).length > 0 ? (

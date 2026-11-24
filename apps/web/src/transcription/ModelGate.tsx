@@ -131,7 +131,7 @@ export function ConfirmDownloadModal({
         <Button variant="secondary" onClick={onClose}>
           {t('transcriptionCancel')}
         </Button>
-        <Button onClick={onConfirm}>
+        <Button color="neutral" onClick={onConfirm}>
           {t(willStart ? 'transcriptionConfirmDownload' : 'transcriptionConfirmDownloadOnly')}
         </Button>
       </div>

@@ -25,6 +25,11 @@ import {
   SelectionBar,
   Skeleton,
   Switch,
+  Table,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
   Tabs,
   UI_COLORS,
   UI_SIZES,
@@ -108,6 +113,16 @@ describe('Button', () => {
   it('does not submit a form unless it is asked to', () => {
     render(<Button>Plain</Button>);
     expect(screen.getByRole('button').getAttribute('type')).toBe('button');
+  });
+
+  it('is the primary action when it names neither colour nor variant', () => {
+    const { rerender } = render(<Button>Save</Button>);
+    expect(screen.getByRole('button').className).toContain('ui-color-primary');
+    expect(screen.getByRole('button').className).toContain('ui-button--solid');
+    rerender(<Button variant="ghost">Later</Button>);
+    expect(screen.getByRole('button').className).toContain('ui-color-neutral');
+    rerender(<Button color="neutral">Cancel</Button>);
+    expect(screen.getByRole('button').className).toContain('ui-color-neutral');
   });
 });
 
@@ -493,5 +508,46 @@ describe('Pagination (024, T030)', () => {
       />
     );
     expect(container.firstChild).toBeNull();
+  });
+});
+
+describe('Table', () => {
+  const table = (columns: string) => (
+    <Table columns={columns} label="Files">
+      <TableHeader>
+        <TableHeaderCell>Name</TableHeaderCell>
+        <TableHeaderCell>Actions</TableHeaderCell>
+      </TableHeader>
+      <TableRow>
+        <TableCell>a.mp4</TableCell>
+        <TableCell>Open</TableCell>
+      </TableRow>
+    </Table>
+  );
+
+  // 070 T069: an `auto` (or a bare `1fr`, floored at its content) came out a different width in
+  // the header's grid and in each row's, and cells stopped sitting under their captions.
+  it('lays header and rows on one grid when a column is sized by its content', () => {
+    for (const columns of ['minmax(0, 2fr) auto', 'minmax(0, 2fr) 1fr', 'repeat(2, 1fr)']) {
+      const { container, unmount } = render(table(columns));
+      expect((container.firstChild as HTMLElement).className, columns).toContain(
+        'is-shared-columns'
+      );
+      unmount();
+    }
+  });
+
+  it('keeps separate row grids when every column is sized by the table', () => {
+    for (const columns of [
+      'minmax(0, 2fr) minmax(0, 1fr)',
+      'minmax(0, 1fr) 12rem',
+      'minmax(0, 1fr) var(--w)'
+    ]) {
+      const { container, unmount } = render(table(columns));
+      expect((container.firstChild as HTMLElement).className, columns).not.toContain(
+        'is-shared-columns'
+      );
+      unmount();
+    }
   });
 });

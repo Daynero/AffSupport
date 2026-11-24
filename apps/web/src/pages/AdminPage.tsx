@@ -740,13 +740,18 @@ export default function AdminPage() {
                 )}
                 <div className="soty-pagination">
                   <Button
+                    color="neutral"
                     disabled={page === 0}
                     onClick={() => setPage(value => Math.max(0, value - 1))}
                   >
                     {t('previous')}
                   </Button>
                   <span>{t('pageOf', { page: page + 1, pages })}</span>
-                  <Button disabled={page + 1 >= pages} onClick={() => setPage(value => value + 1)}>
+                  <Button
+                    color="neutral"
+                    disabled={page + 1 >= pages}
+                    onClick={() => setPage(value => value + 1)}
+                  >
                     {t('next')}
                   </Button>
                 </div>

@@ -1095,6 +1095,7 @@ function LaunchSpaceContent({
         )}
         {cursor && (
           <Button
+            color="neutral"
             onClick={() => void readList(cursor).catch(e => setError(teamErrorMessageFor(e, t)))}
           >
             {t('teamExplorerLoadMore')}
