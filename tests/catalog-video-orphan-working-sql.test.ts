@@ -78,13 +78,6 @@ const setState = async (set: string) =>
       set
     ])
   )[0]!.state;
-const operationState = async (op: string) =>
-  (
-    await db.root<{ state: string; error_code: string | null }>(
-      'select state,error_code from public.team_operations where id=$1',
-      [op]
-    )
-  )[0]!;
 
 async function fixture(options: { admit: boolean } = { admit: true }) {
   const set = crypto.randomUUID(),
@@ -219,10 +212,10 @@ it('stops the unfinished videos of a catalog moved to the trash', async () => {
   const idle = await fixture({ admit: false });
   const runningCatalog = await catalogFor(running.set);
   const idleCatalog = await catalogFor(idle.set);
-  await db.root("update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp() where id in($1,$2)", [
-    runningCatalog,
-    idleCatalog
-  ]);
+  await db.root(
+    "update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp() where id in($1,$2)",
+    [runningCatalog, idleCatalog]
+  );
   // A variant that may still run waits for its executor; an idle set ends at once.
   expect(await setState(running.set)).toBe('cancel_requested');
   expect(await setState(idle.set)).toBe('canceled');
@@ -234,7 +227,10 @@ it('leaves a ready set and other catalogs alone', async () => {
   const catalog = await catalogFor(ready.set);
   await catalogFor(other.set);
   await db.root("update private.catalog_video_sets set state='ready' where id=$1", [ready.set]);
-  await db.root("update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp() where id=$1", [catalog]);
+  await db.root(
+    "update public.team_materials set lifecycle='trashed',trashed_at=clock_timestamp() where id=$1",
+    [catalog]
+  );
   expect(await setState(ready.set)).toBe('ready');
   expect(await setState(other.set)).toBe('accepted');
 });
