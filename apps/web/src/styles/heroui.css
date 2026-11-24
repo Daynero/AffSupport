@@ -12,6 +12,8 @@
 @import '@heroui/styles/components/label.css' layer(components);
 @import '@heroui/styles/components/breadcrumbs.css' layer(components);
 @import '@heroui/styles/components/link.css' layer(components);
+@import '@heroui/styles/components/pagination.css' layer(components);
+@import '@heroui/styles/components/toolbar.css' layer(components);
 @import '@heroui/styles/components/button.css' layer(components);
 @import '@heroui/styles/components/button-group.css' layer(components);
 @import '@heroui/styles/components/toggle-button.css' layer(components);

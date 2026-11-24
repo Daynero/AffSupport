@@ -12276,38 +12276,6 @@ button.team-landing-tile:hover {
   align-items: center;
 }
 
-.ui-toast-action {
-  padding: 4px var(--space-2);
-  font: inherit;
-  font-size: var(--text-label);
-  font-weight: 600;
-  color: var(--color-accent);
-  white-space: nowrap;
-  cursor: pointer;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-}
-
-.ui-toast-action:hover {
-  background: var(--color-accent-softer);
-}
-
-.ui-toast-dismiss {
-  padding: 0 var(--space-1);
-  font: inherit;
-  font-size: var(--text-section);
-  line-height: 1;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  background: none;
-  border: none;
-}
-
-.ui-toast-dismiss:hover {
-  color: var(--color-text);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .ui-toast {
     animation: none;

@@ -811,27 +811,29 @@ describe('the row menu', () => {
     expect(screen.queryByRole('menu')).toBeNull();
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     // The focus goes back to the "…" that opened it, not to the page.
-    expect(document.activeElement).toBe(trigger);
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
   it('keeps one menu open across the whole list, and closes on a press outside', async () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
-    const [first, second] = rows();
+    const [first] = rows();
     await user.click(within(first!).getByRole('button', { name: /^More actions for/ }));
-    await user.click(within(second!).getByRole('button', { name: /^More actions for/ }));
-    // Two triggers, one menu: the first one gave way rather than staying open
-    // behind the second with both claiming to be expanded.
+    // One menu, one expanded trigger. While it is open the rest of the list
+    // is set aside (024, T117), so a second "…" cannot be reached until the
+    // first menu has given way: two menus claiming `aria-expanded` cannot
+    // happen at all, rather than being prevented by a module-level register.
     expect(screen.getAllByRole('menu')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /^More actions for/ })).toBeNull();
+
+    await user.click(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
     expect(
       screen
         .getAllByRole('button', { name: /^More actions for/ })
         .filter(button => button.getAttribute('aria-expanded') === 'true')
-    ).toHaveLength(1);
-
-    await user.click(screen.getByRole('searchbox', { name: 'Search accounts' }));
-    expect(screen.queryByRole('menu')).toBeNull();
+    ).toHaveLength(0);
   });
 
   it('hands focus back to the "…" after the delete dialog is dismissed', async () => {

@@ -248,7 +248,7 @@
 .catalog-image-selection-actions .ui-button-label {
   white-space: normal;
 }
-.catalog-image-pagination {
+.catalog-image-pagination .ui-pagination-content {
   flex-wrap: wrap;
 }
 

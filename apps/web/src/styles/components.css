@@ -3167,7 +3167,15 @@
   align-items: center;
   gap: var(--space-2);
 }
-.ui-pagination button {
+.ui-pagination-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ui-pagination-step {
   min-height: var(--control-height-sm);
   padding: 0 var(--space-3);
   border: 1px solid var(--color-neutral-border);
@@ -3176,7 +3184,7 @@
   color: var(--color-neutral-text);
   cursor: pointer;
 }
-.ui-pagination button:disabled {
+.ui-pagination-step[data-disabled] {
   cursor: not-allowed;
   opacity: 0.5;
 }

@@ -45,6 +45,8 @@ import {
   TableRow,
   Tabs,
   Textarea,
+  Toolbar,
+  Link,
   Timeline,
   Tooltip,
   Tree,
@@ -565,6 +567,23 @@ export default function DesignSystemPage() {
               previousLabel="Back"
               nextLabel="Next"
             />
+          </Row>
+          <Row title="toolbar and link">
+            <Toolbar label="Formatting">
+              <Button size="sm" variant="outline" color="neutral">
+                Bold
+              </Button>
+              <Button size="sm" variant="outline" color="neutral">
+                Italic
+              </Button>
+              <Button size="sm" variant="outline" color="neutral">
+                Link
+              </Button>
+            </Toolbar>
+            <Link href="#design">Inline link</Link>
+            <Link href="#design" variant="standalone">
+              Standalone link
+            </Link>
           </Row>
           <Row title="selection bar">
             <SelectionBar
