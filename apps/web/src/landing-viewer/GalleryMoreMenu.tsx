@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
 import { Ellipsis, Eraser, Trash2 } from 'lucide-react';
+import type { MenuEntry } from '../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
-import { MenuItem, MenuSeparator, ViewerMenu } from './internal/ViewerMenu';
+import { ViewerMenu } from './internal/ViewerMenu';
 import type { LandingViewerSourceCapabilities } from './types';
 
 /**
@@ -13,56 +13,53 @@ export function GalleryMoreMenu({
   running,
   hasActiveCatalog,
   capabilities,
-  leading,
+  leading = [],
   onClearCache,
   onRemoveActiveCatalog
 }: {
   running: boolean;
   hasActiveCatalog: boolean;
   capabilities: LandingViewerSourceCapabilities;
-  leading?: (close: () => void) => ReactNode;
+  leading?: ReadonlyArray<MenuEntry>;
   onClearCache: () => void;
   onRemoveActiveCatalog: () => void;
 }) {
   const { t } = useI18n();
-  const destructive = capabilities.clearCache || capabilities.removeCatalog;
-  if (!destructive && !leading) return null;
+  const destructive: MenuEntry[] = [
+    ...(capabilities.clearCache
+      ? [
+          {
+            id: 'clear-cache',
+            icon: <Eraser size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+            label: t('landingGalleryClearCache'),
+            disabled: running,
+            onSelect: onClearCache
+          }
+        ]
+      : []),
+    ...(capabilities.removeCatalog
+      ? [
+          {
+            id: 'remove-catalog',
+            icon: <Trash2 size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+            label: t('landingGalleryRemoveActiveCatalog'),
+            destructive: true,
+            disabled: running || !hasActiveCatalog,
+            onSelect: onRemoveActiveCatalog
+          }
+        ]
+      : [])
+  ];
+  if (!destructive.length && !leading.length) return null;
   return (
     <ViewerMenu
       label={t('landingGalleryMoreActions')}
       trigger={<Ellipsis size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-    >
-      {close => (
-        <>
-          {leading?.(close)}
-          {leading && destructive && <MenuSeparator />}
-          {capabilities.clearCache && (
-            <MenuItem
-              icon={<Eraser size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-              disabled={running}
-              onClick={() => {
-                close();
-                onClearCache();
-              }}
-            >
-              {t('landingGalleryClearCache')}
-            </MenuItem>
-          )}
-          {capabilities.removeCatalog && (
-            <MenuItem
-              className="is-danger"
-              icon={<Trash2 size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-              disabled={running || !hasActiveCatalog}
-              onClick={() => {
-                close();
-                onRemoveActiveCatalog();
-              }}
-            >
-              {t('landingGalleryRemoveActiveCatalog')}
-            </MenuItem>
-          )}
-        </>
-      )}
-    </ViewerMenu>
+      items={[
+        ...leading,
+        ...(leading.length && destructive.length ? ['separator' as const] : []),
+        ...destructive
+      ]}
+    />
   );
 }

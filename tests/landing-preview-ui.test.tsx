@@ -153,7 +153,7 @@ describe('landing preview viewer', () => {
     // The rarer file actions live in the "more" menu; for a ZIP the extracted copy is openable.
     await userEvent.click(screen.getByRole('button', { name: 'More actions' }));
     const extracted = screen.getByRole('menuitem', { name: 'Open extracted copy' });
-    expect((extracted as HTMLButtonElement).disabled).toBe(false);
+    expect(extracted.getAttribute('aria-disabled')).not.toBe('true');
     await userEvent.click(extracted);
     expect(api.openExtracted).toHaveBeenCalledWith('landing-b');
   });

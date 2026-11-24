@@ -626,6 +626,13 @@ export interface MenuItem {
    */
   checked?: boolean;
   /**
+   * With `checked`: the item is a switch of its own — on or off whatever its neighbours
+   * are — rather than one answer of several (070). Its section then reads as checkboxes:
+   * a viewer's "Grid" and "Full screen" can both be on, and as radios of one question
+   * only one of them could be announced as chosen.
+   */
+  toggle?: boolean;
+  /**
    * Choosing it leaves the menu open, whatever the menu's own rule: a tag is
    * put on or taken off and the reader goes on to the next one.
    */
@@ -724,6 +731,9 @@ export function DropdownMenu({
    */
   /** Whether this menu is asking a question at all, or only listing commands. */
   const menuSelects = rows.some(item => item.checked !== undefined);
+  /** A section of switches is a set of checkboxes, whatever the menu asks elsewhere. */
+  const modeOf = (items: ReadonlyArray<MenuItem>) =>
+    items.some(item => item.toggle) ? ('multiple' as const) : selection;
   const sections: Array<{ heading: ReactNode | null; items: MenuItem[] }> = [];
   for (const entry of items) {
     // A separator starts a section too, not only a heading: it is how a menu
@@ -794,7 +804,7 @@ export function DropdownMenu({
            * be in. A section whose items carry a tick is a radio group; a section
            * of commands is a list of commands.
            */
-          selectionMode={menuSelects ? selection : 'none'}
+          selectionMode={menuSelects ? modeOf(rows) : 'none'}
           selectedKeys={rows.filter(item => item.checked).map(item => item.id)}
           disabledKeys={rows.filter(item => item.disabled).map(item => item.id)}
           onAction={key => {
@@ -821,7 +831,7 @@ export function DropdownMenu({
               {...(menuSelects
                 ? section.items.some(item => item.checked !== undefined)
                   ? {
-                      selectionMode: selection,
+                      selectionMode: modeOf(section.items),
                       selectedKeys: section.items.filter(item => item.checked).map(item => item.id)
                     }
                   : { selectionMode: 'none' as const }

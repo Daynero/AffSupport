@@ -405,6 +405,31 @@ describe('Overlays', () => {
       'is-destructive'
     );
   });
+
+  it('reads a section of switches as checkboxes and one of answers as radios (070)', () => {
+    const anchor = { current: document.createElement('button') };
+    document.body.append(anchor.current);
+    render(
+      <DropdownMenu
+        open
+        onClose={() => {}}
+        anchor={anchor}
+        label="View"
+        items={[
+          { id: 'fit-width', label: 'Fit width', checked: true, onSelect: () => {} },
+          { id: 'fit-page', label: 'Fit page', checked: false, onSelect: () => {} },
+          'separator',
+          { id: 'grid', label: 'Grid', checked: true, toggle: true, onSelect: () => {} },
+          { id: 'full', label: 'Full screen', checked: true, toggle: true, onSelect: () => {} }
+        ]}
+      />
+    );
+    const menu = screen.getByRole('menu', { name: 'View' });
+    expect(within(menu).getAllByRole('menuitemradio')).toHaveLength(2);
+    const switches = within(menu).getAllByRole('menuitemcheckbox');
+    // Both on at once: a pair of radios could announce only one of them as chosen.
+    expect(switches.map(item => item.getAttribute('aria-checked'))).toEqual(['true', 'true']);
+  });
 });
 
 describe('Navigation and patterns', () => {

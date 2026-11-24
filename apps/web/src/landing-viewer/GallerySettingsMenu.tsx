@@ -2,7 +2,7 @@ import { ChevronDown, Monitor, Moon, Smartphone, Sun, Tablet } from 'lucide-reac
 import type { LandingPreviewDevice, LandingPreviewRenderSettings } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n, type TranslationKey } from '../i18n';
-import { MenuHeading, MenuItem, MenuSeparator, ViewerMenu } from './internal/ViewerMenu';
+import { ViewerMenu } from './internal/ViewerMenu';
 
 const DEVICES: Array<{ value: LandingPreviewDevice; key: TranslationKey; icon: typeof Monitor }> = [
   { value: 'desktop', key: 'landingGalleryDeviceDesktop', icon: Monitor },
@@ -46,50 +46,41 @@ export function GallerySettingsMenu({
           <ChevronDown size={16} strokeWidth={2} aria-hidden="true" />
         </>
       }
-    >
-      {close => (
-        <>
-          <MenuHeading>{t('landingGalleryDeviceLabel')}</MenuHeading>
-          {DEVICES.map(entry => {
-            const Icon = entry.icon;
-            return (
-              <MenuItem
-                key={entry.value}
-                icon={<Icon size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-                checked={settings.device === entry.value}
-                onClick={() => {
-                  close();
-                  if (settings.device !== entry.value) onChange({ device: entry.value });
-                }}
-              >
-                {t(entry.key)}
-              </MenuItem>
-            );
-          })}
-          <MenuSeparator />
-          <MenuHeading>{t('landingGalleryColorSchemeLabel')}</MenuHeading>
-          <MenuItem
-            icon={<Sun size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-            checked={settings.colorScheme === 'light'}
-            onClick={() => {
-              close();
-              if (settings.colorScheme !== 'light') onChange({ colorScheme: 'light' });
-            }}
-          >
-            {t('landingGalleryColorSchemeLight')}
-          </MenuItem>
-          <MenuItem
-            icon={<Moon size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-            checked={settings.colorScheme === 'dark'}
-            onClick={() => {
-              close();
-              if (settings.colorScheme !== 'dark') onChange({ colorScheme: 'dark' });
-            }}
-          >
-            {t('landingGalleryColorSchemeDark')}
-          </MenuItem>
-        </>
-      )}
-    </ViewerMenu>
+      items={[
+        { heading: t('landingGalleryDeviceLabel') },
+        ...DEVICES.map(entry => {
+          const Icon = entry.icon;
+          return {
+            id: `device-${entry.value}`,
+            icon: <Icon size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+            label: t(entry.key),
+            checked: settings.device === entry.value,
+            onSelect: () => {
+              if (settings.device !== entry.value) onChange({ device: entry.value });
+            }
+          };
+        }),
+        'separator',
+        { heading: t('landingGalleryColorSchemeLabel') },
+        {
+          id: 'scheme-light',
+          icon: <Sun size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+          label: t('landingGalleryColorSchemeLight'),
+          checked: settings.colorScheme === 'light',
+          onSelect: () => {
+            if (settings.colorScheme !== 'light') onChange({ colorScheme: 'light' });
+          }
+        },
+        {
+          id: 'scheme-dark',
+          icon: <Moon size={ICON_SIZE - 2} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+          label: t('landingGalleryColorSchemeDark'),
+          checked: settings.colorScheme === 'dark',
+          onSelect: () => {
+            if (settings.colorScheme !== 'dark') onChange({ colorScheme: 'dark' });
+          }
+        }
+      ]}
+    />
   );
 }

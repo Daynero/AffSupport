@@ -79,15 +79,15 @@ size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
 ## Overlay
 
-| Component        | Sizes                | States                                             | Replaces today                                                                                             |
-| ---------------- | -------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Modal**        | sm, md, lg, xl, full | open, nested, busy                                 | `Modal`                                                                                                    |
-| **Drawer**       | sm, md               | —                                                  | mobile folder tree                                                                                         |
-| **Popover**      | —                    | —                                                  | `.team-task-label-menu`, tag popovers, date pickers                                                        |
-| **DropdownMenu** | —                    | item, danger item, separator, header               | `SortMenu`, `KindFilterMenu`, `RowActions`, `MaterialRowMenu`, `ExportMenu`, `GalleryMoreMenu`, `UserMenu` |
-| **ContextMenu**  | —                    | —                                                  | explorer right-click                                                                                       |
-| **Toast**        | —                    | info, success, warning, error, with action, sticky | `toast.tsx`                                                                                                |
-| **Tooltip**      | —                    | with delay group                                   | `Tooltip`, `data-tip` attribute pattern                                                                    |
+| Component        | Sizes                | States                                                                                 | Replaces today                                                                                             |
+| ---------------- | -------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Modal**        | sm, md, lg, xl, full | open, nested, busy                                                                     | `Modal`                                                                                                    |
+| **Drawer**       | sm, md               | —                                                                                      | mobile folder tree                                                                                         |
+| **Popover**      | —                    | —                                                                                      | `.team-task-label-menu`, tag popovers, date pickers                                                        |
+| **DropdownMenu** | —                    | item, danger item, separator, header, answer (radio), switch (`toggle`, checkbox; 070) | `SortMenu`, `KindFilterMenu`, `RowActions`, `MaterialRowMenu`, `ExportMenu`, `GalleryMoreMenu`, `UserMenu` |
+| **ContextMenu**  | —                    | —                                                                                      | explorer right-click                                                                                       |
+| **Toast**        | —                    | info, success, warning, error, with action, sticky                                     | `toast.tsx`                                                                                                |
+| **Tooltip**      | —                    | with delay group                                                                       | `Tooltip`, `data-tip` attribute pattern                                                                    |
 
 ## Product-specific (no Nuxt UI counterpart)
 

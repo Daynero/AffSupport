@@ -27,7 +27,13 @@ import {
   Search,
   TriangleAlert
 } from 'lucide-react';
-import { Button, Progress, Spinner, useToolbarStages } from '../components/ui/index';
+import {
+  Button,
+  Progress,
+  Spinner,
+  useToolbarStages,
+  type MenuEntry
+} from '../components/ui/index';
 import { ReconnectAction } from '../components/ReconnectAction';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
@@ -43,7 +49,6 @@ import { useLandingViewport } from './useLandingViewport';
 import type { UseLandingViewer } from './useLandingViewer';
 import { GalleryIconButton } from './internal/GalleryIconButton';
 import { GalleryEmpty } from './internal/GalleryEmpty';
-import { MenuHeading, MenuItem, MenuSeparator } from './internal/ViewerMenu';
 import { phaseKey } from './internal/phaseKey';
 import { VIEWER_TOOLBAR_STAGES, viewerToolbarFits } from './internal/viewerToolbarFit';
 import { LandingTree } from './LandingTree';
@@ -476,102 +481,90 @@ export function LandingViewer({
             running={state.running}
             hasActiveCatalog={Boolean(state.activeCatalogId)}
             capabilities={capabilities}
-            leading={close => (
-              <>
-                {/* The page counter has no room in the toolbar on a phone; it lives here. */}
-                {narrow && state.landings.length > 0 && (
-                  <MenuHeading>
-                    {t('landingGalleryCounter', {
-                      current: selectedIndex >= 0 ? selectedIndex + 1 : 0,
-                      total: state.landings.length
-                    })}
-                  </MenuHeading>
-                )}
-                {!gridMode && (
-                  <>
-                    <MenuItem
-                      icon={<MoveHorizontal {...menuIcon} />}
-                      checked={zoomMode === 'fit-width'}
-                      onClick={() => {
-                        close();
-                        viewport.setZoomMode('fit-width');
-                      }}
-                    >
-                      {t('landingGalleryFitWidth')}
-                    </MenuItem>
-                    <MenuItem
-                      icon={<Scan {...menuIcon} />}
-                      checked={zoomMode === 'fit-page'}
-                      onClick={() => {
-                        close();
-                        viewport.setZoomMode('fit-page');
-                      }}
-                    >
-                      {t('landingGalleryFitPage')}
-                    </MenuItem>
-                    <MenuItem
-                      icon={<ImageIcon {...menuIcon} />}
-                      checked={zoomMode === 'custom' && Math.round(scale * 100) === 100}
-                      onClick={() => {
-                        close();
-                        viewport.resetZoom();
-                      }}
-                    >
-                      {t('landingGalleryActualSize')}
-                    </MenuItem>
-                    <MenuSeparator />
-                  </>
-                )}
-                <MenuItem
-                  icon={<LayoutGrid {...menuIcon} />}
-                  checked={gridMode}
-                  disabled={!state.landings.length}
-                  onClick={() => {
-                    close();
-                    setGridMode(value => !value);
-                  }}
-                >
-                  {t('landingGalleryViewGrid')}
-                </MenuItem>
-                <MenuItem
-                  icon={
-                    viewport.fullscreen ? <Minimize {...menuIcon} /> : <Maximize {...menuIcon} />
-                  }
-                  checked={viewport.fullscreen}
-                  onClick={() => {
-                    close();
-                    viewport.toggleFullscreen();
-                  }}
-                >
-                  {t('landingGalleryFullscreen')}
-                </MenuItem>
-                {(capabilities.reveal || capabilities.openExtracted) && <MenuSeparator />}
-                {capabilities.reveal && (
-                  <MenuItem
-                    icon={<FolderSearch {...menuIcon} />}
-                    disabled={!canReveal}
-                    onClick={() => {
-                      close();
-                      if (selected) reveal(selected.id);
-                    }}
-                  >
-                    {t('landingGalleryReveal')}
-                  </MenuItem>
-                )}
-                {capabilities.openExtracted && (
-                  <MenuItem
-                    icon={<FolderOpen {...menuIcon} />}
-                    disabled={!canOpenExtracted}
-                    onClick={() => {
-                      close();
-                      if (selected) openExtracted(selected.id);
-                    }}
-                  >
-                    {t('landingGalleryOpenExtracted')}
-                  </MenuItem>
-                )}
-              </>
-            )}
+            leading={[
+              // The page counter has no room in the toolbar on a phone; it lives here.
+              ...(narrow && state.landings.length > 0
+                ? [
+                    {
+                      heading: t('landingGalleryCounter', {
+                        current: selectedIndex >= 0 ? selectedIndex + 1 : 0,
+                        total: state.landings.length
+                      })
+                    }
+                  ]
+                : []),
+              ...(!gridMode
+                ? ([
+                    {
+                      id: 'fit-width',
+                      icon: <MoveHorizontal {...menuIcon} />,
+                      label: t('landingGalleryFitWidth'),
+                      checked: zoomMode === 'fit-width',
+                      onSelect: () => viewport.setZoomMode('fit-width')
+                    },
+                    {
+                      id: 'fit-page',
+                      icon: <Scan {...menuIcon} />,
+                      label: t('landingGalleryFitPage'),
+                      checked: zoomMode === 'fit-page',
+                      onSelect: () => viewport.setZoomMode('fit-page')
+                    },
+                    {
+                      id: 'actual-size',
+                      icon: <ImageIcon {...menuIcon} />,
+                      label: t('landingGalleryActualSize'),
+                      checked: zoomMode === 'custom' && Math.round(scale * 100) === 100,
+                      onSelect: () => viewport.resetZoom()
+                    },
+                    'separator'
+                  ] satisfies MenuEntry[])
+                : []),
+              // Two switches of their own, not answers to one question: both can be on.
+              {
+                id: 'grid',
+                icon: <LayoutGrid {...menuIcon} />,
+                label: t('landingGalleryViewGrid'),
+                checked: gridMode,
+                toggle: true,
+                disabled: !state.landings.length,
+                onSelect: () => setGridMode(value => !value)
+              },
+              {
+                id: 'fullscreen',
+                icon: viewport.fullscreen ? <Minimize {...menuIcon} /> : <Maximize {...menuIcon} />,
+                label: t('landingGalleryFullscreen'),
+                checked: viewport.fullscreen,
+                toggle: true,
+                onSelect: viewport.toggleFullscreen
+              },
+              ...(capabilities.reveal || capabilities.openExtracted ? ['separator' as const] : []),
+              ...(capabilities.reveal
+                ? [
+                    {
+                      id: 'reveal',
+                      icon: <FolderSearch {...menuIcon} />,
+                      label: t('landingGalleryReveal'),
+                      disabled: !canReveal,
+                      onSelect: () => {
+                        if (selected) reveal(selected.id);
+                      }
+                    }
+                  ]
+                : []),
+              ...(capabilities.openExtracted
+                ? [
+                    {
+                      id: 'open-extracted',
+                      icon: <FolderOpen {...menuIcon} />,
+                      label: t('landingGalleryOpenExtracted'),
+                      disabled: !canOpenExtracted,
+                      onSelect: () => {
+                        if (selected) openExtracted(selected.id);
+                      }
+                    }
+                  ]
+                : [])
+            ]}
             onClearCache={clearCache}
             onRemoveActiveCatalog={() =>
               state.activeCatalogId && removeCatalog(state.activeCatalogId)
