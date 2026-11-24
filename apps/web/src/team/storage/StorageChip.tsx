@@ -75,7 +75,7 @@ const NEXT_ACTION_COPY: Record<Exclude<CatalogNextAction, 'none'>, TranslationKe
   connect: 'teamStorageNextConnect'
 };
 
-function ago(iso: string, t: ReturnType<typeof useI18n>['t']): string {
+export function ago(iso: string, t: ReturnType<typeof useI18n>['t']): string {
   const parsed = Date.parse(iso);
   if (Number.isNaN(parsed)) return '';
   const minutes = Math.max(0, Math.round((Date.now() - parsed) / 60_000));

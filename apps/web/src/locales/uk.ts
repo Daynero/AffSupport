@@ -5491,5 +5491,11 @@ export const uk: Record<keyof typeof en, string> = {
   spaceHealthRealtimeWaiting: 'Підключаємо…',
   spaceHealthWorkIdle: 'Нічого не виконується',
   spaceHealthUpdaterIdle: 'Нічого за розкладом',
+  spaceHealthAgentConnected: 'Підключено',
+  spaceHealthStorageCurrent: 'Актуальне · {ago}',
+  spaceHealthStorageDelayed: 'Синхронізація затримується',
+  spaceHealthStoragePartial: 'Перевірено лише частково',
+  spaceHealthStorageDisconnected: 'Не підключено',
+  spaceHealthStorageStale: 'Стан застарів на {count} хв',
   spaceHealthStorageUnknown: 'Ще не перевірено'
 };

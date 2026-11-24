@@ -138,6 +138,8 @@ describe('the space health in the header', () => {
     ]);
     expect(rows.every(row => row.getAttribute('data-tone') === 'ok')).toBe(true);
     expect(within(panel).getByText('Nothing is running')).toBeTruthy();
+    // The row is named "Storage" already; its status does not say the word again.
+    expect(rows[0].querySelector('strong + span')?.textContent).toBe('Up to date · just now');
   });
 
   it('shows the one source that needs a person as its own chip, with a word and an action', () => {

@@ -5515,5 +5515,11 @@ export const en = {
   spaceHealthRealtimeWaiting: 'Connecting…',
   spaceHealthWorkIdle: 'Nothing is running',
   spaceHealthUpdaterIdle: 'Nothing on a schedule',
+  spaceHealthAgentConnected: 'Connected',
+  spaceHealthStorageCurrent: 'Up to date · {ago}',
+  spaceHealthStorageDelayed: 'Sync is delayed',
+  spaceHealthStoragePartial: 'Only partly checked',
+  spaceHealthStorageDisconnected: 'Not connected',
+  spaceHealthStorageStale: 'Status is {count} min old',
   spaceHealthStorageUnknown: 'Not checked yet'
 } as const;

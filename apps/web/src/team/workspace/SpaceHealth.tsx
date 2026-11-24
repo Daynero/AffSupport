@@ -11,7 +11,7 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { CatalogUpdaterChip, useUpdaterSummary } from '../catalog-updater/CatalogUpdaterChip';
 import { useOptionalBackgroundRender } from '../explorer/BackgroundRenderProvider';
 import { useOptionalLibraryProcessing } from '../library/LibraryProcessingProvider';
-import { chipCopy, StorageChip, type StorageChipClient } from '../storage/StorageChip';
+import { ago, chipCopy, StorageChip, type StorageChipClient } from '../storage/StorageChip';
 import { useTeam } from '../TeamContext';
 import { AgentLinkChip } from './AgentLinkChip';
 import { BackgroundWorkChip } from './BackgroundWorkChip';
@@ -52,6 +52,27 @@ export interface SpaceHealthProps {
   onUpdaterNavigate: (event: MouseEvent<HTMLAnchorElement>) => void;
   /** Opens the batch that is running. */
   onOpenProcess: () => void;
+}
+
+/**
+ * The storage row's status. The row is already named "Storage", so where the
+ * chip's sentence starts with that word the row says only the rest of it: the
+ * panel read «Сховище — Сховище актуальне · щойно» (070, phase 5). The states
+ * whose sentence does not repeat the name are the chip's own words.
+ */
+function storageRowCopy(
+  health: StorageHealth,
+  t: ReturnType<typeof useI18n>['t'],
+  renderPaused?: boolean
+): string {
+  if (health.kind === 'connected' && health.syncHealth === 'delayed')
+    return t('spaceHealthStorageDelayed');
+  if (health.kind === 'connected' && health.coverage === 'partial')
+    return t('spaceHealthStoragePartial');
+  if (health.kind === 'connected' && health.coverage !== 'permission_limited')
+    return t('spaceHealthStorageCurrent', { ago: ago(health.lastReconciledAt, t) });
+  if (health.kind === 'disconnected') return t('spaceHealthStorageDisconnected');
+  return chipCopy(health, t, renderPaused);
 }
 
 /**
@@ -215,10 +236,10 @@ function HealthPanel({
       status: !props.storage
         ? t('spaceHealthStorageUnknown')
         : storageStale(props.staleSince)
-          ? t('teamStorageChipStale', {
+          ? t('spaceHealthStorageStale', {
               count: Math.floor((Date.now() - props.staleSince!) / 60_000)
             })
-          : chipCopy(props.storage, t, render?.paused),
+          : storageRowCopy(props.storage, t, render?.paused),
       action: props.storage ? (
         <Button
           size="xs"
@@ -239,7 +260,8 @@ function HealthPanel({
         : tones.agent === 'idle'
           ? t('lookingForAgent')
           : agent.teamWorkspaceAvailability === 'ready'
-            ? t('agentConnected')
+            ? // The row is "Soty on this computer"; "Soty connected" said the name twice.
+              t('spaceHealthAgentConnected')
             : agent.teamWorkspaceAvailability === 'too_old'
               ? t('localAppUpdateTitle')
               : agent.teamWorkspaceAvailability === 'blocked'
