@@ -1013,9 +1013,10 @@ function statusKey(status: string): TranslationKey {
 }
 
 function ActivityChart({ data }: { data: DailyActivity[] }) {
+  const { t } = useI18n();
   const maximum = Math.max(1, ...data.flatMap(day => [day.active_users, day.event_count]));
   return (
-    <div className="activity-chart" role="img" aria-label="Daily active users and events">
+    <div className="activity-chart" role="img" aria-label={t('adminActivityChartLabel')}>
       {data.map(day => (
         <div
           className="activity-day"
