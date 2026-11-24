@@ -73,7 +73,7 @@ describe('compression settings UI', () => {
     // Custom settings stay mounted for smooth expand/collapse, but they are
     // hidden from assistive tech and their controls are disabled.
     expect(markup).toMatch(
-      /<div class="collapse" aria-hidden="true"><div class="collapse-body"><div class="custom-settings">/
+      /<div class="ui-collapse" aria-hidden="true" inert=""><div class="ui-collapse-body"><div class="custom-settings">/
     );
     expect(picto(markup, '30 FPS', false, true)).toBe(true);
     expect(picto(markup, '720p', false, true)).toBe(true);

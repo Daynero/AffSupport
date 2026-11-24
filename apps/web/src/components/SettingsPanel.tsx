@@ -30,8 +30,7 @@ import {
 import { compactPath } from '../format';
 import { isValidIntegerInput } from '../queue-ui';
 import type { Translate } from '../i18n';
-import { Checkbox, Collapse, Tooltip } from './ui';
-import { RadioGroup } from './ui/index';
+import { Collapse, HelpTip, RadioGroup, Switch } from './ui/index';
 import { ImageEmbeddingSection } from './ImageEmbeddingSection';
 
 // The presets are exactly the pictos on the row. A value outside them (25 fps,
@@ -185,14 +184,14 @@ export function SettingsPanel({
             t={t}
           />
           <div className="field-group metadata-settings">
-            <Checkbox
+            <Switch
               className="feature-switch"
               checked={settings.stripMetadata}
               disabled={disabled}
-              onChange={event => updateSettings({ stripMetadata: event.target.checked })}
+              onChange={next => updateSettings({ stripMetadata: next })}
               label={<strong>{t('stripMetadata')}</strong>}
             />
-            <Tooltip label={t('stripMetadataTooltip')}>{t('stripMetadataTooltip')}</Tooltip>
+            <HelpTip label={t('stripMetadataTooltip')}>{t('stripMetadataTooltip')}</HelpTip>
           </div>
         </div>
         <div className="mode-detail">
@@ -420,7 +419,7 @@ function FpsControl({
             ? `${custom || '—'} FPS`
             : `${choice} FPS`}
       </span>
-      <Collapse fast open={choice === 'custom' && !valid && custom !== ''}>
+      <Collapse open={choice === 'custom' && !valid && custom !== ''}>
         <span className="soty-field-error">
           {t('invalidFrameRate', { min: FRAME_RATE_MIN, max: FRAME_RATE_MAX })}
         </span>
@@ -517,7 +516,7 @@ function ResolutionControl({
             ? `${custom || '—'}p`
             : `${choice}p`}
       </span>
-      <Collapse fast open={choice === 'custom' && !valid && custom !== ''}>
+      <Collapse open={choice === 'custom' && !valid && custom !== ''}>
         <span className="soty-field-error">
           {t('invalidResolution', { min: RESOLUTION_MIN, max: RESOLUTION_MAX })}
         </span>
@@ -728,7 +727,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
   return (
     <div className="field-label">
       <span>{label}</span>
-      {tooltip && <Tooltip label={tooltip}>{tooltip}</Tooltip>}
+      {tooltip && <HelpTip label={tooltip}>{tooltip}</HelpTip>}
     </div>
   );
 }

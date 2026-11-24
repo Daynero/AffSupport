@@ -929,6 +929,24 @@ a {
 .settings-collapse .settings-chevron {
   transition: transform var(--dur-control) var(--ease-standard);
 }
+/* On a phone the summary is its own line under the title (070, phase 6): beside
+   it, three values stacked into a column of six short lines and pushed the
+   title onto two. Every tool with a settings strip shares this header. */
+@media (max-width: 640px) {
+  .settings-collapse {
+    flex-wrap: wrap;
+  }
+  .settings-collapse .settings-summary {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+    font-size: var(--text-label);
+  }
+  .settings-collapse .settings-summary + .settings-chevron {
+    order: 2;
+    margin-left: auto;
+  }
+}
 .settings-collapse .settings-chevron.is-rotated {
   transform: rotate(-90deg);
 }
@@ -1082,6 +1100,13 @@ a {
    ============================================================ */
 .feature-switch {
   min-height: 28px;
+}
+
+/* The inventory's switch carries the setting's name at the size of the words
+   around it: a feature toggle here is a heading-sized line (070, T036), and
+   the switch's own small label made "Embed images" read as a footnote. */
+.feature-switch .ui-switch-label {
+  font-size: inherit;
 }
 
 .feature-switch .checkbox-mark {
@@ -2054,7 +2079,8 @@ input.is-invalid {
   justify-content: flex-end;
 }
 
-.job-actions .soty-button {
+.job-actions .soty-button,
+.job-actions .ui-button {
   min-height: 44.2px;
   padding: 0 15.6px;
   font-size: inherit;
@@ -13861,7 +13887,8 @@ input[type='number'] {
   min-width: 228px;
   max-width: 280px;
 }
-.job-side .job-actions .soty-button {
+.job-side .job-actions .soty-button,
+.job-side .job-actions .ui-button {
   justify-content: flex-start;
   gap: 10px;
   width: 100%;
@@ -13889,7 +13916,7 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-3);
 }
-.job-progress-line .progress-track {
+.job-progress-line .ui-progress {
   flex: 1;
   height: 8px;
 }
@@ -13910,7 +13937,8 @@ input[type='number'] {
   width: auto;
   margin-left: auto;
 }
-.job-progress-panel .job-actions .soty-button {
+.job-progress-panel .job-actions .soty-button,
+.job-progress-panel .job-actions .ui-button {
   width: auto;
   min-height: 38px;
 }
@@ -14027,7 +14055,8 @@ input[type='number'] {
 .metadata-settings {
   align-self: center;
 }
-.metadata-settings .soty-checkbox strong {
+.metadata-settings .soty-checkbox strong,
+.metadata-settings .ui-switch-label strong {
   font-size: var(--text-xl);
   font-weight: 600;
 }
@@ -14373,7 +14402,8 @@ input[type='number'] {
 
 /* Pause and cancel sit centred in the progress panel — the left-aligned card
    stack rule does not apply to them. */
-.job-progress-panel .job-actions .soty-button {
+.job-progress-panel .job-actions .soty-button,
+.job-progress-panel .job-actions .ui-button {
   justify-content: center;
 }
 /* The source metrics end exactly where the outcome grid does: the panel adds

@@ -61,15 +61,15 @@ describe('image embedding settings UI', () => {
     render(<SettingsHarness />);
     // The panel stays mounted for a smooth expand animation but is hidden
     // from assistive technology until the switch is enabled.
-    const hiddenPanel = screen.getByText('Opening frame').closest('.collapse');
+    const hiddenPanel = screen.getByText('Opening frame').closest('.ui-collapse');
     expect(hiddenPanel?.getAttribute('aria-hidden')).toBe('true');
     expect(hiddenPanel?.classList.contains('is-open')).toBe(false);
     await user.click(screen.getByText('Embed images into video'));
     expect(
-      screen.getByText('Opening frame').closest('.collapse')?.getAttribute('aria-hidden')
+      screen.getByText('Opening frame').closest('.ui-collapse')?.getAttribute('aria-hidden')
     ).toBe(null);
     expect(
-      screen.getByText('Opening frame').closest('.collapse')?.classList.contains('is-open')
+      screen.getByText('Opening frame').closest('.ui-collapse')?.classList.contains('is-open')
     ).toBe(true);
     expect(screen.getByText('Opening frame')).toBeTruthy();
     expect(screen.getByText('Final image')).toBeTruthy();
@@ -141,7 +141,7 @@ describe('image embedding settings UI', () => {
       />
     );
 
-    await userEvent.click(screen.getByRole('checkbox', { name: 'Replace existing' }));
+    await userEvent.click(screen.getByRole('switch', { name: 'Replace existing' }));
     expect(updateSettings.mock.calls.at(-1)?.[0]).toEqual({
       imageEmbedding: { replaceExisting: true }
     });

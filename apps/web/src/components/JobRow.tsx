@@ -23,8 +23,8 @@ import {
 } from '../format';
 import type { Language, Translate } from '../i18n';
 import { elapsedMilliseconds, stoppable, timerState } from '../queue-ui';
-import { Button, Checkbox, ProgressBar, Spinner, StatusBadge } from './ui';
-import { fillRatio } from './ui/index';
+import { StatusBadge } from './StatusBadge';
+import { Button, Checkbox, Progress, Spinner, fillRatio } from './ui/index';
 
 /** Keep in sync with --dur-complete in styles.css: the estimate → result
  * morph (row-track transition + size count-up) runs on this clock. */
@@ -74,7 +74,12 @@ export function JobRow({
       onClick={event => {
         if (job.status === 'analyzing') return;
         const target = event.target as HTMLElement;
-        if (target.closest('button, a, input, label, [role="button"], details, summary')) return;
+        if (
+          target.closest(
+            'button, a, input, label, [role="button"], [role="checkbox"], .ui-checkbox, details, summary'
+          )
+        )
+          return;
         onSelected(!selected, (event.nativeEvent as MouseEvent).shiftKey === true);
       }}
     >
@@ -84,21 +89,11 @@ export function JobRow({
             checked={selected}
             disabled={job.status === 'analyzing'}
             aria-label={t('fileSelection', { name: job.fileName })}
-            label={<span className="sr-only">{t('fileSelection', { name: job.fileName })}</span>}
-            /* Selection happens on change, not on click.
-             
-             A controlled checkbox with an empty `onChange` is React's warning
-             case, and it was also the reason range selection was mouse-only:
-             the shift state was read from a click event, so Shift+Space — the
-             keyboard way to extend a selection — did nothing at all. `change`
-             fires for both, and the native event carries the modifier whichever
-             one caused it. */
-            onChange={event =>
-              onSelected(
-                event.target.checked,
-                (event.nativeEvent as MouseEvent | KeyboardEvent).shiftKey === true
-              )
-            }
+            /* Selection happens on change, not on click: Shift+Space — the
+               keyboard way to extend a selection — goes through the same path
+               as a shift-click, and the inventory's checkbox hands over the
+               modifier whichever one caused it. */
+            onChange={(checked, { shiftKey }) => onSelected(checked, shiftKey)}
           />
           <div className="job-title-block">
             <div className="job-title-line">
@@ -119,13 +114,13 @@ export function JobRow({
               {t(job.paused ? 'jobPaused' : 'jobCompressingNow')}
             </strong>
             <div className="job-progress-line">
-              <ProgressBar
-                value={job.status === 'queued' ? 0 : job.progress}
+              <Progress
+                value={job.status === 'queued' ? 0 : (job.progress ?? undefined)}
                 label={t('compressionProgress', { name: job.fileName })}
                 /* The flowing animation says "work is happening right now". With
                    no connection that claim cannot be checked, so the bar holds its
                    last known value instead of continuing to flow. */
-                active={job.status === 'processing' && connected}
+                flowing={job.status === 'processing' && connected}
               />
               <strong className="job-progress-value">
                 {job.status === 'queued' ? '0%' : `${Math.round(job.progress ?? 0)}%`}
@@ -300,7 +295,7 @@ function OriginalPanel({
         <div className="panel-loading ui-color-error">{t('errorToolUnavailable')}</div>
       ) : job.status === 'analyzing' ? (
         <div className="panel-loading">
-          <Spinner small /> {t('statusAnalyzing')}
+          <Spinner /> {t('statusAnalyzing')}
         </div>
       ) : (
         <MediaGrid

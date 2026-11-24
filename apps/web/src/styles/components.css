@@ -2641,6 +2641,11 @@
   transform-origin: left center;
   transition: transform var(--motion-base) var(--ease-out-curve);
 }
+.ui-progress.is-flowing .ui-progress-fill {
+  background: var(--gradient-progress);
+  background-size: 200% 100%;
+  animation: gradient-flow calc(var(--motion-progress) * 4) var(--ease-linear) infinite;
+}
 .ui-progress.is-indeterminate .ui-progress-fill {
   width: 40%;
   animation: ui-progress-slide var(--motion-slow) var(--ease-in-out-curve) infinite alternate;
@@ -2658,6 +2663,9 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .ui-progress.is-flowing .ui-progress-fill {
+    animation: none;
+  }
   .ui-progress.is-indeterminate .ui-progress-fill {
     animation: none;
     width: 100%;

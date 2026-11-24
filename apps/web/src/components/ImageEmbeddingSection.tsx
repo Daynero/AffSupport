@@ -19,7 +19,6 @@ import {
   type ImageSlot
 } from '@video-compressor/shared';
 import type { TranslationKey, Translate } from '../i18n';
-import { Checkbox, Collapse, IconButton, Select, Spinner, Tooltip } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
 import {
   Crop,
@@ -33,7 +32,7 @@ import {
 } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
-import { Alert } from './ui/index';
+import { Alert, Collapse, HelpTip, IconButton, Select, Spinner, Switch } from './ui/index';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -111,14 +110,14 @@ export function ImageEmbeddingSection({
     <div className="image-embedding-settings">
       {optional && (
         <div className="image-embedding-toggle">
-          <Checkbox
+          <Switch
             className="feature-switch"
             checked={settings.enabled}
             disabled={disabled}
-            onChange={event => update({ enabled: event.target.checked })}
+            onChange={next => update({ enabled: next })}
             label={<strong>{t('embedImages')}</strong>}
           />
-          <Tooltip label={t('embedImagesTooltip')}>{t('embedImagesTooltip')}</Tooltip>
+          <HelpTip label={t('embedImagesTooltip')}>{t('embedImagesTooltip')}</HelpTip>
         </div>
       )}
 
@@ -127,16 +126,16 @@ export function ImageEmbeddingSection({
           <div className="embedding-settings-row">
             {optional && (
               <div className="field-group metadata-settings replace-existing-setting">
-                <Checkbox
+                <Switch
                   className="feature-switch"
                   checked={settings.replaceExisting}
                   disabled={disabled}
-                  onChange={event => update({ replaceExisting: event.target.checked })}
+                  onChange={next => update({ replaceExisting: next })}
                   label={<strong>{t('replaceExistingImages')}</strong>}
                 />
-                <Tooltip label={t('replaceExistingImagesHint')}>
+                <HelpTip label={t('replaceExistingImagesHint')}>
                   {t('replaceExistingImagesHint')}
-                </Tooltip>
+                </HelpTip>
               </div>
             )}
             <div className="field-group embedding-fit-row">
@@ -279,7 +278,7 @@ export function ImageEmbeddingSection({
                           />
                           <span>{t('millisecondsUnit')}</span>
                         </div>
-                        <Collapse fast open={!customStartMsValid}>
+                        <Collapse open={!customStartMsValid}>
                           <span className="soty-field-error">
                             {t('invalidCustomStartDuration')}
                           </span>
@@ -399,7 +398,7 @@ export function ImageEmbeddingSection({
                       </>
                     )}
                   </div>
-                  <Collapse fast open={!customTimeValid}>
+                  <Collapse open={!customTimeValid}>
                     <span className="soty-field-error">{t('invalidCustomDuration')}</span>
                   </Collapse>
                   <span className="optimal-summary">
@@ -474,15 +473,14 @@ function ImageColumn({
       ref={panel}
     >
       <div className="image-column-heading">
-        <Checkbox
+        <Switch
           className="feature-switch slot-feature-switch"
           checked={slotEnabled}
           aria-label={title}
           onChange={onToggleSlot}
-          label={null}
         />
         <h3>{title}</h3>
-        <Tooltip label={description}>{description}</Tooltip>
+        <HelpTip label={description}>{description}</HelpTip>
       </div>
       <Collapse open={slotEnabled}>
         <div className="image-column-body">
@@ -806,7 +804,7 @@ function FieldLabel({ label, tooltip }: { label: string; tooltip?: string }) {
   return (
     <div className="field-label">
       <span>{label}</span>
-      {tooltip && <Tooltip label={tooltip}>{tooltip}</Tooltip>}
+      {tooltip && <HelpTip label={tooltip}>{tooltip}</HelpTip>}
     </div>
   );
 }

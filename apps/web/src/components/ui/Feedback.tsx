@@ -280,6 +280,12 @@ export interface ProgressProps {
   decorative?: boolean;
   /** A ring instead of a bar — the TOTP countdown, a small inline job. */
   circular?: boolean;
+  /**
+   * Work is happening right now: the brand gradient drifts along the fill
+   * (the compressor's row, 070 T036). Off, the bar holds still at its value —
+   * which is what a bar must do when nobody can confirm the work is moving.
+   */
+  flowing?: boolean;
   className?: string;
 }
 
@@ -291,6 +297,7 @@ export function Progress({
   valueText,
   decorative = false,
   circular = false,
+  flowing = false,
   className
 }: ProgressProps) {
   const indeterminate = value === undefined || Number.isNaN(value);
@@ -300,7 +307,7 @@ export function Progress({
       className={uiClasses(circular ? 'progress-ring' : 'progress', {
         color,
         size,
-        states: { indeterminate },
+        states: { indeterminate, flowing: flowing && !indeterminate },
         className
       })}
       role={decorative ? undefined : 'progressbar'}

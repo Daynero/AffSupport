@@ -72,6 +72,8 @@ export {
   Spinner,
   Tooltip
 } from './Feedback';
+/* The "?" beside a setting's name (070, T035). */
+export { HelpTip } from './HelpTip';
 /* The hint behind every `title` (070, T033). */
 export { HintLayer } from './HintLayer';
 export type {
