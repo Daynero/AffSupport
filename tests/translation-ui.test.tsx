@@ -382,3 +382,245 @@ describe('several texts', () => {
     expect(screen.getByRole('button', { name: 'Ukrainian' })).toBeTruthy();
   });
 });
+
+describe('the text actions around a space video', () => {
+  it('offers Transcribe when the text cannot be read, and nothing where there is no way to make it', async () => {
+    const user = userEvent.setup();
+    const onTranscribe = vi.fn();
+    const unreadable = {
+      listVideoTextVariants: vi.fn(async () => {
+        throw new Error('offline');
+      })
+    };
+    const first = render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={unreadable}
+        translations={fakeClient()}
+        onTranscribe={onTranscribe}
+      />
+    );
+    await user.click(await screen.findByRole('button', { name: 'Transcribe' }));
+    expect(onTranscribe).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'View text' })).toBeNull();
+    first.unmount();
+
+    // Read-only storage passes no handler: no button that would do nothing.
+    const { container } = render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={unreadable}
+        translations={fakeClient()}
+      />
+    );
+    await waitFor(() => expect(container.textContent).toBe(''));
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('redoes the transcript from beside the text, in short words under a heading', async () => {
+    const user = userEvent.setup();
+    const onRetranscribe = vi.fn();
+    render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={fakeClient()}
+        onTranscribe={() => {}}
+        onRetranscribe={onRetranscribe}
+        compact
+      />
+    );
+    const redo = await screen.findByRole('button', { name: 'Redo the transcript' });
+    // Short on screen, whole for a screen reader.
+    expect(redo.textContent).toBe('Redo');
+    expect(screen.getByRole('button', { name: 'View text' }).textContent).toBe('View');
+    await user.click(redo);
+    expect(onRetranscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens a translation started here by itself once it is ready', async () => {
+    const user = userEvent.setup();
+    const current = await translationFingerprint(['Merhaba.', 'Bir tablet al.']);
+    let emit: ((event: TranslationStreamEvent) => void) | null = null;
+    const client = fakeClient({
+      start: vi.fn(async () => ({
+        translationId: '06300000-0000-4000-8000-000000000009',
+        status: 'processing' as const,
+        reused: false,
+        units: 23,
+        allowance: null
+      })),
+      watch: vi.fn(
+        (_id, onEvent) =>
+          new Promise<void>(() => {
+            emit = onEvent;
+          })
+      )
+    });
+    render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        videoName="promo.mp4"
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
+    );
+    await user.click(await screen.findByRole('button', { name: /Translate · 1/u }));
+    const launcher = await screen.findByRole('dialog');
+    await user.click(await within(launcher).findByRole('button', { name: 'Translate · 1' }));
+    expect(await screen.findByText(/Translating: Ukrainian/u)).toBeTruthy();
+    await waitFor(() => expect(emit).not.toBeNull());
+    expect(screen.queryByRole('dialog', { name: 'promo.mp4' })).toBeNull();
+
+    emit!({
+      type: 'done',
+      translation: translation({
+        id: '06300000-0000-4000-8000-000000000009',
+        sourceFingerprint: current
+      })
+    });
+    const viewer = await screen.findByRole('dialog', { name: 'promo.mp4' });
+    expect(within(viewer).getByRole('tab', { name: 'Ukrainian', selected: true })).toBeTruthy();
+    expect(viewer.textContent).toContain('Візьми таблетку.');
+  });
+
+  it('shows three translations by name and the rest as a count that opens the next one', async () => {
+    const user = userEvent.setup();
+    const current = await translationFingerprint(['Merhaba.', 'Bir tablet al.']);
+    const languages = [
+      ['uk', 'Привіт.'],
+      ['de', 'Hallo.'],
+      ['fr', 'Bonjour.'],
+      ['pl', 'Cześć.']
+    ] as const;
+    const client = fakeClient({
+      listForVideo: vi.fn(async () =>
+        languages.map(([targetLanguage, greeting], index) =>
+          translation({
+            id: `06300000-0000-4000-8000-00000000001${index}`,
+            targetLanguage,
+            sourceFingerprint: current,
+            segments: [greeting, '…']
+          })
+        )
+      )
+    });
+    render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
+    );
+    const chips = await screen.findByRole('group', { name: 'Translations' });
+    await waitFor(() =>
+      expect(
+        within(chips)
+          .getAllByRole('button')
+          .map(button => button.textContent)
+      ).toEqual(['Ukrainian', 'German', 'French', '+1'])
+    );
+    await user.click(within(chips).getByRole('button', { name: '+1' }));
+    const viewer = await screen.findByRole('dialog', { name: 'Video transcript' });
+    expect(within(viewer).getByRole('tab', { name: 'Polish', selected: true })).toBeTruthy();
+    expect(viewer.textContent).toContain('Cześć.');
+  });
+
+  it('in the viewer, follows a running translation and offers to retry it when it fails', async () => {
+    const user = userEvent.setup();
+    let emit: ((event: TranslationStreamEvent) => void) | null = null;
+    const start = vi.fn(async () => ({
+      translationId: '06300000-0000-4000-8000-000000000021',
+      status: 'processing' as const,
+      reused: false,
+      units: 23,
+      allowance: null
+    }));
+    const client = fakeClient({
+      start,
+      watch: vi.fn(
+        (_id, onEvent) =>
+          new Promise<void>(() => {
+            emit = onEvent;
+          })
+      ),
+      listForVideo: vi.fn(async () => [
+        translation({
+          status: 'processing',
+          segments: null,
+          completedSegments: 1,
+          model: null,
+          completedAt: null
+        })
+      ])
+    });
+    render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
+    );
+    await user.click(await screen.findByRole('button', { name: 'View text' }));
+    const viewer = screen.getByRole('dialog', { name: 'Video transcript' });
+    await user.click(await within(viewer).findByRole('tab', { name: /Ukrainian/u }));
+    expect(viewer.querySelector('.video-text-viewer-head + div')?.textContent).toMatch(
+      /Translating: Ukrainian/u
+    );
+    // A running translation cannot be deleted from under itself, nor retried.
+    expect(within(viewer).queryByRole('button', { name: 'Delete translation' })).toBeNull();
+    expect(within(viewer).queryByRole('button', { name: 'Try again' })).toBeNull();
+
+    await waitFor(() => expect(emit).not.toBeNull());
+    emit!({ type: 'failed', code: 'TRANSLATION_FAILED' });
+    expect(
+      await within(viewer).findByText(/Could not translate\. Minutes returned\./u)
+    ).toBeTruthy();
+    await user.click(within(viewer).getByRole('button', { name: 'Try again' }));
+    expect(start).toHaveBeenCalledWith(
+      'uk',
+      { scope: 'team_video', teamId: TEAM, videoId: VIDEO },
+      1
+    );
+  });
+
+  it('does not offer to update an outdated translation the day cannot cover', async () => {
+    const user = userEvent.setup();
+    const client = fakeClient({
+      listForVideo: vi.fn(async () => [translation()]),
+      allowance: vi.fn(async () => ({
+        feature: 'transcript_translation',
+        limitUnits: 9000,
+        usedUnits: 9000,
+        day: '2026-11-21',
+        resetsAt: '2026-11-21T22:00:00Z'
+      }))
+    });
+    render(
+      <VideoTextActions
+        teamId={TEAM}
+        videoId={VIDEO}
+        client={textClient}
+        translations={client}
+        onTranscribe={() => {}}
+      />
+    );
+    await user.click(await screen.findByRole('button', { name: 'View text' }));
+    const viewer = screen.getByRole('dialog', { name: 'Video transcript' });
+    await user.click(within(viewer).getByRole('tab', { name: /Ukrainian/u }));
+    expect(
+      await within(viewer).findByText('Translated from an earlier version of the text')
+    ).toBeTruthy();
+    expect(client.allowance).toHaveBeenCalled();
+    expect(within(viewer).queryByRole('button', { name: /Update translation/u })).toBeNull();
+  });
+});
