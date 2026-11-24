@@ -1691,10 +1691,21 @@ button.team-task-label-chip:hover:not(:disabled),
   cursor: default;
 }
 
+/* On a card the three statuses are circles, and the pill around them is the strip's height —
+   the tag chips' 34px (owner, beta 25.11: "ovals, and the sizes cut the eye"). The library's
+   small button is 32 tall, so a 28-wide one was an upright oval and the pill stood 40 next to
+   34-tall chips. 26 + the pill's 3px padding and 1px rule on each side is 34. */
 .team-task-status-control.is-compact .team-task-status-option {
-  width: 28px;
-  min-height: 26px;
+  width: 26px;
+  height: 26px;
+  min-height: 0;
   padding: 0;
+  aspect-ratio: 1;
+}
+
+.team-task-status-control.is-compact .team-task-status-option svg:not([data-slot='spinner'] svg) {
+  width: 16px;
+  height: 16px;
 }
 
 /* --- The progress on a card -------------------------------------------------------------- */
