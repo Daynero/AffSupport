@@ -1,5 +1,5 @@
 import { useI18n } from '../../i18n';
-import { Spinner } from '../../components/ui';
+import { Spinner } from '../../components/ui/index';
 
 /** A pending request does not prove which provider stage is currently running. */
 export function ProductCatalogProgress({

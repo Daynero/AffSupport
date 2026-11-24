@@ -6,7 +6,6 @@ import { CircleHelp } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Badge, Button, Checkbox, Switch, Tooltip } from '../../components/ui/index';
 // The create dialog's own checkboxes (re-stitch beside this one) are the form checkbox.
-import { Checkbox as FormCheckbox } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { useOptionalTeam } from '../TeamContext';
@@ -115,10 +114,10 @@ export function CatalogVideoR2Toggle(props: CatalogVideoR2ToggleProps) {
           label={label}
         />
       ) : (
-        <FormCheckbox
+        <Checkbox
           checked={props.checked}
           disabled={disabled}
-          onChange={event => props.onChange(event.target.checked)}
+          onChange={checked => props.onChange(checked)}
           label={label}
         />
       );

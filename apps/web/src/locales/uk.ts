@@ -3026,6 +3026,7 @@ export const uk: Record<keyof typeof en, string> = {
   productCatalogErrorShare: 'Google Drive не дозволяє відкрити цей файл за посиланням.',
   productCatalogDriveUnavailable: 'Підключіть Google Drive простору, щоб створювати каталоги.',
   productCatalogListTitle: 'Каталоги',
+  productCatalogListLoadFailed: 'Не вдалося завантажити каталоги цього відео.',
   productCatalogCreationRunning: 'Каталог створюється',
   productCatalogCreationRunningHint: 'Створення триває на сервері, навіть коли це вікно закрите.',
   productCatalogCreationShow: 'Показати прогрес',

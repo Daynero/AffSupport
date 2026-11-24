@@ -5,8 +5,14 @@ import type { ProductCatalogSummary, UnfinishedCatalogCreation } from '../../api
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { ConfirmDialog, SotyLoader } from '../../components/ui';
-import { Button, DropdownMenu, IconButton } from '../../components/ui/index';
+import {
+  Button,
+  ConfirmDialog,
+  DropdownMenu,
+  ErrorState,
+  IconButton,
+  LoadingState
+} from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
@@ -299,32 +305,30 @@ export function ProductCatalogMenuDialog({
 
   if (view.kind === 'loading')
     return (
-      <Modal labelledBy={titleId} onClose={onClose} closeLabel={t('productCatalogDone')} size="sm">
-        <div className="team-dialog-form product-catalog-dialog" role="status" aria-live="polite">
+      /* The list's own size and anatomy while it loads (070, T058; from 024 T133): it used to
+         open as a small window with a spinner and then grow into the list, or say only
+         «Повторити» when the read failed. */
+      <Modal labelledBy={titleId} onClose={onClose} closeLabel={t('productCatalogDone')} size="md">
+        <div className="team-dialog-form product-catalog-dialog">
           <h2 id={titleId}>{t('productCatalogListTitle')}</h2>
           {loadError ? (
-            <>
-              <p className="field-hint">{t('retry')}</p>
-              <div className="team-dialog-actions">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() =>
-                    void load().then(loaded => {
-                      if (loaded) setView(openView(loaded));
-                    })
-                  }
-                >
-                  {t('teamOperationRetry')}
-                </Button>
-                <Button type="button" variant="primary" onClick={onClose}>
-                  {t('productCatalogDone')}
-                </Button>
-              </div>
-            </>
+            <ErrorState
+              message={t('productCatalogListLoadFailed')}
+              retryLabel={t('tryAgain')}
+              onRetry={() =>
+                void load().then(loaded => {
+                  if (loaded) setView(openView(loaded));
+                })
+              }
+            />
           ) : (
-            <SotyLoader size={26} />
+            <LoadingState count={3} label={t('loading')} />
           )}
+          <div className="team-dialog-actions">
+            <Button color="neutral" variant="ghost" onClick={onClose}>
+              {t('productCatalogDone')}
+            </Button>
+          </div>
         </div>
       </Modal>
     );

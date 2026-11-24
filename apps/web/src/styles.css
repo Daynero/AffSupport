@@ -12610,18 +12610,11 @@ button.team-landing-tile:hover {
 .product-catalog-count-field {
   flex: 0 1 auto;
 }
-.product-catalog-create-fields input {
-  width: 100%;
-}
 .product-catalog-count-limit {
   margin-inline-start: var(--space-1);
-  font-size: var(--text-micro);
-}
-.product-catalog-create-body .soty-checkbox {
-  display: inline-flex;
-  min-height: var(--control-height-md);
-  gap: var(--space-2);
-  color: var(--color-text);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-body);
 }
 .product-catalog-create-surface .team-dialog-actions {
   flex-direction: row;

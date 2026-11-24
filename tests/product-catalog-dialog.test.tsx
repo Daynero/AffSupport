@@ -3,7 +3,7 @@
 // @ts-nocheck
 import { catalogForegroundPreparationFailure } from '../apps/web/src/api/catalog-video-foreground';
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -1095,6 +1095,37 @@ describe('a video’s catalogs (024, US15)', () => {
       .find(button => button.textContent === 'Done')!;
     fireEvent.click(done);
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("says it is loading in the list's own window, not an empty one (070, T058)", async () => {
+    let answer: (rows: ProductCatalogSummary[]) => void = () => undefined;
+    renderList(
+      listClient({
+        listProductCatalogs: vi.fn().mockReturnValue(
+          new Promise<ProductCatalogSummary[]>(resolve => {
+            answer = resolve;
+          })
+        )
+      })
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Catalogs' });
+    expect(within(dialog).getByRole('status').textContent).toContain('Loading…');
+    expect(dialog.className).toContain('modal-md');
+    // No raw controls while it waits: the one way out is the inventory's button.
+    expect(dialog.querySelector('button:not(.ui-button):not(.modal-close)')).toBeNull();
+    answer([catalog, second]);
+    expect(await screen.findByText('clip_v2_catalog')).toBeTruthy();
+  });
+
+  it('says what failed and offers to try again when the list cannot be read (070, T058)', async () => {
+    const listProductCatalogs = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('NETWORK'))
+      .mockResolvedValue([catalog]);
+    renderList(listClient({ listProductCatalogs }));
+    expect(await screen.findByText('Could not load this video’s catalogs.')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('clip catalog')).toBeTruthy();
   });
 
   it('opens straight on the form when the video has none', async () => {

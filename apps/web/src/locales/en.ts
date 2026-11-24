@@ -3038,6 +3038,7 @@ export const en = {
   productCatalogErrorShare: 'Google Drive does not allow sharing this file by link.',
   productCatalogDriveUnavailable: 'Connect the space’s Google Drive to create catalogs.',
   productCatalogListTitle: 'Catalogs',
+  productCatalogListLoadFailed: 'Could not load this video’s catalogs.',
   productCatalogCreationRunning: 'A catalog is being created',
   productCatalogCreationRunningHint: 'It keeps going on the server while this window is closed.',
   productCatalogCreationShow: 'Show progress',

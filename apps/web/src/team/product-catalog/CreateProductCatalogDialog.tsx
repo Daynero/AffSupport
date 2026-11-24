@@ -39,10 +39,12 @@ import type {
   ProductCatalogSummary
 } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button, Checkbox } from '../../components/ui';
 import {
-  Button as InventoryButton,
+  Button,
+  Checkbox,
+  FormField,
   IconButton,
+  Input,
   Skeleton,
   RestitchDurationControl,
   type RestitchDurationValue
@@ -1089,7 +1091,7 @@ export function CreateProductCatalogDialog({
           <h2 id={titleId}>{t(phase.heading)}</h2>
           <div className="product-catalog-dialog-name-row">
             <p className="product-catalog-dialog-name">{shown.name}</p>
-            <InventoryButton
+            <Button
               type="button"
               size="sm"
               variant="secondary"
@@ -1097,7 +1099,7 @@ export function CreateProductCatalogDialog({
               onClick={() => void copy(shown.name, 'productCatalogNameCopied')}
             >
               {t('productCatalogCopyName')}
-            </InventoryButton>
+            </Button>
           </div>
           <p className="field-hint">{t('productCatalogProducts', { count: shown.productCount })}</p>
           {/* The publication line (scheduled time, writer state) belongs to every
@@ -1135,13 +1137,13 @@ export function CreateProductCatalogDialog({
               )}
               {videoKey.current && (
                 <div className="team-dialog-actions">
-                  <InventoryButton type="button" onClick={() => void checkVideo()}>
+                  <Button type="button" onClick={() => void checkVideo()}>
                     {t('catalogPublicationCheck')}
-                  </InventoryButton>
+                  </Button>
                   {!['ready', 'canceled', 'cancel_requested'].includes(createdVideo.state) && (
-                    <InventoryButton type="button" onClick={() => void checkVideo(true)}>
+                    <Button type="button" onClick={() => void checkVideo(true)}>
                       {t('catalogVideoCancel')}
-                    </InventoryButton>
+                    </Button>
                   )}
                 </div>
               )}
@@ -1245,64 +1247,65 @@ export function CreateProductCatalogDialog({
           {replaces && <p className="field-hint">{t('productCatalogRecreateNotice')}</p>}
 
           <div className="product-catalog-create-fields">
-            <div className="product-catalog-link-field">
-              <label htmlFor={linkId}>
-                <span>{t('productCatalogSourceLinkLabel')}</span>
-                <input
-                  id={linkId}
-                  type="text"
-                  inputMode="url"
-                  autoComplete="off"
-                  required
-                  value={link}
-                  placeholder={t('productCatalogSourceLinkPlaceholder')}
-                  disabled={busy}
-                  aria-invalid={linkError}
-                  aria-describedby={`${linkId}-help`}
-                  onChange={event => setLink(event.target.value)}
-                  onBlur={() => setTouched(current => ({ ...current, link: true }))}
-                />
-              </label>
-              <p
-                id={`${linkId}-help`}
-                className={linkError ? 'team-inline-error' : 'sr-only'}
-                role={linkError ? 'alert' : undefined}
-              >
-                {t(linkError ? 'productCatalogLinkInvalid' : 'productCatalogSourceLinkHint')}
-              </p>
-            </div>
-            <div className="product-catalog-count-field">
-              <label htmlFor={countId}>
-                <span>
-                  {t('productCatalogCountLabel')}{' '}
+            {/* The two fields on the inventory's FormField (070, T058; from 024 T133): the
+                label, the help under it and the error in its place come from one component,
+                and the error shows only once the entry has been left wrong. */}
+            <FormField
+              className="product-catalog-link-field"
+              label={t('productCatalogSourceLinkLabel')}
+              htmlFor={linkId}
+              error={linkError ? t('productCatalogLinkInvalid') : undefined}
+            >
+              <Input
+                id={linkId}
+                type="text"
+                inputMode="url"
+                autoComplete="off"
+                required
+                value={link}
+                placeholder={t('productCatalogSourceLinkPlaceholder')}
+                disabled={busy}
+                invalid={linkError}
+                aria-describedby={`${linkId}-hint`}
+                onChange={event => setLink(event.target.value)}
+                onBlur={() => setTouched(current => ({ ...current, link: true }))}
+              />
+              <span id={`${linkId}-hint`} className="sr-only">
+                {t('productCatalogSourceLinkHint')}
+              </span>
+            </FormField>
+            <FormField
+              className="product-catalog-count-field"
+              label={
+                <>
+                  {t('productCatalogCountLabel')}
+                  {/* The bounds are said by the hint to a reader; on screen they are this. */}
                   <span className="product-catalog-count-limit" aria-hidden="true">
                     1–400
                   </span>
-                </span>
-                <input
-                  id={countId}
-                  className="product-catalog-count"
-                  inputMode="numeric"
-                  required
-                  maxLength={3}
-                  value={count}
-                  disabled={busy}
-                  aria-invalid={countError}
-                  aria-describedby={`${countId}-help`}
-                  onChange={event =>
-                    setCount(event.target.value.replace(/[^\d]/gu, '').slice(0, 3))
-                  }
-                  onBlur={() => setTouched(current => ({ ...current, count: true }))}
-                />
-              </label>
-              <p
-                id={`${countId}-help`}
-                className={countError ? 'team-inline-error' : 'sr-only'}
-                role={countError ? 'alert' : undefined}
-              >
-                {t(countError ? 'productCatalogCountInvalid' : 'productCatalogCountHint')}
-              </p>
-            </div>
+                </>
+              }
+              htmlFor={countId}
+              error={countError ? t('productCatalogCountInvalid') : undefined}
+            >
+              <Input
+                id={countId}
+                className="product-catalog-count"
+                inputMode="numeric"
+                width="narrow"
+                required
+                maxLength={3}
+                value={count}
+                disabled={busy}
+                invalid={countError}
+                aria-describedby={`${countId}-hint`}
+                onChange={event => setCount(event.target.value.replace(/[^\d]/gu, '').slice(0, 3))}
+                onBlur={() => setTouched(current => ({ ...current, count: true }))}
+              />
+              <span id={`${countId}-hint`} className="sr-only">
+                {t('productCatalogCountHint')}
+              </span>
+            </FormField>
           </div>
 
           {videoProtocol && (
@@ -1318,9 +1321,9 @@ export function CreateProductCatalogDialog({
             <Checkbox
               checked={restitch}
               disabled={busy}
-              onChange={event => {
-                setRestitch(event.target.checked);
-                if (event.target.checked) setRestitchRequested(true);
+              onChange={checked => {
+                setRestitch(checked);
+                if (checked) setRestitchRequested(true);
                 setProcessed(null);
               }}
               label={t('productCatalogRestitch')}
@@ -1339,13 +1342,13 @@ export function CreateProductCatalogDialog({
                     ? teamErrorMessageFor({ code: restitchLoadCode }, t)
                     : t('productCatalogRestitchLoadFailed')}
                 </p>
-                <InventoryButton
+                <Button
                   size="sm"
                   variant="outline"
                   onClick={() => setRestitchReadRevision(value => value + 1)}
                 >
                   {t('retry')}
-                </InventoryButton>
+                </Button>
               </div>
             )}
             {restitch &&
@@ -1440,28 +1443,28 @@ export function CreateProductCatalogDialog({
           )}
           {videoTracked && (
             <div className="team-dialog-actions">
-              <InventoryButton type="button" onClick={() => void checkVideo()}>
+              <Button type="button" onClick={() => void checkVideo()}>
                 {t('catalogPublicationCheck')}
-              </InventoryButton>
+              </Button>
               {(showVideoUnknown || (allVideosReady && resumeOffered)) && (
-                <InventoryButton type="button" onClick={() => void checkVideo(false, true)}>
+                <Button type="button" onClick={() => void checkVideo(false, true)}>
                   {t('catalogVideoResume')}
-                </InventoryButton>
+                </Button>
               )}
               {videoPending?.state !== 'canceled' && videoPending?.state !== 'cancel_requested' && (
-                <InventoryButton
+                <Button
                   type="button"
                   aria-label={t('catalogVideoCancel')}
                   onClick={() => void checkVideo(true)}
                 >
                   {t('productCatalogCancel')}
-                </InventoryButton>
+                </Button>
               )}
               {(videoPending?.state === 'canceled' ||
                 videoPending?.state === 'cancel_requested') && (
-                <InventoryButton type="button" onClick={dismissVideo}>
+                <Button type="button" onClick={dismissVideo}>
                   {t('productCatalogDone')}
-                </InventoryButton>
+                </Button>
               )}
             </div>
           )}
