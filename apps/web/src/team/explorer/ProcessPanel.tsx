@@ -72,7 +72,6 @@ export function ProcessPanel({
           size="sm"
           label={t(collapsed ? 'teamProcessExpand' : 'teamProcessCollapse')}
           aria-expanded={!collapsed}
-          data-tip={t(collapsed ? 'teamProcessExpand' : 'teamProcessCollapse')}
           onClick={() => setCollapsed(current => !current)}
         >
           {collapsed ? (

@@ -182,7 +182,7 @@ Rows: `.settings-primary-row` is a **3-column grid** (`repeat(3, minmax(0,1fr))`
 
 ```
 <div class="fit-mode-pictos" role="radiogroup" aria-label="…">
-  <button type="button" role="radio" aria-checked class="is-selected?" data-tip="…" aria-label="…">
+  <button type="button" role="radio" aria-checked class="is-selected?" title="…" aria-label="…">
     <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden />
 ```
 
@@ -199,7 +199,7 @@ Rules that are not optional:
 
 - `width: fit-content` on the shelf — no empty rail trailing after the buttons.
 - The class is **`is-selected`**. `is-active` means something else in this codebase (§5.2).
-- Every button carries `data-tip` **and** `aria-label`: the label lives in the tooltip, never
+- Every button carries `title` **and** `aria-label`: the label lives in the tooltip, never
   under the icon.
 - Icons are lucide at `ICON_SIZE = 20`, `ICON_STROKE = 1.75`. If it feels tight, the plate
   grows; the icon never shrinks.
@@ -386,7 +386,7 @@ This is the row's signature, and it is drawn without an extra element:
   .job-header      grid: auto | minmax(0,1fr) | auto
     Checkbox
     .job-title-block  (grid, gap 3px)
-      .job-title-line   → <h3 data-tip={name}> (ellipsised) + <StatusBadge>
+      .job-title-line   → <h3 title={name}> (ellipsised) + <StatusBadge>
       <JobTimer>
   <OriginalPanel>
 .job-side          grid: minmax(0,1fr) | auto
@@ -443,7 +443,7 @@ the page says "the local app is not connected" or "the media engine is missing".
 
 ## 10. Interaction rules
 
-- **Words live in tooltips.** A control shows an icon; its name is `data-tip` + `aria-label`.
+- **Words live in tooltips.** A control shows an icon; its name is `title` + `aria-label`.
   Explanatory sentences go in the `Tooltip` beside a `FieldLabel`, never as standing text.
 - **Validation appears only after invalid input.** An empty field just opened is not an error
   (`&& custom !== ''`). Invalid state is `.is-invalid` on the field plus `.field-error` under
@@ -482,7 +482,7 @@ A page is "in the compressor's language" when all of this is true:
       advertises `local-file-paths`.
 - [ ] Settings live in a `.settings-panel` whose header is one button: gear, `<h2>`,
       `.settings-summary` of the current choices, rotating chevron; open state persisted.
-- [ ] Every choice is a `.fit-mode-pictos` radiogroup with `.is-selected`, `data-tip` and
+- [ ] Every choice is a `.fit-mode-pictos` radiogroup with `.is-selected`, `title` and
       `aria-label`, 44 × 38 buttons, 20px lucide icons, `.optimal-summary` underneath.
 - [ ] Custom values are inline `.time-input`s of 64–150px on the same row, units outside the box.
 - [ ] Galleries use `.image-columns` / `.image-column` / `.image-grid` / `.selected-image-tile`
@@ -492,7 +492,7 @@ A page is "in the compressor's language" when all of this is true:
       and `.primary-actions` right; exactly one `button-primary`; icons at 18px with
       `.action-label`.
 - [ ] Rows are `.job-row` with `data-state`, the 8px status rail, `.job-main` / `.job-side`,
-      `.job-title-line` with an ellipsised `<h3 data-tip>` and a `.status-badge`.
+      `.job-title-line` with an ellipsised `<h3 title>` and a `.status-badge`.
 - [ ] Every new surface built on `--purple-900` has a light-theme correction, and the page has
       been looked at in both themes.
 - [ ] No new colour, spacing or radius that is not a token.

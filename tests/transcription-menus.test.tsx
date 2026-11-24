@@ -4,7 +4,7 @@ import React, { useRef } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Translate } from '../apps/web/src/components/ui.js';
-import { useAnchoredLayer } from '../apps/web/src/components/useAnchoredLayer.js';
+import { useAnchoredLayer } from '../apps/web/src/components/ui/useAnchoredLayer.js';
 import { ExportMenu } from '../apps/web/src/transcription/ExportMenu.js';
 import { LanguageCombobox } from '../apps/web/src/transcription/LanguageCombobox.js';
 import { TranscriptionCopyMenu } from '../apps/web/src/transcription/TranscriptionCopyMenu.js';

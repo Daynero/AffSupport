@@ -554,7 +554,7 @@ function RateValueCrf({
           value={value}
           disabled={disabled}
           aria-label={t('crf')}
-          data-tip={t('crfTooltip')}
+          title={t('crfTooltip')}
           onPointerDown={event => onDrag(Number((event.target as HTMLInputElement).value))}
           onChange={event => {
             const next = Number(event.target.value);
@@ -637,7 +637,7 @@ function RateValueBitrate({
         value={value}
         disabled={disabled}
         aria-label={t('videoBitrate')}
-        data-tip={t('bitrateTooltip')}
+        title={t('bitrateTooltip')}
         aria-invalid={!valid && value !== ''}
         onChange={event => {
           const next = event.target.value;
@@ -701,7 +701,7 @@ function OutputSettings({
             type="text"
             maxLength={60}
             placeholder="_compressed"
-            data-tip={t('outputSuffixLabel')}
+            title={t('outputSuffixLabel')}
             aria-label={t('outputSuffixLabel')}
             value={settings.outputSuffix ?? ''}
             disabled={disabled}
@@ -714,10 +714,7 @@ function OutputSettings({
           {settings.outputMode === 'next-to-originals' ? t('nextToOriginals') : t('chooseFolder')}
         </span>
         {settings.outputMode === 'chosen-folder' && (
-          <span
-            className="selected-folder"
-            data-tip={settings.outputFolder ?? t('noFolderSelected')}
-          >
+          <span className="selected-folder" title={settings.outputFolder ?? t('noFolderSelected')}>
             {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
           </span>
         )}

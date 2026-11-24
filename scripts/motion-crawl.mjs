@@ -184,7 +184,7 @@ for (const route of routes) {
         const text = (
           node.getAttribute('aria-label') ||
           node.getAttribute('title') ||
-          node.getAttribute('data-tip') ||
+          node.getAttribute('data-hint') ||
           node.textContent ||
           ''
         )

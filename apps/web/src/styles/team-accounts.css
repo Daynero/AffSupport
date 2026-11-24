@@ -2247,17 +2247,6 @@ button.team-task-agent-chip.is-selected {
   }
 }
 
-/* --- Hints written as lines ------------------------------------------------- */
-
-/* An agent's hint is three short lines — account, id, runs — and reads as a
-   column, not a sentence: the lines are kept, set flush left, the labels muted
-   by their own weight. */
-.instant-tip.is-multiline {
-  white-space: pre-line;
-  text-align: left;
-  line-height: 1.45;
-}
-
 /* ===========================================================================
    The tags on an agent (019)
    =========================================================================== */

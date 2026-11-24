@@ -2712,6 +2712,26 @@
   overflow-wrap: break-word;
   pointer-events: none;
 }
+/* The hint behind a `title` (070, T033): the same label, placed by the hint
+   layer rather than by React Aria — fixed to the viewport, centred under its
+   element, above every layer a toast can be above. Breaks a single unbroken
+   run, a long file name, rather than running off the screen. */
+.ui-tooltip.ui-hint {
+  position: fixed;
+  z-index: var(--layer-toast);
+  max-width: min(var(--tooltip-width), calc(100vw - 32px));
+  transform: translateX(-50%);
+  text-align: center;
+  overflow-wrap: anywhere;
+  animation: ui-fade-in var(--motion-fast) var(--ease-out-curve);
+}
+/* A hint written as lines — an agent's account, id and runs — reads as a
+   column, not a sentence: the lines are kept and set flush left. */
+.ui-tooltip.ui-hint.is-multiline {
+  white-space: pre-line;
+  text-align: left;
+  line-height: 1.45;
+}
 /* ============================================================
    Overlay
    ============================================================ */

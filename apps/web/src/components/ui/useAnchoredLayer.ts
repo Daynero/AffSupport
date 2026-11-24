@@ -3,6 +3,10 @@ import { useLayoutEffect, useState, type CSSProperties, type RefObject } from 'r
 /**
  * Fixed-position placement for a layer rendered outside its anchor's DOM.
  *
+ * The inventory's own: `Popover` (and every menu built on it) is placed here.
+ * It lived beside the shim until 070 (T034), as if a screen could pick it up;
+ * no screen does, and none should — a screen asks for a `Popover`.
+ *
  * A popover inside a list card is clipped by the card: the card hides its overflow for its
  * status rail and skips rendering off-screen (`content-visibility`), and both clip anything
  * that spills past its edge. The layer is therefore portalled to the body and placed here

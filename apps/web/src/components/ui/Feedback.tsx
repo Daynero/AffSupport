@@ -345,6 +345,30 @@ export function Spinner({ size = 'sm', label }: { size?: 'sm' | 'md'; label?: st
  * is often a non-focusable glyph and the layouts around it are written against
  * `.ui-tooltip-anchor`.
  */
+/**
+ * The one delay every hint in the product waits (058, 070 T033): the
+ * `--delay-tooltip` token, said once more here because React Aria takes it as a
+ * number. A hint waits this long on a still pointer; once one is up, the next
+ * answers at once for `HINT_WARM_MS` after it closes, so reading along a
+ * toolbar is not a string of waits.
+ */
+export const HINT_DELAY_MS = 450;
+export const HINT_WARM_MS = 400;
+
+let hintShownUntil = 0;
+let hintOpen = false;
+
+/** Called by every hint as it opens and closes, so all of them are one group. */
+export function noteHint(open: boolean): void {
+  hintOpen = open;
+  if (!open) hintShownUntil = Date.now() + HINT_WARM_MS;
+}
+
+/** Whether a hint is up, or closed a moment ago: the next one does not wait. */
+export function hintWarm(): boolean {
+  return hintOpen || Date.now() < hintShownUntil;
+}
+
 export interface TooltipProps {
   /** Temporarily suspend tooltips while their control is being changed. */
   disabled?: boolean;
@@ -399,7 +423,7 @@ function TooltipAnchor({
 export function Tooltip({
   label,
   children,
-  delay = 400,
+  delay = HINT_DELAY_MS,
   placement = 'top',
   className,
   asChild = false,
@@ -430,11 +454,12 @@ export function Tooltip({
       shouldSkipAnimation
       isOpen={open && !disabled}
       isDisabled={disabled}
-      onOpenChange={next =>
-        setOpen(
-          next && !disabled && Boolean(anchor.current && tooltipAnchorAllowed(anchor.current))
-        )
-      }
+      onOpenChange={next => {
+        const shown =
+          next && !disabled && Boolean(anchor.current && tooltipAnchorAllowed(anchor.current));
+        noteHint(shown);
+        setOpen(shown);
+      }}
     >
       <HeroTooltip.Trigger
         render={props => (

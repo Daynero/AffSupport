@@ -15,7 +15,7 @@ import { Popover as HeroPopover } from '@heroui/react/popover';
 import { MenuSection as HeroMenuSection } from '@heroui/react/menu-section';
 import { Header } from 'react-aria-components/Header';
 import { Text } from 'react-aria-components/Text';
-import { useAnchoredLayer } from '../useAnchoredLayer';
+import { useAnchoredLayer } from './useAnchoredLayer';
 import { uiClasses, type UiSize } from './types';
 
 /**

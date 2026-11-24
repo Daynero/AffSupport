@@ -428,7 +428,7 @@
      footnote to a control, not a panel of its own: caption-sized type, a
      hairline edge, almost no shadow. It waits before it shows, so sweeping the
      pointer across a toolbar raises nothing; once one is up, its neighbours
-     answer at once. Mirrored by TIP_DELAY_MS in components/InstantTips.tsx. */
+     answer at once. Mirrored by HINT_DELAY_MS in components/ui/Feedback.tsx. */
   --tooltip-surface: color-mix(in oklab, var(--purple-950) 94%, var(--purple-50));
   --tooltip-text: var(--purple-50);
   --tooltip-border: color-mix(in oklab, var(--purple-50) 24%, var(--purple-950));

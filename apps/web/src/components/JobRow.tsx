@@ -102,7 +102,7 @@ export function JobRow({
           />
           <div className="job-title-block">
             <div className="job-title-line">
-              <h3 data-tip={job.fileName}>{job.fileName}</h3>
+              <h3 title={job.fileName}>{job.fileName}</h3>
               <StatusBadge status={analysisBlocked ? 'failed' : job.status} t={t} />
             </div>
             <JobTimer job={job} t={t} showRunning={false} live={connected} />

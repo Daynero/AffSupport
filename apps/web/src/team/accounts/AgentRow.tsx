@@ -674,7 +674,7 @@ export function AgentRow({
                   }
                 />
               )}
-              <span className="team-agent-run-text" data-tip={item.note} data-tip-overflow>
+              <span className="team-agent-run-text" title={item.note}>
                 <Marked text={item.note} term={search} />
               </span>
               <RunAge createdAt={item.createdAt} />

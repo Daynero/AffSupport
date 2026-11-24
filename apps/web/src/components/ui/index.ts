@@ -72,6 +72,8 @@ export {
   Spinner,
   Tooltip
 } from './Feedback';
+/* The hint behind every `title` (070, T033). */
+export { HintLayer } from './HintLayer';
 export type {
   CollapseProps,
   EmptyProps,

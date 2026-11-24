@@ -13431,35 +13431,6 @@ input[type='number'] {
   color: var(--color-text-muted);
 }
 
-/* Instant hover hints: rendered into a body portal by InstantTips, so no
-   scrolling ancestor can crop them and there is no OS delay. */
-.instant-tip {
-  position: fixed;
-  z-index: var(--layer-toast);
-  /* A hint is a footnote (058): caption-sized, a hairline edge, tight to its
-     words. It was the size of a card and arrived on every hover. Still wraps —
-     and breaks a single unbroken run, a long file name — rather than running
-     off the screen. */
-  max-width: min(var(--tooltip-width), calc(100vw - 32px));
-  padding: 3px var(--space-2);
-  transform: translateX(-50%);
-  border: 1px solid var(--tooltip-border);
-  border-radius: var(--radius-sm);
-  /* Light words on a dark ground, in both themes. */
-  color: var(--tooltip-text);
-  background: var(--tooltip-surface);
-  box-shadow: var(--shadow-sm);
-  font-size: var(--text-caption);
-  font-weight: 400;
-  line-height: 1.35;
-  text-align: center;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: normal;
-  pointer-events: none;
-  animation: ui-fade-in var(--motion-fast) var(--ease-out-curve);
-}
-
 /* Light theme flips the intake zone: purple field, honey type and dashes. */
 :root[data-theme='light'] .drop-zone,
 :root:not([data-theme='dark']) .drop-zone {
@@ -14200,8 +14171,8 @@ input[type='number'] {
 }
 
 /* When the bar runs out of room the three actions drop their words and become
-   square icon buttons — compress, delete, sweep. Their labels stay as instant
-   hints (title → data-tip) so nothing is lost. */
+   square icon buttons — compress, delete, sweep. Their labels stay as hints
+   (their `title`, drawn by the inventory's hint layer) so nothing is lost. */
 .batch-toolbar .primary-actions .ui-button {
   gap: 10px;
 }

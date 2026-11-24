@@ -784,7 +784,7 @@ it('shows one reconciliation status instead of running and stacked errors', asyn
   const tableRow = identity.closest('tr')!;
   expect(tableRow.getAttribute('aria-busy')).toBe('true');
   expect(tableRow.style.getPropertyValue('--catalog-row-progress')).toBe('0.94');
-  expect(tableRow.getAttribute('data-tip')).toBe('Checking the sheet on Google Drive…');
+  expect(tableRow.getAttribute('title')).toBe('Checking the sheet on Google Drive…');
   expect(within(tableRow).queryByText('Updating…')).toBeNull();
   expect(within(tableRow).queryByText('Unknown result')).toBeNull();
   expect(

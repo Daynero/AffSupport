@@ -878,7 +878,7 @@ export function LandingSettingsPanel({
             {settings.outputMode === 'chosen-folder' && (
               <span
                 className="selected-folder"
-                data-tip={settings.outputFolder ?? t('noFolderSelected')}
+                title={settings.outputFolder ?? t('noFolderSelected')}
               >
                 {settings.outputFolder ? compactPath(settings.outputFolder) : t('noFolderSelected')}
               </span>

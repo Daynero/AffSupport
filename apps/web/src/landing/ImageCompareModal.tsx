@@ -226,7 +226,6 @@ export function ImageCompareModal({
               className="landing-compare-zoom"
               label={t(zoomed ? 'landingPreviewZoomOut' : 'landingPreviewZoomIn')}
               pressed={zoomed}
-              data-tip={t(zoomed ? 'landingPreviewZoomOut' : 'landingPreviewZoomIn')}
               onClick={toggleZoom}
             >
               {zoomed ? (

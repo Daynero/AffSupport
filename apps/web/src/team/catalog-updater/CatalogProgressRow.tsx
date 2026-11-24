@@ -143,7 +143,7 @@ export function CatalogProgressRow({
         .filter(Boolean)
         .join(' ')}
       aria-busy={current.active || undefined}
-      data-tip={current.active ? progressLabel : undefined}
+      title={current.active ? progressLabel : undefined}
       aria-label={current.active && row.videoGeneration ? progressLabel : props['aria-label']}
       style={
         {

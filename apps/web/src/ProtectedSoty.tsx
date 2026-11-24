@@ -1,5 +1,4 @@
 import { Suspense, type ComponentType, useEffect, useState } from 'react';
-import { InstantTips } from './components/InstantTips';
 import { AgentProvider, useAgent, useAgentStatus } from './AgentContext';
 import { Header } from './App';
 import { ProfileOnboarding } from './auth/AuthScreens';
@@ -11,7 +10,7 @@ import type { SotyToolId } from '@video-compressor/shared';
 import { useI18n } from './i18n';
 import { navigateTo, registerRoutePreparer, usePageEntrance } from './lib/navigation';
 import { recoverableLazy } from './lib/recoverable-lazy';
-import { RouteSkeleton } from './components/ui/index';
+import { HintLayer, RouteSkeleton } from './components/ui/index';
 import AccountPage from './pages/AccountPage';
 import AdminPage from './pages/AdminPage';
 import LocalAppDialog from './components/LocalAppDialog';
@@ -78,7 +77,7 @@ function ApplicationShell({ path, route }: { path: string; route: string }) {
   const { connection } = useAgentStatus();
   return (
     <div className="app-shell">
-      <InstantTips />
+      <HintLayer />
       <Header connection={connection} t={t} />
       <div className="page-viewport">
         <ProtectedApplication path={path} route={route} />

@@ -657,7 +657,7 @@ function StitchSettingsPanel({
                 type="text"
                 maxLength={60}
                 placeholder="_stitched"
-                data-tip={t('outputSuffixLabel')}
+                title={t('outputSuffixLabel')}
                 aria-label={t('outputSuffixLabel')}
                 value={settings.outputSuffix}
                 disabled={disabled}
@@ -668,7 +668,7 @@ function StitchSettingsPanel({
               {destinationLabel(settings.destination, t)}
             </span>
             {settings.destination.kind === 'folder' && (
-              <span className="selected-folder" data-tip={settings.destination.path}>
+              <span className="selected-folder" title={settings.destination.path}>
                 {compactPath(settings.destination.path)}
               </span>
             )}
@@ -764,7 +764,7 @@ function StitchRow({
           />
           <div className="job-title-block">
             <div className="job-title-line">
-              <h3 data-tip={job.sourcePath}>{job.sourceName}</h3>
+              <h3 title={job.sourcePath}>{job.sourceName}</h3>
               <StatusBadge status={badgeStatus(job.status)} t={t} context="stitch" />
             </div>
             <span className="job-timer">{detailText(job, t)}</span>
