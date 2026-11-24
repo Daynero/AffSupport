@@ -1120,7 +1120,9 @@ export function Onboarding({
             >
               {t('reconnectThroughSoty')}
             </a>
-            <Button onClick={connect}>{t('tryAgain')}</Button>
+            <Button color="neutral" onClick={connect}>
+              {t('tryAgain')}
+            </Button>
           </div>
         }
       />
@@ -1171,14 +1173,14 @@ export function Onboarding({
             >
               {t('openSoty')}
             </a>
-            <Button onClick={connect} loading={busy}>
+            <Button color="neutral" onClick={connect} loading={busy}>
               {t('checkAgain')}
             </Button>
           </>
         ) : (
           <>
             <InstallerDownload>{t('downloadAgent')}</InstallerDownload>
-            <Button onClick={connect} loading={busy}>
+            <Button color="neutral" onClick={connect} loading={busy}>
               {t('connectAgent')}
             </Button>
           </>
