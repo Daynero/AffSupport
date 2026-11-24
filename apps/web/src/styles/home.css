@@ -95,6 +95,13 @@
   margin-top: 0;
 }
 
+/* The notice that asks for something has a way onward, not a side button: its
+   actions always take the line under the words, starting where the words do. */
+.home-panel .blocking-message .ui-alert-action {
+  flex-basis: 100%;
+  margin-left: 0;
+}
+
 .home-section {
   display: grid;
   gap: var(--space-3);
@@ -459,12 +466,7 @@
   max-width: 100%;
 }
 
-/* When the alert wraps, its action lines up under the words, past the icon. */
 @media (max-width: 768px) {
-  .home-panel .blocking-message .ui-alert-action {
-    margin-left: calc(var(--space-6) + var(--space-4));
-  }
-
   /* The banner is a scene beside the words, and up to a small tablet there is
      no beside: the bee stood a fixed distance from the tile's end, so on any
      tile narrower than about 800px it landed on the title and the note
@@ -499,10 +501,6 @@
 }
 
 @media (max-width: 480px) {
-  .home-panel .blocking-message .ui-alert-action {
-    margin-left: 0;
-  }
-
   .home {
     gap: var(--space-5);
     margin-top: var(--space-3);

@@ -41,7 +41,9 @@ export function InstallerDownload({
   return (
     <span className="inline-actions">
       {/* Several processor choices keep the caller's wording as their context. */}
-      {choices.length > 1 && children && <span>{children}</span>}
+      {choices.length > 1 && children && (
+        <span className="installer-download-label">{children}</span>
+      )}
       {choices.map(platform => {
         const selection = resolveInstallerDownload(
           releaseManifest.manifest,
