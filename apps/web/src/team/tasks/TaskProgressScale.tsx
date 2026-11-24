@@ -14,7 +14,8 @@ export function TaskProgressScale({
   disabled = false,
   onChange,
   onCommit,
-  label
+  label,
+  quiet = false
 }: {
   value: number;
   max: number;
@@ -22,6 +23,12 @@ export function TaskProgressScale({
   onChange: (value: number) => void;
   onCommit?: (value: number) => void;
   label: string;
+  /**
+   * The board's face (070, T079): a thin groove and the count after it, the knob only under the
+   * pointer or the keyboard. A bubble reading "0" on every new card was the loudest thing on the
+   * board and said the least. The editor keeps the numbered knob — there the scale is the subject.
+   */
+  quiet?: boolean;
 }) {
   const track = useRef<HTMLDivElement | null>(null);
   const pointerValue = (event: PointerEvent<HTMLDivElement>) => {
@@ -86,7 +93,15 @@ export function TaskProgressScale({
   const percent = taskProgressPercent(shown, max);
 
   return (
-    <div className={`team-task-progress-scale ${disabled ? 'is-disabled' : ''}`.trim()}>
+    <div
+      className={[
+        'team-task-progress-scale',
+        disabled ? 'is-disabled' : '',
+        quiet ? 'is-quiet' : ''
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <div
         ref={track}
         className="team-task-progress-track"
@@ -117,9 +132,15 @@ export function TaskProgressScale({
         onClick={event => event.stopPropagation()}
       >
         <span className="team-task-progress-knob" aria-hidden="true">
-          {shown}
+          {quiet ? null : shown}
         </span>
       </div>
+      {/* Nothing is said at zero: an empty groove already says it. */}
+      {quiet && shown > 0 && (
+        <span className="team-task-progress-value" aria-hidden="true">
+          {shown}/{max}
+        </span>
+      )}
     </div>
   );
 }

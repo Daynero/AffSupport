@@ -13,8 +13,11 @@ import {
   type TaskStatusFilter
 } from './useTasks';
 import {
+  Button,
+  IconButton,
   Popover,
   RangeCalendar,
+  SegmentedControl,
   fromCalendarDate,
   toCalendarDate
 } from '../../components/ui/index';
@@ -149,40 +152,67 @@ export function TaskDateFilterControl({
     { range: 'all', label: t('teamTasksAllTime') }
   ];
 
+  /** The popover's presets in the order a week is read: yesterday, today, tomorrow, then wider. */
+  const presets: ReadonlyArray<{ range: QuickRange | 'tomorrow'; label: string; on: boolean }> = [
+    { range: 'yesterday', label: t('teamTasksYesterday'), on: quick === 'yesterday' },
+    { range: 'today', label: t('teamTasksToday'), on: quick === 'today' },
+    ...(inlineTomorrow
+      ? [{ range: 'tomorrow' as const, label: t('teamTasksTomorrow'), on: tomorrowActive }]
+      : []),
+    { range: 'month', label: t('teamTasksThisMonth'), on: quick === 'month' },
+    ...(allowAll
+      ? [{ range: 'all' as const, label: t('teamTasksAllTime'), on: quick === 'all' }]
+      : [])
+  ];
+  /** A day that is on reads as pressed: the inventory's soft accent, the rest ghosts. */
+  const toggleLook = (on: boolean) =>
+    on ? ({ variant: 'soft', color: 'secondary' } as const) : ({ variant: 'ghost' } as const);
+  const pickPreset = (range: QuickRange | 'tomorrow') => {
+    closeCalendar();
+    if (range === 'all') onChange({ kind: 'all' });
+    else if (range === 'tomorrow') {
+      const next = new Date();
+      next.setDate(next.getDate() + 1);
+      onChange(quickRangeValue('today', next));
+    } else onChange(quickRangeValue(range, new Date()));
+  };
+
   return (
     <div className="task-date-filter" aria-label={t('teamTasksDateFilter')}>
       {/*
-       * One pill, two buttons (024): the wrapper draws the chip — outline,
-       * fill, the selected accent — and the trigger and the × inside it draw
-       * nothing of their own. They used to be two chrome-bearing buttons with
-       * the × pulled back over the trigger by a negative margin, and the mark
-       * landed on the last letters of the label.
+       * One chip (024), now two inventory controls (070, T079): the trigger says "Дата" until a
+       * range is on and the range once it is — a calendar glyph alone read as decoration, and on
+       * a phone it stood on a row of its own. With a range on, the × sits inside the chip.
        */}
       <div
         ref={root}
         className={`task-date-filter-calendar ${value.kind !== 'all' ? 'is-active' : ''}`.trim()}
       >
-        <button
+        <Button
           ref={trigger}
-          type="button"
+          variant="ghost"
+          color={value.kind !== 'all' ? 'secondary' : 'neutral'}
           className="task-date-filter-trigger"
           aria-label={calendarLabel ?? t('teamTasksCalendarOpen')}
+          title={selectedLabel || t('teamTasksCalendar')}
           disabled={disabled}
           aria-expanded={open}
+          leading={<CalendarIcon />}
           onClick={() => setOpen(current => !current)}
         >
-          <CalendarIcon />
-          {selectedLabel && <span>{selectedLabel}</span>}
-        </button>
+          <span className={selectedLabel ? undefined : 'task-date-filter-word'}>
+            {selectedLabel || t('teamTasksCalendar')}
+          </span>
+        </Button>
         {allowAll && value.kind !== 'all' && (
-          <button
-            type="button"
+          <IconButton
+            size="xs"
             className="task-date-filter-clear"
-            aria-label={t('teamTasksCalendarClear')}
+            label={t('teamTasksCalendarClear')}
             onClick={() => onChange({ kind: 'all' })}
           >
             <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
+          </IconButton>
         )}
         <Popover
           initialFocus='[role="grid"] [tabindex="0"]'
@@ -195,21 +225,28 @@ export function TaskDateFilterControl({
           className="task-date-filter-popover"
         >
           {/*
-           * The inventory's range calendar (024). The 42 buttons it replaces
-           * were written twice, here and on the task's own date field, and
-           * neither copy knew the locale's first day of week, had a year jump
-           * or answered PageUp.
-           *
-           * A half-made range is kept, not abandoned (021 finding B4, closed):
-           * React Aria commits only a finished range, and the popover no
-           * longer throws away the first day when it closes — the person who
-           * picked it meant to.
-           *
-           * A finished range closes the popover, the way Linear's date filter
-           * does: the second click is the answer, and a calendar that stays
-           * open over a board re-rendering behind it reads as lag. The first
-           * click keeps it open — the calendar is still asking.
+           * The inventory's range calendar (024). A half-made range is kept, not abandoned (021
+           * finding B4): React Aria commits only a finished range, and the popover no longer
+           * throws away the first day when it closes. A finished range closes the popover, the
+           * way Linear's date filter does; the first click keeps it open.
            */}
+          {/* The ranges anybody actually asks for, as presets (024, FR-077) — above the grid
+              (070, T080): on a phone the row's own "Вчора / Сьогодні / Завтра" fold in here, and
+              under a month that fills the screen they were out of sight. */}
+          <div className="task-quick-ranges">
+            {presets.map(preset => (
+              <Button
+                key={preset.range}
+                size="sm"
+                {...toggleLook(preset.on)}
+                className="task-date-preset"
+                aria-pressed={preset.on}
+                onClick={() => pickPreset(preset.range)}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
           <RangeCalendar
             label={t('teamTasksCalendar')}
             value={range}
@@ -221,37 +258,7 @@ export function TaskDateFilterControl({
                 to: fromCalendarDate(next.end) ?? ''
               });
             }}
-            footer={
-              <>
-                {/* The four ranges anybody actually asks for, as presets under
-                    the grid rather than four more buttons in the row (024,
-                    FR-077). A board is filtered by "today" far more often than
-                    by a range somebody picks out by hand. */}
-                <div className="task-quick-ranges">
-                  {quickRanges
-                    .filter(option => allowAll || option.range !== 'all')
-                    .map(option => (
-                      <button
-                        key={option.range}
-                        type="button"
-                        className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
-                        aria-pressed={quick === option.range}
-                        onClick={() => {
-                          closeCalendar();
-                          onChange(
-                            option.range === 'all'
-                              ? { kind: 'all' }
-                              : quickRangeValue(option.range, new Date())
-                          );
-                        }}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                </div>
-                <RangeHint selectedLabel={selectedLabel} />
-              </>
-            }
+            footer={<RangeHint selectedLabel={selectedLabel} />}
           />
         </Popover>
       </div>
@@ -267,10 +274,10 @@ export function TaskDateFilterControl({
             )
             .reverse()
             .map(option => (
-              <button
+              <Button
                 key={option.range}
-                type="button"
-                className={`task-quick-range ${quick === option.range ? 'is-active' : ''}`.trim()}
+                {...toggleLook(quick === option.range)}
+                className="task-date-day"
                 aria-pressed={quick === option.range}
                 disabled={disabled}
                 onClick={() =>
@@ -282,12 +289,12 @@ export function TaskDateFilterControl({
                 }
               >
                 {option.label}
-              </button>
+              </Button>
             ))}
           {inlineTomorrow && (
-            <button
-              type="button"
-              className={`task-quick-range${tomorrowActive ? ' is-active' : ''}`}
+            <Button
+              {...toggleLook(tomorrowActive)}
+              className="task-date-day"
               aria-pressed={tomorrowActive}
               disabled={disabled}
               onClick={() => {
@@ -299,29 +306,36 @@ export function TaskDateFilterControl({
               }}
             >
               {t('teamTasksTomorrow')}
-            </button>
+            </Button>
           )}
         </div>
       )}
       {children}
       {showStatus && (
-        <div className="task-status-filter" aria-label={t('teamTaskStatus')}>
-          {statuses.map(option => {
-            const label = option === 'all' ? t('teamTaskStatusAll') : taskStatusLabel(option, t);
-            return (
-              <button
-                key={option}
-                type="button"
-                className={`task-status-filter-option ${option === 'all' ? 'is-all' : `is-${option}`} ${status === option ? 'is-active' : ''}`.trim()}
-                aria-pressed={status === option}
-                onClick={() => onStatusChange(option)}
-              >
-                {option !== 'all' && <TaskStatusIcon status={option as TeamTaskStatus} />}
-                <span>{label}</span>
-              </button>
-            );
+        /* One of four, so the inventory's segmented control (070, T079): the glyph always, the
+           word where there is room — on a phone the three statuses are their glyphs, named by
+           their hint, and "Всі" stays a word. */
+        <SegmentedControl<TaskStatusFilter>
+          className="task-status-filter"
+          size="sm"
+          label={t('teamTaskStatus')}
+          value={status}
+          onChange={onStatusChange}
+          options={statuses.map(option => {
+            if (option === 'all') return { value: option, label: t('teamTaskStatusAll') };
+            const label = taskStatusLabel(option as TeamTaskStatus, t);
+            return {
+              value: option,
+              title: label,
+              label: (
+                <span className={`task-status-segment is-${option}`}>
+                  <TaskStatusIcon status={option as TeamTaskStatus} />
+                  <span className="task-status-segment-word">{label}</span>
+                </span>
+              )
+            };
           })}
-        </div>
+        />
       )}
     </div>
   );

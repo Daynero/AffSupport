@@ -27,7 +27,7 @@ import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { TaskLabelChip } from '../labels/TaskLabelChip';
 import { TaskLabelMenu } from '../labels/TaskLabelMenu';
-import { Popover } from '../../components/ui/index';
+import { Button, Popover } from '../../components/ui/index';
 
 export interface TaskLabelsEditorClient {
   /**
@@ -172,18 +172,20 @@ export function TaskLabelsEditor({
         {/* Nothing is said when nothing is chosen: "+ Tag" beside an empty row
             already says both that it is empty and what to do. */}
         {canEdit && (
-          <button
+          <Button
             ref={trigger}
-            type="button"
-            className="team-task-account-add"
+            size="sm"
+            variant="outline"
+            color="secondary"
+            className="team-task-chip-add"
             aria-haspopup="listbox"
             aria-expanded={open}
             disabled={busy}
+            leading={<Plus size={16} strokeWidth={ICON_STROKE} />}
             onClick={() => setOpen(current => !current)}
           >
-            <Plus size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t('teamTaskTagAddToTask')}
-          </button>
+          </Button>
         )}
         <Popover
           open={open && canEdit}

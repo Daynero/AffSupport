@@ -4571,6 +4571,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamTaskTagFilterLabel: 'Лише завдання з цими тегами',
   teamTaskTagFilterClear: 'Показати завдання з будь-якими тегами',
   teamTasksSearch: 'Знайти завдання',
+  teamSearchClear: 'Очистити пошук',
   teamTasksMoreFilters: 'Фільтри',
   teamTasksMoreFiltersActive: 'Фільтри, увімкнено: {count}',
   teamTasksFilterGroup: 'Показувати',

@@ -18,6 +18,7 @@
 import type { ReactNode, RefObject } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import { ICON_STROKE } from '../../components/icons';
+import { Button, IconButton } from '../../components/ui/index';
 
 export function TaskFilterField({
   rootRef,
@@ -32,6 +33,7 @@ export function TaskFilterField({
   onToggle,
   onClear,
   className,
+  popup = 'listbox',
   children
 }: {
   rootRef: RefObject<HTMLDivElement | null>;
@@ -51,6 +53,8 @@ export function TaskFilterField({
   onToggle: () => void;
   onClear: () => void;
   className?: string;
+  /** What the trigger opens: a list to pick from (`listbox`) or a menu of answers (`menu`). */
+  popup?: 'listbox' | 'menu';
   /** The list the trigger opens, anchored to the field. */
   children?: ReactNode;
 }) {
@@ -61,11 +65,15 @@ export function TaskFilterField({
         .filter(Boolean)
         .join(' ')}
     >
-      <button
+      {/* The inventory's button with no face of its own (070, T079): the field draws the box,
+          the button takes the press, the focus ring and the disabled look. */}
+      <Button
         ref={triggerRef}
-        type="button"
+        size="sm"
+        variant="ghost"
+        block
         className="task-filter-field-trigger"
-        aria-haspopup="listbox"
+        aria-haspopup={popup}
         aria-expanded={open}
         aria-label={label}
         onClick={onToggle}
@@ -83,16 +91,16 @@ export function TaskFilterField({
             aria-hidden="true"
           />
         )}
-      </button>
+      </Button>
       {active && (
-        <button
-          type="button"
+        <IconButton
+          size="xs"
           className="task-filter-field-clear"
-          aria-label={clearLabel}
+          label={clearLabel}
           onClick={onClear}
         >
           <X size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
+        </IconButton>
       )}
       {children}
     </div>

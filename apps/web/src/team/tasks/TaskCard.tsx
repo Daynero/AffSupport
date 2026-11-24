@@ -30,7 +30,7 @@ import { TaskStatusControl } from './TaskStatusControl';
 import { TaskAgentTagList } from './TaskAgentTags';
 import { TaskLabelChips } from '../labels/TaskLabelChip';
 import { formatTaskDate } from './TaskDateField';
-import { Card, Checkbox, DropdownMenu, IconButton } from '../../components/ui/index';
+import { Button, Card, Checkbox, DropdownMenu, IconButton } from '../../components/ui/index';
 import { useTaskActions, type TaskActionHandlers } from './useTaskActions';
 import type { TeamAssigneeSummary } from '../../api/team';
 import type { TeamTaskLabel } from '@video-compressor/shared';
@@ -301,15 +301,16 @@ export function TaskCard({
       <div className="team-task-card-description">
         {task.note && <p ref={noteRef}>{task.note}</p>}
         {(clamped || expanded) && (
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="ghost"
             className="team-task-card-more"
             aria-expanded={expanded}
+            leading={<ChevronDown size={14} strokeWidth={ICON_STROKE} />}
             onClick={() => setExpanded(!expanded)}
           >
-            <ChevronDown size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t(expanded ? 'teamTaskCardLess' : 'teamTaskCardMore')}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -320,6 +321,7 @@ export function TaskCard({
           value={progressValue}
           max={task.progressMax}
           label={t('teamTaskProgressScale')}
+          quiet
           disabled={!canEdit}
           onChange={setProgressValue}
           onCommit={next => {

@@ -15,7 +15,13 @@ import { formatDayValue } from '../../format';
 import { useI18n, type Language } from '../../i18n';
 import { dateFromValue } from './TaskDateFilter';
 import { localDateValue } from './useTasks';
-import { Calendar, Popover, fromCalendarDate, toCalendarDate } from '../../components/ui/index';
+import {
+  Button,
+  Calendar,
+  Popover,
+  fromCalendarDate,
+  toCalendarDate
+} from '../../components/ui/index';
 
 /** "5 вер. 2026" from a `YYYY-MM-DD` day, or the whole date written out. */
 export function formatTaskDate(language: Language, value: string, full = false): string {
@@ -95,13 +101,13 @@ export function TaskDateField({
           onChange={next => choose(fromCalendarDate(next))}
         />
         <div className="team-task-date-actions">
-          <button type="button" onClick={() => choose(today)}>
+          <Button size="sm" variant="ghost" onClick={() => choose(today)}>
             {t('teamTasksToday')}
-          </button>
+          </Button>
           {isCustom && (
-            <button type="button" onClick={() => choose(null)}>
+            <Button size="sm" variant="ghost" onClick={() => choose(null)}>
               {t('teamTaskDateReset', { date: formatTaskDate(language, createdOn) })}
-            </button>
+            </Button>
           )}
         </div>
       </Popover>

@@ -7,7 +7,7 @@
  * links land here already narrowed.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   isTeamAgentFree,
   sortTeamAccounts,
@@ -19,7 +19,7 @@ import { AccountPickerLabel } from '../accounts/AccountPickerLabel';
 import { useI18n } from '../../i18n';
 import type { TaskAccountScope } from './useTasks';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
-import { Popover } from '../../components/ui/index';
+import { DropdownMenu, Popover, type MenuEntry } from '../../components/ui/index';
 import { TaskFilterField } from './TaskFilterField';
 
 /**
@@ -58,34 +58,8 @@ export function TaskAccountFilter({
   const { t } = useI18n();
   const root = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
-  const popover = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const sorted = useMemo(() => sortTeamAccounts(accounts), [accounts]);
-
-  // Opening puts focus on the chosen option, so the arrows work at once.
-  useEffect(() => {
-    if (!open) return;
-    const selected = popover.current?.querySelector<HTMLElement>('[aria-selected="true"]');
-    (selected ?? popover.current?.querySelector<HTMLElement>('[role="option"]'))?.focus();
-  }, [open]);
-
-  /** ↑/↓ walk the options, Home/End jump: the listbox pattern, not a tab stop each. */
-  const onPopoverKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-    const options = [...(popover.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])];
-    if (options.length === 0) return;
-    const index = options.findIndex(option => option === document.activeElement);
-    const next =
-      event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? options.length - 1
-          : event.key === 'ArrowDown'
-            ? Math.min(options.length - 1, index + 1)
-            : Math.max(0, index - 1);
-    event.preventDefault();
-    options[next]?.focus();
-  };
 
   const active = scope.kind !== 'all';
   /** What is in force: the account, the agent in its own face, or "any". */
@@ -103,6 +77,50 @@ export function TaskAccountFilter({
     setOpen(false);
     window.requestAnimationFrame(() => trigger.current?.focus());
   };
+  const close = () => {
+    setOpen(false);
+    trigger.current?.focus();
+  };
+
+  /*
+   * The inventory's menu (070, T079): one answer out of many, ticked, with typeahead and the
+   * arrows from React Aria instead of the hand-walked listbox of buttons this was. An account is
+   * an answer and so is each of its agents; a hairline parts one account from the next.
+   */
+  const items: MenuEntry[] = [
+    {
+      id: 'all',
+      label: t('teamTaskAccountFilterAll'),
+      checked: scope.kind === 'all',
+      onSelect: () => choose({ kind: 'all' })
+    }
+  ];
+  for (const account of sorted) {
+    items.push('separator', {
+      id: `account:${account.id}`,
+      label: account.name,
+      checked: scope.kind === 'account' && scope.accountId === account.id,
+      onSelect: () => choose({ kind: 'account', accountId: account.id })
+    });
+    for (const agent of account.agents) {
+      const free = isTeamAgentFree(agent);
+      const name = teamAgentLabel(account.name, agent.agentId);
+      items.push({
+        id: `agent:${agent.id}`,
+        ariaLabel: name,
+        icon: (
+          <span
+            className={`team-task-agent-chip-dot${free ? ' is-free' : ''}`}
+            aria-hidden="true"
+          />
+        ),
+        label: <AccountPickerLabel name={name} labels={agent.labels} />,
+        note: free ? t('teamAgentFree') : teamAgentRunsSummary(agent),
+        checked: scope.kind === 'agent' && scope.agentRowId === agent.id,
+        onSelect: () => choose({ kind: 'agent', agentRowId: agent.id })
+      });
+    }
+  }
 
   return (
     <TaskFilterField
@@ -114,94 +132,43 @@ export function TaskAccountFilter({
       open={open}
       label={t('teamTaskAccountFilterLabel')}
       clearLabel={t('teamTaskAccountFilterClear')}
+      popup={sorted.length === 0 ? 'listbox' : 'menu'}
       onToggle={() => setOpen(current => !current)}
       onClear={() => choose({ kind: 'all' })}
     >
-      <Popover
-        open={open}
-        /* Escape and an outside press close onto the trigger, so a keyboard
-           is never left inside a menu that is no longer on screen. */
-        onClose={() => {
-          setOpen(false);
-          trigger.current?.focus();
-        }}
-        anchor={root}
-        placement="bottom-start"
-        frequent
-        matchWidth
-        label={t('teamTaskAccountFilterLabel')}
-        className="task-filter-field-popover"
-      >
-        <div
-          ref={popover}
-          className="task-account-filter-listbox"
-          role="listbox"
-          aria-label={t('teamTaskAccountFilterLabel')}
-          onKeyDown={onPopoverKeyDown}
+      {sorted.length === 0 ? (
+        /* Nothing to pick from: where accounts are made, not an empty menu. */
+        <Popover
+          open={open}
+          onClose={close}
+          anchor={root}
+          placement="bottom-start"
+          frequent
+          matchWidth
+          label={t('teamTaskAccountFilterLabel')}
+          className="task-filter-field-popover"
         >
-          <button
-            type="button"
-            role="option"
-            tabIndex={-1}
-            aria-selected={scope.kind === 'all'}
-            className={`task-account-filter-option is-all${scope.kind === 'all' ? ' is-selected' : ''}`}
-            onClick={() => choose({ kind: 'all' })}
-          >
-            {t('teamTaskAccountFilterAll')}
-          </button>
-          {sorted.length === 0 && (
-            <div className="task-account-filter-empty" role="presentation">
-              <p>{t('teamTaskAccountPickerEmpty')}</p>
-              <SpaceSettingsLink
-                target={{ kind: 'section', section: 'accounts' }}
-                label={t('teamSectionAccounts')}
-              />
-            </div>
-          )}
-          {sorted.map(account => (
-            <div
-              key={account.id}
-              className="task-account-filter-group"
-              role="group"
-              aria-label={account.name}
-            >
-              <button
-                type="button"
-                role="option"
-                tabIndex={-1}
-                aria-selected={scope.kind === 'account' && scope.accountId === account.id}
-                className={`task-account-filter-option is-account${scope.kind === 'account' && scope.accountId === account.id ? ' is-selected' : ''}`}
-                onClick={() => choose({ kind: 'account', accountId: account.id })}
-              >
-                {account.name}
-              </button>
-              {account.agents.map(agent => (
-                <button
-                  key={agent.id}
-                  type="button"
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={scope.kind === 'agent' && scope.agentRowId === agent.id}
-                  className={`task-account-filter-option is-agent${isTeamAgentFree(agent) ? ' is-free' : ''}${scope.kind === 'agent' && scope.agentRowId === agent.id ? ' is-selected' : ''}`}
-                  title={isTeamAgentFree(agent) ? t('teamAgentFree') : teamAgentRunsSummary(agent)}
-                  onClick={() => choose({ kind: 'agent', agentRowId: agent.id })}
-                >
-                  <span className="team-task-agent-chip-dot" aria-hidden="true" />
-                  <span className="min-w-0 flex-1">
-                    <AccountPickerLabel
-                      name={teamAgentLabel(account.name, agent.agentId)}
-                      labels={agent.labels}
-                    />
-                  </span>
-                  <span className="task-account-filter-note">
-                    {isTeamAgentFree(agent) ? t('teamAgentFree') : teamAgentRunsSummary(agent)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      </Popover>
+          <div className="task-account-filter-empty">
+            <p>{t('teamTaskAccountPickerEmpty')}</p>
+            <SpaceSettingsLink
+              target={{ kind: 'section', section: 'accounts' }}
+              label={t('teamSectionAccounts')}
+            />
+          </div>
+        </Popover>
+      ) : (
+        <DropdownMenu
+          open={open}
+          onClose={close}
+          anchor={root}
+          placement="bottom-start"
+          matchWidth
+          maxHeight={420}
+          items={items}
+          label={t('teamTaskAccountFilterLabel')}
+          className="task-filter-field-menu"
+        />
+      )}
     </TaskFilterField>
   );
 }

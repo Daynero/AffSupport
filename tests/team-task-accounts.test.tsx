@@ -335,7 +335,7 @@ describe('the editor', () => {
     // Step two: the agents, free ones marked; "Free" narrows to them.
     expect(within(dialog).getByText('v31-434')).toBeTruthy();
     expect(within(dialog).getByText('v31-401')).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Free' }));
+    await user.click(within(dialog).getByRole('radio', { name: 'Free' }));
     expect(within(dialog).queryByText('v31-434')).toBeNull();
     await user.click(within(dialog).getByRole('button', { name: /v31-401/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Only tag (1)' }));
@@ -528,7 +528,7 @@ describe('the editor', () => {
     openEditor(api);
     await user.click(screen.getByRole('button', { name: 'Ad account' }));
     const dialog = await screen.findByRole('dialog', { name: 'Ad account' });
-    await user.click(within(dialog).getByRole('button', { name: 'Free' }));
+    await user.click(within(dialog).getByRole('radio', { name: 'Free' }));
     // v31 has a free agent, v3 has one too — both stay; a fully busy one would go.
     expect(within(dialog).getByText('v31', { selector: 'strong' })).toBeTruthy();
     expect(within(dialog).getByText('v3', { selector: 'strong' })).toBeTruthy();
@@ -572,9 +572,10 @@ describe('the list', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Only tasks of a social account or ad account' })
     );
-    const list = screen.getByRole('listbox');
-    expect(within(list).getByRole('option', { name: 'v31' })).toBeTruthy();
-    await user.click(within(list).getByRole('option', { name: /v31-434/ }));
+    // The inventory's menu (070, T079): an account and each of its agents are answers.
+    const list = await screen.findByRole('menu');
+    expect(within(list).getByRole('menuitemradio', { name: 'v31' })).toBeTruthy();
+    await user.click(within(list).getByRole('menuitemradio', { name: /v31-434/ }));
     expect(onScopeChange).toHaveBeenCalledWith({ kind: 'agent', agentRowId: A434 });
   });
 
@@ -775,7 +776,7 @@ describe('the list', () => {
     // 024 put the pill behind "Filters" and the answer in front of it: a chip
     // in the bar names what the board is narrowed to, and taking it off is one
     // press. A filter you cannot see is a filter you blame the data for.
-    const chip = await screen.findByRole('button', { name: 'Remove the filter v31-434' });
-    expect(chip.textContent).toContain('v31-434');
+    const remove = await screen.findByRole('button', { name: 'Remove the filter v31-434' });
+    expect(remove.closest('.task-filter-chip')?.textContent).toContain('v31-434');
   });
 });

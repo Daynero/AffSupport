@@ -25,7 +25,7 @@ import {
   type TeamAccountSummary,
   type TeamTaskAgentTag
 } from '@video-compressor/shared';
-import { Button, IconButton } from '../../components/ui';
+import { Button, IconButton, Input } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
@@ -373,16 +373,18 @@ export function TaskAgentTagsEditor({
         {/* Nothing is said when nothing is chosen: "+ Account" beside an
             empty row already says both that it is empty and what to do. */}
         {canEdit && (
-          <button
+          <Button
             ref={addButton}
-            type="button"
-            className="team-task-account-add"
+            size="sm"
+            variant="outline"
+            color="secondary"
+            className="team-task-chip-add"
             disabled={busy}
+            leading={<Plus size={16} strokeWidth={ICON_STROKE} />}
             onClick={() => setPicking(true)}
           >
-            <Plus size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
             {t('teamTaskAccountAdd')}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -476,16 +478,18 @@ export function TaskAgentTagsEditor({
             )}
           </ul>
           {!(runEditing !== null && runEditing.runId === null) && (
-            <button
+            <Button
               ref={addRunButton}
-              type="button"
-              className="team-task-agent-run-add"
+              size="sm"
+              variant="ghost"
+              color="secondary"
+              className="team-task-run-add"
               disabled={busy}
+              leading={<Plus size={14} strokeWidth={ICON_STROKE} />}
               onClick={() => setRunEditing({ runId: null })}
             >
-              <Plus size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
               {t('teamTaskWriteRun')}
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -557,8 +561,9 @@ function RunField({
 
   return (
     <div className="team-task-agent-run-editor">
-      <input
+      <Input
         ref={field}
+        size="sm"
         type="text"
         value={note}
         maxLength={TEAM_AGENT_NOTE_MAX}

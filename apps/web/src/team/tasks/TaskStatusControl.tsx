@@ -1,7 +1,6 @@
 import type { TeamTaskStatus } from '@video-compressor/shared';
-import type { Translate } from '../../components/ui';
-import { useI18n } from '../../i18n';
-import { Select } from '../../components/ui/index';
+import { useI18n, type Translate } from '../../i18n';
+import { Button, Select } from '../../components/ui/index';
 
 export function taskStatusLabel(status: TeamTaskStatus, t: Translate): string {
   if (status === 'todo') return t('teamTaskStatusTodo');
@@ -93,9 +92,11 @@ export function TaskStatusControl({
       {statuses.map(status => {
         const label = taskStatusLabel(status, t);
         return (
-          <button
+          <Button
             key={status}
-            type="button"
+            size="sm"
+            variant="ghost"
+            square={compact}
             className={`team-task-status-option is-${status} ${value === status ? 'is-selected' : ''}`.trim()}
             aria-label={label}
             aria-pressed={value === status}
@@ -108,7 +109,7 @@ export function TaskStatusControl({
           >
             <TaskStatusIcon status={status} />
             {!compact && <span>{label}</span>}
-          </button>
+          </Button>
         );
       })}
     </div>

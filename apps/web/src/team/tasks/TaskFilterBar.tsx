@@ -1,9 +1,8 @@
-import { useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { useId, useMemo, type ReactNode } from 'react';
 import type { TeamAccountSummary, TeamTaskLabel } from '@video-compressor/shared';
-import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
-import { Popover } from '../../components/ui/index';
+import { Chip, SearchField } from '../../components/ui/index';
+import { TaskFiltersButton } from './TaskFiltersButton';
 import { TaskAccountFilter, taskScopeLabel } from './TaskAccountFilter';
 import { TaskLabelFilter } from './TaskLabelFilter';
 import { TaskSortControl } from './TaskSortControl';
@@ -69,8 +68,6 @@ export function TaskFilterBar({
   display?: ReactNode;
 }) {
   const { t } = useI18n();
-  const filtersRoot = useRef<HTMLDivElement | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const headingId = useId();
 
   /**
@@ -104,16 +101,16 @@ export function TaskFilterBar({
   return (
     <div className="task-filter-bar">
       <div className="task-filter-row">
-        <div className="task-filter-search">
-          <Search size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          <input
-            type="search"
-            value={query}
-            aria-label={t('teamTasksSearch')}
-            placeholder={t('teamTasksSearch')}
-            onChange={event => onQueryChange(event.target.value)}
-          />
-        </div>
+        {/* The inventory's search box (070, T079): the raw field inherited the panel's body
+            size and set its placeholder at 20px, taller than every control beside it. */}
+        <SearchField
+          className="task-board-search"
+          aria-label={t('teamTasksSearch')}
+          placeholder={t('teamTasksSearch')}
+          clearLabel={t('teamSearchClear')}
+          value={query}
+          onChange={onQueryChange}
+        />
         <TaskDateFilterControl
           value={date}
           onChange={onDateChange}
@@ -121,110 +118,69 @@ export function TaskFilterBar({
           onStatusChange={onStatusChange}
           inlineDays
         >
-          <div ref={filtersRoot} className="task-filter-more">
-            {/* The chip says how many are on before the panel is opened: a
-                count in the chip, and the chip lit the way the date chip is
-                once it narrows the board. */}
-            <button
-              type="button"
-              className={`task-quick-range${chips.length > 0 ? ' is-active' : ''}`}
-              aria-expanded={filtersOpen}
-              aria-label={
-                chips.length > 0
-                  ? t('teamTasksMoreFiltersActive', { count: chips.length })
-                  : undefined
-              }
-              onClick={() => setFiltersOpen(current => !current)}
-            >
-              <SlidersHorizontal size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              <span>{t('teamTasksMoreFilters')}</span>
-              {chips.length > 0 && (
-                <span className="task-filter-more-count" aria-hidden="true">
-                  {chips.length}
-                </span>
-              )}
-            </button>
-            <Popover
-              open={filtersOpen}
-              onClose={() => setFiltersOpen(false)}
-              anchor={filtersRoot}
-              placement="bottom-start"
-              frequent
-              label={t('teamTasksMoreFilters')}
-              className="task-filter-more-popover"
-            >
-              {/* Three kinds of thing, named apart the way Linear parts Filter
+          <TaskFiltersButton count={chips.length}>
+            {/* Three kinds of thing, named apart the way Linear parts Filter
                   from Display: what is shown, in what order, and how the cards
                   are drawn. One column, every control the panel's full width,
                   a hairline between the sections. */}
-              {(accounts.length > 0 ||
-                scope.kind !== 'all' ||
-                labels.length > 0 ||
-                labelIds.length > 0) && (
-                <div
-                  className="task-filter-section"
-                  role="group"
-                  aria-labelledby={`${headingId}-show`}
-                >
-                  <span id={`${headingId}-show`} className="task-filter-heading">
-                    {t('teamTasksFilterGroup')}
-                  </span>
-                  {(accounts.length > 0 || scope.kind !== 'all') && (
-                    <TaskAccountFilter accounts={accounts} scope={scope} onChange={onScopeChange} />
-                  )}
-                  {(labels.length > 0 || labelIds.length > 0) && (
-                    <TaskLabelFilter
-                      labels={labels}
-                      selectedIds={labelIds}
-                      onChange={onLabelIdsChange}
-                    />
-                  )}
-                </div>
-              )}
+            {(accounts.length > 0 ||
+              scope.kind !== 'all' ||
+              labels.length > 0 ||
+              labelIds.length > 0) && (
               <div
                 className="task-filter-section"
                 role="group"
-                aria-labelledby={`${headingId}-sort`}
+                aria-labelledby={`${headingId}-show`}
               >
-                <span id={`${headingId}-sort`} className="task-filter-heading">
-                  {t('teamTasksSortGroup')}
+                <span id={`${headingId}-show`} className="task-filter-heading">
+                  {t('teamTasksFilterGroup')}
                 </span>
-                <TaskSortControl
-                  value={sort}
-                  onChange={onSortChange}
-                  hasLabels={labels.length > 0}
-                />
+                {(accounts.length > 0 || scope.kind !== 'all') && (
+                  <TaskAccountFilter accounts={accounts} scope={scope} onChange={onScopeChange} />
+                )}
+                {(labels.length > 0 || labelIds.length > 0) && (
+                  <TaskLabelFilter
+                    labels={labels}
+                    selectedIds={labelIds}
+                    onChange={onLabelIdsChange}
+                  />
+                )}
               </div>
-              {display && (
-                <div
-                  className="task-filter-section"
-                  role="group"
-                  aria-labelledby={`${headingId}-view`}
-                >
-                  <span id={`${headingId}-view`} className="task-filter-heading">
-                    {t('teamTasksDisplayGroup')}
-                  </span>
-                  <div className="task-filter-display">{display}</div>
-                </div>
-              )}
-            </Popover>
-          </div>
+            )}
+            <div className="task-filter-section" role="group" aria-labelledby={`${headingId}-sort`}>
+              <span id={`${headingId}-sort`} className="task-filter-heading">
+                {t('teamTasksSortGroup')}
+              </span>
+              <TaskSortControl value={sort} onChange={onSortChange} hasLabels={labels.length > 0} />
+            </div>
+            {display && (
+              <div
+                className="task-filter-section"
+                role="group"
+                aria-labelledby={`${headingId}-view`}
+              >
+                <span id={`${headingId}-view`} className="task-filter-heading">
+                  {t('teamTasksDisplayGroup')}
+                </span>
+                <div className="task-filter-display">{display}</div>
+              </div>
+            )}
+          </TaskFiltersButton>
           {trailing}
         </TaskDateFilterControl>
       </div>
       {chips.length > 0 && (
         <div className="task-filter-chips" aria-label={t('teamTasksActiveFilters')}>
           {chips.map(chip => (
-            <button
+            <Chip
               key={chip.id}
-              type="button"
+              color="secondary"
               className="task-filter-chip"
-              onClick={chip.clear}
-              aria-label={t('teamTasksRemoveFilter', { name: chip.label })}
+              onRemove={chip.clear}
+              removeLabel={t('teamTasksRemoveFilter', { name: chip.label })}
             >
-              <span>{chip.label}</span>
-              <X size={12} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
+              {chip.label}
+            </Chip>
           ))}
         </div>
       )}

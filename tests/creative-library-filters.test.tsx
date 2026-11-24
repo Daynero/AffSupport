@@ -87,8 +87,9 @@ describe('Creative Library rules that outlived the surface', () => {
     await user.click(screen.getByRole('button', { name: new RegExp(dayName(second)) }));
     expect(onChange).toHaveBeenLastCalledWith({ kind: 'range', from: firstDate, to: secondDate });
 
-    await user.click(screen.getByRole('button', { name: 'To do' }));
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    // The statuses are a segmented control (070, T079): one radio each.
+    await user.click(screen.getByRole('radio', { name: 'To do' }));
+    await user.click(screen.getByRole('radio', { name: 'Done' }));
     expect(onStatusChange.mock.calls.map(([value]) => value)).toEqual(['todo', 'done']);
   });
 });

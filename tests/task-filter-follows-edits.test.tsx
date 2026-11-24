@@ -105,10 +105,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** The board's status filter is the inventory's segmented control (070, T079): one radio each. */
 function filterPill(name: string) {
-  return screen
-    .getAllByRole('button', { name })
-    .find(button => !button.closest('article') && !button.closest('[role="dialog"]'))!;
+  return screen.getByRole('radio', { name });
 }
 
 describe('a board filtered by status', () => {

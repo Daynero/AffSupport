@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useId, useMemo, useState } from 'react';
-import { Check, Plus, Rocket, UserRound } from 'lucide-react';
+import { ArrowLeft, Check, Plus, Rocket, UserRound } from 'lucide-react';
 import {
   countTeamAccounts,
   filterTeamAccounts,
@@ -24,30 +24,20 @@ import {
 } from '@video-compressor/shared';
 import { AccountPickerLabel } from '../accounts/AccountPickerLabel';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { agentCountKey, freeCountKey } from '../accounts/plural';
 import { SpaceSettingsLink } from '../SpaceSettingsLink';
-import { EmptyState, ErrorState, LoadingState } from '../../components/ui/index';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  SegmentedControl
+} from '../../components/ui/index';
 
 export interface TaskAccountPickerClient {
   listAccounts(teamId: string): Promise<TeamAccountSummary[]>;
-}
-
-function ArrowLeftIcon() {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path
-        d="m9 5-5 5 5 5M4 10h12"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.8"
-      />
-    </svg>
-  );
 }
 
 export function TaskAccountPicker({
@@ -166,40 +156,30 @@ export function TaskAccountPicker({
             are is the second, thin line — only once inside an account. */}
         <div className="team-task-account-picker-heading">
           <h2 id={titleId}>{t('teamTaskAccountPickerTitle')}</h2>
-          <div
+          <SegmentedControl<'all' | 'free'>
             className="team-task-account-picker-occupancy"
-            role="group"
-            aria-label={t('teamAccountsFilterLabel')}
-          >
-            {(['all', 'free'] as const).map(value => (
-              <button
-                key={value}
-                type="button"
-                className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
-                aria-pressed={occupancy === value}
-                onClick={() => setOccupancy(value)}
-              >
-                {value === 'free' && (
-                  <span className="team-accounts-occupancy-dot" aria-hidden="true" />
-                )}
-                <span>
-                  {t(value === 'all' ? 'teamAccountsFilterAll' : 'teamAccountsFilterFree')}
-                </span>
-              </button>
-            ))}
-          </div>
+            size="xs"
+            label={t('teamAccountsFilterLabel')}
+            value={occupancy === 'free' ? 'free' : 'all'}
+            onChange={setOccupancy}
+            options={[
+              { value: 'all', label: t('teamAccountsFilterAll') },
+              { value: 'free', label: t('teamAccountsFilterFree') }
+            ]}
+          />
         </div>
         {openAccount && (
           <nav className="team-task-account-picker-crumb" aria-label={t('teamAccountsTitle')}>
-            <button
+            <Button
               id="team-task-account-picker-root"
-              type="button"
+              size="sm"
+              variant="ghost"
               className="team-task-account-picker-back"
+              leading={<ArrowLeft size={16} strokeWidth={ICON_STROKE} />}
               onClick={() => setOpenAccountId(null)}
             >
-              <ArrowLeftIcon />
               {t('teamAccountsTitle')}
-            </button>
+            </Button>
             <i aria-hidden="true">/</i>
             <strong aria-current="page">{openAccount.name}</strong>
           </nav>
@@ -243,7 +223,12 @@ export function TaskAccountPicker({
                 const chosenHere = account.agents.filter(agent => selected.has(agent.id)).length;
                 return (
                   <li key={account.id}>
-                    <button type="button" onClick={() => setOpenAccountId(account.id)}>
+                    <Button
+                      variant="ghost"
+                      block
+                      className="team-task-picker-row"
+                      onClick={() => setOpenAccountId(account.id)}
+                    >
                       <span className="team-task-picker-item-type" aria-hidden="true">
                         <UserRound size={18} strokeWidth={ICON_STROKE} />
                       </span>
@@ -270,7 +255,7 @@ export function TaskAccountPicker({
                       <span className="team-task-picker-check" aria-hidden="true">
                         ›
                       </span>
-                    </button>
+                    </Button>
                   </li>
                 );
               })}
@@ -298,9 +283,10 @@ export function TaskAccountPicker({
                     const free = isTeamAgentFree(agent);
                     return (
                       <li key={agent.id}>
-                        <button
-                          type="button"
-                          className={`${chosen ? 'is-selected' : ''} ${attached ? 'is-attached' : ''} ${free ? 'is-free' : ''}`.trim()}
+                        <Button
+                          variant="ghost"
+                          block
+                          className={`team-task-picker-row ${chosen ? 'is-selected' : ''} ${attached ? 'is-attached' : ''} ${free ? 'is-free' : ''}`.trim()}
                           aria-pressed={chosen}
                           disabled={attached}
                           onClick={() => toggle(agent)}
@@ -329,7 +315,7 @@ export function TaskAccountPicker({
                               <Check size={14} strokeWidth={ICON_STROKE} />
                             ) : null}
                           </span>
-                        </button>
+                        </Button>
                       </li>
                     );
                   })}

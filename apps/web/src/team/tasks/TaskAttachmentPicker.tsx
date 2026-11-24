@@ -7,9 +7,7 @@ import {
   FileVideo,
   Folder,
   Image,
-  Plus,
-  Search,
-  X
+  Plus
 } from 'lucide-react';
 import type { CatalogMaterialItem, MaterialCategory } from '@video-compressor/shared';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
@@ -19,10 +17,14 @@ import {
   type TeamTaskAttachmentMutationResult
 } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { EmptyState, ErrorState, LoadingState } from '../../components/ui/index';
-import { searchFieldEscape } from '../../lib/searchField';
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  SearchField
+} from '../../components/ui/index';
 import { searchWithLayoutFallback } from '../../lib/layoutFallback';
 import { useI18n } from '../../i18n';
 
@@ -267,11 +269,11 @@ export function TaskAttachmentPicker({
           setOpen(true);
         })
       ) : (
-        <button
-          type="button"
+        <Button
           // No drop handling: the only thing that ever produced this payload was
           // the browser's dead drag plumbing, so advertising a drop target here
           // promised something nothing could deliver.
+          variant="ghost"
           className="team-task-attachment-add"
           onClick={() => {
             // Where this task's files already are, not the root four folders up (024).
@@ -284,7 +286,7 @@ export function TaskAttachmentPicker({
           </span>
           <strong>{t('teamTaskAttachMedia')}</strong>
           <small>{t('teamTaskAttachmentAddHint')}</small>
-        </button>
+        </Button>
       )}
       {open && (
         <Modal
@@ -301,27 +303,16 @@ export function TaskAttachmentPicker({
               <h2 id={pickerTitleId}>{title ?? t('teamTaskAttachmentPickerTitle')}</h2>
             </div>
             {searchable && (
-              <div className="team-task-picker-search">
-                <Search size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                <input
-                  type="search"
-                  value={search}
-                  aria-label={t('teamTaskAttachmentSearch')}
-                  placeholder={t('teamTaskAttachmentSearch')}
-                  onChange={event => setSearch(event.target.value)}
-                  onKeyDown={searchFieldEscape(search, () => setSearch(''), close)}
-                />
-                {term.length > 0 && (
-                  <button
-                    type="button"
-                    className="team-task-picker-search-clear"
-                    aria-label={t('teamCancel')}
-                    onClick={() => setSearch('')}
-                  >
-                    <X size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </button>
-                )}
-              </div>
+              /* The inventory's search box (070, T079): Escape clears a word and, with
+                 nothing left to clear, reaches the dialog, which closes. */
+              <SearchField
+                className="team-task-picker-search-field"
+                value={search}
+                aria-label={t('teamTaskAttachmentSearch')}
+                placeholder={t('teamTaskAttachmentSearch')}
+                clearLabel={t('teamSearchClear')}
+                onChange={setSearch}
+              />
             )}
             {/* The trail is about the open folder, and a search is not in one. */}
             <div
@@ -348,18 +339,26 @@ export function TaskAttachmentPicker({
                 </Button>
               )}
               <nav aria-label={t('teamTaskAttachmentPickerTitle')}>
-                <button id="team-task-picker-root" type="button" onClick={() => setPath([])}>
+                <Button
+                  id="team-task-picker-root"
+                  size="sm"
+                  variant="ghost"
+                  className="team-task-picker-crumb"
+                  onClick={() => setPath([])}
+                >
                   {t('teamTaskFolderRoot')}
-                </button>
+                </Button>
                 {path.map((folder, index) => (
                   <span key={folder.id}>
                     <i aria-hidden="true">/</i>
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="team-task-picker-crumb"
                       onClick={() => setPath(current => current.slice(0, index + 1))}
                     >
                       {folder.name}
-                    </button>
+                    </Button>
                   </span>
                 ))}
               </nav>
@@ -387,9 +386,10 @@ export function TaskAttachmentPicker({
                         : null;
                     return (
                       <li key={material.id}>
-                        <button
-                          type="button"
-                          className={`${selectedMaterial ? 'is-selected' : ''} ${
+                        <Button
+                          variant="ghost"
+                          block
+                          className={`team-task-picker-row ${selectedMaterial ? 'is-selected' : ''} ${
                             isAttached ? 'is-attached' : ''
                           }`.trim()}
                           aria-pressed={isFolder ? undefined : selectedMaterial}
@@ -433,7 +433,7 @@ export function TaskAttachmentPicker({
                               <Check size={14} strokeWidth={ICON_STROKE} />
                             ) : null}
                           </span>
-                        </button>
+                        </Button>
                       </li>
                     );
                   })}

@@ -4597,6 +4597,7 @@ export const en = {
   teamTaskTagFilterLabel: 'Only tasks carrying these tags',
   teamTaskTagFilterClear: 'Show tasks with any tag',
   teamTasksSearch: 'Find a task',
+  teamSearchClear: 'Clear search',
   teamTasksMoreFilters: 'Filters',
   teamTasksMoreFiltersActive: 'Filters, {count} on',
   teamTasksFilterGroup: 'Show',
