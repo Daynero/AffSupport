@@ -8605,6 +8605,8 @@ button,
   max-width: 100%;
 }
 .team-text-editor .ui-textarea {
+  /* A document, not a form field: it reads at the body step. */
+  font-size: var(--text-body);
   min-height: 260px;
   resize: vertical;
   white-space: pre-wrap;

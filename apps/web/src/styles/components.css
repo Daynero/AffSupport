@@ -1879,9 +1879,14 @@
   border-radius: var(--radius-sm);
   background: var(--color-neutral-surface);
   color: var(--color-neutral-text);
-  font-size: var(--text-body);
+  /* The step of the input beside it (070 T069): a description in a form read larger than
+     the title field above it. A long-text editor sets its own size. */
+  font-size: var(--text-label);
   line-height: var(--leading-body);
   resize: vertical;
+}
+.ui-textarea--sm {
+  font-size: var(--text-caption);
 }
 .ui-textarea:focus {
   border-color: var(--color-secondary-solid);
