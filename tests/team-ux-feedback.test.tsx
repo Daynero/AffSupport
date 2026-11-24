@@ -253,7 +253,11 @@ describe('the realtime chip', () => {
         name: 'Live updates are not arriving — reconnect'
       });
       expect(chip.textContent).toContain('No live updates yet');
-      expect(chip.getAttribute('aria-live')).toBe('polite');
+      // The words are the live region inside the button (070, phase 8б): a button is announced
+      // by its name; what changes is what it says.
+      expect(chip.querySelector('[aria-live="polite"]')?.textContent).toContain(
+        'No live updates yet'
+      );
       fireEvent.click(chip);
       expect(context.retryRealtime).toHaveBeenCalledOnce();
     } finally {
