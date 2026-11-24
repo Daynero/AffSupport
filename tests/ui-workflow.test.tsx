@@ -7,11 +7,10 @@ import { droppedFilePaths, droppedFiles, DropZone } from '../apps/web/src/compon
 import { JobRow } from '../apps/web/src/components/JobRow';
 import { SettingsPanel } from '../apps/web/src/components/SettingsPanel';
 import {
-  Tooltip,
+  HelpTip as Tooltip,
   tooltipInteraction,
-  type TooltipInteractionState,
-  type Translate
-} from '../apps/web/src/components/ui';
+  type TooltipInteractionState
+} from '../apps/web/src/components/ui/HelpTip';
 import { isSupportedVideoPath } from '../apps/agent/src/queue/queue.js';
 import {
   batchMetrics,
@@ -25,7 +24,7 @@ import {
   timerState,
   toggleSelection
 } from '../apps/web/src/queue-ui';
-import { translate, type Language } from '../apps/web/src/i18n';
+import { translate, type Language, type Translate } from '../apps/web/src/i18n';
 import { customEncoding, makeEmbedding, makeJob, optimalSettings } from './helpers.js';
 
 /**

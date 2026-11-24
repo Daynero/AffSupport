@@ -6,8 +6,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { defaultLandingSettings } from '@video-compressor/shared';
 import { LandingSettingsPanel } from '../apps/web/src/landing/LandingOptimizerPage';
-import { translate } from '../apps/web/src/i18n';
-import type { Translate } from '../apps/web/src/components/ui';
+import { translate, type Translate } from '../apps/web/src/i18n';
 
 const t: Translate = (key, values) => translate('en', key, values);
 

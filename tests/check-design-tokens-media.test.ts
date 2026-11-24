@@ -9,8 +9,8 @@ import { afterEach, describe, expect, it } from 'vitest';
  * The five widths (070, FR-040).
  *
  * `scripts/check-design-tokens.mjs` holds every `@media` width to the five in
- * `--breakpoint-*`. Until T065 it reports and passes; with the gate on it
- * fails. These run the checker against a stylesheet of our own in a scratch
+ * `--breakpoint-*`. It reported until 070 T065; since then a sixth width fails
+ * the run with or without `--enforce-media-widths`. These run the checker against a stylesheet of our own in a scratch
  * directory, never the committed ones.
  */
 
@@ -50,10 +50,10 @@ describe('media widths', () => {
     expect(result.output).toContain('480px / 640px / 768px / 1024px / 1280px');
   });
 
-  it('reports 561px before the gate, and still passes', () => {
+  it('refuses 561px without the flag too (the gate is on since T065)', () => {
     const result = run('@media (max-width: 561px) { .probe { display: grid; } }\n');
-    expect(result.ok).toBe(true);
-    expect(result.output).toMatch(/report only/u);
+    expect(result.ok).toBe(false);
+    expect(result.output).not.toMatch(/report only/u);
     expect(result.output).toContain('max-width: 561px');
   });
 

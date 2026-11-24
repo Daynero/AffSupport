@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { FOCUSABLE_SELECTOR, Modal } from '../apps/web/src/components/Modal';
-import { SegmentedControl } from '../apps/web/src/components/ui';
+import { SegmentedControl } from '../apps/web/src/components/ui/index';
 import userEvent from '@testing-library/user-event';
 
 /**
@@ -57,54 +57,65 @@ describe('the dialog focus trap', () => {
 describe('the segmented control', () => {
   /**
    * A radio group has a keyboard convention older than the web: one Tab stop
-   * for the group, arrows to move within it. This one had neither — every
-   * option was its own Tab stop, so a settings form with three controls cost
-   * nine presses to cross, and the arrow keys did nothing at all.
+   * for the group, arrows to move within it. The pre-021 control had neither
+   * at first — every option was its own Tab stop, so a settings form with three
+   * controls cost nine presses to cross. The inventory's control (React Aria's
+   * toggle-button group, 070 T065 moved this test onto it) keeps the contract
+   * that matters: one Tab crosses the group, arrows move between options, the
+   * chosen one is what a reader hears as checked. Two details are React Aria's
+   * rather than the old control's: arrows stop at the ends instead of wrapping,
+   * and an arrow moves focus without choosing — Space chooses.
    */
 
   function render3(value: string, onChange: (next: string) => void) {
     return render(
-      <SegmentedControl
-        label="Mode"
-        value={value}
-        onChange={onChange}
-        options={[
-          { value: 'a', label: 'A' },
-          { value: 'b', label: 'B' },
-          { value: 'c', label: 'C' }
-        ]}
-      />
+      <>
+        <button type="button">before</button>
+        <SegmentedControl
+          label="Mode"
+          value={value}
+          onChange={onChange}
+          options={[
+            { value: 'a', label: 'A' },
+            { value: 'b', label: 'B' },
+            { value: 'c', label: 'C' }
+          ]}
+        />
+        <button type="button">after</button>
+      </>
     );
   }
 
   it('is a single tab stop', () => {
     render3('b', () => {});
-    const options = screen.getAllByRole('radio');
-    // Exactly one reachable by Tab: the chosen one, which is where a keyboard
-    // user expects to land.
-    expect(options.filter(option => option.tabIndex === 0)).toHaveLength(1);
-    expect(options.find(option => option.tabIndex === 0)?.textContent).toBe('B');
+    const [a, , c] = screen.getAllByRole('radio');
+    // React Aria's toolbar answers Tab by moving focus to the group's last
+    // option and letting the browser carry on from there — so the next stop is
+    // past the group, whichever option Tab was pressed on. jsdom does not run
+    // the browser's half, so this checks the half that is the control's.
+    a!.focus();
+    fireEvent.keyDown(a!, { key: 'Tab' });
+    expect(document.activeElement).toBe(c);
+    c!.focus();
+    fireEvent.keyDown(c!, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(a);
   });
 
-  it('moves to the next option on an arrow key', async () => {
+  it('moves between options on an arrow key and picks one with Space', async () => {
     const user = userEvent.setup();
     const changes: string[] = [];
     render3('a', next => changes.push(next));
-
-    screen.getAllByRole('radio')[0].focus();
+    const [a, b, c] = screen.getAllByRole('radio');
+    a!.focus();
     await user.keyboard('{ArrowRight}');
-    expect(changes).toEqual(['b']);
-  });
-
-  it('wraps from the last option to the first', async () => {
-    const user = userEvent.setup();
-    const changes: string[] = [];
-    render3('c', next => changes.push(next));
-
-    screen.getAllByRole('radio')[2].focus();
+    expect(document.activeElement).toBe(b);
     await user.keyboard('{ArrowRight}');
-    // Wrapping is the convention. Stopping at the end reads as a broken key.
-    expect(changes).toEqual(['a']);
+    expect(document.activeElement).toBe(c);
+    // An arrow moves focus, it does not choose (React Aria's toggle-button
+    // group): the choice is Space or Enter on the focused option.
+    expect(changes).toEqual([]);
+    await user.keyboard(' ');
+    expect(changes).toEqual(['c']);
   });
 
   it('reports which option is chosen', () => {
@@ -112,6 +123,6 @@ describe('the segmented control', () => {
     const checked = screen
       .getAllByRole('radio')
       .filter(o => o.getAttribute('aria-checked') === 'true');
-    expect(checked).toHaveLength(1);
+    expect(checked.map(option => option.textContent)).toEqual(['B']);
   });
 });

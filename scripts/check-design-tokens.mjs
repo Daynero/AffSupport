@@ -40,12 +40,11 @@ const ALLOW_FILE = path.join(ROOT, 'config/design-token-exemptions.json');
  */
 const MEDIA_WIDTHS = new Set([480, 640, 768, 1024, 1280]);
 /**
- * Report, or refuse. Until 070 T065 the widths are reported and the run still
- * passes: thirty-four widths are moved to five one stylesheet at a time, and a
- * gate that is red for the whole migration is a gate everyone learns to skip.
- * T065 turns this on; `--enforce-media-widths` turns it on for one run.
+ * Refused since 070 T065. The thirty-four widths were moved to five one
+ * stylesheet at a time with this in report mode; now a sixth fails the run.
+ * `--enforce-media-widths` is still accepted (and changes nothing) so a script
+ * that passes it keeps working.
  */
-const MEDIA_WIDTH_GATE = ARGS.includes('--enforce-media-widths');
 
 /** Every width an `@media` condition names, in either syntax, with its unit. */
 function mediaWidths(line) {
@@ -258,18 +257,7 @@ async function main() {
     });
   }
 
-  if (MEDIA_WIDTH_GATE) violations.push(...widths);
-  else if (widths.length > 0) {
-    const distinct = new Set(widths.map(width => width.width));
-    process.stdout.write(
-      `Media widths (report only until 070 T065): ${widths.length} condition(s) outside ` +
-        `the five, ${distinct.size} distinct.\n`
-    );
-    for (const width of widths.slice(0, 40)) {
-      process.stdout.write(`  ${width.file}:${width.line}  ${width.text}\n`);
-    }
-    if (widths.length > 40) process.stdout.write(`  … and ${widths.length - 40} more\n`);
-  }
+  violations.push(...widths);
 
   if (violations.length === 0) {
     const exemptions = allowList.length;

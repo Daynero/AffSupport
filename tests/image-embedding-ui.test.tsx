@@ -21,8 +21,7 @@ import {
 } from '../apps/web/src/components/ImageEmbeddingSection';
 import { SettingsPanel } from '../apps/web/src/components/SettingsPanel';
 import { JobRow } from '../apps/web/src/components/JobRow';
-import { translate, type Language } from '../apps/web/src/i18n';
-import type { Translate } from '../apps/web/src/components/ui';
+import { translate, type Language, type Translate } from '../apps/web/src/i18n';
 import { makeEmbedding, makeEmbeddingSettings, makeJob, optimalSettings } from './helpers.js';
 import { mergeSettingsPatches } from '../apps/web/src/settings-patch';
 

@@ -6,8 +6,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { LandingAsset, LandingJob } from '../packages/shared/src/types.js';
 import { LandingJobCard, landingJobProgress } from '../apps/web/src/landing/LandingJobCard';
-import { translate } from '../apps/web/src/i18n';
-import type { Translate } from '../apps/web/src/components/ui';
+import { translate, type Translate } from '../apps/web/src/i18n';
 
 const t: Translate = (key, values) => translate('en', key, values);
 

@@ -16,10 +16,9 @@ vi.mock('../apps/web/src/lib/supabase', () => ({
 import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';
 import { adminAuthStub } from './support/auth-stub.js';
 import { JobRow } from '../apps/web/src/components/JobRow';
-import { translate, type Language } from '../apps/web/src/i18n';
+import { translate, type Language, type Translate } from '../apps/web/src/i18n';
 import AccountPage from '../apps/web/src/pages/AccountPage';
 import AdminPage from '../apps/web/src/pages/AdminPage';
-import type { Translate } from '../apps/web/src/components/ui';
 import { customEncoding, makeJob } from './helpers.js';
 
 const user = {
