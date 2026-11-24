@@ -101,7 +101,7 @@ afterEach(() => {
 it('shows the deferred video-link publication under the catalog of a variation launch', async () => {
   const read = vi.spyOn(teamApi, 'readCatalogPublication').mockResolvedValue(scheduled);
   show(revision(withVideoProtocol));
-  expect(await screen.findByText(/Video-link publication is scheduled for/)).toBeTruthy();
+  expect(await screen.findByText(/Creative-link publication is scheduled for/)).toBeTruthy();
   expect(read).toHaveBeenCalledWith(team, catalog, undefined, expect.anything());
 });
 

@@ -2,9 +2,15 @@ import { analytics } from '../apps/web/src/analytics/service';
 // @vitest-environment jsdom
 
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TranscriptionDocument, TranscriptionJob } from '@video-compressor/shared';
+import {
+  translationFingerprint,
+  type TranscriptionDocument,
+  type TranscriptionJob,
+  type TranscriptTranslation,
+  type TranslationStreamEvent
+} from '@video-compressor/shared';
 import type { Translate } from '../apps/web/src/components/ui.js';
 
 const api = vi.hoisted(() => ({
@@ -24,6 +30,31 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock('../apps/web/src/api/client.js', () => api);
+
+// 063: the viewer's translations come from one client the test controls.
+const translations = vi.hoisted(() => ({
+  start: vi.fn(),
+  watch: vi.fn(),
+  listForVideo: vi.fn(),
+  listPersonal: vi.fn(),
+  get: vi.fn(),
+  remove: vi.fn(),
+  allowance: vi.fn()
+}));
+vi.mock('../apps/web/src/translation/api.js', () => ({ translationClient: translations }));
+vi.mock('../apps/web/src/api/assistant', () => ({
+  creditsApi: {
+    status: vi.fn(async () => ({
+      grant: 100,
+      available: 87,
+      day: '2026-11-21',
+      resetsAt: '2026-11-21T22:00:00Z',
+      paidOpen: true,
+      recent: []
+    }))
+  },
+  assistantApi: {}
+}));
 
 import { TranscriptTextModal } from '../apps/web/src/transcription/TranscriptTextModal.js';
 import { forgetTranscriptDocuments } from '../apps/web/src/transcription/document-cache.js';
@@ -115,7 +146,14 @@ const labels: Record<string, string> = {
   transcriptionPlayerFullscreen: 'Full screen',
   transcriptionKaraokeUnavailable: 'Karaoke unavailable',
   transcriptionCancel: 'Cancel',
-  transcriptionTranslationRetry: 'Retry'
+  transcriptionTranslationRetry: 'Retry',
+  transcriptionExport: 'Export',
+  transcriptionExportOptions: 'Export options',
+  transcriptionExportTxt: 'TXT',
+  transcriptionExportSrt: 'SRT',
+  transcriptionExportVtt: 'VTT',
+  textTranslationCopied: 'Copied: {variant}',
+  textTranslationDeleted: 'Deleted: {language}'
 };
 
 const t = ((key: string, values?: Record<string, unknown>) => {
@@ -166,6 +204,18 @@ describe('original transcript modal integration', () => {
     api.transcriptionMediaStatus.mockReset();
     api.transcriptionMediaCancel.mockReset().mockResolvedValue({ ok: true });
     api.transcriptionMediaUrl.mockClear();
+    translations.listPersonal.mockReset().mockResolvedValue([]);
+    translations.watch.mockReset().mockResolvedValue(undefined);
+    translations.start.mockReset();
+    translations.get.mockReset();
+    translations.remove.mockReset().mockResolvedValue(undefined);
+    translations.allowance.mockReset().mockResolvedValue({
+      feature: 'transcript_translation',
+      limitUnits: 9000,
+      usedUnits: 0,
+      day: '2026-11-21',
+      resetsAt: '2026-11-21T22:00:00Z'
+    });
 
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
@@ -417,6 +467,450 @@ describe('original transcript modal integration', () => {
     } finally {
       view.unmount();
       track.mockRestore();
+    }
+  });
+  describe('translations of the transcript (063)', () => {
+    const twoSentences: TranscriptionDocument = {
+      ...documentFixture,
+      segments: [
+        ...documentFixture.segments,
+        {
+          id: 'segment-2',
+          startMs: 1_500,
+          endMs: 2_400,
+          sourceText: 'Again.',
+          words: [
+            {
+              id: 'word-3',
+              text: 'Again.',
+              startMs: 1_500,
+              endMs: 2_400,
+              confidence: 0.9,
+              sourceStart: 0,
+              sourceEnd: 6
+            }
+          ]
+        }
+      ]
+    };
+
+    async function ukrainian(
+      overrides: Partial<TranscriptTranslation> = {}
+    ): Promise<TranscriptTranslation> {
+      return {
+        id: '06300000-0000-4000-8000-000000000101',
+        scope: 'personal',
+        targetLanguage: 'uk',
+        sourceLanguage: 'en',
+        sourceFingerprint: await translationFingerprint(['Hello world.', 'Again.']),
+        status: 'completed',
+        failureCode: null,
+        segments: ['Привіт, світе.', 'Знову.'],
+        totalSegments: 2,
+        completedSegments: 2,
+        units: 18,
+        model: 'claude-haiku-5-5',
+        createdAt: '2026-11-21T10:00:00Z',
+        completedAt: '2026-11-21T10:00:20Z',
+        ...overrides
+      };
+    }
+
+    const sourceColumn = () =>
+      screen.getByRole('dialog').querySelector<HTMLElement>('[data-side="source"]')!;
+
+    beforeEach(() => {
+      api.transcriptionDocument.mockResolvedValue(twoSentences);
+    });
+
+    it('reads, copies, exports and deletes a translation in place of the original', async () => {
+      const blobs: Blob[] = [];
+      const names: string[] = [];
+      Object.defineProperty(URL, 'createObjectURL', {
+        configurable: true,
+        value: vi.fn((blob: Blob) => {
+          blobs.push(blob);
+          return 'blob:export';
+        })
+      });
+      Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement
+      ) {
+        names.push(this.download);
+      });
+      translations.listPersonal.mockResolvedValue([await ukrainian()]);
+      const onExport = vi.fn();
+      const onToast = vi.fn();
+      const view = render(
+        <TranscriptTextModal
+          job={{ ...job, quality: 'accurate' }}
+          language="en"
+          returnFocus={null}
+          onExport={onExport}
+          onToast={onToast}
+          onClose={vi.fn()}
+          t={t}
+        />
+      );
+      try {
+        expect(await screen.findByText('transcriptionQualityAccurate')).toBeTruthy();
+        // Filed under this job and the text itself, so another computer finds it too.
+        await waitFor(() =>
+          expect(translations.listPersonal).toHaveBeenCalledWith(job.id, expect.any(String))
+        );
+        fireEvent.click(await screen.findByRole('tab', { name: 'Ukrainian' }));
+        await waitFor(() =>
+          expect(sourceColumn().querySelector('.transcript-column-title')?.textContent).toBe(
+            'Ukrainian'
+          )
+        );
+        const paragraphs = sourceColumn().querySelectorAll('.text-variant-reader p');
+        expect([...paragraphs].map(item => item.textContent)).toEqual(['Привіт, світе.', 'Знову.']);
+
+        fireEvent.click(within(sourceColumn()).getByRole('button', { name: 'Copy all' }));
+        await waitFor(() =>
+          expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Привіт, світе.\nЗнову.')
+        );
+        expect(onToast).toHaveBeenCalledWith('Copied: Ukrainian', 'success');
+        expect(
+          within(sourceColumn()).getByRole('button', { name: 'Copied all text' })
+        ).toBeTruthy();
+
+        // Exported while open: the translation, named for its language, not the original.
+        fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+        expect(onExport).not.toHaveBeenCalled();
+        expect(names).toEqual(['private-video.uk.txt']);
+        expect(await blobs[0]!.text()).toBe('Привіт, світе.\nЗнову.');
+        // Subtitles carry the original's timings, one cue per sentence.
+        fireEvent.click(screen.getByRole('button', { name: 'Export options' }));
+        fireEvent.click(await screen.findByRole('menuitem', { name: 'SRT' }));
+        expect(names.at(-1)).toBe('private-video.uk.srt');
+        const srt = await blobs.at(-1)!.text();
+        expect(srt).toContain('00:00:00,000 --> 00:00:01,200\nПривіт, світе.');
+        expect(srt).toContain('Знову.');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Delete translation' }));
+        const confirm = await screen.findByRole('dialog', {
+          name: /Delete the Ukrainian translation/u
+        });
+        fireEvent.click(within(confirm).getByRole('button', { name: 'Delete translation' }));
+        await waitFor(() =>
+          expect(translations.remove).toHaveBeenCalledWith('06300000-0000-4000-8000-000000000101')
+        );
+        await waitFor(() => expect(onToast).toHaveBeenCalledWith('Deleted: Ukrainian', 'success'));
+        // Back on the original, which exports through the page again.
+        await waitFor(() => expect(sourceColumn().textContent).toContain('Hello world.'));
+        expect(screen.queryByRole('tab', { name: 'Ukrainian' })).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+        expect(onExport).toHaveBeenCalledWith('txt', 'transcript');
+      } finally {
+        view.unmount();
+        click.mockRestore();
+      }
+    });
+
+    it('says when copying a translation failed', async () => {
+      translations.listPersonal.mockResolvedValue([await ukrainian()]);
+      vi.mocked(navigator.clipboard.writeText).mockRejectedValue(new Error('denied'));
+      const onToast = vi.fn();
+      const view = render(
+        <TranscriptTextModal
+          job={job}
+          language="en"
+          returnFocus={null}
+          onToast={onToast}
+          onClose={vi.fn()}
+          t={t}
+        />
+      );
+      try {
+        fireEvent.click(await screen.findByRole('tab', { name: 'Ukrainian' }));
+        await waitFor(() => expect(sourceColumn().textContent).toContain('Знову.'));
+        fireEvent.click(within(sourceColumn()).getByRole('button', { name: 'Copy all' }));
+        await waitFor(() =>
+          expect(onToast).toHaveBeenCalledWith('transcriptionFailedTitle', 'error')
+        );
+        // The original's copy says the same when the clipboard refuses.
+        fireEvent.click(screen.getByRole('tab', { name: /Original/u }));
+        await waitFor(() => expect(sourceColumn().textContent).toContain('Hello world.'));
+        onToast.mockClear();
+        fireEvent.click(within(sourceColumn()).getByRole('button', { name: 'Copy all' }));
+        await waitFor(() =>
+          expect(onToast).toHaveBeenCalledWith('transcriptionFailedTitle', 'error')
+        );
+      } finally {
+        view.unmount();
+      }
+    });
+
+    it('follows the player sentence by sentence and seeks from a sentence or a word', async () => {
+      translations.listPersonal.mockResolvedValue([await ukrainian()]);
+      let now = 0;
+      const seeks: number[] = [];
+      const originalTime = Object.getOwnPropertyDescriptor(
+        HTMLMediaElement.prototype,
+        'currentTime'
+      );
+      Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+        configurable: true,
+        get: () => now,
+        set: (value: number) => {
+          seeks.push(value);
+        }
+      });
+      const view = render(
+        <TranscriptTextModal job={job} language="en" returnFocus={null} onClose={vi.fn()} t={t} />
+      );
+      try {
+        fireEvent.click(await screen.findByRole('tab', { name: 'Ukrainian' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+        const dialog = screen.getByRole('dialog');
+        const video = await waitFor(() => {
+          const element = dialog.querySelector('video');
+          if (!element) throw new Error('no player yet');
+          return element;
+        });
+        now = 1.6;
+        fireEvent(video, new Event('timeupdate'));
+        await waitFor(() =>
+          expect(
+            sourceColumn().querySelector('.text-variant-reader p.is-active')?.textContent
+          ).toBe('Знову.')
+        );
+        // Between sentences nothing is marked.
+        now = 1.3;
+        fireEvent(video, new Event('timeupdate'));
+        await waitFor(() =>
+          expect(sourceColumn().querySelector('.text-variant-reader p.is-active')).toBeNull()
+        );
+        fireEvent.click(sourceColumn().querySelectorAll('.text-variant-reader p')[1]!);
+        expect(seeks).toContain(1.5);
+
+        // On the original a word seeks to its own start.
+        fireEvent.click(screen.getByRole('tab', { name: /Original/u }));
+        const word = await waitFor(() => {
+          const element = dialog.querySelector<HTMLElement>('[data-word-id="word-2"]');
+          if (!element) throw new Error('no words yet');
+          return element;
+        });
+        fireEvent.click(word);
+        expect(seeks).toContain(0.5);
+      } finally {
+        view.unmount();
+        if (originalTime)
+          Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', originalTime);
+        else delete (HTMLMediaElement.prototype as { currentTime?: number }).currentTime;
+      }
+    });
+
+    it('shows a running translation, then its failure with a retry that starts it again', async () => {
+      let emit: ((event: TranslationStreamEvent) => void) | null = null;
+      translations.listPersonal.mockResolvedValue([
+        await ukrainian({
+          status: 'processing',
+          segments: null,
+          completedSegments: 1,
+          model: null,
+          completedAt: null
+        })
+      ]);
+      translations.watch.mockImplementation(
+        (_id: string, onEvent: (event: TranslationStreamEvent) => void) =>
+          new Promise<void>(() => {
+            emit = onEvent;
+          })
+      );
+      translations.start.mockResolvedValue({
+        translationId: '06300000-0000-4000-8000-000000000102',
+        status: 'processing',
+        reused: false,
+        units: 18,
+        allowance: null
+      });
+      const view = render(
+        <TranscriptTextModal
+          job={job}
+          language="en"
+          returnFocus={null}
+          onExport={vi.fn()}
+          onClose={vi.fn()}
+          t={t}
+        />
+      );
+      try {
+        fireEvent.click(await screen.findByRole('tab', { name: /Ukrainian/u }));
+        await waitFor(() => expect(sourceColumn().textContent).toMatch(/Translating: Ukrainian/u));
+        // Nothing to copy, export or delete until it is there.
+        expect(
+          within(sourceColumn()).getByRole('button', { name: 'Copy all' }).hasAttribute('disabled')
+        ).toBe(true);
+        expect(screen.getByRole('button', { name: 'Export' }).hasAttribute('disabled')).toBe(true);
+        expect(screen.queryByRole('button', { name: 'Delete translation' })).toBeNull();
+
+        await waitFor(() => expect(emit).not.toBeNull());
+        act(() => emit!({ type: 'failed', code: 'TRANSLATION_FAILED' }));
+        expect(
+          await within(sourceColumn()).findByText(/Could not translate\. Minutes returned\./u)
+        ).toBeTruthy();
+        fireEvent.click(within(sourceColumn()).getByRole('button', { name: 'Try again' }));
+        await waitFor(() =>
+          expect(translations.start).toHaveBeenCalledWith(
+            'uk',
+            {
+              scope: 'personal',
+              documentKey: job.id,
+              sourceLanguage: 'en',
+              segments: ['Hello world.', 'Again.']
+            },
+            expect.any(Number)
+          )
+        );
+      } finally {
+        view.unmount();
+      }
+    });
+
+    it('marks a translation made from an earlier text', async () => {
+      translations.listPersonal.mockResolvedValue([
+        await ukrainian({ sourceFingerprint: `v1:${'0'.repeat(64)}` })
+      ]);
+      const view = render(
+        <TranscriptTextModal job={job} language="en" returnFocus={null} onClose={vi.fn()} t={t} />
+      );
+      try {
+        fireEvent.click(await screen.findByRole('tab', { name: /Ukrainian/u }));
+        expect(await within(sourceColumn()).findByText('textTranslationStale')).toBeTruthy();
+        // Still readable while outdated.
+        expect(sourceColumn().textContent).toContain('Привіт, світе.');
+      } finally {
+        view.unmount();
+      }
+    });
+  });
+
+  it('says a transcript failed to load and loads it again on request', async () => {
+    api.transcriptionDocument
+      .mockRejectedValueOnce(new Error('agent restarting'))
+      .mockResolvedValueOnce(documentFixture);
+    forgetTranscriptDocuments();
+    const view = render(
+      <TranscriptTextModal job={job} language="uk" returnFocus={null} onClose={vi.fn()} t={t} />
+    );
+    try {
+      expect(await screen.findByText('transcriptionModalLoadFailed')).toBeTruthy();
+      // Never the "no speech" sentence over a transcript that exists.
+      expect(screen.queryByText('transcriptionModalEmpty')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'tryAgain' }));
+      await waitFor(() =>
+        expect(
+          screen.getByRole('dialog').querySelector('[data-side="source"]')?.textContent
+        ).toContain('Hello world.')
+      );
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('says a file had no speech, and names the fast quality', async () => {
+    api.transcriptionDocument.mockResolvedValue({ ...documentFixture, segments: [] });
+    const view = render(
+      <TranscriptTextModal
+        job={{ ...job, quality: 'fast' }}
+        language="uk"
+        returnFocus={null}
+        onClose={vi.fn()}
+        t={t}
+      />
+    );
+    try {
+      expect(await screen.findByText('transcriptionModalEmpty')).toBeTruthy();
+      expect(screen.getByText('transcriptionQualityFast')).toBeTruthy();
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('says a preview could not be prepared and retries it; a preparing one can be cancelled', async () => {
+    api.transcriptionMediaPrepare
+      .mockReset()
+      .mockResolvedValueOnce({
+        state: 'failed',
+        variant: 'original',
+        progress: null,
+        hasVideo: true,
+        mimeType: null,
+        error: 'decode'
+      })
+      .mockResolvedValueOnce({
+        state: 'preparing',
+        variant: 'proxy',
+        progress: 40,
+        hasVideo: true,
+        mimeType: null,
+        error: null
+      });
+    api.transcriptionMediaStatus.mockReturnValue(new Promise(() => {}));
+    const view = render(
+      <TranscriptTextModal job={job} language="uk" returnFocus={null} onClose={vi.fn()} t={t} />
+    );
+    try {
+      await waitFor(() =>
+        expect(screen.getByRole('dialog').querySelector('[data-word-id="word-1"]')).not.toBeNull()
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+      expect(await screen.findByText('Preview unavailable')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'transcriptionRetry' }));
+      expect(await screen.findByText('Preparing preview… 40%')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(api.transcriptionMediaCancel).toHaveBeenCalledWith(job.id));
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Preview' }).getAttribute('aria-expanded')).toBe(
+          'false'
+        )
+      );
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('offers sound alone where the window is too short for a picture', async () => {
+    reduced = true;
+    const view = render(
+      <TranscriptTextModal job={job} language="uk" returnFocus={null} onClose={vi.fn()} t={t} />
+    );
+    try {
+      expect(await screen.findByRole('button', { name: 'Play sound' })).toBeTruthy();
+    } finally {
+      view.unmount();
+    }
+  });
+
+  it('clears a selection before Escape closes the viewer', async () => {
+    const onClose = vi.fn();
+    const view = render(
+      <TranscriptTextModal job={job} language="uk" returnFocus={null} onClose={onClose} t={t} />
+    );
+    try {
+      const dialog = screen.getByRole('dialog');
+      await waitFor(() => expect(dialog.querySelector('[data-word-id="word-1"]')).not.toBeNull());
+      const word = dialog.querySelector<HTMLElement>('[data-word-id="word-1"]')!;
+      fireEvent.pointerDown(word);
+      const range = document.createRange();
+      range.selectNodeContents(word);
+      window.getSelection()!.removeAllRanges();
+      window.getSelection()!.addRange(range);
+      fireEvent.pointerUp(word);
+      await waitFor(() => expect(dialog.querySelector('.ts-selected')).not.toBeNull());
+      fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+      await waitFor(() => expect(dialog.querySelector('.ts-selected')).toBeNull());
+      expect(onClose).not.toHaveBeenCalled();
+      window.getSelection()!.removeAllRanges();
+      fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    } finally {
+      view.unmount();
+      window.getSelection()?.removeAllRanges();
     }
   });
 });
