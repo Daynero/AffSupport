@@ -36,6 +36,8 @@ internal sealed class TrayApplication : ApplicationContext
   private bool ownsInstanceLock;
   private AgentProcess? agent;
   private bool agentReady;
+  /// <summary>Set once, on the first start for this user (see <see cref="FirstLaunch"/>).</summary>
+  private bool openSiteWhenReady;
   private bool isTerminating;
   private bool restartingIntoInstalledBuild;
   private string? warnedInstalledBuildId;
@@ -95,6 +97,9 @@ internal sealed class TrayApplication : ApplicationContext
     updateMonitorTimer.Start();
     if (AcquireInstanceLock())
     {
+      // Asked before the agent starts: its first start writes the very state that says
+      // Soty has run here before.
+      openSiteWhenReady = DecideFirstLaunch();
       portWaitAttempts = 0;
       await StartAgentWhenPortIsFreeAsync();
     }
@@ -415,6 +420,7 @@ internal sealed class TrayApplication : ApplicationContext
       readinessTimer.Stop();
       agentReady = true;
       notifyIcon.Text = $"{HostConfig.ApplicationName} — ready";
+      OpenSiteOnFirstLaunch();
     }
     else if (
       health is not null
@@ -536,6 +542,38 @@ internal sealed class TrayApplication : ApplicationContext
     catch
     {
       // No registered browser; nothing sensible the tray can do.
+    }
+  }
+
+  /// <summary>
+  /// Never for a verification run (<c>NO_OPEN</c>) or the restart that finishes an update:
+  /// neither is a person starting Soty for the first time.
+  /// </summary>
+  private static bool DecideFirstLaunch() =>
+    FirstLaunch.Claim(
+      FirstLaunch.SupportDirectory(HostConfig.SupportDirectoryName),
+      suppressed: Environment.GetEnvironmentVariable("NO_OPEN") == "1"
+        || Environment.GetEnvironmentVariable("AGENT_UPDATE_HANDOFF") == "1"
+    );
+
+  /// <summary>
+  /// Once the agent answers, so the site that opens finds it at once instead of saying Soty
+  /// is not installed for the second it takes to start. The site the build is configured
+  /// for — production, next or beta — never a written-in address.
+  /// </summary>
+  private void OpenSiteOnFirstLaunch()
+  {
+    if (!openSiteWhenReady) return;
+    openSiteWhenReady = false;
+    var site = FirstLaunch.SiteUrl(HostConfig.PublicSiteOrigin);
+    if (site is null) return;
+    try
+    {
+      Process.Start(new ProcessStartInfo { FileName = site.ToString(), UseShellExecute = true });
+    }
+    catch
+    {
+      // No registered browser; the tray's Open Soty is still there.
     }
   }
 

@@ -94,6 +94,7 @@ class FixtureDelegate {
   func shouldReplaceWithExpectedBuild(_ health:AgentHealth)->Bool { false }
   func beginBusyMonitoring() {}
   func flushFinderActions() {}
+  func openSiteOnFirstLaunch() {}
   func scheduleFinderIntegrationOffer() {}
   func waitForPreviousAgent(_ health:AgentHealth) {}
   func portIsOccupied()->Bool { false }

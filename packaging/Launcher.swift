@@ -271,6 +271,55 @@ private func recordInterruptedNativeStartup(_ child: Process?, _ ready: Bool, _ 
 }
 // End native startup evidence.
 
+// First launch: the one start on which Soty opens its website by itself (070, owner
+// 2026-11-24). A newcomer's first start goes straight to the menu bar, while everything
+// Soty does is controlled on the site, so they never found their way back to the tab they
+// downloaded it from. Every later start stays quiet.
+private let firstLaunchMarkerName = "first-launch-site-opened"
+/// Files the Agent writes on its first start. Any of them means Soty has already run for
+/// this user here — an install from before the marker existed, or an update of one.
+private let existingAgentStateNames = ["state.json", "session-token.json"]
+
+/// Whether this start is the first for this user on this Mac, decided once and recorded.
+///
+/// The marker is created exclusively, so two launches racing each other cannot both open
+/// the site, and it is written even when the answer is no, so the question is never asked
+/// again. A support directory that cannot be written answers no: a site opened on every
+/// start would be worse than one never opened.
+func claimFirstLaunch(directory: URL, suppressed: Bool) -> Bool {
+  guard !suppressed else { return false }
+  let manager = FileManager.default
+  let marker = directory.appendingPathComponent(firstLaunchMarkerName)
+  if manager.fileExists(atPath: marker.path) { return false }
+  let ranBefore = existingAgentStateNames.contains {
+    manager.fileExists(atPath: directory.appendingPathComponent($0).path)
+  }
+  do {
+    try manager.createDirectory(
+      at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+  } catch {
+    return false
+  }
+  let descriptor = marker.path.withCString {
+    Darwin.open($0, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, S_IRUSR | S_IWUSR)
+  }
+  guard descriptor >= 0 else { return false }
+  Darwin.close(descriptor)
+  return !ranBefore
+}
+
+/// Where the first start lands: the spaces route, which opens the space this browser last
+/// used, the list of spaces, or sign-in first — the place the download tab moves on to.
+func firstLaunchSiteURL(origin: String) -> URL? {
+  guard
+    let base = URL(string: origin),
+    let scheme = base.scheme, ["https", "http"].contains(scheme),
+    base.host != nil
+  else { return nil }
+  return base.appendingPathComponent("team")
+}
+// End first launch.
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationWillTerminate(_ notification: Notification) {
     recordInterruptedNativeStartup(process, agentReady, nativeStartupAttempt)
@@ -299,6 +348,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var pendingFinderActions: [FinderActionPayload] = []
   private var nativeStartupAttempt = UUID()
   private var agentReady = false
+  /// Set once, on the first start for this user (see `claimFirstLaunch`).
+  private var openSiteWhenReady = false
   private var pendingFinderJobIDs = Set<String>()
   private var finderPollScheduled = false
   private var finderPollInFlight = false
@@ -331,6 +382,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     installMenuBarItem()
     beginInstalledBuildMonitoring()
     if acquireInstanceLock() {
+      // Asked before the Agent starts: its first start writes the very state that says
+      // Soty has run here before.
+      openSiteWhenReady = decideFirstLaunch()
       initializeNativeUpdates()
       startAgentWhenPortIsFree()
     } else if ProcessInfo.processInfo.environment["AGENT_UPDATE_HANDOFF"] == "1" {
@@ -1056,6 +1110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.agentReady = true
         self.beginBusyMonitoring()
         self.flushFinderActions()
+        self.openSiteOnFirstLaunch()
         self.scheduleFinderIntegrationOffer()
       } else if let health, !self.matchesExpectedBuild(health) {
         self.readinessTimer?.invalidate()
@@ -1409,6 +1464,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   @objc private func manageFinderIntegration() {
     FIFinderSyncController.showExtensionManagementInterface()
+  }
+
+  /// Never for a fixture profile, a verification run (`NO_OPEN`), or the relaunch that
+  /// finishes an update: none of those is a person starting Soty for the first time.
+  private func decideFirstLaunch() -> Bool {
+    guard
+      let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        .first
+    else { return false }
+    let environment = ProcessInfo.processInfo.environment
+    return claimFirstLaunch(
+      directory: root.appendingPathComponent(effectiveSupportDirectoryName, isDirectory: true),
+      suppressed: effectiveSupportDirectoryName != supportDirectoryName
+        || environment["NO_OPEN"] == "1"
+        || environment["AGENT_UPDATE_HANDOFF"] == "1"
+    )
+  }
+
+  /// Once the Agent answers, so the site that opens finds it at once instead of saying
+  /// Soty is not installed for the second it takes to start.
+  private func openSiteOnFirstLaunch() {
+    guard openSiteWhenReady else { return }
+    openSiteWhenReady = false
+    guard let site = firstLaunchSiteURL(origin: "__PUBLIC_SITE_ORIGIN__") else { return }
+    NSWorkspace.shared.open(site)
   }
 
   private func scheduleFinderIntegrationOffer() {

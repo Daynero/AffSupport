@@ -111,7 +111,7 @@ describe('Soty product launcher', () => {
     expect(redirects).toContain('/* /index.html 200');
   });
 
-  it('starts the Agent quietly and leaves opening Soty to the user', async () => {
+  it('starts the Agent quietly; only the first launch opens the site (070)', async () => {
     const [launcher, entrypoint, serverFactory] = await Promise.all([
       readFile('packaging/Launcher.swift', 'utf8'),
       readFile('apps/agent/src/index.ts', 'utf8'),
@@ -125,6 +125,7 @@ describe('Soty product launcher', () => {
       launcher.indexOf('private func waitForPreviousAgent')
     );
     expect(existingInstance).not.toContain('openInterface()');
+    expect(existingInstance).not.toContain('openSiteOnFirstLaunch');
     expect(agent).not.toContain("import open from 'open'");
     expect(agent).not.toContain('Could not open Soty in the browser');
   });
