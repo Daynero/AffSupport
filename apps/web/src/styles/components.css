@@ -1233,6 +1233,16 @@
     order: -1;
     width: 100%;
   }
+  /* The close stands at the top right, where a dialog keeps it, above the full-width tabs
+     (070 T069): after them it fell onto a line of its own under «Налаштування». The tabs
+     keep their whole labels and scroll if a language makes them longer. */
+  .launch-detail-close {
+    order: -2;
+  }
+  .launch-detail-toolbar .launch-detail-copy,
+  .launch-detail-toolbar .launch-detail-delete {
+    order: -3;
+  }
 }
 
 /* --- Button variants, resolved through the colour role -------------------- */
