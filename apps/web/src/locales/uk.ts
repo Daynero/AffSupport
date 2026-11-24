@@ -3377,6 +3377,8 @@ export const uk: Record<keyof typeof en, string> = {
   searchScopeLabel: 'Де шукати',
   searchScopeFolder: 'У цій папці',
   searchScopeFolderHint: 'Разом із підпапками',
+  searchAlsoTried: 'Також шукали «{query}» — на іншій розкладці.',
+  searchIndexNotReady: 'Пошук простору ще не готовий: Soty не дочитав файли з Google Drive.',
   searchScopeSpace: 'У всьому просторі',
   searchEverywhere: 'Шукати в усьому просторі',
   searchResetFilters: 'Скинути фільтри',

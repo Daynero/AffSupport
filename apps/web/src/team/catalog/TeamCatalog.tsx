@@ -21,7 +21,11 @@ import type {
   TeamMaterialTagColor,
   TeamProcessStartResult
 } from '@video-compressor/shared';
-import { normalizeSearchText, TEAM_MATERIAL_ROW_KINDS } from '@video-compressor/shared';
+import {
+  convertKeyboardLayout,
+  normalizeSearchText,
+  TEAM_MATERIAL_ROW_KINDS
+} from '@video-compressor/shared';
 import { useOptionalAgent } from '../../AgentContext';
 import type { TeamProcessStartInput } from '../../api/team';
 import { teamApi } from '../../api/team';
@@ -416,11 +420,26 @@ export function TeamCatalog({
       </Button>
     ) : null
   ].filter(Boolean);
+  /* Two things an empty answer must not hide (owner, beta 25.11: "ек" for "tr" came back as
+     plain nothing). The words were also tried on the other keyboard layout — say which, so the
+     reader does not retype them. And a space whose index is not built yet has not looked at its
+     files at all: "nothing found" there is not true, the search is simply not ready. */
+  const alsoTried = typedQuery !== '' ? convertKeyboardLayout(typedQuery) : null;
+  const freshness = catalog.result?.catalogFreshness.state;
+  const notReady = freshness !== undefined && freshness !== 'ready';
+  const emptyDescription =
+    [
+      alsoTried ? t('searchAlsoTried', { query: alsoTried }) : null,
+      notReady ? t('searchIndexNotReady') : null
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined;
   const empty = (
     <EmptyState
       title={
         typedQuery !== '' ? t('searchNothingFor', { query: typedQuery }) : t('teamCatalogEmpty')
       }
+      description={emptyDescription}
       action={
         emptyActions.length > 0 ? (
           <div className="team-catalog-empty-actions">{emptyActions}</div>
