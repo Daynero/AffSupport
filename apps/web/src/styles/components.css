@@ -1857,6 +1857,9 @@
   place-items: center;
   width: var(--control-height-sm);
   height: var(--control-height-sm);
+  /* Not the old sheet's 44px floor for every button (070 T069): it stood the
+     steppers taller than the field they sit in. */
+  min-height: var(--control-height-sm);
   border: 1px solid var(--color-neutral-border);
   border-radius: var(--radius-sm);
   background: none;
@@ -1917,6 +1920,9 @@
 }
 .ui-select-value {
   flex: 1;
+  /* The trigger's step, not the library's smaller one (070 T069): a select read
+     a size below the input beside it in the same form. */
+  font-size: inherit;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3259,6 +3265,10 @@
 .ui-pagination-step {
   min-height: var(--control-height-sm);
   padding: 0 var(--space-3);
+  /* A step is a small button, not a run of the page's text (070 T069): it
+     inherited the body step and grew with the page's type. */
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
   border: 1px solid var(--color-neutral-border);
   border-radius: var(--radius-md);
   background: none;
@@ -3288,6 +3298,20 @@
   align-items: center;
   gap: 0 var(--space-3);
   min-width: 0;
+}
+/* A template that sizes a track by its content (070, T069): the header and the
+   rows lay out on the table's one grid, so every cell stays under its caption.
+   `:where` keeps the row rule at one class, so a screen's own row layout wins. */
+.ui-table.is-shared-columns {
+  grid-template-columns: var(--ui-table-columns, 1fr);
+  column-gap: var(--space-3);
+}
+.ui-table.is-shared-columns > * {
+  grid-column: 1 / -1;
+}
+.ui-table-header:where(.ui-table.is-shared-columns > *),
+.ui-table-row:where(.ui-table.is-shared-columns > *) {
+  grid-template-columns: subgrid;
 }
 .ui-table--xs .ui-table-row {
   min-height: var(--control-height-sm);
@@ -3982,6 +4006,13 @@
 .ui-input-number-group {
   display: inline-flex;
   align-items: center;
+  /* The library fixes the group a few px short of the field inside it, which
+     then overhung its border; the group is the control (070 T069), 38px like
+     the input beside it, and the field fills it less the border. */
+  box-sizing: border-box;
+  height: auto;
+  min-height: var(--control-height-md);
+  padding: 0;
   gap: var(--space-px);
   border: 1px solid var(--color-neutral-border-strong);
   border-radius: var(--radius-sm);
@@ -3990,7 +4021,8 @@
 .ui-input-number-group input {
   width: 96px;
   min-width: 0;
-  min-height: var(--control-height-md);
+  min-height: calc(var(--control-height-md) - var(--space-px) * 2);
+  font-size: var(--text-label);
   padding: 0 var(--space-2);
   border: 0;
   background: none;
@@ -3998,8 +4030,11 @@
   text-align: center;
   outline: none;
 }
-.ui-input-number--sm .ui-input-number-group input {
+.ui-input-number--sm .ui-input-number-group {
   min-height: var(--control-height-sm);
+}
+.ui-input-number--sm .ui-input-number-group input {
+  min-height: calc(var(--control-height-sm) - var(--space-px) * 2);
   font-size: var(--text-caption);
 }
 .ui-input-number-group:has(input:focus-visible) {

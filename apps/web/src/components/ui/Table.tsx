@@ -19,6 +19,22 @@ import { uiClasses, type UiSize } from './types';
  * how tight this product goes.
  */
 
+/**
+ * Whether a column template sizes any track by its content (070, T069).
+ *
+ * The header and every row are separate grids that share the template. A track
+ * sized only by the container — `minmax(0, 1fr)`, `12rem` — comes out the same
+ * width in each of them; an `auto` or a bare `1fr` (whose floor is its content)
+ * does not, and the cells stop sitting under their captions. Such a table lays
+ * its rows on one grid (`subgrid`) instead. A template without one keeps the
+ * separate grids, so a screen that restyles its rows on a phone is untouched.
+ */
+function sizesByContent(columns: string | undefined): boolean {
+  if (!columns) return false;
+  const outsideMinmax = columns.replace(/minmax\([^()]*(\([^()]*\)[^()]*)*\)/g, '');
+  return /\bauto\b|content|\dfr\b/.test(outsideMinmax);
+}
+
 export interface TableProps extends HTMLAttributes<HTMLDivElement> {
   size?: Extract<UiSize, 'xs' | 'sm' | 'md'>;
   /** A header that stays while the body scrolls. */
@@ -37,12 +53,17 @@ export function Table({
   children,
   ...props
 }: TableProps) {
+  const sharedColumns = sizesByContent(columns);
   return (
     <div
       {...props}
       role="table"
       aria-label={label}
-      className={uiClasses('table', { size, states: { sticky: stickyHeader }, className })}
+      className={uiClasses('table', {
+        size,
+        states: { sticky: stickyHeader, 'shared-columns': sharedColumns },
+        className
+      })}
       style={columns ? ({ '--ui-table-columns': columns } as never) : undefined}
     >
       {children}
