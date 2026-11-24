@@ -11897,11 +11897,26 @@ button.team-landing-tile:hover {
 }
 
 /* A folder row: the name takes the width, the chevron says it opens (070, phase 8). */
-.team-folder-picker-row {
+.team-folder-picker-row.ui-button {
+  display: flex;
   justify-content: flex-start;
+  font-size: var(--text-label);
   font-weight: var(--weight-body);
 }
-.team-folder-picker-row .ui-button-trailing {
+.team-folder-picker-row.ui-button .ui-button-label {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+}
+/* A dialog lets every child shrink (min-width: 0); the icons keep their 20px. */
+.team-folder-picker-row.ui-button .ui-button-leading,
+.team-folder-picker-row.ui-button .ui-button-trailing {
+  flex: none;
+}
+.team-folder-picker-row.ui-button svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+.team-folder-picker-row.ui-button .ui-button-trailing {
   margin-inline-start: auto;
   color: var(--color-text-muted);
 }

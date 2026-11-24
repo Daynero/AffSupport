@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import type { TeamFolderNode } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
@@ -14,6 +15,27 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 
 export interface FolderPickerClient {
   listMaterials: (teamId: string, parentFolderId: string | null) => Promise<TeamMaterialSummary[]>;
+  /**
+   * The space's folder tree, the one the explorer draws (070, phase 8). Preferred when present:
+   * the materials list answers nothing for folders in a space indexed by folder pages, and the
+   * picker said «Тут немає тек» at a root with three of them.
+   */
+  listFolderTree?: (teamId: string) => Promise<TeamFolderNode[]>;
+}
+
+type PickerFolder = { id: string; providerId?: string | null; name: string };
+
+/** The children of a folder in the tree; at the root, every node whose parent is not in it. */
+function childrenOf(nodes: readonly TeamFolderNode[], parent: string | null): PickerFolder[] {
+  const known = new Set(nodes.map(node => node.driveFileId));
+  return nodes
+    .filter(node =>
+      parent
+        ? node.parentFolderId === parent
+        : !node.parentFolderId || !known.has(node.parentFolderId)
+    )
+    .map(node => ({ id: node.id, providerId: node.driveFileId, name: node.name }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 /**
@@ -53,7 +75,7 @@ export function FolderPicker({
   const [trail, setTrail] = useState<{ materialId: string; providerId: string; name: string }[]>(
     []
   );
-  const [folders, setFolders] = useState<TeamMaterialSummary[] | null>(null);
+  const [folders, setFolders] = useState<PickerFolder[] | null>(null);
   const [failed, setFailed] = useState(false);
   const currentFolder = trail.at(-1) ?? null;
 
@@ -61,11 +83,15 @@ export function FolderPicker({
     let active = true;
     setFolders(null);
     setFailed(false);
-    void client
-      .listMaterials(teamId, currentFolder?.providerId ?? null)
+    const parent = currentFolder?.providerId ?? null;
+    const read: Promise<PickerFolder[]> = client.listFolderTree
+      ? client.listFolderTree(teamId).then(nodes => childrenOf(nodes, parent))
+      : client
+          .listMaterials(teamId, parent)
+          .then(items => items.filter(item => item.kind === 'folder' && item.teamId === teamId));
+    void read
       .then(items => {
-        if (!active) return;
-        setFolders(items.filter(item => item.kind === 'folder' && item.teamId === teamId));
+        if (active) setFolders(items);
       })
       .catch(() => {
         if (active) setFailed(true);
