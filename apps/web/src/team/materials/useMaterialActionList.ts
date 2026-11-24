@@ -108,3 +108,18 @@ export function useMaterialActionList(
     [context, handlers, material, maxInline]
   );
 }
+
+/**
+ * The same list without one action — the card a list opens does not offer to open itself
+ * (070, T025).
+ */
+export function withoutAction(list: MaterialActionList, id: MaterialActionId): MaterialActionList {
+  const groups = list.groups
+    .map(group => ({ ...group, actions: group.actions.filter(entry => entry.action.id !== id) }))
+    .filter(group => group.actions.length > 0);
+  return {
+    inline: list.inline.filter(entry => entry.action.id !== id),
+    groups,
+    count: groups.reduce((sum, group) => sum + group.actions.length, 0)
+  };
+}

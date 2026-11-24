@@ -13,7 +13,7 @@ import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
 import { catalogActionWords, MaterialInlineActions } from '../materials/MaterialInlineActions';
-import { useMaterialActionList } from '../materials/useMaterialActionList';
+import { useMaterialActionList, withoutAction } from '../materials/useMaterialActionList';
 import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
 import { useMaterialCompanions } from '../materials/useMaterialCompanions';
 import { teamApi } from '../../api/team';
@@ -24,8 +24,9 @@ import { cachedPreview } from '../preview-url-cache';
 import { usePrivateCacheEpoch } from '../private-cache-scope';
 import { getThumbnailSession, type ThumbnailSessionClient } from '../explorer/useThumbnailSession';
 import { MaterialPreview } from '../preview/MaterialPreview';
+import { MaterialDetailDialog } from '../materials/MaterialDetailDialog';
 import { KindIcon } from '../explorer/KindIcon';
-import type { TeamMaterialRowKind } from '@video-compressor/shared';
+import { materialKindOf, type TeamMaterialRowKind } from '@video-compressor/shared';
 
 /** Kinds that have a picture to wait for; the rest are drawn as their glyph. */
 const HAS_PICTURE = new Set(['video', 'image', 'landing']);
@@ -164,6 +165,8 @@ export function TaskAttachmentTile({
    */
   const [rangeWanted, setRangeWanted] = useState<false | 'relay' | 'direct'>(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  /* The file's details card (070, T025): the explorer's, over the task, without leaving it. */
+  const [detailOpen, setDetailOpen] = useState(false);
   /**
    * Opened in the shared viewer rather than as a picture in this dialog: a
    * landing and an archive go through the paired app, a transcript is read
@@ -265,6 +268,7 @@ export function TaskAttachmentTile({
       // generic sentence about an attachment that could not be loaded (024,
       // FR-070).
       open: isFolder ? onReveal : () => setPreviewOpen(true),
+      detail: isDraft ? undefined : () => setDetailOpen(true),
       showInFolder: onReveal,
       note: host.handlers.note,
       copyLink: () => void copyLink(),
@@ -596,6 +600,31 @@ export function TaskAttachmentTile({
         )}
       </div>
       {host.dialogs}
+      {detailOpen && (
+        <MaterialDetailDialog
+          nested
+          material={{
+            id: attachment.materialId,
+            teamId,
+            name: attachment.name,
+            kind: materialKindOf({
+              storedKind: attachment.kind ?? 'file',
+              mimeType: null,
+              category: attachment.category
+            }),
+            category: attachment.category
+          }}
+          picture={thumbnailUrl}
+          onClose={() => setDetailOpen(false)}
+          actions={() => (
+            <MaterialInlineActions
+              list={withoutAction(actions, 'detail')}
+              name={attachment.name}
+              worded={{ productCatalog: catalogActionWords(companions?.productCatalog?.count, t) }}
+            />
+          )}
+        />
+      )}
       {previewOpen && opensInViewer && (
         <MaterialPreview
           teamId={teamId}

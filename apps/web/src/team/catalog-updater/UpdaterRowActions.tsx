@@ -11,7 +11,9 @@ import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
 import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
 import { useMaterialActionHost } from '../materials/MaterialActionHost';
-import { useMaterialActionList } from '../materials/useMaterialActionList';
+import { useMaterialActionList, withoutAction } from '../materials/useMaterialActionList';
+import { MaterialDetailDialog } from '../materials/MaterialDetailDialog';
+import { MaterialInlineActions } from '../materials/MaterialInlineActions';
 
 /**
  * A catalog in the updater's list is a file like any other (024).
@@ -62,6 +64,8 @@ export function UpdaterRowActions({
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  /* The sheet's details card (070, T025), the one the explorer's pane shows, over the updater. */
+  const [detailOpen, setDetailOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const { teams, activeTeam } = useTeam();
   const space = spaceOf(teams, activeTeam, teamId);
@@ -104,6 +108,7 @@ export function UpdaterRowActions({
       ...host.handlers,
       ...(onRename ? { rename: onRename } : {}),
       open: () => window.open(row.sheetUrl, '_blank', 'noopener,noreferrer'),
+      detail: () => setDetailOpen(true),
       showInFolder: onReveal ? () => onReveal(row) : undefined
       // One inline — open the sheet — and the rest named in "…" (024, T131):
       // four unlabelled icons on every row of a list of catalogs was a toolbar
@@ -151,6 +156,25 @@ export function UpdaterRowActions({
         ]}
       />
       {host.dialogs}
+      {detailOpen && (
+        <MaterialDetailDialog
+          nested
+          material={{
+            id: row.catalogId,
+            teamId,
+            name: row.name,
+            // A catalog is a Google Sheet: a document, as the folder list calls it.
+            kind: 'document',
+            category: 'other',
+            modifiedAt: row.lastUpdatedAt
+          }}
+          folderName={row.folderName}
+          onClose={() => setDetailOpen(false)}
+          actions={() => (
+            <MaterialInlineActions list={withoutAction(list, 'detail')} name={row.name} />
+          )}
+        />
+      )}
     </div>
   );
 }

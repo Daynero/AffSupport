@@ -281,10 +281,9 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     labelKey: 'materialActionDetails',
     icon: SquarePen,
     inlinePriority: null,
-    // Not in the updater: `showInFolder` already answers "where does this
-    // live", and a dialog that owns the address needs one way out, not two.
-    applies: (_material, context) =>
-      context.host !== 'explorer-detail' && context.host !== 'updater-row',
+    // Everywhere but the card itself (070, T025): the updater's row and a task's
+    // attachment open the same card the explorer's pane is, over themselves.
+    applies: (_material, context) => context.host !== 'explorer-detail',
     available: () => OK
   },
   {

@@ -226,6 +226,28 @@ describe('Creative Library task workflows', () => {
     expect(taskVideoPreviewTimeSeconds(0.6)).toBe(0.6);
   });
 
+  it('opens the file’s details card over the task, the explorer’s own (070, T025)', async () => {
+    const video: TeamTaskAttachmentSummary = {
+      id: '31000000-0000-4000-8000-000000000016',
+      taskId: TASK_ID,
+      materialId: ASSET_ID,
+      name: 'launch.mp4',
+      category: 'video',
+      availability: 'ready',
+      previewState: 'ready',
+      position: 0,
+      driveVersion: '17'
+    };
+    render(<TaskAttachmentTile teamId={TEAM_ID} attachment={video} client={client()} />);
+    const items = await openTileMenu();
+    const details = items.find(item => item.textContent?.includes('Details'));
+    expect(details).toBeTruthy();
+    await userEvent.setup().click(details!);
+    const card = await screen.findByRole('dialog', { name: 'Details' });
+    expect(card.querySelector('.team-material-detail-name')?.textContent).toContain('launch.mp4');
+    expect(card.textContent).toContain('Video');
+  });
+
   it('offers a re-stitched download of a saved video, and of nothing else', async () => {
     const video: TeamTaskAttachmentSummary = {
       id: '31000000-0000-4000-8000-000000000015',
