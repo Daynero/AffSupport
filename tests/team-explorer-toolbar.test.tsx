@@ -175,11 +175,12 @@ describe('the way back and what is true about the folder (T015)', () => {
     expect(link.className).toContain('ui-link--standalone');
   });
 
-  it('says «view only» as an inventory alert over the list, with no way to change anything', async () => {
+  it('takes the writes away when read-only and leaves the why to the header’s chip (070, US5)', async () => {
     renderExplorer({ readOnly: true });
-    const note = (await screen.findByText('View only')).closest('.ui-alert')!;
-    expect(note).toBeTruthy();
-    expect(note.closest('.team-explorer-list-header')).toBeTruthy();
+    expect(await screen.findByRole('searchbox', { name: 'Search files' })).toBeTruthy();
+    // One place says it: the storage chip in the space header, on every section.
+    expect(screen.queryByText('View only')).toBeNull();
+    expect(document.querySelector('.team-explorer-list-header .ui-alert')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Upload' })).toBeNull();
   });
 

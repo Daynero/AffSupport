@@ -615,7 +615,6 @@ function ExplorerBody({
       >
         <ExplorerNotices
           headerRef={explorerListHeaderRef}
-          readOnly={readOnly}
           retrying={Boolean(retryGroupId)}
           canUpload={Boolean(permissions?.upload)}
           chooseOpen={addMenuOpen}

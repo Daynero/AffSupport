@@ -1,6 +1,6 @@
 import type { ReactNode, Ref } from 'react';
 import type { TeamMaterialRowKind } from '@video-compressor/shared';
-import { Eye, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { Alert, Button } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
@@ -9,18 +9,20 @@ import { SortMenu } from './SortMenu';
 import type { ExplorerSort } from './sort';
 
 /**
- * What is true about the open folder right now, over the list (070, FR-009, T015): «Лише
- * перегляд» while storage needs a person, and the notice that an interrupted upload wants
- * the same files again. «Лише перегляд» was a paragraph in an empty header row, and the retry
- * notice a bare `role="status"` with a Close beside it; both are the inventory's `Alert` now,
- * and the retry's action is the door it asks for — the same choice of files or a folder.
+ * What is true about the open folder right now, over the list (070, FR-009, T015): the notice
+ * that an interrupted upload wants the same files again — the inventory's `Alert`, whose action
+ * is the door it asks for, the same choice of files or a folder.
+ *
+ * «Лише перегляд» used to stand here too, while storage needs a person. The header's storage
+ * chip says the same thing on every section, with the fix behind it, so two amber blocks on one
+ * screen said one fact twice (070, US5): the chip is the one place now, and its words carry the
+ * effect («Лише перегляд») as well as the cause.
  *
  * The block is measured (`--explorer-list-header-height`) so the list's sticky header sits
  * under it; with nothing to say it is empty and takes no room.
  */
 export function ExplorerNotices({
   headerRef,
-  readOnly,
   retrying,
   canUpload,
   chooseOpen,
@@ -29,7 +31,6 @@ export function ExplorerNotices({
   children
 }: {
   headerRef: Ref<HTMLDivElement>;
-  readOnly: boolean;
   /** An upload group is waiting for its files to be chosen again. */
   retrying: boolean;
   canUpload: boolean;
@@ -43,15 +44,6 @@ export function ExplorerNotices({
   const { t } = useI18n();
   return (
     <div ref={headerRef} className="team-explorer-list-header">
-      {readOnly && (
-        <Alert
-          color="warning"
-          icon={<Eye size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
-          title={t('teamExplorerReadOnlyTitle')}
-        >
-          {t('teamStorageReadOnly')}
-        </Alert>
-      )}
       {retrying && (
         <Alert
           color="info"

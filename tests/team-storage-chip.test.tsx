@@ -48,7 +48,7 @@ describe('StorageChip', () => {
       { isOwner: true, canManage: true, client: { restoreRoot } }
     );
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'The connected folder was deleted' }));
+    await user.click(screen.getByRole('button', { name: 'View only · the connected folder was deleted' }));
     await user.click(await screen.findByRole('button', { name: 'Restore from trash' }));
     expect(restoreRoot).toHaveBeenCalledWith('team-1');
   });
@@ -104,7 +104,7 @@ describe('StorageChip', () => {
       { kind: 'attention', reason: 'needs_reauth', fixer: 'owner' },
       { client: { startDriveOAuth } }
     );
-    await user.click(screen.getByRole('button', { name: 'Storage needs the owner to reconnect' }));
+    await user.click(screen.getByRole('button', { name: 'View only · storage needs reconnecting' }));
     expect(screen.getByText('Only the owner can fix this.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Reconnect' })).toBeNull();
     cleanup();
@@ -113,7 +113,7 @@ describe('StorageChip', () => {
       { kind: 'attention', reason: 'needs_reauth', fixer: 'owner' },
       { isOwner: true, canManage: true, client: { startDriveOAuth } }
     );
-    await user.click(screen.getByRole('button', { name: 'Storage needs the owner to reconnect' }));
+    await user.click(screen.getByRole('button', { name: 'View only · storage needs reconnecting' }));
     await user.click(screen.getByRole('button', { name: 'Reconnect' }));
     expect(startDriveOAuth).toHaveBeenCalledWith('team-1');
     const link = await screen.findByRole('link', { name: 'Continue with Google' });

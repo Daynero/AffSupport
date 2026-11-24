@@ -90,9 +90,13 @@ describe('content-first workspace shell', () => {
     renderEnteredSpace(client, team.id);
 
     expect(await screen.findByText('summer-lp.zip')).toBeTruthy();
+    // Said once, in the header, with the effect and the cause in one chip (070, US5).
     expect(
-      screen.getByText('Read-only until storage is reconnected — nothing here is lost.')
+      await screen.findByRole('button', { name: 'View only · storage needs reconnecting' })
     ).toBeTruthy();
+    expect(
+      screen.queryByText('Read-only until storage is reconnected — nothing here is lost.')
+    ).toBeNull();
     // The writes are the only thing that goes away.
     expect(screen.queryByRole('button', { name: 'Upload' })).toBeNull();
   });

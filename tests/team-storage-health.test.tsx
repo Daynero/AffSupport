@@ -61,7 +61,7 @@ describe('storage health under incomplete provider access', () => {
 
   it.each([
     ['permission_lost', 'Soty lost access to the folder'],
-    ['needs_reauth', 'Storage needs the owner to reconnect']
+    ['needs_reauth', 'View only · storage needs reconnecting']
   ] as const)('shows an actionable %s state without erasing known items', (reason, label) => {
     render(
       <ToastProvider>
