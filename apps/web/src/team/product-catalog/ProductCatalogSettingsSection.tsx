@@ -1097,14 +1097,16 @@ function TextBrowser({
         <ol className="product-catalog-texts">
           {found.slice(0, shown).map(text => (
             <li key={text.id}>
-              <button
-                type="button"
+              <Button
+                block
+                color="neutral"
+                variant="ghost"
                 className="product-catalog-text"
                 disabled={!editable}
                 onClick={() => onPick(text)}
               >
                 <strong>{text.title}</strong>
-              </button>
+              </Button>
               {!editable && <p className="field-hint">{text.description}</p>}
             </li>
           ))}

@@ -15174,16 +15174,10 @@ button.team-landing-tile:hover {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.team-material-note-more {
+.team-material-note-more.ui-button {
   justify-self: start;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-text-muted);
-  font: inherit;
   font-size: var(--text-caption);
-  text-decoration: underline;
-  cursor: pointer;
+  font-weight: var(--weight-body);
 }
 .team-material-note-add {
   justify-self: start;
@@ -19105,24 +19099,23 @@ a.history-subject {
   overflow-y: auto;
   list-style: none;
 }
-.product-catalog-text {
-  display: grid;
-  gap: 2px;
-  width: 100%;
+/* A text to pick, as the inventory's button (070, phase 8): a bordered row, name first. */
+.product-catalog-text.ui-button {
+  justify-content: flex-start;
+  height: auto;
+  min-height: var(--control-height-md);
   padding: var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: none;
-  color: var(--color-text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+  border-color: var(--color-border);
+  font-weight: var(--weight-body);
+  text-align: start;
+  white-space: normal;
 }
-.product-catalog-text:hover:not(:disabled) {
+.product-catalog-text.ui-button:hover:not(:disabled) {
   border-color: var(--color-border-strong);
 }
-.product-catalog-text:disabled {
+.product-catalog-text.ui-button:disabled {
   cursor: default;
+  opacity: 1;
 }
 .product-catalog-text span {
   display: -webkit-box;

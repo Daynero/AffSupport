@@ -23,6 +23,7 @@ import {
   Button,
   Checkbox,
   DropdownMenu,
+  FileTrigger,
   IconButton,
   Input,
   Modal,
@@ -97,8 +98,6 @@ export function CatalogImageImport({
     setStatusChecked(false);
     if (await state.refresh()) setStatusChecked(true);
   };
-  const inputId = useId();
-  const input = useRef<HTMLInputElement>(null);
   const promptTitleId = useId();
   const [pickingFolder, setPickingFolder] = useState(false);
   const [over, setOver] = useState(false);
@@ -674,28 +673,14 @@ export function CatalogImageImport({
                 >
                   <Upload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                   <p>{t('catalogImagesDrop')}</p>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={state.busy}
-                    onClick={() => input.current?.click()}
+                  <FileTrigger
+                    acceptedFileTypes={['.png', '.jpg', '.jpeg', '.webp']}
+                    onSelect={files => state.queueFiles(files)}
                   >
-                    {t('catalogImagesChooseFiles')}
-                  </Button>
-                  <input
-                    ref={input}
-                    id={inputId}
-                    hidden
-                    type="file"
-                    multiple
-                    accept=".png,.jpg,.jpeg,.webp"
-                    aria-label={t('catalogImagesChooseFiles')}
-                    disabled={state.busy}
-                    onChange={event => {
-                      state.queueFiles(Array.from(event.target.files ?? []));
-                      event.target.value = '';
-                    }}
-                  />
+                    <Button variant="secondary" disabled={state.busy}>
+                      {t('catalogImagesChooseFiles')}
+                    </Button>
+                  </FileTrigger>
                 </div>
                 <div className="settings-section-actions">
                   {folderClient && (

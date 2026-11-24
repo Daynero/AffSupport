@@ -68,6 +68,8 @@ vi.mock('../apps/web/src/components/ui/index', () => ({
     </label>
   ),
   FormField: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  // The host's picker for «upload into» (070, phase 8): not part of sharing, drawn as nothing.
+  FileTrigger: () => null,
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Button: ({
     loading: _loading,

@@ -8,8 +8,10 @@ import {
   ErrorState,
   FormField,
   Input,
+  FileTrigger,
   LoadingState,
-  Modal
+  Modal,
+  type FileTriggerHandle
 } from '../../components/ui/index';
 import { useMaterialLink } from './useMaterialLink';
 import { useI18n } from '../../i18n';
@@ -78,7 +80,7 @@ export function useMaterialActionHost({
   const { push } = useToasts();
   const [prompt, setPrompt] = useState<'rename' | 'move' | 'note' | null>(null);
   const [newName, setNewName] = useState(material.name);
-  const uploadInput = useRef<HTMLInputElement>(null);
+  const uploadInput = useRef<FileTriggerHandle>(null);
   const link = useMaterialLink({
     teamId,
     materialId: material.id,
@@ -187,23 +189,19 @@ export function useMaterialActionHost({
     },
     move: () => setPrompt('move'),
     note: () => setPrompt('note'),
-    uploadInto: () => uploadInput.current?.click(),
+    uploadInto: () => uploadInput.current?.open(),
     trash: () => void trashWithR2Warning(),
     restore: () => void actions.restore()
   };
 
   const dialogs = (
     <>
-      <input
+      {/* The inventory's picker, opened through its handle (070, phase 8). */}
+      <FileTrigger
         ref={uploadInput}
-        type="file"
-        hidden
-        // Named even though it is hidden: the browser's own picker announces
-        // it, and it is how "upload into this folder" is reached at all.
-        aria-label={t('teamFileUpload')}
-        onChange={event => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = '';
+        allowsMultiple={false}
+        onSelect={files => {
+          const file = files[0];
           if (file) void actions.upload(file, 'cancel');
         }}
       />

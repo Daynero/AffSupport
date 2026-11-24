@@ -129,13 +129,15 @@ function NoteText({ note }: { note: string }) {
         {folds && !whole ? `${note.slice(0, FOLDED_AT).trimEnd()}…` : note}
       </p>
       {folds && (
-        <button
-          type="button"
+        <Button
+          color="neutral"
+          variant="link"
+          size="xs"
           className="team-material-note-more"
           onClick={() => setWhole(current => !current)}
         >
           {t(whole ? 'materialNoteShowLess' : 'materialNoteShowAll')}
-        </button>
+        </Button>
       )}
     </>
   );
