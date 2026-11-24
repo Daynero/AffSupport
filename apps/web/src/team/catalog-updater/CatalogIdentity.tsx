@@ -27,8 +27,12 @@ export function CatalogIdentity({
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button
-        type="button"
+      {/* The name is the way to everything about the catalog: the inventory's button, worded
+          by the name (070, T056). */}
+      <Button
+        color="neutral"
+        variant="ghost"
+        size="sm"
         className="catalog-identity"
         ref={anchor}
         aria-label={name}
@@ -38,7 +42,7 @@ export function CatalogIdentity({
       >
         <span className="catalog-name-prefix">{parts[0]}</span>
         <span className="catalog-name-suffix">{parts[1]}</span>
-      </button>
+      </Button>
       <Popover
         anchor={anchor}
         open={open}

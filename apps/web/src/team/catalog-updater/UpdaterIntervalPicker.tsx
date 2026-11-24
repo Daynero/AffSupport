@@ -2,11 +2,23 @@ import { useId, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Clock3 } from 'lucide-react';
 import type { CatalogUpdateSchedule } from '@video-compressor/shared';
 import { TeamApiError, type CatalogUpdaterInterval } from '../../api/team';
-import { Button, Input, Popover } from '../../components/ui/index';
+import {
+  Button,
+  IconButton,
+  Input,
+  InputNumber,
+  Popover,
+  SegmentedControl
+} from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
-import { customIntervalFromHours, isUpdaterPreset, type UpdaterPreset } from './limits';
+import {
+  CUSTOM_INTERVAL_MAX_HOURS,
+  customIntervalFromHours,
+  isUpdaterPreset,
+  type UpdaterPreset
+} from './limits';
 import { catalogNextRunPreview } from './catalogSchedulePreview';
 
 const PRESETS: ReadonlyArray<[UpdaterPreset, TranslationKey]> = [
@@ -231,7 +243,7 @@ export function UpdaterIntervalPicker({
         placement="bottom-end"
         frequent
         label={label}
-        initialFocus="button[aria-pressed='true']"
+        initialFocus=".catalog-schedule-presets .is-selected"
         className="team-updater-interval-menu catalog-schedule-panel"
       >
         {open && (
@@ -241,54 +253,43 @@ export function UpdaterIntervalPicker({
               if (nextInterval && (!calendarSchedule || validTime)) void save(nextInterval);
             }}
           >
-            <div className="catalog-schedule-presets" role="group" aria-label={label}>
-              {PRESETS.map(([option, key]) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`catalog-schedule-preset ${preset === option ? 'is-selected' : ''}`.trim()}
-                  aria-pressed={preset === option}
-                  disabled={saving}
-                  onClick={() => {
-                    setPreset(option);
-                    setError(null);
-                  }}
-                >
-                  <span>{t(key)}</span>
-                </button>
-              ))}
-              <button
-                type="button"
-                className={`catalog-schedule-preset ${preset === 'custom' ? 'is-selected' : ''}`.trim()}
-                aria-pressed={preset === 'custom'}
-                disabled={saving}
-                onClick={() => {
-                  setPreset('custom');
-                  setError(null);
-                }}
-              >
-                <span>{t('catalogScheduleCustom')}</span>
-              </button>
-            </div>
+            {/* The four cadences as the inventory's segmented choice (070, T056; from 024
+                T131): one selected, the arrows move between them. */}
+            <SegmentedControl<UpdaterPreset | 'custom'>
+              size="sm"
+              className="catalog-schedule-presets"
+              label={label}
+              value={preset}
+              disabled={saving}
+              options={[
+                ...PRESETS.map(([option, key]) => ({ value: option, label: t(key) })),
+                { value: 'custom' as const, label: t('catalogScheduleCustom') }
+              ]}
+              onChange={next => {
+                setPreset(next);
+                setError(null);
+              }}
+            />
             <div
               className={`catalog-schedule-fields ${onSaveSchedule && preset === '1w' ? 'is-weekly' : ''}`.trim()}
             >
               {preset === 'custom' && (
                 <div className="team-updater-interval-custom">
                   <label htmlFor={hoursId}>{t('catalogUpdaterEvery')}</label>
-                  <Input
+                  {/* A number field that holds its own bounds: 0 or 721 cannot be typed
+                      into a schedule, they become the nearest one that can. */}
+                  <InputNumber
                     id={hoursId}
                     size="sm"
-                    width="narrow"
-                    type="text"
-                    inputMode="numeric"
-                    value={hours}
+                    className="catalog-schedule-hours"
+                    min={1}
+                    max={CUSTOM_INTERVAL_MAX_HOURS}
+                    step={1}
+                    value={hours === '' ? undefined : Number(hours)}
                     disabled={saving}
                     aria-label={t('catalogUpdaterIntervalHours')}
-                    aria-invalid={hours !== '' && custom === null}
-                    onChange={event =>
-                      setHours(event.target.value.replace(/[^\d]/gu, '').slice(0, 3))
-                    }
+                    invalid={hours !== '' && custom === null}
+                    onChange={next => setHours(Number.isFinite(next) ? String(next) : '')}
                   />
                   <span>{t('catalogUpdaterHoursUnit')}</span>
                   {hours !== '' && custom === null && (
@@ -299,31 +300,34 @@ export function UpdaterIntervalPicker({
               {onSaveSchedule && preset === '1w' && (
                 <div className="catalog-schedule-weekday-field">
                   <span>{t('catalogScheduleWeekday')}</span>
-                  <div
+                  <SegmentedControl<string>
+                    size="sm"
                     className="catalog-schedule-weekdays"
-                    role="group"
-                    aria-label={t('catalogScheduleWeekday')}
-                  >
-                    {Array.from({ length: 7 }, (_, index) => {
-                      const weekday = (index + 1) as CatalogUpdateSchedule['weekday'];
+                    label={t('catalogScheduleWeekday')}
+                    value={String(draftSchedule.weekday)}
+                    disabled={saving}
+                    options={Array.from({ length: 7 }, (_, index) => {
                       const day = new Date(2026, 5, 1 + index, 12);
-                      return (
-                        <button
-                          key={weekday}
-                          type="button"
-                          className={`catalog-schedule-weekday ${draftSchedule.weekday === weekday ? 'is-selected' : ''}`.trim()}
-                          aria-label={weekdayFormatters!.full.format(day)}
-                          aria-pressed={draftSchedule.weekday === weekday}
-                          disabled={saving}
-                          onClick={() => setDraftSchedule(current => ({ ...current, weekday }))}
-                        >
-                          {weekdayFormatters!.short
-                            .format(day)
-                            .replace(/^./u, letter => letter.toUpperCase())}
-                        </button>
-                      );
+                      return {
+                        value: String(index + 1),
+                        /* Drawn short, named in full: the segment's name is its title. */
+                        label: (
+                          <span>
+                            {weekdayFormatters!.short
+                              .format(day)
+                              .replace(/^./u, letter => letter.toUpperCase())}
+                          </span>
+                        ),
+                        title: weekdayFormatters!.full.format(day)
+                      };
                     })}
-                  </div>
+                    onChange={next =>
+                      setDraftSchedule(current => ({
+                        ...current,
+                        weekday: Number(next) as CatalogUpdateSchedule['weekday']
+                      }))
+                    }
+                  />
                 </div>
               )}
               {calendarSchedule && (
@@ -341,10 +345,11 @@ export function UpdaterIntervalPicker({
                     ref={timeInput}
                     type="time"
                     trailing={
-                      <button
-                        type="button"
+                      <IconButton
+                        size="xs"
+                        variant="ghost"
                         className="catalog-schedule-time-open"
-                        aria-label={t('catalogScheduleOpenTime')}
+                        label={t('catalogScheduleOpenTime')}
                         disabled={saving}
                         onClick={() => {
                           timeInput.current?.focus();
@@ -356,7 +361,7 @@ export function UpdaterIntervalPicker({
                           strokeWidth={ICON_STROKE}
                           aria-hidden="true"
                         />
-                      </button>
+                      </IconButton>
                     }
                     size="sm"
                     width="narrow"

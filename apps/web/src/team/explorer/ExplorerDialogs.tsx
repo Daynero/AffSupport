@@ -101,6 +101,17 @@ export function ExplorerDialogs({
           }}
           onClose={onCloseCatalog}
           onChanged={onChanged}
+          /* From a video's catalogs to every catalog of the space, and back (070, T057). */
+          onOpenManager={() => {
+            onCloseCatalog();
+            navigateTo(
+              buildTeamRoute({
+                spaceId: teamId,
+                section: 'explorer',
+                query: { ...query, updater: true }
+              })
+            );
+          }}
         />
       )}
       {processing && (

@@ -57,6 +57,8 @@ export function MaterialCatalogFacts({
       timeStyle: 'short'
     });
   const href = `${window.location.pathname}?updater=1`;
+  /* Inside the manager the way to the manager is the window already open (070, T057). */
+  const inManager = new URLSearchParams(window.location.search).get('updater') === '1';
 
   return (
     <div className="material-catalog-facts">
@@ -68,16 +70,18 @@ export function MaterialCatalogFacts({
           ? t('materialCatalogUpdated', { when: when(row.lastUpdatedAt) })
           : t('materialCatalogNeverUpdated')}
       </p>
-      <a
-        href={href}
-        onClick={event => {
-          if (event.metaKey || event.ctrlKey) return;
-          event.preventDefault();
-          navigateTo(href);
-        }}
-      >
-        {t('materialCatalogOpenUpdater')}
-      </a>
+      {!inManager && (
+        <a
+          href={href}
+          onClick={event => {
+            if (event.metaKey || event.ctrlKey) return;
+            event.preventDefault();
+            navigateTo(href);
+          }}
+        >
+          {t('materialCatalogOpenUpdater')}
+        </a>
+      )}
     </div>
   );
 }

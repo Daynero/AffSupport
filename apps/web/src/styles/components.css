@@ -4923,6 +4923,11 @@
   min-height: var(--control-height-xl);
   overflow: hidden;
 }
+/* Nothing to undo: the slot keeps its place (the list does not jump when an undo appears) but
+   draws no rule — an empty bar with a border read as a footer with nothing in it (070, T056). */
+.catalog-manager-dialog > .catalog-undo-notice:empty {
+  border-top-color: transparent;
+}
 .launch-defaults-actions {
   display: flex;
   flex-direction: column;

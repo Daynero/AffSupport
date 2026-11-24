@@ -493,7 +493,7 @@ it('saves a precise catalog schedule only after explicit confirmation', async ()
   await userEvent.click(
     await screen.findByRole('button', { name: 'How often polo.mp4 catalog updates: Off' })
   );
-  await userEvent.click(screen.getByRole('button', { name: 'Every day' }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Every day' }));
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() =>
@@ -571,20 +571,23 @@ it('shows the saved schedule forecast immediately while the registry refresh is 
   expect(trigger.querySelector('small')?.textContent).not.toBe('Next: unknown');
   expect(api.patchCatalogUpdateProfile).toHaveBeenCalledTimes(1);
 });
-it('validates custom hours before the explicit numeric application', async () => {
+it('keeps custom hours to what a schedule can take before the explicit application', async () => {
   const api = client([row('1', 'polo.mp4')], stopped);
   renderDialog(api);
   await userEvent.click(
     await screen.findByRole('button', { name: 'How often polo.mp4 catalog updates: Off' })
   );
-  await userEvent.click(screen.getByRole('button', { name: 'Custom' }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Custom' }));
   const hours = screen.getByLabelText('Hours between updates');
   await userEvent.clear(hours);
   await userEvent.type(hours, '999');
-  expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+  // The inventory's number field (070, T056) settles past the bound on the longest interval.
+  await userEvent.tab();
+  expect(hours).toHaveProperty('value', '720');
   expect(api.patchCatalogUpdateProfile).not.toHaveBeenCalled();
   await userEvent.clear(hours);
   await userEvent.type(hours, '36');
+  await userEvent.tab();
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   await waitFor(() =>
     expect(api.patchCatalogUpdateProfile).toHaveBeenCalledWith(

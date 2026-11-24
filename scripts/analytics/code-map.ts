@@ -976,6 +976,7 @@ function build(): Record<string, CodeLocation> {
   map['catalog:stop:*'] = {
     files: [
       'apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx',
+      'apps/web/src/team/catalog-updater/useCatalogStop.ts',
       'apps/web/src/api/team.ts',
       'supabase/migrations/20261207135000_catalog_cancel_observed_round.sql',
       'supabase/migrations/20261207137000_catalog_legacy_stop_hold.sql'
@@ -1094,6 +1095,7 @@ function build(): Record<string, CodeLocation> {
     files: [
       'apps/web/src/api/team.ts',
       'apps/web/src/team/catalog-updater/CatalogUpdaterDialog.tsx',
+      'apps/web/src/team/catalog-updater/useCatalogStop.ts',
       'supabase/migrations/20261207143000_catalog_actor_bound_mutations.sql'
     ],
     check:

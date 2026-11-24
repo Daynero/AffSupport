@@ -42,7 +42,7 @@ async function setDaily() {
   await userEvent.click(
     screen.getByRole('button', { name: /Frequency to save with the selected settings/ })
   );
-  await userEvent.click(await screen.findByRole('button', { name: 'Every day' }));
+  await userEvent.click(await screen.findByRole('radio', { name: 'Every day' }));
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 }
 describe('bulk editor partial results', () => {

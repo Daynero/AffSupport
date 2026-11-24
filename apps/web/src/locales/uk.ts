@@ -3172,8 +3172,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Кожен каталог оновлюється за своїм розкладом. Позначте кілька, щоб змінити їх разом.',
   catalogUpdaterTitle: 'Менеджер каталогів',
   catalogUpdaterFilters: 'Фільтри',
-  catalogUpdaterListSummary:
-    'Каталогів: {count} · За розкладом: {scheduled} · Потребують уваги: {attention}',
+  catalogUpdaterListFacts: 'Каталогів: {count} · За розкладом: {scheduled}',
   catalogUpdaterProfileActiveAttempt:
     'Оновлення вже виконується. Збережені налаштування застосуються до наступної спроби.',
   catalogUpdaterNoSuccessfulUpdate: 'Ще не вдавалось',
@@ -3345,6 +3344,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterFilterCustom: 'Інша частота',
   catalogUpdaterHiddenSelected: '{count} вибрано поза фільтром',
   catalogUpdaterHistory: 'Історія оновлень',
+  catalogUpdaterVideoCatalogs: 'Каталоги відео «{name}»',
   catalogUpdaterHistoryFailed: 'Не вдалося завантажити історію оновлень.',
   catalogUpdaterHistoryEmpty: 'Спроб оновлення ще не було.',
   catalogUpdaterManual: 'Вручну',

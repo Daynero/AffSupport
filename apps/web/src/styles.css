@@ -19920,6 +19920,28 @@ a.history-subject {
   text-align: left;
   min-height: var(--control-height-md);
 }
+/* The name is the inventory's button now (070, T056): its label keeps the stem's ellipsis. */
+.catalog-identity.ui-button {
+  justify-content: flex-start;
+  max-width: 100%;
+  min-width: 0;
+  font-weight: var(--weight-label);
+}
+.catalog-identity .ui-button-label {
+  display: flex;
+  gap: 0;
+  min-width: 0;
+}
+.catalog-outcome-details.ui-button {
+  font-size: inherit;
+  text-align: start;
+  white-space: normal;
+}
+.catalog-date-button.ui-button {
+  justify-content: flex-start;
+  padding-inline: var(--space-1);
+  font-weight: var(--weight-body);
+}
 .catalog-name-prefix {
   white-space: nowrap;
   overflow: hidden;
@@ -19928,7 +19950,46 @@ a.history-subject {
 }
 .catalog-name-suffix {
   white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* On a phone the whole name, over two lines if it needs them: cut to "TR 7_v2…", the variant
+   number — the one thing that tells the rows apart — was what went (070, T056). */
+@media (max-width: 640px) {
+  .catalog-identity.ui-button {
+    height: auto;
+    min-height: var(--control-height-sm);
+    white-space: normal;
+  }
+  .catalog-identity .ui-button-label {
+    display: block;
+    text-align: start;
+    overflow-wrap: break-word;
+  }
+  /* The creation date goes under the name instead of taking its width. */
+  .catalog-name-line {
+    flex-wrap: wrap;
+  }
+  .catalog-name-line .catalog-name-primary {
+    flex: 1 1 100%;
+  }
+  .catalog-name-line .catalog-created-at {
+    margin-inline-start: 0;
+  }
+  .catalog-identity .catalog-name-prefix,
+  .catalog-identity .catalog-name-suffix {
+    max-width: none;
+    white-space: normal;
+    overflow: visible;
+  }
+}
+/* The stem is what tells catalogs apart: on a narrow row it keeps its letters and the
+   "_vN_catalog" tail gives way first (it was the stem that vanished). */
+.catalog-name-prefix {
   flex: 0 0 auto;
+  max-width: 60%;
 }
 .catalog-identity:focus-visible {
   outline: 2px solid var(--color-accent);
@@ -20039,6 +20100,22 @@ a.history-subject {
   font-size: var(--text-sm);
   line-height: var(--leading-body);
   margin-top: var(--space-2);
+}
+/* Two facts and the "needs attention" filter on one line, wrapping as a line of words does. */
+.catalog-manager-dialog .team-updater-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+/* The title block shrinks; "…" and × stay on its row at every width (070, T056: on a phone the
+   × used to drop to a row of its own). */
+.catalog-manager-dialog > .team-updater-header {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.catalog-manager-dialog > .team-updater-header > div {
+  flex: 1 1 auto;
 }
 .team-updater-toolbar {
   padding: var(--space-3) var(--space-6) var(--space-4);

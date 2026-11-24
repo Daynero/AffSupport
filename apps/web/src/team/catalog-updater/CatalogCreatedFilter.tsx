@@ -2,6 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import { CalendarDays, X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import {
+  Button,
+  IconButton,
   Popover,
   RangeCalendar,
   fromCalendarDate,
@@ -62,27 +64,29 @@ export function CatalogCreatedFilter({
 
   return (
     <div ref={anchor} className={`task-date-filter-calendar ${active ? 'is-active' : ''}`.trim()}>
-      <button
+      <Button
         ref={trigger}
-        type="button"
+        size="sm"
+        variant="ghost"
         className="task-date-filter-trigger"
         aria-label={`${t('catalogCreatedFilter')}${selectedLabel ? `: ${selectedLabel}` : ''}`}
         title={t('catalogCreatedFilter')}
         aria-expanded={open}
+        leading={<CalendarDays size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
         onClick={() => setOpen(current => !current)}
       >
-        <CalendarDays size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        {selectedLabel && <span>{selectedLabel}</span>}
-      </button>
+        {selectedLabel || undefined}
+      </Button>
       {active && (
-        <button
-          type="button"
+        <IconButton
+          size="sm"
+          variant="ghost"
           className="task-date-filter-clear"
-          aria-label={t('catalogCreatedClear')}
+          label={t('catalogCreatedClear')}
           onClick={() => onChange({ from: '', to: '' })}
         >
           <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
+        </IconButton>
       )}
       <Popover
         initialFocus='[role="grid"] [tabindex="0"]'

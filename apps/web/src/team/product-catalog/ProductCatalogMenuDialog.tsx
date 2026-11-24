@@ -147,7 +147,8 @@ export function ProductCatalogMenuDialog({
   client = defaultClient,
   videoR2Client,
   onClose,
-  onChanged
+  onChanged,
+  onOpenManager
 }: {
   teamId: string;
   video: { id: string; name: string; parentFolderId?: string | null };
@@ -156,6 +157,11 @@ export function ProductCatalogMenuDialog({
   videoR2Client?: CatalogVideoR2Client;
   onClose: () => void;
   onChanged?: () => void;
+  /**
+   * The way to the catalog manager (070, T057): every catalog of the space, with its
+   * updates. From the manager itself it is the way back.
+   */
+  onOpenManager?: () => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -373,6 +379,17 @@ export function ProductCatalogMenuDialog({
       <div className="team-dialog-form product-catalog-dialog">
         <h2 id={titleId}>{t('productCatalogListTitle')}</h2>
         <p className="product-catalog-dialog-name">{video.name}</p>
+        {onOpenManager && (
+          <Button
+            className="product-catalog-open-manager"
+            color="neutral"
+            variant="link"
+            size="sm"
+            onClick={onOpenManager}
+          >
+            {t('materialCatalogOpenUpdater')}
+          </Button>
+        )}
         <ul className="product-catalog-list">
           {running && (
             <li className="product-catalog-row">

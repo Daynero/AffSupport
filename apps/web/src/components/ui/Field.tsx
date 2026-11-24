@@ -367,6 +367,10 @@ export interface SearchFieldProps {
   disabled?: boolean;
   autoFocus?: boolean;
   className?: string;
+  /** The input's id, for a dialog that puts its first focus there. */
+  id?: string;
+  /** The ×'s name in the reader's language (the library's own is English). */
+  clearLabel?: string;
   'aria-label'?: string;
   'aria-labelledby'?: string;
 }
@@ -384,6 +388,8 @@ export function SearchField({
   onChange,
   onSubmit,
   placeholder,
+  id,
+  clearLabel,
   ...props
 }: SearchFieldProps) {
   return (
@@ -401,8 +407,8 @@ export function SearchField({
         <HeroSearchField.SearchIcon>
           <Search size={16} strokeWidth={1.75} aria-hidden="true" />
         </HeroSearchField.SearchIcon>
-        <HeroSearchField.Input placeholder={placeholder} />
-        <HeroSearchField.ClearButton>
+        <HeroSearchField.Input id={id} placeholder={placeholder} />
+        <HeroSearchField.ClearButton aria-label={clearLabel}>
           <X size={14} strokeWidth={2} aria-hidden="true" />
         </HeroSearchField.ClearButton>
       </HeroSearchField.Group>

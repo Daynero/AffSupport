@@ -39,7 +39,7 @@ it('drafts a preset and commits only when Save is pressed', async () => {
   const onChange = vi.fn();
   render(<UpdaterIntervalPicker value="1h" label="Schedule" onChange={onChange} />);
   await userEvent.click(screen.getByRole('button', { name: 'Schedule: Hourly' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Daily' }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Daily' }));
   expect(onChange).not.toHaveBeenCalled();
   expect(screen.queryByLabelText('Time')).toBeNull();
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -53,27 +53,34 @@ it('moves keyboard focus into the selected schedule preset on opening', async ()
   trigger.focus();
   await userEvent.keyboard('{Enter}');
   await waitFor(() =>
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Daily' }))
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Daily' }))
   );
-  await userEvent.tab();
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Weekly' }));
+  // One stop for the group (070, T056: the inventory's SegmentedControl); the arrows walk it.
+  await userEvent.keyboard('{ArrowRight}');
+  expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Weekly' }));
   await userEvent.keyboard('{Escape}');
   expect(document.activeElement).toBe(trigger);
 });
 
-it('discards unsaved draft on close and validates custom hours before saving', async () => {
+it('discards unsaved draft on close and keeps custom hours to what a schedule can take', async () => {
   const onChange = vi.fn();
   render(<UpdaterIntervalPicker value="1h" label="Schedule" onChange={onChange} />);
   await userEvent.click(screen.getByRole('button', { name: 'Schedule: Hourly' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Weekly' }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Weekly' }));
   await userEvent.keyboard('{Escape}');
   expect(onChange).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Schedule: Hourly' }));
-  expect(screen.getByRole('button', { name: 'Hourly' }).getAttribute('aria-pressed')).toBe('true');
-  await userEvent.click(screen.getByRole('button', { name: 'Custom' }));
-  fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '0' } });
-  expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty('disabled', true);
-  fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '6' } });
+  expect(screen.getByRole('radio', { name: 'Hourly' }).getAttribute('aria-checked')).toBe('true');
+  await userEvent.click(screen.getByRole('radio', { name: 'Custom' }));
+  // The inventory's number field holds its bounds (070, T056): 0 becomes the nearest that can be.
+  const hours = screen.getByLabelText('Hours');
+  await userEvent.clear(hours);
+  await userEvent.type(hours, '0');
+  await userEvent.tab();
+  expect(hours).toHaveProperty('value', '1');
+  await userEvent.clear(hours);
+  await userEvent.type(hours, '6');
+  await userEvent.tab();
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(onChange).toHaveBeenCalledExactlyOnceWith('6h');
 });
@@ -96,7 +103,7 @@ it('awaits an atomic weekday and time save, retains errors, and permits retry', 
   );
   await userEvent.click(screen.getByRole('button', { name: 'Schedule: Weekly' }));
   expect(screen.getByText(/CURRENT NEXT/)).toBeTruthy();
-  await userEvent.click(screen.getByRole('button', { name: 'Friday' }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Friday' }));
   fireEvent.change(screen.getByLabelText('Time'), { target: { value: '14:35' } });
   expect(screen.queryByText(/CURRENT NEXT/)).toBeNull();
   expect(save).not.toHaveBeenCalled();
@@ -126,7 +133,7 @@ it('keeps saving open and locked, then disables with an explicit null schedule',
     <UpdaterIntervalPicker value="1d" label="Schedule" onChange={vi.fn()} onSaveSchedule={save} />
   );
   await userEvent.click(screen.getByRole('button', { name: 'Schedule: Daily' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Hourly' }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Hourly' }));
   expect(screen.queryByLabelText('Time')).toBeNull();
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(save).toHaveBeenCalledExactlyOnceWith('1h', null);
@@ -154,7 +161,7 @@ it('upgrades a legacy weekly schedule using its existing next run instead of res
     />
   );
   await userEvent.click(screen.getByRole('button', { name: 'Schedule: Weekly' }));
-  expect(screen.getByRole('button', { name: 'Sunday' }).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('radio', { name: 'Sunday' }).getAttribute('aria-checked')).toBe('true');
   expect(screen.getByLabelText('Time')).toHaveProperty('value', '18:02');
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(save).toHaveBeenCalledExactlyOnceWith('1w', {
@@ -195,7 +202,7 @@ it('preserves a local draft instead of overwriting a schedule changed by another
   await userEvent.keyboard('{Escape}');
   await userEvent.click(screen.getByRole('button', { name: 'Schedule: Weekly' }));
   expect(screen.getByLabelText('Time')).toHaveProperty('value', '18:00');
-  expect(screen.getByRole('button', { name: 'Sunday' }).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('radio', { name: 'Sunday' }).getAttribute('aria-checked')).toBe('true');
 });
 
 it('keeps the same feedback and footer slots through weekly/custom/hourly/daily mode cycles', async () => {
@@ -213,7 +220,7 @@ it('keeps the same feedback and footer slots through weekly/custom/hourly/daily 
   const feedback = document.querySelector('.catalog-schedule-feedback');
   const footer = document.querySelector('.catalog-schedule-footer');
   for (const name of ['Custom', 'Weekly', 'Hourly', 'Daily', 'Weekly']) {
-    await userEvent.click(screen.getByRole('button', { name }));
+    await userEvent.click(screen.getByRole('radio', { name }));
     expect(document.querySelector('.catalog-schedule-feedback')).toBe(feedback);
     expect(document.querySelector('.catalog-schedule-footer')).toBe(footer);
     expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(
@@ -240,14 +247,21 @@ it('previews the next run for hourly and custom intervals and retains a saved du
   const feedback = document.querySelector('.catalog-schedule-feedback')!;
   const existing = feedback.textContent;
   expect(existing).toContain('20');
-  fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '8' } });
+  const hours = screen.getByLabelText('Hours');
+  await userEvent.clear(hours);
+  await userEvent.type(hours, '8');
+  await userEvent.tab();
   expect(feedback.textContent).not.toBe(existing);
   expect(feedback.querySelector('strong')?.textContent).toBeTruthy();
-  await userEvent.click(screen.getByRole('button', { name: 'Hourly' }));
+  await userEvent.click(screen.getByRole('radio', { name: 'Hourly' }));
   expect(feedback.querySelector('strong')?.textContent).toBeTruthy();
-  await userEvent.click(screen.getByRole('button', { name: 'Custom' }));
-  fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '999' } });
-  expect(feedback.querySelector('strong')).toBeNull();
+  await userEvent.click(screen.getByRole('radio', { name: 'Custom' }));
+  // Past the longest interval the field settles on it, and the preview follows.
+  await userEvent.clear(screen.getByLabelText('Hours'));
+  await userEvent.type(screen.getByLabelText('Hours'), '999');
+  await userEvent.tab();
+  expect(screen.getByLabelText('Hours')).toHaveProperty('value', '720');
+  expect(feedback.querySelector('strong')?.textContent).toBeTruthy();
 });
 
 it('opens the native time picker from the arrow on the first click without prior input focus', async () => {

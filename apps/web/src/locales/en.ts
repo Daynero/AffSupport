@@ -3184,8 +3184,7 @@ export const en = {
     'Each catalog updates on its own schedule. Tick several to change them together.',
   catalogUpdaterTitle: 'Catalog Manager',
   catalogUpdaterFilters: 'Filters',
-  catalogUpdaterListSummary:
-    'Catalogs: {count} · Scheduled: {scheduled} · Need attention: {attention}',
+  catalogUpdaterListFacts: 'Catalogs: {count} · Scheduled: {scheduled}',
   catalogUpdaterProfileActiveAttempt:
     'An update is already running. Saved settings apply to the next attempt.',
   catalogUpdaterNoSuccessfulUpdate: 'No success yet',
@@ -3359,6 +3358,7 @@ export const en = {
   catalogUpdaterFilterCustom: 'Custom interval',
   catalogUpdaterHiddenSelected: '{count} selected outside this filter',
   catalogUpdaterHistory: 'Update history',
+  catalogUpdaterVideoCatalogs: 'Catalogs of “{name}”',
   catalogUpdaterHistoryFailed: 'Could not load update history.',
   catalogUpdaterHistoryEmpty: 'No update attempts yet.',
   catalogUpdaterManual: 'Manual',

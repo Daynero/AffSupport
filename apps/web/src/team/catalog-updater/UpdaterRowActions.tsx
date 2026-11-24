@@ -47,7 +47,8 @@ export function UpdaterRowActions({
   onPublication,
   onVideoVariations,
   onConfigure,
-  onRename
+  onRename,
+  onVideoCatalogs
 }: {
   row: CatalogRegistryRow;
   teamId: string;
@@ -61,6 +62,8 @@ export function UpdaterRowActions({
   onVideoVariations?: () => void;
   onConfigure?: () => void;
   onRename?: () => void;
+  /** The catalog's video and its other catalogs (070, T057): the way from the manager to them. */
+  onVideoCatalogs?: () => void;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -151,6 +154,15 @@ export function UpdaterRowActions({
             : []),
           ...(onHistory
             ? [{ id: 'update-history', label: t('catalogUpdaterHistory'), onSelect: onHistory }]
+            : []),
+          ...(onVideoCatalogs
+            ? [
+                {
+                  id: 'video-catalogs',
+                  label: t('catalogUpdaterVideoCatalogs', { name: row.videoName }),
+                  onSelect: onVideoCatalogs
+                }
+              ]
             : []),
           ...materialMenuEntries(list, t)
         ]}
