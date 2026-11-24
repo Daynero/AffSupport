@@ -762,8 +762,9 @@ export function DropdownMenu({
           : minWidth === undefined
             ? undefined
             : `min(${minWidth}px, calc(100vw - var(--space-4)))`,
-        width: matchWidth ? 'var(--trigger-width)' : undefined,
-        ['--trigger-width' as string]: matchWidth ? 'var(--trigger-width)' : undefined
+        /* React Aria writes `--trigger-width` on this element; restating it here as itself made
+           the property invalid and `matchWidth` a no-op (070). */
+        width: matchWidth ? 'var(--trigger-width)' : undefined
       }}
     >
       {/* Tab leaves a menu rather than walking into the page behind it. */}

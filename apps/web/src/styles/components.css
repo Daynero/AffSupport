@@ -148,6 +148,17 @@
   flex: none;
 }
 
+/* A glyph beside a label at the product's small icon size (070). The slot is shrink-to-fit, so
+   the base `max-width: 100%` resolved against it and held every leading and trailing icon in the
+   product at 12px, whatever size it was drawn at. The `:not()` mirrors the library's own rule,
+   which a plain `.x svg` loses to. */
+.ui-button-leading svg:not([data-slot='spinner'] svg),
+.ui-button-trailing svg:not([data-slot='spinner'] svg) {
+  max-width: none;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
 .ui-button-label {
   display: inline-flex;
   align-items: center;
@@ -2068,6 +2079,11 @@
   background: none;
   color: var(--color-neutral-text);
   outline: none;
+}
+/* The box's words at the size of every other control's (070, T079): at `md` the input inherited
+   whatever its surface was set in, and read a step smaller than the buttons beside it. */
+.ui-search-field--md .ui-search-field-group input {
+  font-size: var(--text-label);
 }
 .ui-search-field--sm .ui-search-field-group input {
   min-height: var(--control-height-sm);

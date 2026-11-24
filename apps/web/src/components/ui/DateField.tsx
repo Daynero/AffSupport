@@ -8,6 +8,7 @@ import {
 import { Calendar as HeroCalendar } from '@heroui/react/calendar';
 import { RangeCalendar as HeroRangeCalendar } from '@heroui/react/range-calendar';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ButtonContext } from 'react-aria-components/Button';
 import type { ReactNode } from 'react';
 import { uiClasses } from './types';
 
@@ -136,7 +137,7 @@ export function Calendar({
       className={uiClasses('calendar', { className })}
     >
       {grid()}
-      {footer && <div className="ui-calendar-footer">{footer}</div>}
+      {footer && <CalendarFooter>{footer}</CalendarFooter>}
     </HeroCalendar>
   );
 }
@@ -203,7 +204,22 @@ export function RangeCalendar({
           {date => <HeroRangeCalendar.Cell date={date} className="ui-calendar-day" />}
         </HeroRangeCalendar.GridBody>
       </HeroRangeCalendar.Grid>
-      {footer && <div className="ui-calendar-footer">{footer}</div>}
+      {footer && <CalendarFooter>{footer}</CalendarFooter>}
     </HeroRangeCalendar>
+  );
+}
+
+/**
+ * Under the grid: presets, a hint, a "Today" (070, T079).
+ *
+ * The calendar hands every button inside it a slot — "previous" or "next" — and an inventory
+ * button in the footer with neither was refused outright. The footer's buttons are the
+ * screen's, not the calendar's, so the slots stop at its edge.
+ */
+function CalendarFooter({ children }: { children: ReactNode }) {
+  return (
+    <ButtonContext.Provider value={null}>
+      <div className="ui-calendar-footer">{children}</div>
+    </ButtonContext.Provider>
   );
 }
