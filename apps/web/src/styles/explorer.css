@@ -103,6 +103,9 @@
 }
 .team-explorer-tree {
   position: sticky;
+  /* A file manager's sidebar, at the list's type (070): it inherited the page's 21 px body and
+     drew «Soty Cache» bigger than the files it holds. */
+  font-size: var(--text-label);
   /* Below the topbar and the space's tab strip (both in --topbar-h here), not
      under them: at 12px from the window's edge its head scrolled out of sight. */
   top: calc(var(--topbar-h, 62px) + var(--space-3));
@@ -177,7 +180,8 @@
 .team-explorer-tree-count {
   flex: 0 0 auto;
   color: var(--color-text-muted);
-  font-size: 0.85em;
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
 }
 .team-explorer-main {
   position: relative;
@@ -946,6 +950,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* The list's name and meta steps, not the page's (070): a tile's name was 21 px. */
+  font-size: var(--text-label);
   padding: var(--space-2);
   min-width: 0;
 }
@@ -963,7 +969,7 @@
 .team-explorer-tile-reason,
 .team-explorer-tile-render {
   color: var(--color-text-muted);
-  font-size: 0.85em;
+  font-size: var(--text-caption);
 }
 /* The tile's meta line carries the tag the way the row's does. */
 .team-explorer-tile-meta {
@@ -1121,6 +1127,7 @@
 /* What arranges the list, on the list (070, FR-002): the kind filter, and in the grid the sort
    (the list's own headers sort it). A strip of quiet controls, as Drive's chips are. */
 .team-explorer-list-controls {
+  font-size: var(--text-label);
   display: flex;
   align-items: center;
   gap: var(--space-2);
