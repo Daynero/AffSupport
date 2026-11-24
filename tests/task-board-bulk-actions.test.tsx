@@ -251,6 +251,9 @@ describe('selecting many tasks the way launches are selected', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByText(/^Selected:/)).toBeNull();
 
+    // "Select loaded" is the selection bar's (070 T069): it appears once a selection has begun.
+    expect(screen.queryByRole('button', { name: 'Select loaded tasks' })).toBeNull();
+    await user.click(screen.getAllByRole('checkbox', { name: /^Select / })[0]);
     await user.click(screen.getByRole('button', { name: 'Select loaded tasks' }));
     expect(screen.getByText('Selected: 3')).toBeTruthy();
     await user.keyboard('{Delete}');

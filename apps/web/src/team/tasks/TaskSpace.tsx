@@ -632,6 +632,18 @@ export function TaskSpace({
         onClear={() => setSelectedIds(new Set())}
         actions={
           <div ref={bulkAnchor} className="team-task-bulk">
+            {/* "All loaded" belongs to a selection that has begun (070 T069): it hung alone on
+                its own row at the right of the board, an action with no selection to act on. */}
+            {selected.length < taskIds.length && (
+              <Button
+                size="sm"
+                color="neutral"
+                variant="ghost"
+                onClick={() => setSelectedIds(new Set(taskIds))}
+              >
+                {t('teamTasksSelectLoaded')}
+              </Button>
+            )}
             <Button
               size="sm"
               color="neutral"
@@ -662,13 +674,6 @@ export function TaskSpace({
           onCancel={() => setConfirmingDelete([])}
           onConfirm={() => void removeConfirmed()}
         />
-      )}
-      {can('edit') && tasks.tasks.length > 0 && (
-        <div className="flex justify-end">
-          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set(taskIds))}>
-            {t('teamTasksSelectLoaded')}
-          </Button>
-        </div>
       )}
       {/* The shape of the board that is coming — cards, not rows — so the cards
           do not push the filters when they land, with the sentence still there,

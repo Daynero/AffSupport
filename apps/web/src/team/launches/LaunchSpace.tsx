@@ -782,27 +782,16 @@ function LaunchSpaceContent({
       >
         <div className="flex flex-wrap items-center justify-between gap-2 text-label text-ink-muted">
           <span>{t('launchesBulkNewest')}</span>
-          <div className="flex gap-2">
-            {items.length > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setSelectedIds(new Set(items.map(i => i.id)))}
-              >
-                {t('launchesBulkSelectAll')}
-              </Button>
-            )}
-            {selection.canPaste && can('edit') && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={selection.busy}
-                onClick={() => void selection.paste()}
-              >
-                {t('launchesBulkPaste', { count: selection.pasteCount })}
-              </Button>
-            )}
-          </div>
+          {selection.canPaste && can('edit') && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={selection.busy}
+              onClick={() => void selection.paste()}
+            >
+              {t('launchesBulkPaste', { count: selection.pasteCount })}
+            </Button>
+          )}
         </div>
         {batchLoading && <LoadingState shape="block" count={1} label={t('launchesBusy')} />}
         {actorId && BatchComponent && (
@@ -838,6 +827,18 @@ function LaunchSpaceContent({
           onClear={() => setSelectedIds(new Set())}
           actions={
             <div ref={bulkAnchor} className="team-task-bulk flex flex-wrap gap-2">
+              {/* "All loaded" belongs to a selection that has begun (070 T069), as on the
+                  tasks board — not a loose button beside the sort caption. */}
+              {selectedIds.size < items.length && (
+                <Button
+                  size="sm"
+                  color="neutral"
+                  variant="ghost"
+                  onClick={() => setSelectedIds(new Set(items.map(i => i.id)))}
+                >
+                  {t('launchesBulkSelectAll')}
+                </Button>
+              )}
               {can('edit') && (
                 <Button
                   size="sm"

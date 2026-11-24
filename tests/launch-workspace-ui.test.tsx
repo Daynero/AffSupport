@@ -1656,6 +1656,8 @@ it('deletes the keyboard selection only after warnings are loaded and confirmed'
   });
   seams.archive.mockResolvedValue(undefined);
   render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
+  // "Select loaded" is the selection bar's (070 T069): it appears once a selection has begun.
+  fireEvent.click((await screen.findAllByRole('checkbox', { name: 'Select launch' }))[0]);
   fireEvent.click(await screen.findByRole('button', { name: 'Select loaded launches' }));
   fireEvent.keyDown(document, { key: 'Delete' });
   await screen.findByText('The catalog will remain in the workspace.');
