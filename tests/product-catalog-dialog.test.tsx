@@ -1311,6 +1311,59 @@ describe('a creation still running behind the catalogs list (1.4.3)', () => {
       expect(await screen.findByText(catalog.name)).toBeTruthy();
       expect(screen.queryByText('A catalog is being created')).toBeNull();
     });
+
+    // Production, 2026-11-24: the catalog went to the trash while its videos were still
+    // preparing; every «Каталог товарів» reopened its progress and «Готово» closed the window.
+    it('opens a new form, not a deleted catalog, when the server has nothing for the video', async () => {
+      const storageKey = `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`;
+      localStorage.setItem(storageKey, pendingKey);
+      localStorage.setItem(
+        `${storageKey}:form`,
+        JSON.stringify({
+          key: pendingKey,
+          link: 'https://offer.example.test/old',
+          count: '100',
+          restitch: true,
+          videoDraft: { variationCount: '5', delayed: false, date: '', time: '12:00', zone: 'UTC' },
+          name: 'clip_v1_catalog',
+          savedAt: Date.now() - 3 * 60 * 60 * 1000
+        })
+      );
+      const listClient = client({
+        listProductCatalogs: vi.fn().mockResolvedValue([]),
+        listUnfinishedProductCatalogCreations: vi.fn().mockResolvedValue([])
+      });
+      renderList(listClient);
+      expect(await screen.findByRole('heading', { name: 'Create catalog' })).toBeTruthy();
+      expect(localStorage.getItem(storageKey)).toBeNull();
+      expect(localStorage.getItem(`${storageKey}:form`)).toBeNull();
+      expect(listClient.readProductCatalogVideo).not.toHaveBeenCalled();
+      expect(screen.queryByText('Videos ready: 2 of 5')).toBeNull();
+    });
+
+    it('keeps a creation sent from here moments ago that the server has not listed yet', async () => {
+      const storageKey = `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`;
+      localStorage.setItem(storageKey, pendingKey);
+      localStorage.setItem(
+        `${storageKey}:form`,
+        JSON.stringify({
+          key: pendingKey,
+          link: 'https://offer.example.test/new',
+          count: '100',
+          restitch: false,
+          videoDraft: { variationCount: '5', delayed: false, date: '', time: '12:00', zone: 'UTC' },
+          name: 'clip_v1_catalog',
+          savedAt: Date.now() - 5_000
+        })
+      );
+      const listClient = client({
+        listProductCatalogs: vi.fn().mockResolvedValue([]),
+        listUnfinishedProductCatalogCreations: vi.fn().mockResolvedValue([])
+      });
+      renderList(listClient);
+      expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+      expect(localStorage.getItem(storageKey)).toBe(pendingKey);
+    });
   });
 });
 

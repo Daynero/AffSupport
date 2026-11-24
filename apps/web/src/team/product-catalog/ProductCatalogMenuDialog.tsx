@@ -18,6 +18,7 @@ import { useCatalogVideoR2Team } from './useCatalogVideoR2Team';
 import type { CatalogVideoR2Client } from '../../api/team-catalog-video-r2';
 import {
   CreateProductCatalogDialog,
+  forgetSettledPendingCatalogCreation,
   pendingCatalogCreationStorageKey,
   rememberPendingCatalogCreation,
   type CreateProductCatalogClient
@@ -194,10 +195,30 @@ export function ProductCatalogMenuDialog({
     }
   }, [client, teamId, video.id]);
 
+  /** Where the window opens, once a memory of this browser the server no longer backs is gone. */
+  const settle = (loaded: {
+    found: ProductCatalogSummary[];
+    open: UnfinishedCatalogCreation[] | null;
+  }): View => {
+    const actor = privateCacheActor();
+    if (actor && loaded.open !== null && loaded.found.length === 0 && loaded.open.length === 0) {
+      try {
+        forgetSettledPendingCatalogCreation(
+          pendingCatalogCreationStorageKey(actor, teamId, video.id)
+        );
+      } catch {
+        /* Storage may be unavailable; the form then reads the same nothing. */
+      }
+    }
+    return openView(loaded);
+  };
+  const settleRef = useRef(settle);
+  settleRef.current = settle;
+
   useEffect(() => {
     let active = true;
     void load().then(loaded => {
-      if (active && loaded) setView(openView(loaded));
+      if (active && loaded) setView(settleRef.current(loaded));
     });
     return () => {
       active = false;
@@ -311,7 +332,7 @@ export function ProductCatalogMenuDialog({
                   variant="secondary"
                   onClick={() =>
                     void load().then(loaded => {
-                      if (loaded) setView(openView(loaded));
+                      if (loaded) setView(settle(loaded));
                     })
                   }
                 >
