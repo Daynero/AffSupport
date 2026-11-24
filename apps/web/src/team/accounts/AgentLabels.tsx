@@ -18,7 +18,7 @@ import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskLabelChip } from '../labels/TaskLabelChip';
 import { TaskLabelMenu } from '../labels/TaskLabelMenu';
-import { Popover } from '../../components/ui/index';
+import { IconButton, Popover } from '../../components/ui/index';
 
 export function AgentLabels({
   labels,
@@ -60,19 +60,19 @@ export function AgentLabels({
         />
       ))}
       {canEdit && (
-        <button
+        <IconButton
           ref={trigger}
-          type="button"
+          size="xs"
           className="team-agent-labels-add"
           aria-haspopup="listbox"
           aria-expanded={open}
-          aria-label={`${t('teamAgentLabelAdd')} ${agentLabel}`}
+          label={`${t('teamAgentLabelAdd')} ${agentLabel}`}
           title={t('teamAgentLabelAdd')}
           disabled={busy}
           onClick={() => setOpen(current => !current)}
         >
           <Plus size={13} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
+        </IconButton>
       )}
       <Popover
         open={open && canEdit}

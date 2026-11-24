@@ -343,6 +343,61 @@
   line-height: 1.3;
 }
 
+/* --- Tags ------------------------------------------------------------------------------- */
+
+/* The × on a tag is the inventory's icon button at the chip's scale: a 12px mark in a 16px disc. */
+.team-task-label-chip .team-task-label-chip-remove svg:not([data-slot='spinner'] svg) {
+  width: 12px;
+  height: 12px;
+}
+
+/* In an agent's row the × waits for the pointer or the keyboard (Linear's tags do the same): a
+   column of agents each with a standing × read as a column of things to delete. Its place is
+   kept, so a chip does not change width under the pointer; where there is no pointer to hover
+   with, it stays. */
+.team-agent-labels .team-task-label-chip-remove {
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-out-curve);
+}
+
+.team-agent-labels .team-task-label-chip:hover .team-task-label-chip-remove,
+.team-agent-labels .team-task-label-chip:focus-within .team-task-label-chip-remove {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .team-agent-labels .team-task-label-chip-remove {
+    opacity: 1;
+  }
+}
+
+/* The colour of a tag: nine swatches in the inventory's picto group, plates at the swatch's
+   scale. The plate's accent border says which is chosen. */
+.team-task-label-colors.ui-pictos {
+  flex-wrap: wrap;
+}
+
+.team-task-label-colors.ui-pictos button {
+  width: 32px;
+  height: 32px;
+}
+
+.team-task-label-colors .team-task-label-swatch {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  cursor: inherit;
+}
+
+/* The tag list's search is the inventory's box; the menu's old rule for its raw field drew a
+   second edge around it. */
+.team-task-label-menu > .team-task-label-menu-search {
+  height: auto;
+  padding: 0;
+  outline: 0;
+}
+
 /* --- The ⌘K palette --------------------------------------------------------------------- */
 
 /* The field keeps clear of the dialog's × (it ran under it), and the answers are rows at the

@@ -15,7 +15,7 @@ import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { TaskLabelChip } from './TaskLabelChip';
 import { SpaceSettingsLink, type SpaceSettingsTarget } from '../SpaceSettingsLink';
-import { EmptyState } from '../../components/ui/index';
+import { Button, EmptyState, SearchField } from '../../components/ui/index';
 
 /** Past this many tags, scanning is slower than typing three letters. */
 const SEARCH_FROM = 8;
@@ -114,13 +114,14 @@ export function TaskLabelMenu({
           most of all. An empty space used to say "create them in the space's
           settings", a detour out of the task for one word (024). */}
       {(sorted.length >= SEARCH_FROM || onCreate) && (
-        <input
-          type="search"
+        <SearchField
+          size="sm"
           className="team-task-label-menu-search"
           value={search}
           aria-label={t(onCreate ? 'teamTaskTagSearchOrCreate' : 'teamTaskTagSearch')}
           placeholder={t(onCreate ? 'teamTaskTagSearchOrCreate' : 'teamTaskTagSearch')}
-          onChange={event => setSearch(event.target.value)}
+          clearLabel={t('teamSearchClear')}
+          onChange={setSearch}
         />
       )}
       {sorted.length === 0 && !onCreate && (
@@ -142,10 +143,13 @@ export function TaskLabelMenu({
       {/* The word you just typed, offered as a tag. Only when it is not one
           already, so the list never shows the same name twice. */}
       {onCreate && term && !sorted.some(label => label.name.toLocaleLowerCase() === term) && (
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="ghost"
+          block
           className="team-task-label-option is-create"
           disabled={disabled || creating}
+          leading={<Plus size={14} strokeWidth={ICON_STROKE} />}
           onClick={() => {
             setCreating(true);
             void onCreate(search.normalize('NFC').trim())
@@ -155,26 +159,34 @@ export function TaskLabelMenu({
               .finally(() => setCreating(false));
           }}
         >
-          <Plus size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          <span>{t('teamTaskTagCreateNamed', { name: search.trim() })}</span>
-        </button>
+          {t('teamTaskTagCreateNamed', { name: search.trim() })}
+        </Button>
       )}
       {shown.map(label => {
         const selected = selectedIds.has(label.id);
+        /* An option of a multi-select list, not a button (070): the arrows walk the options
+           and Enter or Space answers, the way React Aria's own list box draws its items. */
+        const choose = () => {
+          if (!disabled) onToggle(label, !selected);
+        };
         return (
-          <button
+          <div
             key={label.id}
-            type="button"
             role="option"
             tabIndex={-1}
             aria-selected={selected}
+            aria-disabled={disabled || undefined}
             className={`team-task-label-option${selected ? ' is-selected' : ''}`}
-            disabled={disabled}
-            onClick={() => onToggle(label, !selected)}
+            onClick={choose}
+            onKeyDown={event => {
+              if (event.key !== 'Enter' && event.key !== ' ') return;
+              event.preventDefault();
+              choose();
+            }}
           >
             <TaskLabelChip label={label} />
             {selected && <Check size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-          </button>
+          </div>
         );
       })}
     </div>

@@ -16,6 +16,7 @@ import {
 } from '@video-compressor/shared';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { IconButton, RadioGroup } from '../../components/ui/index';
 
 const COLOR_NAME: Record<TeamTaskLabelColor, TranslationKey> = {
   purple: 'teamTaskTagColorPurple',
@@ -36,7 +37,6 @@ export function taskLabelColorNameKey(color: TeamTaskLabelColor): TranslationKey
 export function TaskLabelChip({
   label,
   selected = false,
-  onSelect,
   onRemove,
   removeLabel,
   disabled = false
@@ -59,34 +59,19 @@ export function TaskLabelChip({
     </>
   );
 
-  if (onSelect) {
-    return (
-      <button
-        type="button"
-        className={className}
-        data-color={label.color}
-        aria-pressed={selected}
-        disabled={disabled}
-        onClick={onSelect}
-      >
-        {body}
-      </button>
-    );
-  }
-
   return (
     <span className={className} data-color={label.color}>
       {body}
       {onRemove && (
-        <button
-          type="button"
+        <IconButton
+          size="xs"
           className="team-task-label-chip-remove"
-          aria-label={removeLabel ?? t('teamTaskTagRemove', { name: label.name })}
+          label={removeLabel ?? t('teamTaskTagRemove', { name: label.name })}
           disabled={disabled}
           onClick={onRemove}
         >
           <X size={12} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
+        </IconButton>
       )}
     </span>
   );
@@ -138,25 +123,19 @@ export function TaskLabelColorPicker({
 }) {
   const { t } = useI18n();
   return (
-    <div
+    /* The inventory's picto group (070): one colour of nine, each a swatch named by its hint. */
+    <RadioGroup<TeamTaskLabelColor>
+      variant="pictos"
       className="team-task-label-colors"
-      role="radiogroup"
-      aria-label={t('teamTaskTagColorLabel')}
-    >
-      {TEAM_TASK_LABEL_COLORS.map(color => (
-        <button
-          key={color}
-          type="button"
-          role="radio"
-          className={`team-task-label-swatch${color === value ? ' is-selected' : ''}`}
-          data-color={color}
-          aria-checked={color === value}
-          aria-label={t(COLOR_NAME[color])}
-          title={t(COLOR_NAME[color])}
-          disabled={disabled}
-          onClick={() => onChange(color)}
-        />
-      ))}
-    </div>
+      label={t('teamTaskTagColorLabel')}
+      value={value}
+      disabled={disabled}
+      onChange={onChange}
+      options={TEAM_TASK_LABEL_COLORS.map(color => ({
+        value: color,
+        label: t(COLOR_NAME[color]),
+        icon: <span className="team-task-label-swatch" data-color={color} aria-hidden="true" />
+      }))}
+    />
   );
 }
