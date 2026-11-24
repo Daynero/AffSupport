@@ -66,6 +66,13 @@ export interface SourceProfile {
   variableFrameRate: boolean;
   videoTimescale: number;
   durationSeconds: number;
+  /**
+   * Where the picture ends, when the video track says so. A container is as long as its longest
+   * track: a creative whose sound runs past its picture (production 2026-11-24, «KZ v12»: 0.39 s)
+   * was planned a body longer than any frame it had, and every re-stitch failed. Absent on a
+   * profile read by an older agent.
+   */
+  videoDurationSeconds?: number | null;
   hasAudio: boolean;
   audioCodec: string | null;
   audioSampleRate: number | null;
@@ -422,10 +429,20 @@ export function planStitch(
   // Only an existing screen is cut away. A `stitch` never trims the source, and a
   // `restitch` trims exactly what was detected (or what the user moved it to).
   const bodyStartSeconds = requested === 'stitch' ? 0 : believable.startSeconds;
-  const bodyEndSeconds =
-    requested === 'stitch'
-      ? profile.durationSeconds
-      : Math.max(bodyStartSeconds, profile.durationSeconds - believable.endSeconds);
+  // The body never runs past the last frame of the picture, whatever the sound's length.
+  const pictureEndSeconds = Math.min(
+    profile.durationSeconds,
+    profile.videoDurationSeconds ?? profile.durationSeconds
+  );
+  const bodyEndSeconds = Math.max(
+    bodyStartSeconds,
+    Math.min(
+      pictureEndSeconds,
+      requested === 'stitch'
+        ? profile.durationSeconds
+        : profile.durationSeconds - believable.endSeconds
+    )
+  );
 
   const headReencodeUntilSeconds = isOnKeyframe(profile, bodyStartSeconds)
     ? null
@@ -501,6 +518,9 @@ export function parseSourceProfile(
       variableFrameRate: value.variableFrameRate === true,
       videoTimescale: finiteNumber(value.videoTimescale) ?? Math.round(frameRate * 512),
       durationSeconds,
+      ...(finiteNumber(value.videoDurationSeconds) !== null
+        ? { videoDurationSeconds: finiteNumber(value.videoDurationSeconds) }
+        : {}),
       hasAudio: value.hasAudio === true,
       audioCodec: typeof value.audioCodec === 'string' ? value.audioCodec : null,
       audioSampleRate: finiteNumber(value.audioSampleRate),
