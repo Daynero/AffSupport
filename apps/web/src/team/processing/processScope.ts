@@ -247,3 +247,40 @@ export function useProcessScope(
 }
 
 export type ProcessScopeState = ReturnType<typeof useProcessScope>;
+
+/** What a ticked row says about itself — a folder row and a result both have it. */
+type ScopeRow = ScopeFile & { category?: string | null };
+
+/** The ticked rows a batch can take, as the processing dialog's "files in hand" (070, T062). */
+export function processableOf(rows: readonly ScopeRow[]): ScopeFile[] {
+  return rows
+    .filter(row => row.category === 'video' || row.category === 'landing')
+    .map(row => ({ id: row.id, name: row.name, category: row.category }));
+}
+
+/** The ticked videos, placed, as the compression dialog's "files in hand" (070, T062). */
+export function videosOf(rows: readonly ScopeRow[], currentFolderId: string | null): ScopeFile[] {
+  return rows
+    .filter(row => row.category === 'video')
+    .map(row => ({
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      parentFolderId: row.parentFolderId ?? currentFolderId ?? null
+    }));
+}
+
+/**
+ * A folder door — the explorer's "…" — opens on the folder and offers the ticked files beside it
+ * (070, T062); processing may also take the whole space.
+ */
+export function folderOrigin(
+  intent: ProcessIntent,
+  folder: ProcessableFolder,
+  rows: readonly ScopeRow[],
+  currentFolderId: string | null
+): ProcessOrigin {
+  return intent === 'process'
+    ? { intent, initial: 'folder', folder, selection: processableOf(rows), space: true }
+    : { intent, initial: 'folder', folder, selection: videosOf(rows, currentFolderId) };
+}

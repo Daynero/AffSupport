@@ -34,6 +34,11 @@ export type FileTriggerProps = {
   acceptedFileTypes?: readonly string[];
   /** The pressable that opens the picker. Omit it to open the picker through the ref. */
   children?: ReactNode;
+  /**
+   * The picker's name when there is no pressable to carry one: the browser's own dialog
+   * announces it, and it is how an "upload into this folder" is reached at all.
+   */
+  label?: string;
 };
 
 /** What the ref holds: the one thing a menu item needs. */
@@ -42,7 +47,7 @@ export type FileTriggerHandle = {
 };
 
 export const FileTrigger = forwardRef<FileTriggerHandle, FileTriggerProps>(function FileTrigger(
-  { onSelect, acceptDirectory = false, allowsMultiple = true, acceptedFileTypes, children },
+  { onSelect, acceptDirectory = false, allowsMultiple = true, acceptedFileTypes, children, label },
   ref
 ) {
   const input = useRef<HTMLInputElement>(null);
@@ -73,6 +78,7 @@ export const FileTrigger = forwardRef<FileTriggerHandle, FileTriggerProps>(funct
         ref={input}
         type="file"
         hidden
+        aria-label={label}
         multiple={allowsMultiple}
         accept={acceptedFileTypes?.toString()}
         {...(acceptDirectory ? { webkitdirectory: '' } : {})}

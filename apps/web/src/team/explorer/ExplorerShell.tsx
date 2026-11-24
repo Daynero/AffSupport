@@ -40,7 +40,11 @@ import { useAgentQueue } from './useAgentQueue';
 import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
 import { useOptionalAddToTask } from '../tasks/AddToTask';
 import { useExplorerClipboard } from './useExplorerClipboard';
-import type { FolderSubtreeClient, ProcessOrigin, ScopeFile } from '../processing/processScope';
+import {
+  folderOrigin,
+  type FolderSubtreeClient,
+  type ProcessOrigin
+} from '../processing/processScope';
 import { compressJobs, type CompressPlan } from './TeamCompressorDialog';
 import { useCompanionFold } from './useCompanionFold';
 import { useFolderPage } from './useFolderPage';
@@ -559,21 +563,12 @@ function ExplorerBody({
               ? {
                   folder: currentFolderId ? explorer.nodeOf(currentFolderId) : null,
                   onFolder: folder =>
-                    onProcess?.({
-                      intent: 'process',
-                      initial: 'folder',
-                      folder,
-                      selection: processableOf(selectedRows),
-                      space: true
-                    }),
+                    onProcess?.(folderOrigin('process', folder, selectedRows, currentFolderId)),
                   onCompressFolder: permissions?.upload
                     ? folder =>
-                        setCompressOrigin({
-                          intent: 'compress',
-                          initial: 'folder',
-                          folder,
-                          selection: videosOf(selectedRows, currentFolderId)
-                        })
+                        setCompressOrigin(
+                          folderOrigin('compress', folder, selectedRows, currentFolderId)
+                        )
                     : undefined,
                   onSpace: onProcessLibrary
                 }
@@ -798,22 +793,3 @@ const LIST_MOVERS =
 
 // Keeps the unused-permissions typing honest for callers that pass a partial set.
 export type ExplorerPermissions = TeamPermissions;
-
-/** The ticked rows a batch can take, as the processing dialog's "files in hand" (070, T062). */
-function processableOf(rows: readonly TeamMaterialRow[]): ScopeFile[] {
-  return rows
-    .filter(row => row.category === 'video' || row.category === 'landing')
-    .map(row => ({ id: row.id, name: row.name, category: row.category }));
-}
-
-/** The ticked videos, placed, as the compression dialog's "files in hand" (070, T062). */
-function videosOf(rows: readonly TeamMaterialRow[], currentFolderId: string | null): ScopeFile[] {
-  return rows
-    .filter(row => row.category === 'video')
-    .map(row => ({
-      id: row.id,
-      name: row.name,
-      category: row.category,
-      parentFolderId: row.parentFolderId ?? currentFolderId ?? null
-    }));
-}

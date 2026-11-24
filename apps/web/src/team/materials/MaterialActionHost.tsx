@@ -199,6 +199,7 @@ export function useMaterialActionHost({
       {/* The inventory's picker, opened through its handle (070, phase 8). */}
       <FileTrigger
         ref={uploadInput}
+        label={t('teamFileUpload')}
         allowsMultiple={false}
         onSelect={files => {
           const file = files[0];

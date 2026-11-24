@@ -153,6 +153,7 @@ describe('the dialogs on the inventory (070, T064)', () => {
         <TeamTextEditor
           material={material}
           initialText="hello"
+          expectedDriveVersion="1"
           onSave={vi.fn()}
           onReload={vi.fn()}
           onCreateVersion={vi.fn()}
