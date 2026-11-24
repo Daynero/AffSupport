@@ -138,7 +138,6 @@ export function AccountGroup({
   reorderEnabled = false,
   deferRows = false,
   onRowsVisible,
-  onFilterOccupancy,
   onFilterTag,
   activeTag = null,
   focusedAgentId = null,
@@ -183,8 +182,6 @@ export function AccountGroup({
   onRowsVisible?: () => void;
   rowLaunches?: (agent: TeamAccountAgentSummary) => ReactNode;
   rowFinance?: (agent: TeamAccountAgentSummary) => ReactNode;
-  /** The head's "N free" / "N busy" keep only those, across the list (070, T046). */
-  onFilterOccupancy?: (value: 'free' | 'busy') => void;
   /** A tag's count on the head keeps only that tag; pressed again, it lets go. */
   onFilterTag?: (labelId: string | null) => void;
   /** The tag the list is narrowed to, so its count says it is the one pressed. */
@@ -521,30 +518,23 @@ export function AccountGroup({
                         })
                       : agentsLabel(counts.agents)}
                   </span>
-                  {/* Every count is the way to what it counts (070, T046): "2 free" keeps
-                      the free ones, a tag's count keeps that tag — across the whole list,
-                      as the toolbar's own filters do. */}
+                  {/* Free and busy as two quiet marks — a dot in the state's colour and the
+                      number (owner, beta 25.11: "not sort buttons, just a circle and a
+                      number, laconic"). The word stays in the hint and for a screen reader;
+                      filtering by occupancy is the toolbar's job. */}
                   {counts.free > 0 && (
-                    <CountButton
-                      className="team-account-meta-free"
-                      label={t('teamAccountsFilterByOccupancy', {
-                        state: t('teamAccountsFilterFree').toLocaleLowerCase()
-                      })}
-                      onPress={onFilterOccupancy ? () => onFilterOccupancy('free') : undefined}
-                    >
-                      {t(freeCountKey(language, counts.free), { count: counts.free })}
-                    </CountButton>
+                    <OccupancyCount
+                      state="free"
+                      count={counts.free}
+                      label={t(freeCountKey(language, counts.free), { count: counts.free })}
+                    />
                   )}
                   {counts.busy > 0 && (
-                    <CountButton
-                      className="team-account-meta-busy"
-                      label={t('teamAccountsFilterByOccupancy', {
-                        state: t('teamAccountsFilterBusy').toLocaleLowerCase()
-                      })}
-                      onPress={onFilterOccupancy ? () => onFilterOccupancy('busy') : undefined}
-                    >
-                      {t(busyCountKey(language, counts.busy), { count: counts.busy })}
-                    </CountButton>
+                    <OccupancyCount
+                      state="busy"
+                      count={counts.busy}
+                      label={t(busyCountKey(language, counts.busy), { count: counts.busy })}
+                    />
                   )}
                   {/* How the account's agents are split between the tags on
                       them (019): the same chips the rows carry, each with the
@@ -1059,31 +1049,20 @@ export function AccountNameRow({
  * A count that is also the way to what it counts (070, T046): the same words
  * as before, pressable where the list can be narrowed, plain text where not.
  */
-function CountButton({
-  className,
-  label,
-  onPress,
-  children
+function OccupancyCount({
+  state,
+  count,
+  label
 }: {
-  className: string;
+  state: 'free' | 'busy';
+  count: number;
   label: string;
-  onPress?: () => void;
-  children: ReactNode;
 }) {
-  if (!onPress) return <span className={className}>{children}</span>;
   return (
-    <Button
-      size="xs"
-      variant="link"
-      className={`team-account-count ${className}`}
-      aria-label={`${children as string} · ${label}`}
-      title={label}
-      onClick={event => {
-        event.stopPropagation();
-        onPress();
-      }}
-    >
-      {children}
-    </Button>
+    <span className={`team-account-meta-${state} team-account-occupancy is-${state}`} title={label}>
+      <span className="team-account-occupancy-dot" aria-hidden="true" />
+      <span aria-hidden="true">{count}</span>
+      <span className="visually-hidden">{label}</span>
+    </span>
   );
 }

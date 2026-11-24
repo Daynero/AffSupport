@@ -368,11 +368,13 @@
   gap: var(--space-1) var(--space-2);
 }
 
+/* The disclosure is the account mark's size and lightens under the pointer. A 32px plate going
+   near-black on hover sat beside the 26px tinted mark as a hole in the head (owner, beta 25.11). */
 .team-account-toggle {
   display: inline-flex;
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -386,8 +388,8 @@
     background-color var(--dur-control) var(--ease-standard);
 }
 
-.team-account-toggle:hover {
-  background: var(--color-surface-muted);
+.team-account-toggle.ui-icon-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
   color: var(--color-text);
 }
 
@@ -433,14 +435,36 @@
   content: none;
 }
 
-/* "1 free" is what the list is scanned for, so in the head it is a badge and
-   not another word in a grey line — the one thing that catches an eye running
-   down thirty accounts. "2 running" stays plain: it is the answer to the other
-   question, and two badges are no badge at all. */
-.team-account-meta-free {
+/* Free and busy in the head: a dot in the state's colour and the number, not a control and not
+   a phrase (owner, beta 25.11). The word is in the hint and the hidden label; the dot carries
+   the same colours as the occupancy filter, and the hint is there for whoever cannot tell them
+   apart. */
+.team-account-occupancy {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.team-account-meta > span.team-account-occupancy::before {
+  content: none;
+}
+
+.team-account-occupancy-dot {
+  width: 8px;
+  height: 8px;
   border-radius: var(--radius-full);
+  background: var(--color-text-muted);
+}
+
+.team-account-occupancy.is-free .team-account-occupancy-dot {
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 18%, transparent);
+}
+
+.team-account-occupancy.is-busy .team-account-occupancy-dot {
+  background: var(--color-warning);
 }
 
 /* The part of a line that answered the search. */
@@ -2712,35 +2736,7 @@ button.team-task-agent-chip.is-selected {
   font-size: var(--text-caption);
 }
 
-/*
- * The head's counts are presses now (070, T046): "2 free" keeps the free
- * agents, a tag's count keeps that tag. They keep the faces they had — the
- * free badge, the amber word, the tag's chip — and gain a press, an underline
- * under the pointer and a focus ring; the inventory's own sizes would have
- * made them controls in a line of words.
- */
-.team-account-meta .team-account-count.ui-button {
-  min-height: 0;
-  font-size: inherit;
-  text-decoration: none;
-}
-.team-account-meta .team-account-count.ui-button {
-  padding: 0;
-  color: var(--color-text-muted);
-  font-weight: var(--weight-body);
-}
-/* The separator stays outside the underline: an inline-block takes no
-   decoration from the button it sits in. */
-.team-account-meta > .team-account-count:not(:first-child)::before {
-  content: '·';
-  display: inline-block;
-  margin-right: var(--space-2);
-  color: var(--color-border-strong);
-}
-.team-account-meta .team-account-count.ui-button:hover:not(:disabled) {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
+/* A tag's count in the head keeps that tag (070, T046); it keeps the tag chip's face. */
 .team-account-meta .team-account-tag-count .ui-chip-press {
   min-height: 0;
   padding: 0;
@@ -2760,13 +2756,6 @@ button.team-task-agent-chip.is-selected {
 .team-accounts-table .team-agent-row.is-selected {
   background: var(--color-secondary-softer);
   box-shadow: inset 0 0 0 1px var(--color-secondary-solid);
-}
-
-/* A phone hides the head's first fact and its separators; the counts follow. */
-@media (max-width: 640px) {
-  .team-account-meta > .team-account-count::before {
-    content: none;
-  }
 }
 
 /* All / free / busy keeps one line on the narrowest phone: the control takes

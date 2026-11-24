@@ -1465,7 +1465,6 @@ function AccountSpaceContent({
                     index={accountIndex}
                     deferRows={deferAccountRows}
                     onRowsVisible={onRowsVisible}
-                    onFilterOccupancy={setOccupancy}
                     onFilterTag={next => setTagFilter(next ?? '')}
                     activeTag={tag}
                     focusedAgentId={focusedAgent}
