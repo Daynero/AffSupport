@@ -1487,6 +1487,14 @@ export const en = {
   // something that failed.
   downloadAgentAgain: 'Do not have Soty on this computer? Install it',
   connectAgent: 'Soty is open — check again',
+  toolNeedsSotyTitle: 'This needs the Soty app',
+  toolNeedsSotyBody:
+    '{tool} runs in the Soty app on this computer. Install it once and the tool opens right here.',
+  toolNeedsSotyDownload: 'Download Soty',
+  toolNeedsSotyUpdateTitle: 'Soty needs an update',
+  toolNeedsSotyUpdateBody:
+    '{tool} needs a newer Soty on this computer. Download the update and the tool opens right here.',
+  toolNeedsSotyUpdate: 'Download the update',
   localAppDialogTitle: 'Get Soty ready',
   localAppDialogBody:
     'Soty works locally on your computer. Install the local Soty app once to use this tool.',

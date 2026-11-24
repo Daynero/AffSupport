@@ -6,14 +6,13 @@ import HomePage from './HomePage';
 import FeatureLockDialog from './components/FeatureLockDialog';
 import { useFeatureLock, type FeatureId } from './lib/feature-flags';
 import { toolByPath, type WebTool } from './lib/tool-registry';
-import type { SotyToolId } from '@video-compressor/shared';
 import { useI18n } from './i18n';
-import { navigateTo, registerRoutePreparer, usePageEntrance } from './lib/navigation';
+import { navigateTo, registerRoutePreparer } from './lib/navigation';
 import { recoverableLazy } from './lib/recoverable-lazy';
 import { HintLayer, RouteSkeleton } from './components/ui/index';
 import AccountPage from './pages/AccountPage';
 import AdminPage from './pages/AdminPage';
-import LocalAppDialog from './components/LocalAppDialog';
+import { ToolSetupState } from './components/ToolSetupState';
 import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
 import { NextChannelBadge } from './components/NextChannelBadge';
 import { ReleaseTesterGate } from './components/ReleaseTesterGate';
@@ -135,7 +134,7 @@ function ToolRoute({ tool }: { tool: WebTool }) {
   // including the one that keeps a page mounted through a dropped connection:
   // "you have connected before" is not a reason to keep using a build that is
   // known broken.
-  if (releaseBlocked) return <ToolSetupScreen tool={tool.id} connection="agent_update_required" />;
+  if (releaseBlocked) return <ToolSetupState tool={tool} connection="agent_update_required" />;
   if (connection === 'connected' && toolAvailable(tool.id)) return <ToolPage tool={tool} />;
   // D1/FR-039. The setup screen is for someone who has to *do* something —
   // install the app, or update it. It is not for someone whose wifi dropped
@@ -144,7 +143,7 @@ function ToolRoute({ tool }: { tool: WebTool }) {
   // software they are already running. Anyone who has connected once keeps
   // their page.
   if (connectedOnce && connection !== 'agent_update_required') return <ToolPage tool={tool} />;
-  return <ToolSetupGate tool={tool.id} connection={connection} />;
+  return <ToolSetupGate tool={tool} connection={connection} />;
 }
 
 /**
@@ -159,7 +158,7 @@ function ToolSetupGate({
   tool,
   connection
 }: {
-  tool: SotyToolId;
+  tool: WebTool;
   connection: ReturnType<typeof useAgent>['connection'];
 }) {
   const checking = connection === 'checking';
@@ -178,7 +177,7 @@ function ToolSetupGate({
         <RouteSkeleton variant="tool" />
       </main>
     );
-  return <ToolSetupScreen tool={tool} connection={connection} />;
+  return <ToolSetupState tool={tool} connection={connection} />;
 }
 
 /**
@@ -188,25 +187,6 @@ function ToolSetupGate({
 function useToolLock(feature: FeatureId | null): boolean {
   const locked = useFeatureLock(feature ?? 'videoCompressor');
   return feature !== null && locked;
-}
-
-function ToolSetupScreen({
-  tool,
-  connection
-}: {
-  tool: SotyToolId;
-  connection: ReturnType<typeof useAgent>['connection'];
-}) {
-  // Setup ↔ tool swaps remount this branch; the entrance animation makes the
-  // "not connected → connected" switch fade instead of popping. Retry ticks
-  // (AgentContext keeps its state during background retries) never remount.
-  const entering = usePageEntrance();
-  return (
-    <>
-      <main className={entering ? 'page-container page-enter' : 'page-container'} />
-      <LocalAppDialog tool={tool} connection={connection} onClose={() => navigateTo('/', true)} />
-    </>
-  );
 }
 
 function RedirectHome() {

@@ -948,14 +948,23 @@ export function Header({ connection, t }: { connection: ConnectionState; t: Tran
             was carried by a class — visible, and invisible to anything that is
             not looking at pixels. */}
         {!narrow && <LanguageSwitch />}
-        <ConnectionBadge state={connection} t={t} />
+        <ConnectionBadge state={connection} t={t} narrow={narrow} />
         <UserMenu />
       </div>
     </header>
   );
 }
 
-export function ConnectionBadge({ state, t }: { state: ConnectionState; t: Translate }) {
+export function ConnectionBadge({
+  state,
+  t,
+  narrow = false
+}: {
+  state: ConnectionState;
+  t: Translate;
+  /** A phone's bar: the reconnect is its arrow, not its word. */
+  narrow?: boolean;
+}) {
   const keys: Record<ConnectionState, TranslationKey> = {
     checking: 'connectingAgent',
     connecting: 'lookingForAgent',
@@ -980,7 +989,9 @@ export function ConnectionBadge({ state, t }: { state: ConnectionState; t: Trans
       {/* The way out, beside the fact (032, FR-010). A browser that blocks
           loopback blocks every retry, so there the one action is the Agent's
           own copy of this page. */}
-      {RECONNECTABLE.has(state) && <ReconnectAction surface="header_badge" compact />}
+      {RECONNECTABLE.has(state) && (
+        <ReconnectAction surface="header_badge" compact iconOnly={narrow} />
+      )}
       {state === 'connection_blocked' && (
         <a
           className={uiClasses('button', { color: 'neutral', variant: 'outline', size: 'xs' })}

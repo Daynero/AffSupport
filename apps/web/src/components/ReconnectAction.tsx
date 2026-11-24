@@ -4,7 +4,9 @@ import { useOptionalAgent } from '../AgentContext';
 import type { LinkReason } from '../connection';
 import { useI18n, type TranslationKey } from '../i18n';
 import { type Translate } from './ui';
-import { Button, Chip, Spinner, type UiSize } from './ui/index';
+import { RotateCw } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from './icons';
+import { Button, Chip, IconButton, Spinner, type UiSize } from './ui/index';
 
 /**
  * The one "Reconnect" (032, FR-010/FR-011).
@@ -47,12 +49,19 @@ type Result = { kind: 'connected' } | { kind: 'failed'; text: string };
 export function ReconnectAction({
   surface,
   compact = false,
+  iconOnly = false,
   size,
   className
 }: {
   surface: ReconnectSurface;
   /** The header's spelling: the smallest button, nothing beside it but the outcome. */
   compact?: boolean;
+  /**
+   * The header on a phone (070): the word did not fit beside the mark, the
+   * credits, the power and the account, and pushed the account off the edge.
+   * The arrow keeps the word as its name and its hint.
+   */
+  iconOnly?: boolean;
   size?: UiSize;
   className?: string;
 }) {
@@ -93,18 +102,34 @@ export function ReconnectAction({
   const buttonSize = size ?? (compact ? 'xs' : 'sm');
   return (
     <span className={['reconnect-action', className].filter(Boolean).join(' ')}>
-      <Button
-        variant="secondary"
-        size={buttonSize}
-        leading={pending ? <Spinner /> : undefined}
-        onClick={() => {
-          awaiting.current = true;
-          setResult(null);
-          agent.reconnect(surface);
-        }}
-      >
-        {t(pending ? 'linkReconnecting' : 'linkReconnect')}
-      </Button>
+      {iconOnly ? (
+        <IconButton
+          variant="outline"
+          size="md"
+          label={t(pending ? 'linkReconnecting' : 'linkReconnect')}
+          loading={pending}
+          onClick={() => {
+            awaiting.current = true;
+            setResult(null);
+            agent.reconnect(surface);
+          }}
+        >
+          <RotateCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        </IconButton>
+      ) : (
+        <Button
+          variant="secondary"
+          size={buttonSize}
+          leading={pending ? <Spinner /> : undefined}
+          onClick={() => {
+            awaiting.current = true;
+            setResult(null);
+            agent.reconnect(surface);
+          }}
+        >
+          {t(pending ? 'linkReconnecting' : 'linkReconnect')}
+        </Button>
+      )}
       {result && (
         <Chip
           role="status"

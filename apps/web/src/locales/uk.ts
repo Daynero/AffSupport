@@ -1476,6 +1476,14 @@ export const uk: Record<keyof typeof en, string> = {
   downloadAgent: 'Встановити Soty',
   downloadAgentAgain: 'Немає Soty на цьому комп’ютері? Встановити',
   connectAgent: 'Soty відкрито — перевірити',
+  toolNeedsSotyTitle: 'Потрібна програма Soty',
+  toolNeedsSotyBody:
+    '{tool} працює в програмі Soty на цьому комп’ютері. Встановіть її один раз — і інструмент відкриється тут.',
+  toolNeedsSotyDownload: 'Завантажити Soty',
+  toolNeedsSotyUpdateTitle: 'Потрібно оновити Soty',
+  toolNeedsSotyUpdateBody:
+    '{tool} потребує новішої версії Soty на цьому комп’ютері. Завантажте оновлення — і інструмент відкриється тут.',
+  toolNeedsSotyUpdate: 'Завантажити оновлення',
   localAppDialogTitle: 'Підготуємо Soty до роботи',
   localAppDialogBody:
     'Soty працює локально на вашому комп’ютері. Щоб використовувати цей інструмент, встановіть локальний застосунок Soty один раз.',
