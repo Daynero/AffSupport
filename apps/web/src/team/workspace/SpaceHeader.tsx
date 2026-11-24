@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import {
   ChevronDown,
+  Compass,
   History as HistoryIcon,
   Keyboard,
   MoreHorizontal,
   RefreshCw,
-  Search,
   Settings,
   Sparkles,
   Trash2
@@ -35,7 +35,9 @@ export interface SpaceHeaderMenu {
  *
  * Name and switcher on the left; on the right the space's health (one quiet indicator, or the
  * chips that need a person), «Перейти до… ⌘K» and the space's menu. Both are the inventory's
- * buttons now (T029) — they were raw `<button>`s dressed as chips. On a phone both shrink to
+ * buttons now (T029) — they were raw `<button>`s dressed as chips. «Перейти до…» wears a
+ * compass, not a magnifier: on a phone its icon sits right above the explorer's file search,
+ * and two identical magnifiers one row apart read as one thing twice. On a phone both shrink to
  * their icons and the row stays one row (T078): the name gives way, never the menu.
  *
  * The catalog manager used to sit here as a link of its own, «За розкладом» when it had
@@ -130,7 +132,7 @@ export function SpaceHeader({
             label={`${t('teamSpaceFind')} (${chord})`}
             onClick={onFind}
           >
-            <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <Compass size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </IconButton>
         ) : (
           <Button
@@ -139,7 +141,7 @@ export function SpaceHeader({
             color="neutral"
             className="team-space-shell-find"
             aria-label={`${t('teamSpaceFind')} (${chord})`}
-            leading={<Search size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+            leading={<Compass size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
             trailing={<kbd>{chord}</kbd>}
             onClick={onFind}
           >
