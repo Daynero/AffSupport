@@ -2529,6 +2529,12 @@
   font-size: var(--text-section);
   font-weight: var(--weight-heading);
 }
+/* A small empty state is a line in a panel, a menu or a palette, not a section's heading
+   (070 T069: the palette's "start typing" stood at section size in an empty dialog). */
+.ui-empty--sm .ui-empty-title {
+  font-size: var(--text-body);
+  font-weight: var(--weight-label);
+}
 .ui-empty-description {
   margin: 0;
   color: var(--color-neutral-text-muted);
