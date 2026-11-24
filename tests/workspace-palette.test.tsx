@@ -13,7 +13,7 @@ import {
   shortcutKeys,
   matches
 } from '../apps/web/src/team/palette/shortcuts';
-import { translationKeys } from '../apps/web/src/i18n';
+import { translate, translationKeys } from '../apps/web/src/i18n';
 import { isCatalogSheet, rankByName } from '../apps/web/src/team/palette/usePaletteResults';
 
 /**
@@ -175,6 +175,16 @@ describe('the workspace palette', () => {
     expect(isCatalogSheet('clip catalog (2)', sheet)).toBe(true);
     expect(isCatalogSheet('Budget', sheet)).toBe(false);
     expect(isCatalogSheet('IN 40_v2_catalog', 'text/plain')).toBe(false);
+  });
+
+  it('is named for what it does — going somewhere — not as a second search (070, FR-011)', () => {
+    palette();
+    expect(screen.getByRole('dialog', { name: 'Go to…' })).toBeTruthy();
+    expect(screen.queryByText('Find anything')).toBeNull();
+    // The space's header names its door the same way, in both languages.
+    expect(translate('en', 'teamSpaceFind')).toBe('Go to…');
+    expect(translate('uk', 'teamSpaceFind')).toBe('Перейти до…');
+    expect(translate('uk', 'paletteTitle')).toBe('Перейти до…');
   });
 
   it('says what to do before anything is typed', () => {
