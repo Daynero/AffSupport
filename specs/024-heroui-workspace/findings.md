@@ -48,9 +48,9 @@ The sweep that 024 left open was finished as the last phase of 070; its full rec
   put cells beside their captions, a `Pagination` that took the page's body size, a `Select`
   smaller than the `Input` beside it, and a `Button` that with no props was a grey neutral
   plate rather than the action. All four are fixed in the inventory; the button's 63 bare
-  callers now say `color="neutral"`. The old `styles.css` still sets `body` to the section
-  step, so anything without a step of its own reads as a heading — each case found on the
-  beta was given its step; the global rule goes with the last legacy screens.
+  callers now say `color="neutral"`. The old `styles.css` set `body` to the section step, so
+  anything without a step of its own read as a heading; it is now the body step, checked by
+  a before/after computed-size pass over every screen.
 - **What it taught the system.** The token, Tailwind and raw-control gates now fail rather
   than report; the shim `components/ui.tsx` is gone; dictionaries load per language; the
   stylesheet lost 4 540 lines of dead or duplicated rules with a computed-style proof that
@@ -60,7 +60,7 @@ The sweep that 024 left open was finished as the last phase of 070; its full rec
 - **Deliberately not done.** The old `components/Modal` still frames the task pickers and the
   palette (it shares the inventory's dialog stack, focus and Escape; moving them is a visual
   rewrite of four dialogs, not a fix); the compressor, transcription, landing and admin
-  screens still draw from the old sheets; the narrow launch editor's close button wraps.
+  screens still draw from the old sheets.
   `apps/agent`, `packages/shared/src` and `config/production.env` are not changed by 070's
   own commits; `packaging` is, for the owner's first-launch item (Launcher.swift and the
   Windows host), and `supabase/functions/drive-ops` for the trim-on-drop item.
