@@ -40,13 +40,8 @@ import { useAgentQueue } from './useAgentQueue';
 import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
 import { useOptionalAddToTask } from '../tasks/AddToTask';
 import { useExplorerClipboard } from './useExplorerClipboard';
-import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
-import type { FolderSubtreeClient } from './FolderScopeDialog';
-import {
-  compressJobs,
-  type CompressPlan,
-  type CompressPlanItem as CompressPlanItem_
-} from './TeamCompressorDialog';
+import type { FolderSubtreeClient, ProcessOrigin, ScopeFile } from '../processing/processScope';
+import { compressJobs, type CompressPlan } from './TeamCompressorDialog';
 import { useCompanionFold } from './useCompanionFold';
 import { useFolderPage } from './useFolderPage';
 import { useVisibleRowAnchor } from './useVisibleRowAnchor';
@@ -74,7 +69,7 @@ import { ExplorerDropZone } from './ExplorerDropZone';
 import { ExplorerListArrangement, ExplorerListStrip, ExplorerNotices } from './ExplorerNotices';
 import { useExplorerTreePane } from './ExplorerTreePane';
 import { ExplorerProcessStack } from './ExplorerProcessStack';
-import { ExplorerDialogs, type ExplorerFolderScope } from './ExplorerDialogs';
+import { ExplorerDialogs } from './ExplorerDialogs';
 
 export type ExplorerShellClient = ExplorerClient &
   FolderResyncClient &
@@ -119,7 +114,8 @@ export type ExplorerShellProps = {
   onPreview?: (material: TeamMaterialSummary) => void;
   onCreateTask?: (asset: { id: string; name: string }) => void;
   onCreateTaskFromSelection?: (assets: Array<{ id: string; name: string }>) => void;
-  onProcessSelection?: (materialIds: string[], scope?: LibraryBatchScope) => void;
+  /** Opens the one processing dialog on the scope the door names (070, T062). */
+  onProcess?: (origin: ProcessOrigin) => void;
   onProcessLibrary?: () => void;
   onChanged?: () => void;
   onReset?: () => void;
@@ -174,7 +170,7 @@ function ExplorerBody({
   onPreview,
   onCreateTask,
   onCreateTaskFromSelection,
-  onProcessSelection,
+  onProcess,
   onProcessLibrary,
   onChanged,
   onReset,
@@ -217,8 +213,8 @@ function ExplorerBody({
   const agentCtx = useOptionalAgent();
   /* Reading a folder's subtree, and what the answer is for. All three of the
      folder-wide commands need the same walk, so they share one window. */
-  const [folderScope, setFolderScope] = useState<ExplorerFolderScope | null>(null);
-  const [compressing, setCompressing] = useState<CompressPlanItem_[] | null>(null);
+  /* The one compression dialog (070, T062): which door, which scope it opens on. */
+  const [compressOrigin, setCompressOrigin] = useState<ProcessOrigin | null>(null);
   const workspaceOperations = useOptionalWorkspaceOperations();
   const addMenuAnchor = useRef<HTMLButtonElement | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -426,8 +422,8 @@ function ExplorerBody({
     deliverRestitched,
     setCatalogFor,
     setProcessing,
-    setCompressing,
-    setFolderScope
+    onCompressScope: setCompressOrigin,
+    onProcessScope: onProcess
   });
 
   // The batch spans folders, so it comes from the accumulated selection map
@@ -450,11 +446,12 @@ function ExplorerBody({
     permissions,
     onCreateTask: onCreateTaskFromSelection,
     addToTask,
-    onProcess: onProcessSelection,
-    onCompress: setCompressing,
+    onProcess,
+    onCompress: setCompressOrigin,
     onDownloadRestitched: rows => void deliverRestitched(rows),
     onTrash: rows => void trashRows(rows),
-    currentFolderId
+    currentFolderId,
+    currentFolder: currentFolderId ? explorer.nodeOf(currentFolderId) : null
   };
   const shownIds = useMemo(() => new Set(page.rows.map(row => row.id)), [page.rows]);
 
@@ -561,9 +558,22 @@ function ExplorerBody({
             permissions?.process
               ? {
                   folder: currentFolderId ? explorer.nodeOf(currentFolderId) : null,
-                  onFolder: folder => setFolderScope({ folder, intent: 'process' }),
+                  onFolder: folder =>
+                    onProcess?.({
+                      intent: 'process',
+                      initial: 'folder',
+                      folder,
+                      selection: processableOf(selectedRows),
+                      space: true
+                    }),
                   onCompressFolder: permissions?.upload
-                    ? folder => setFolderScope({ folder, intent: 'compress' })
+                    ? folder =>
+                        setCompressOrigin({
+                          intent: 'compress',
+                          initial: 'folder',
+                          folder,
+                          selection: videosOf(selectedRows, currentFolderId)
+                        })
                     : undefined,
                   onSpace: onProcessLibrary
                 }
@@ -757,12 +767,9 @@ function ExplorerBody({
         client={client}
         query={query}
         currentFolderId={currentFolderId}
-        compressing={compressing}
-        onCompressing={setCompressing}
+        compressOrigin={compressOrigin}
+        onCloseCompress={() => setCompressOrigin(null)}
         onRunCompress={runCompressPlan}
-        folderScope={folderScope}
-        onFolderScope={setFolderScope}
-        onProcessSelection={onProcessSelection}
         conflict={conflict}
         creatingFolder={creatingFolder}
         onCreateFolder={createFolder}
@@ -791,3 +798,22 @@ const LIST_MOVERS =
 
 // Keeps the unused-permissions typing honest for callers that pass a partial set.
 export type ExplorerPermissions = TeamPermissions;
+
+/** The ticked rows a batch can take, as the processing dialog's "files in hand" (070, T062). */
+function processableOf(rows: readonly TeamMaterialRow[]): ScopeFile[] {
+  return rows
+    .filter(row => row.category === 'video' || row.category === 'landing')
+    .map(row => ({ id: row.id, name: row.name, category: row.category }));
+}
+
+/** The ticked videos, placed, as the compression dialog's "files in hand" (070, T062). */
+function videosOf(rows: readonly TeamMaterialRow[], currentFolderId: string | null): ScopeFile[] {
+  return rows
+    .filter(row => row.category === 'video')
+    .map(row => ({
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      parentFolderId: row.parentFolderId ?? currentFolderId ?? null
+    }));
+}

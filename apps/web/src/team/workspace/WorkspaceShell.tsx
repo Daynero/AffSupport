@@ -48,7 +48,9 @@ import { LibraryProcessingProvider } from '../library/LibraryProcessingProvider'
 import { AgentQueueProvider } from '../processing/AgentQueueProvider';
 import { AddToTaskProvider } from '../tasks/AddToTask';
 import { announceTaskAttachmentsChanged } from '../tasks/taskAttachmentEvents';
-import { ProcessLibraryDialog, type LibraryBatchScope } from '../library/ProcessLibraryDialog';
+import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
+import { ProcessScopeDialog } from '../processing/ProcessScopeDialog';
+import type { ProcessOrigin } from '../processing/processScope';
 import { SpaceStatePanel } from './SpaceStatePanel';
 import type { ExplorerShellClient } from '../explorer/ExplorerShell';
 import { BackgroundRenderProvider } from '../explorer/BackgroundRenderProvider';
@@ -217,6 +219,10 @@ function landingViewerMaterial(material: TeamMaterialSummary): CatalogMaterialIt
  * are revealed on demand — the search affordance only appears once the space
  * has content, so an empty space shows neither filters nor side panels.
  */
+
+/** The space menu's door: the whole space, nothing else to offer (070, T062). */
+const SPACE_ORIGIN: ProcessOrigin = { intent: 'process', initial: 'space', space: true };
+
 export function WorkspaceShell({
   teamId,
   client,
@@ -299,7 +305,9 @@ export function WorkspaceShell({
     }, INDEXING_REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [health?.kind, section]);
-  const [batchSelectionOpen, setBatchSelectionOpen] = useState(false);
+  /* The one processing dialog (070, T061): the door it was opened from. The
+     whole space is in the address instead (024, FR-050). */
+  const [processOrigin, setProcessOrigin] = useState<ProcessOrigin | null>(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   /** Which materials the batch is about; empty is the whole space. */
   const [batchSources, setBatchSources] = useState<string[]>([]);
@@ -960,11 +968,7 @@ export function WorkspaceShell({
                       onUpdater: () => navigateTo(explorerRoute({ updater: true })),
                       onProcessSpace:
                         can('process') && browsable
-                          ? () => {
-                              setBatchSources([]);
-                              setBatchScope({ kind: 'space' });
-                              navigateTo(hereRoute({ process: true }));
-                            }
+                          ? () => navigateTo(hereRoute({ process: true }))
                           : undefined,
                       onHistory:
                         activeTeam?.role === 'owner' || activeTeam?.role === 'admin'
@@ -1196,20 +1200,10 @@ export function WorkspaceShell({
                                 name: taskTitleFor(assets, t)
                               });
                             }}
-                            /* The file in hand, not the whole space: the dialog opens on
-                   the material that was chosen. */
-                            onProcessSelection={(materialIds, scope) => {
-                              setBatchSources(materialIds);
-                              setBatchScope(
-                                scope ?? { kind: 'selection', count: materialIds.length }
-                              );
-                              setBatchSelectionOpen(true);
-                            }}
-                            onProcessLibrary={() => {
-                              setBatchSources([]);
-                              setBatchScope({ kind: 'space' });
-                              navigateTo(hereRoute({ process: true }));
-                            }}
+                            /* Every door to processing opens the one dialog, on the
+                   scope it came from (070, T062). */
+                            onProcess={setProcessOrigin}
+                            onProcessLibrary={() => navigateTo(hereRoute({ process: true }))}
                             onChanged={() => setBrowserRevision(value => value + 1)}
                             readOnly={storageAttention}
                           />
@@ -1297,11 +1291,18 @@ export function WorkspaceShell({
 
                 {/* The whole space is in the address; a batch over picked files is
               not, because the pick is not (024, FR-050). */}
-                {(batchSelectionOpen || query?.process) && (
-                  <ProcessLibraryDialog
+                {(processOrigin || query?.process) && (
+                  <ProcessScopeDialog
+                    teamId={teamId}
+                    origin={processOrigin ?? SPACE_ORIGIN}
+                    client={teamApi}
                     scope={batchScope}
+                    onScope={(ids, scope) => {
+                      setBatchSources(ids);
+                      setBatchScope(scope);
+                    }}
                     onClose={() => {
-                      if (batchSelectionOpen) setBatchSelectionOpen(false);
+                      if (processOrigin) setProcessOrigin(null);
                       else navigateTo(hereRoute({ process: false }), true);
                     }}
                   />

@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { Modal } from '../../components/Modal';
 import { Button, Checkbox, FormField, Input, RadioGroup } from '../../components/ui/index';
 import type { RadioOption } from '../../components/ui/index';
@@ -95,12 +95,19 @@ export function TeamCompressorDialog({
   teamId,
   items,
   client,
+  scope,
   onRun,
   onClose
 }: {
   teamId: string;
   items: CompressPlanItem[];
   client: FolderPickerClient;
+  /**
+   * The scope question (070, T061): which videos — the ones in hand, this
+   * folder. Given, the window is the one door to compression; without it the
+   * items are fixed (a task attachment).
+   */
+  scope?: ReactNode;
   onRun: (plan: CompressPlan) => void;
   onClose: () => void;
 }) {
@@ -185,7 +192,12 @@ export function TeamCompressorDialog({
       onClose={onClose}
       closeLabel={t('teamClose')}
     >
-      <h3 id={titleId}>{t('teamCompressTitle', { count: items.length })}</h3>
+      <h2 id={titleId}>
+        {scope && items.length === 0
+          ? t('processScopeCompressTitle')
+          : t('teamCompressTitle', { count: items.length })}
+      </h2>
+      {scope}
       <p className="team-explorer-muted">{t('teamCompressQualityNote')}</p>
 
       <Checkbox label={t('teamCompressEmbed')} checked={embed} onChange={setEmbed} />
@@ -230,6 +242,9 @@ export function TeamCompressorDialog({
       </div>
 
       <div className="team-dialog-actions">
+        <Button color="neutral" variant="ghost" onClick={onClose}>
+          {t('teamCancel')}
+        </Button>
         <Button
           color="primary"
           variant="solid"
@@ -237,9 +252,6 @@ export function TeamCompressorDialog({
           onClick={run}
         >
           {t('teamCompressStart', { count: items.length })}
-        </Button>
-        <Button color="neutral" variant="ghost" onClick={onClose}>
-          {t('teamCancel')}
         </Button>
       </div>
 

@@ -430,7 +430,7 @@ describe('the batch entry points', () => {
     localStorage.setItem('wishly.active-team.v1', TEAM.id);
     const client = makeClient(rows);
     (client.listFolderTree as ReturnType<typeof vi.fn>).mockResolvedValue([FOLDER]);
-    const onProcessSelection = vi.fn();
+    const onProcess = vi.fn();
     const onProcessLibrary = vi.fn();
     render(
       <ToastProvider>
@@ -443,13 +443,13 @@ describe('the batch entry points', () => {
             onFolderChange={vi.fn()}
             onSearched={vi.fn()}
             onPreview={vi.fn()}
-            onProcessSelection={onProcessSelection}
+            onProcess={onProcess}
             onProcessLibrary={onProcessLibrary}
           />
         </TeamProvider>
       </ToastProvider>
     );
-    return { onProcessSelection, onProcessLibrary };
+    return { onProcess, onProcessLibrary };
   }
 
   it('holds the folder work in the toolbar "…", named, and gives focus back on Escape (070, T013)', async () => {
@@ -493,7 +493,7 @@ describe('the batch entry points', () => {
       });
     // The third is an image: checkable like anything else, and nothing the
     // batch can do. It must not be counted and must not be sent.
-    const { onProcessSelection } = renderInFolder([clip(1), clip(2), row(3)]);
+    const { onProcess } = renderInFolder([clip(1), clip(2), row(3)]);
     await screen.findByText('file-3.png');
     const boxes = document.querySelectorAll<HTMLInputElement>(
       '.team-explorer-row input[type="checkbox"]'
@@ -504,11 +504,19 @@ describe('the batch entry points', () => {
 
     const process = await screen.findByRole('button', { name: 'Process 2' });
     await user.click(process);
-    expect(onProcessSelection).toHaveBeenCalledWith(['id-1', 'id-2'], {
-      kind: 'selection',
-      count: 2,
-      picked: 3
-    });
+    // One dialog behind every door (070, T062): it opens on the selection, and
+    // knows the folder and the space as the other scopes it may offer.
+    expect(onProcess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'process',
+        initial: 'selection',
+        picked: 3,
+        space: true,
+        folder: expect.objectContaining({ driveFileId: FOLDER.driveFileId })
+      })
+    );
+    const origin = onProcess.mock.calls[0]![0] as { selection: Array<{ id: string }> };
+    expect(origin.selection.map(file => file.id)).toEqual(['id-1', 'id-2']);
   });
 
   it('offers no batch at all when nothing chosen can be processed', async () => {

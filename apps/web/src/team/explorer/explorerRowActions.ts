@@ -5,11 +5,10 @@ import type {
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
 import type { MaterialActionsClient } from '../catalog/material-actions-client';
-import type { ExplorerFolderScope } from './ExplorerDialogs';
+import type { ProcessOrigin } from '../processing/processScope';
 import type { useExplorer } from './ExplorerProvider';
 import type { ExplorerShellClient } from './ExplorerShell';
 import type { RowActionsProps } from './RowActions';
-import type { CompressPlanItem } from './TeamCompressorDialog';
 import type { useExplorerClipboard } from './useExplorerClipboard';
 import { summaryOf } from './summary';
 
@@ -35,8 +34,8 @@ export function explorerRowActions({
   deliverRestitched,
   setCatalogFor,
   setProcessing,
-  setCompressing,
-  setFolderScope
+  onCompressScope,
+  onProcessScope
 }: {
   teamId: string;
   permissions: TeamPermissions | null;
@@ -54,8 +53,10 @@ export function explorerRowActions({
   deliverRestitched: (rows: TeamMaterialRow[]) => Promise<void>;
   setCatalogFor: (row: TeamMaterialRow | null) => void;
   setProcessing: (processing: { row: TeamMaterialRow } | null) => void;
-  setCompressing: (items: CompressPlanItem[] | null) => void;
-  setFolderScope: (scope: ExplorerFolderScope | null) => void;
+  /** The one compression dialog, opened on a file (070, T062). */
+  onCompressScope: (origin: ProcessOrigin) => void;
+  /** The one processing dialog, opened on a folder (070, T062). */
+  onProcessScope?: (origin: ProcessOrigin) => void;
 }): RowActionsProps | undefined {
   return permissions
     ? {
@@ -106,15 +107,21 @@ export function explorerRowActions({
           ? {
               onProcess: (row: TeamMaterialRow) => setProcessing({ row }),
               onCompress: (row: TeamMaterialRow) =>
-                setCompressing([
-                  {
-                    id: row.id,
-                    name: row.name,
-                    folderId: row.parentFolderId ?? currentFolderId ?? null
-                  }
-                ]),
+                onCompressScope({
+                  intent: 'compress',
+                  initial: 'selection',
+                  selection: [
+                    {
+                      id: row.id,
+                      name: row.name,
+                      category: row.category,
+                      parentFolderId: row.parentFolderId ?? currentFolderId ?? null
+                    }
+                  ],
+                  folder: currentFolderId ? explorer.nodeOf(currentFolderId) : null
+                }),
               onProcessFolder: (row: TeamMaterialRow) =>
-                setFolderScope({ folder: row, intent: 'process' })
+                onProcessScope?.({ intent: 'process', initial: 'folder', folder: row, space: true })
             }
           : {})
       }

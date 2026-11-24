@@ -11001,17 +11001,27 @@ body {
   border: 0;
 }
 .team-batch-choice {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: var(--space-3);
-  min-height: 48px;
+  min-height: var(--control-height-xl);
   padding: 0 var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
 }
-.team-batch-choice:has(input:checked) {
+/* The whole row is the checkbox (070): its caption takes the width, the count sits at the end. */
+.team-batch-choice .ui-checkbox-content {
+  flex: 1;
+  gap: var(--space-3);
+}
+.team-batch-choice .ui-checkbox-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.team-batch-choice[data-selected='true'] {
   border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
   background: var(--color-accent-softer);
 }
@@ -11019,25 +11029,30 @@ body {
   cursor: default;
   color: var(--color-text-muted);
 }
-.team-batch-choice input {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: var(--color-accent);
-}
 .team-batch-choice-label {
-  font-weight: 600;
+  font-weight: var(--weight-label);
 }
 .team-batch-choice-count {
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
+/* Why Start is off, beside it (070, T061). */
+.team-batch-blocked {
+  margin-inline-end: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+/* The scope question at the top of the batch and compressor windows (070, T061). */
+.team-process-scope {
+  display: grid;
+  gap: var(--space-3);
+}
+.team-process-scope-status:empty {
+  display: none;
+}
 .team-batch-progress {
   display: grid;
   gap: var(--space-2);
-}
-.team-batch-progress progress {
-  width: 100%;
 }
 
 /* --- Team media action buttons: colour-coded, icon-led affordances shared by

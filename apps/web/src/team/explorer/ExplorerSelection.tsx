@@ -4,9 +4,7 @@ import type { MaterialCategory, TeamPermissions } from '@video-compressor/shared
 import { Button, DropdownMenu, IconButton, SelectionBar } from '../../components/ui/index';
 import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
-import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import type { useOptionalAddToTask } from '../tasks/AddToTask';
 import {
   MATERIAL_ACTION_BY_ID,
@@ -14,8 +12,7 @@ import {
   type MaterialActionId,
   type MaterialRef
 } from '../materials/actions';
-import { BATCH_SCOPE_LIMIT } from './FolderScopeDialog';
-import type { CompressPlanItem } from './TeamCompressorDialog';
+import type { ProcessOrigin, ProcessableFolder, ScopeFile } from '../processing/processScope';
 
 /**
  * The little a selection needs to know about each thing in it — met in a folder (a row) or in
@@ -35,12 +32,16 @@ export interface SelectionActs<T extends SelectedMaterial> {
   permissions: TeamPermissions | null;
   onCreateTask?: (assets: Array<{ id: string; name: string }>) => void;
   addToTask: ReturnType<typeof useOptionalAddToTask>;
-  onProcess?: (materialIds: string[], scope?: LibraryBatchScope) => void;
-  onCompress: (items: CompressPlanItem[]) => void;
+  /** Opens the one processing dialog on the selection (070, T062). */
+  onProcess?: (origin: ProcessOrigin) => void;
+  /** Opens the one compression dialog on the selection's videos (070, T062). */
+  onCompress: (origin: ProcessOrigin) => void;
   onDownloadRestitched: (items: T[]) => void;
   onTrash: (items: T[]) => void;
   /** The folder open now, where a selected file's own folder is not known. */
   currentFolderId: string | null;
+  /** The same folder by name, so the dialog can offer it beside the selection. */
+  currentFolder?: ProcessableFolder | null;
 }
 
 /**
@@ -75,7 +76,6 @@ export function ExplorerSelection<T extends SelectedMaterial>({
   acts: SelectionActs<T>;
 }) {
   const { t } = useI18n();
-  const { push } = useToasts();
   const checked = useMemo(() => new Set(items.map(item => item.id)), [items]);
   const elsewhere = useMemo(
     () => items.filter(item => !shownIds.has(item.id)).length,
@@ -146,28 +146,17 @@ export function ExplorerSelection<T extends SelectedMaterial>({
             : t('teamExplorerProcessSelectionMany', { count: processable.length })
         }
         icon={<Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
-        onPress={() => {
-          /* The bound the folder path already respects: refused here it is a sentence;
-             refused by the RPC it is "Частина даних некоректна" in a window with no fields. */
-          if (processable.length > BATCH_SCOPE_LIMIT) {
-            push({
-              tone: 'error',
-              text: t('teamBatchFolderTooMany', {
-                count: processable.length,
-                limit: BATCH_SCOPE_LIMIT
-              })
-            });
-            return;
-          }
-          run(
-            processable.map(item => item.id),
-            {
-              kind: 'selection',
-              count: processable.length,
-              ...(processable.length < items.length ? { picked: items.length } : {})
-            }
-          );
-        }}
+        onPress={() =>
+          /* The bound (500 files) is the dialog's to say now, before Start (070, T061). */
+          run({
+            intent: 'process',
+            initial: 'selection',
+            selection: processable.map(item => scopeFileOf(item, acts.currentFolderId)),
+            picked: items.length,
+            folder: acts.currentFolder ?? null,
+            space: true
+          })
+        }
       />
     );
   }
@@ -210,13 +199,12 @@ export function ExplorerSelection<T extends SelectedMaterial>({
           : t('teamCompressSelected'),
       icon: icon('compress'),
       onSelect: () =>
-        acts.onCompress(
-          videos.map(item => ({
-            id: item.id,
-            name: item.name,
-            folderId: item.parentFolderId ?? acts.currentFolderId ?? null
-          }))
-        )
+        acts.onCompress({
+          intent: 'compress',
+          initial: 'selection',
+          selection: videos.map(item => scopeFileOf(item, acts.currentFolderId)),
+          folder: acts.currentFolder ?? null
+        })
     });
   }
   if (permissions?.download && offers('downloadRestitched', videos)) {
@@ -323,4 +311,13 @@ function SelectionMore({ label, items }: { label: string; items: MenuItem[] }) {
       />
     </>
   );
+}
+
+function scopeFileOf(item: SelectedMaterial, currentFolderId: string | null): ScopeFile {
+  return {
+    id: item.id,
+    name: item.name,
+    category: item.category,
+    parentFolderId: item.parentFolderId ?? currentFolderId ?? null
+  };
 }

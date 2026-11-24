@@ -1,30 +1,20 @@
 import type { TeamMaterialRow } from '@video-compressor/shared';
 import { navigateTo } from '../../lib/navigation';
 import { buildTeamRoute, type TeamRouteQuery } from '../routes';
-import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import { MaterialProcessFlow } from '../processing/MaterialProcessFlow';
 import { ProductCatalogMenuDialog } from '../product-catalog/ProductCatalogMenuDialog';
 import { RestitchDeliveryNotices } from '../restitch/RestitchDeliveryNotices';
 import type { RestitchDeliveryState } from '../restitch/useRestitchDelivery';
 import { CreateFolderDialog } from './CreateFolderDialog';
-import { FolderScopeDialog, scopeIdsOf, type ProcessableFolder } from './FolderScopeDialog';
-import {
-  TeamCompressorDialog,
-  type CompressPlan,
-  type CompressPlanItem
-} from './TeamCompressorDialog';
+import { ProcessScopeDialog } from '../processing/ProcessScopeDialog';
+import type { ProcessOrigin } from '../processing/processScope';
+import type { CompressPlan } from './TeamCompressorDialog';
 import {
   UploadConflictDialog,
   type UploadConflictChoice,
   type UploadConflictRequest
 } from './UploadConflictDialog';
 import type { ExplorerShellClient } from './ExplorerShell';
-
-/** A folder's subtree being read, and what the answer is for. */
-export type ExplorerFolderScope = {
-  folder: ProcessableFolder;
-  intent: 'process' | 'compress';
-};
 
 /**
  * Every window the explorer opens, out of `ExplorerShell` (070, FR-001). Each one is a modal
@@ -37,12 +27,9 @@ export function ExplorerDialogs({
   client,
   query,
   currentFolderId,
-  compressing,
-  onCompressing,
+  compressOrigin,
+  onCloseCompress,
   onRunCompress,
-  folderScope,
-  onFolderScope,
-  onProcessSelection,
   conflict,
   creatingFolder,
   onCreateFolder,
@@ -58,12 +45,10 @@ export function ExplorerDialogs({
   client: ExplorerShellClient;
   query: TeamRouteQuery;
   currentFolderId: string | null;
-  compressing: CompressPlanItem[] | null;
-  onCompressing: (items: CompressPlanItem[] | null) => void;
+  /** The one compression dialog (070, T062), on the scope it was opened from. */
+  compressOrigin: ProcessOrigin | null;
+  onCloseCompress: () => void;
   onRunCompress: (plan: CompressPlan) => void;
-  folderScope: ExplorerFolderScope | null;
-  onFolderScope: (scope: ExplorerFolderScope | null) => void;
-  onProcessSelection?: (materialIds: string[], scope?: LibraryBatchScope) => void;
   conflict: {
     request: UploadConflictRequest;
     settle: (choice: UploadConflictChoice, forRest: boolean) => void;
@@ -80,55 +65,13 @@ export function ExplorerDialogs({
 }) {
   return (
     <>
-      {compressing && (
-        <TeamCompressorDialog
+      {compressOrigin && (
+        <ProcessScopeDialog
           teamId={teamId}
-          items={compressing}
+          origin={compressOrigin}
           client={client}
-          onRun={onRunCompress}
-          onClose={() => onCompressing(null)}
-        />
-      )}
-      {folderScope && (
-        <FolderScopeDialog
-          teamId={teamId}
-          folder={folderScope.folder}
-          intent={folderScope.intent}
-          client={client}
-          onResolved={result => {
-            const { folder, intent } = folderScope;
-            onFolderScope(null);
-            if (intent === 'compress') {
-              if (result.videos.length === 0) return;
-              onCompressing(
-                result.videos.map(video => ({
-                  id: video.id,
-                  name: video.name,
-                  folderId: video.parentFolderId ?? folder.driveFileId
-                }))
-              );
-              return;
-            }
-            const ids = scopeIdsOf(result);
-            /* An empty scope is not a small batch: with no ids the server reads
-               the request as the whole space, so a folder that yielded nothing
-               would quietly start everything. */
-            if (ids.length === 0) return;
-            onProcessSelection?.(ids, {
-              kind: 'folder',
-              name: folder.name,
-              // The walk counts the folder it started from; a folder with five
-              // subfolders was reporting six.
-              folders: Math.max(0, result.foldersVisited - 1),
-              files: ids.length,
-              // Separately, because the window's "already done" line is about
-              // videos with a transcript, and one video is exactly one
-              // transcription job.
-              videos: result.videos.length,
-              landingIds: result.landings.map(landing => landing.id)
-            });
-          }}
-          onClose={() => onFolderScope(null)}
+          onCompress={onRunCompress}
+          onClose={onCloseCompress}
         />
       )}
       {/* 015 — the running deliveries speak for themselves; nothing is rendered inline. */}

@@ -248,9 +248,9 @@ describe('stopping is a decision, not a side effect', () => {
     // Asking is not doing.
     expect(client.cancelLibraryJob).not.toHaveBeenCalled();
 
-    const dialog = await screen.findByText('Stop this batch?');
-    const confirm = dialog.parentElement?.querySelector('button');
-    await userEvent.click(confirm as HTMLElement);
+    // The question is the inventory's ConfirmDialog (070): its verb is the last "Stop processing".
+    const stops = await screen.findAllByRole('button', { name: 'Stop processing' });
+    await userEvent.click(stops.at(-1)!);
     await waitFor(() => expect(client.cancelLibraryJob).toHaveBeenCalledTimes(1));
     // Said once in the dialog and once as a toast; both are the same sentence.
     await waitFor(() => expect(screen.getAllByText('Processing stopped.').length).toBe(2));

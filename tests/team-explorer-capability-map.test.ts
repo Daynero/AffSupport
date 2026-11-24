@@ -95,7 +95,7 @@ describe('the explorer capability map', () => {
       'TrashView',
       'uploadTeamFile',
       'onCreateTaskFromSelection',
-      'onProcessSelection',
+      'onProcess?: (origin: ProcessOrigin) => void',
       'KindFilterMenu'
     ]) {
       expect(shell, needle).toContain(needle);

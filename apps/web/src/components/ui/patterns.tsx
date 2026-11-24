@@ -1,4 +1,6 @@
 import { useId, type ReactNode } from 'react';
+import { X } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../icons';
 import { Alert } from './Alert';
 import { Button } from './Button';
 import { HoldToConfirmButton } from './HoldToConfirmButton';
@@ -269,8 +271,18 @@ export function SelectionBar({
     >
       <span className="ui-selection-count">{label}</span>
       <div className="ui-selection-actions">{actions}</div>
-      <Button size="sm" color="neutral" variant="ghost" onClick={onClear}>
-        {clearLabel}
+      {/* The word can go on a narrow bar (CSS only); the × and the name stay (070, phase 8):
+          the bar on a phone used to lay "Скинути вибір (2)" over the acts beside it. */}
+      <Button
+        size="sm"
+        color="neutral"
+        variant="ghost"
+        className="ui-selection-clear"
+        aria-label={clearLabel}
+        onClick={onClear}
+      >
+        <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        <span className="ui-selection-clear-label">{clearLabel}</span>
       </Button>
     </Toolbar>
   );

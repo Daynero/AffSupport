@@ -1218,7 +1218,8 @@
    name stays for a reader and the tooltip), and the count's caveat with it. */
 @container (max-width: 560px) {
   .team-explorer-selection-act-label,
-  .team-explorer-selection-elsewhere {
+  .team-explorer-selection-elsewhere,
+  .team-explorer-selection-bar .ui-selection-clear-label {
     display: none;
   }
 }

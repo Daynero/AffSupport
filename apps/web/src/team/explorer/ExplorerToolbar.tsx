@@ -40,7 +40,7 @@ import {
   type FolderHistory
 } from './Breadcrumb';
 import { useToolbarFit } from './useToolbarFit';
-import type { ProcessableFolder } from './FolderScopeDialog';
+import type { ProcessableFolder } from '../processing/processScope';
 
 /** The folder-wide work the toolbar offers, when the reader may process. */
 export type ExplorerToolbarProcess = {

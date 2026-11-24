@@ -1,6 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
 import { useI18n, type TranslationKey } from '../../i18n';
 import type { LibraryRequirementScanResult } from '../../api/team';
 import { teamErrorMessage } from '../errors';
@@ -13,9 +12,16 @@ export {
   type ProcessLibraryAgent,
   type ProcessLibraryClient
 } from './process-library-contract';
-import { Alert, EmptyState } from '../../components/ui/index';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  ConfirmDialog,
+  EmptyState,
+  LoadingState,
+  Progress
+} from '../../components/ui/index';
 import { ReconnectAction } from '../../components/ReconnectAction';
-import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 
 type Translate = (key: TranslationKey, values?: Record<string, string | number>) => string;
 
@@ -29,9 +35,21 @@ type Translate = (key: TranslationKey, values?: Record<string, string | number>)
  */
 export function ProcessLibraryDialog({
   scope = { kind: 'space' },
+  scopeChooser,
+  blocked = false,
+  blockedReason,
   onClose
 }: {
   scope?: LibraryBatchScope;
+  /** The scope question (070, T061), asked above the work it decides. */
+  scopeChooser?: ReactNode;
+  /**
+   * The scope on screen is not one the batch can be about yet — still being
+   * read, empty, or more than one batch can take. Nothing is scanned and Start
+   * stays off; `blockedReason` says why beside it.
+   */
+  blocked?: boolean;
+  blockedReason?: string;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -40,7 +58,6 @@ export function ProcessLibraryDialog({
   // agent that answered and is too old; a lost link asks for the link back.
   const agentReady = batch.agentAvailability === 'ready';
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const cancelTitleId = useId();
 
   /*
    * A window opened onto a batch that is not running scans, so the counts are
@@ -55,18 +72,24 @@ export function ProcessLibraryDialog({
     batch.phase === 'complete' ||
     batch.phase === 'failed';
   const rescan = batch.rescan;
-  const scanned = useRef(false);
+  /* Which scope the counts on screen were read for. A scope chosen in the
+     window after a failed scan is a new question, not the same one again. */
+  const scanned = useRef<string | null>(null);
+  const appliedKey = `${batch.scope.kind}|${batchScopeName(batch.scope, t)}`;
   useEffect(() => {
     if (!settledPhase) {
-      scanned.current = false;
+      scanned.current = null;
       return;
     }
-    if (scanned.current) return;
-    scanned.current = true;
+    if (blocked || scanned.current === appliedKey) return;
+    scanned.current = appliedKey;
     void rescan();
-  }, [rescan, settledPhase]);
+  }, [appliedKey, blocked, rescan, settledPhase]);
 
   const running = batch.phase === 'running';
+  const blockedReasonId = useId();
+  /* While blocked, the counts on screen belong to a scope that is not the one chosen. */
+  const showWork = !blocked || running;
   /* While a run is on, its own tally; once it has settled, the result it kept —
      the live counters are cleared by the rescan that follows. */
   const tally = running
@@ -110,7 +133,7 @@ export function ProcessLibraryDialog({
         {/* The scope again, in a full sentence: the title has to be short, and
             "the whole space" versus "the 4 files you picked" is exactly the
             thing a person checks before pressing Start. */}
-        <p className="team-batch-scope">{batchScopeLine(batch.scope, t)}</p>
+        {scopeChooser ?? <p className="team-batch-scope">{batchScopeLine(batch.scope, t)}</p>}
         {/*
          * A batch already running keeps the window: its numbers, its progress
          * and its name. Asking for a different scope while it runs used to put
@@ -122,8 +145,10 @@ export function ProcessLibraryDialog({
             {t('teamBatchScopeDeferred', { scope: batchScopeName(scope, t) })}
           </Alert>
         )}
-        {batch.phase === 'scanning' && <LabeledSkeleton label="teamBatchScanning" rows={2} />}
-        {batch.scan && (
+        {showWork && batch.phase === 'scanning' && (
+          <LoadingState count={2} label={t('teamBatchScanning')} />
+        )}
+        {showWork && batch.scan && (
           /*
            * What to run, chosen (024). The window used to count three kinds of
            * work in tiles and start all of them — a folder could not be
@@ -137,46 +162,48 @@ export function ProcessLibraryDialog({
               const kind = entry.key as (typeof batch.chosenKinds)[number];
               const chosen = entry.count > 0 && batch.chosenKinds.includes(kind);
               return (
-                <label
+                <Checkbox
                   key={entry.key}
                   className={`team-batch-choice${entry.count === 0 ? ' is-empty' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={chosen}
-                    disabled={entry.count === 0 || running}
-                    onChange={event =>
-                      batch.setChosenKinds(
-                        event.target.checked
-                          ? [...batch.chosenKinds, kind]
-                          : batch.chosenKinds.filter(item => item !== kind)
-                      )
-                    }
-                  />
-                  <span className="team-batch-choice-label">{t(entry.label)}</span>
-                  <span className="team-batch-choice-count">
-                    {entry.count === 0 ? t('teamBatchChoiceNothing') : entry.count}
-                  </span>
-                </label>
+                  checked={chosen}
+                  disabled={entry.count === 0 || running}
+                  onChange={checked =>
+                    batch.setChosenKinds(
+                      checked
+                        ? [...batch.chosenKinds, kind]
+                        : batch.chosenKinds.filter(item => item !== kind)
+                    )
+                  }
+                  label={
+                    <>
+                      <span className="team-batch-choice-label">{t(entry.label)}</span>
+                      <span className="team-batch-choice-count">
+                        {entry.count === 0 ? t('teamBatchChoiceNothing') : entry.count}
+                      </span>
+                    </>
+                  }
+                />
               );
             })}
             {batch.scope.kind !== 'selection' && (
-              <label className={`team-batch-choice${batch.previewCount === 0 ? ' is-empty' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={batch.previewsChosen && batch.previewCount > 0}
-                  disabled={batch.previewCount === 0 || running}
-                  onChange={event => batch.setPreviewsChosen(event.target.checked)}
-                />
-                <span className="team-batch-choice-label">{t('teamBatchPreviews')}</span>
-                <span className="team-batch-choice-count">
-                  {batch.previewCount === 0 ? t('teamBatchChoiceNothing') : batch.previewCount}
-                </span>
-              </label>
+              <Checkbox
+                className={`team-batch-choice${batch.previewCount === 0 ? ' is-empty' : ''}`}
+                checked={batch.previewsChosen && batch.previewCount > 0}
+                disabled={batch.previewCount === 0 || running}
+                onChange={checked => batch.setPreviewsChosen(checked)}
+                label={
+                  <>
+                    <span className="team-batch-choice-label">{t('teamBatchPreviews')}</span>
+                    <span className="team-batch-choice-count">
+                      {batch.previewCount === 0 ? t('teamBatchChoiceNothing') : batch.previewCount}
+                    </span>
+                  </>
+                }
+              />
             )}
           </fieldset>
         )}
-        {batch.scan && batch.previewsChosen && batch.previewCount > 0 && (
+        {showWork && batch.scan && batch.previewsChosen && batch.previewCount > 0 && (
           <p className="team-batch-note">{t('teamBatchPreviewsNote')}</p>
         )}
         {batch.previewError && (
@@ -184,7 +211,7 @@ export function ProcessLibraryDialog({
             {t('teamBatchPreviewsScanFailed')}
           </Alert>
         )}
-        {batch.scan && unsupported(batch.scan, batch.supportedKinds).length > 0 && (
+        {showWork && batch.scan && unsupported(batch.scan, batch.supportedKinds).length > 0 && (
           <p className="team-explorer-muted">
             {t('teamBatchUnsupportedWork', {
               work: unsupported(batch.scan, batch.supportedKinds)
@@ -193,19 +220,21 @@ export function ProcessLibraryDialog({
             })}
           </p>
         )}
-        {batch.phase === 'ready' && alreadyDone > 0 && (
+        {showWork && batch.phase === 'ready' && alreadyDone > 0 && (
           <p className="team-batch-note">{t('teamBatchAlreadyDone', { count: alreadyDone })}</p>
         )}
         {/* "215" beside "Transcripts" under "Everything this space holds" read as every video
             being done again — the counts are only what is missing, and that is worth a line
             before a button that starts two hundred jobs. */}
-        {batch.phase === 'ready' &&
+        {showWork &&
+          batch.phase === 'ready' &&
           alreadyDone === 0 &&
           batch.scan &&
           totalOf(batch.scan, batch.supportedKinds) > 0 && (
             <p className="team-batch-note">{t('teamBatchMissingOnly')}</p>
           )}
-        {batch.phase === 'ready' &&
+        {showWork &&
+          batch.phase === 'ready' &&
           batch.scan &&
           totalOf(batch.scan, batch.supportedKinds) === 0 &&
           batch.previewCount === 0 && <EmptyState size="sm" title={t('teamBatchNothing')} />}
@@ -242,7 +271,14 @@ export function ProcessLibraryDialog({
         )}
         {batch.phase === 'running' && (
           <div className="team-batch-progress" aria-live="polite">
-            <progress max={Math.max(batch.total, settled, 1)} value={settled} />
+            <Progress
+              flowing
+              label={t('teamBatchProgress', {
+                completed: tally.done,
+                total: Math.max(batch.total, settled)
+              })}
+              value={(settled / Math.max(batch.total, settled, 1)) * 100}
+            />
             <span>
               {t('teamBatchProgress', {
                 completed: tally.done,
@@ -277,62 +313,68 @@ export function ProcessLibraryDialog({
           </p>
         )}
         <div className="team-dialog-actions">
-          {batch.phase !== 'running' &&
+          {blocked && !running && blockedReason && (
+            <span id={blockedReasonId} className="team-batch-blocked">
+              {blockedReason}
+            </span>
+          )}
+          {/* "Close" closes the window; the run, if any, carries on. It said
+              "Done", which reads as a decision — and pressing it having done
+              nothing at all felt like agreeing to something. */}
+          <Button color="neutral" variant="ghost" onClick={onClose}>
+            {t('teamClose')}
+          </Button>
+          {tally.failed > 0 && !running && !batch.previewsChosen && (
+            <Button color="neutral" variant="outline" onClick={() => void batch.retryFailed()}>
+              {t('teamBatchRetry')}
+            </Button>
+          )}
+          {batch.phase === 'running' && (
+            <Button color="neutral" variant="outline" onClick={() => setConfirmingCancel(true)}>
+              {t('teamBatchCancel')}
+            </Button>
+          )}
+          {/* A scope that cannot be started yet still shows where Start is,
+              switched off, with the reason beside it (070, T061). */}
+          {blocked && !running && (
+            <Button
+              color="primary"
+              variant="solid"
+              disabled
+              aria-describedby={blockedReason ? blockedReasonId : undefined}
+            >
+              {t('teamProcessStart')}
+            </Button>
+          )}
+          {showWork &&
+            batch.phase !== 'running' &&
             agentReady &&
             batch.scan &&
             (totalOf(batch.scan, batch.supportedKinds) > 0 || batch.previewCount > 0) && (
               <Button
-                type="button"
-                variant="primary"
+                color="primary"
+                variant="solid"
                 disabled={batch.total === 0}
                 onClick={() => void batch.start()}
               >
                 {t('teamBatchStartCount', { count: batch.total })}
               </Button>
             )}
-          {batch.phase === 'running' && (
-            <Button type="button" variant="secondary" onClick={() => setConfirmingCancel(true)}>
-              {t('teamBatchCancel')}
-            </Button>
-          )}
-          {tally.failed > 0 && !running && !batch.previewsChosen && (
-            <Button type="button" variant="secondary" onClick={() => void batch.retryFailed()}>
-              {t('teamBatchRetry')}
-            </Button>
-          )}
-          {/* "Close" closes the window; the run, if any, carries on. It said
-              "Done", which reads as a decision — and pressing it having done
-              nothing at all felt like agreeing to something. */}
-          <Button type="button" variant="ghost" onClick={onClose}>
-            {t('teamClose')}
-          </Button>
         </div>
       </section>
       {confirmingCancel && (
-        <Modal
+        <ConfirmDialog
           nested
-          labelledBy={cancelTitleId}
-          size="sm"
-          onClose={() => setConfirmingCancel(false)}
-        >
-          <h3 id={cancelTitleId}>{t('teamBatchCancelConfirmTitle')}</h3>
-          <p>{t('teamBatchCancelConfirmBody')}</p>
-          <div className="team-dialog-actions">
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => {
-                setConfirmingCancel(false);
-                void batch.cancel();
-              }}
-            >
-              {t('teamBatchCancel')}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirmingCancel(false)}>
-              {t('teamCancel')}
-            </Button>
-          </div>
-        </Modal>
+          title={t('teamBatchCancelConfirmTitle')}
+          body={t('teamBatchCancelConfirmBody')}
+          confirmLabel={t('teamBatchCancel')}
+          cancelLabel={t('teamCancel')}
+          onCancel={() => setConfirmingCancel(false)}
+          onConfirm={() => {
+            setConfirmingCancel(false);
+            void batch.cancel();
+          }}
+        />
       )}
     </Modal>
   );
