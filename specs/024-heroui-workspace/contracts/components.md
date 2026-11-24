@@ -36,6 +36,8 @@ migration; they carry the contract.
 | `Skeleton`        | HeroUI `Skeleton`                       |                                                                                                                                                      |
 | `Spinner`         | HeroUI `Spinner`                        | keeps `--motion-spin-reduced` under reduced motion                                                                                                   |
 | `Tooltip`         | HeroUI `Tooltip`                        | one delay group for the whole product                                                                                                                |
+| `HelpTip`         | own (moved from the shim, 070)          | the "?" beside a setting's name: press, focus or hover; pinned on a phone                                                                            |
+| `HintLayer`       | own (070)                               | draws every `title` as the inventory's label; shares `Tooltip`'s delay and warm-up                                                                   |
 | **`Kbd`** _(new)_ | HeroUI `Kbd`                            | the shortcut sheet and the palette need it                                                                                                           |
 
 ## Form

@@ -241,7 +241,10 @@
   `SelectMenu` (з пошуком), `SearchField`, `Textarea`.
 - Вибір: `Checkbox`, `RadioGroup` (зокрема варіант `pictos` — це саме та
   picto-група, що описана вище), `SegmentedControl`, `Slider`, `Switch`.
-- Стан: `Empty`, `Progress`, `StageProgress` (підтверджені етапи в одну смугу), `Skeleton`, `Spinner`, `Tooltip`, `Kbd`.
+- Стан: `Empty`, `Progress` (з `flowing`, коли робота справді йде), `StageProgress` (підтверджені етапи в одну смугу), `Skeleton`, `Spinner`, `Tooltip`, `HelpTip` («?» біля назви налаштування — той самий FieldLabel, що вище), `Kbd`.
+- Підказки: `Tooltip` — для контролу, що вже щось робить; усе інше пише звичайний
+  `title`, і його малює `HintLayer` інвентаря тією самою міткою, з тією самою
+  затримкою й розігрівом (070). `data-tip` більше немає.
 - Шари: `Modal`, `Drawer`, `Popover`, `DropdownMenu`, `ContextMenu` — **один**
   стек на весь продукт, і його тримає React Aria: Escape отримує найглибша
   поверхня, фокус повертається на тригер, сторінка блокує прокрутку рівно
