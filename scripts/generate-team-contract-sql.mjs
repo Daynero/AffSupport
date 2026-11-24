@@ -29,6 +29,7 @@ import {
   LAUNCH_CREATIVE_ERROR_CODES,
   TEAM_TRANSLATION_ERROR_CODES,
   TEAM_ASSISTANT_ERROR_CODES,
+  TEAM_DRIVE_STORAGE_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
   TEAM_MATERIAL_LIFECYCLES,
@@ -83,7 +84,9 @@ const extensionCodes = new Set([
   // 063: transcript translation, hand-written the same way.
   ...TEAM_TRANSLATION_ERROR_CODES,
   // 064: credits and the launch assistant, hand-written the same way.
-  ...TEAM_ASSISTANT_ERROR_CODES
+  ...TEAM_ASSISTANT_ERROR_CODES,
+  // 2026-11-24: a full Google storage, hand-written the same way.
+  ...TEAM_DRIVE_STORAGE_ERROR_CODES
 ]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
 if (
@@ -109,7 +112,8 @@ if (
       CATALOG_VIDEO_R2_ERROR_CODES.length +
       LAUNCH_CREATIVE_ERROR_CODES.length +
       TEAM_TRANSLATION_ERROR_CODES.length +
-      TEAM_ASSISTANT_ERROR_CODES.length
+      TEAM_ASSISTANT_ERROR_CODES.length +
+      TEAM_DRIVE_STORAGE_ERROR_CODES.length
 )
   fail('Duplicate team error code');
 

@@ -3528,3 +3528,18 @@ desktop could no longer read its stored handle after a hard shutdown and «Soty 
 stayed for good. Undo by restoring `and d.expires_at<=clock_timestamp()` to the renewal check and
 dropping the `renewalDelegationId` exclusion from the live-credential check; desktops that lost their
 handle then need the delegation revoked by hand again.
+
+## 20261224110000 — catalog work goes to the delegation that worked last
+
+Adds `private.recovery_executor_for(team, actor)` and patches `public.service_adopt_catalog_variant_round`
+and `public.service_initial_catalog_video_context_before_foreground` (through `pg_get_functiondef`,
+failing if the replaced text is missing): with several live delegations of one person the most
+recently active one carries the work instead of «Чекає на комп'ютерний агент». Production
+2026-11-24: an orphaned delegation of an earlier setup blocked every catalog round. Undo by restoring
+`if executors<>1 then return private.note_catalog_variant_round_wait(p_attempt,'AGENT_REQUIRED');end if;`
+and the `count(*)=1` executor select, then dropping the helper.
+
+## 20261224120000 — the code for a full Google storage
+
+Additive: one row in `public.team_error_codes` (`DRIVE_STORAGE_FULL`). Leave it in place on rollback;
+an older build never writes it, and rows that reference it keep their foreign key.

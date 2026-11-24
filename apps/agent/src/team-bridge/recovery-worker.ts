@@ -1,5 +1,7 @@
 import {
+  asDriveRefusal,
   CatalogVariantSetCanceled,
+  DriveRefusedProcess,
   runCatalogVariantRecovery
 } from './catalog-variant-recovery.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
@@ -1394,7 +1396,8 @@ export class TeamRecoveryWorker {
         await this.options.process.process(active.request);
       } catch (error) {
         const code = error instanceof Error ? error.message : '';
-        if (!RECOVERY_PREUPLOAD_FAILURE_CODES.some(known => known === code)) throw error;
+        if (!RECOVERY_PREUPLOAD_FAILURE_CODES.some(known => known === code))
+          throw asDriveRefusal(error);
         // process() has awaited delegate/transfer cleanup. Persist the classified
         // pre-upload outcome before reporting, so a lost reply never reruns it.
         active.failureCode = code;
@@ -1460,16 +1463,20 @@ export class TeamRecoveryWorker {
         this.#schedule(r, RECOVERY_BUDGET.probeMs);
         return;
       }
+      // A refusal Drive gave one video's work is not this computer's permission: it takes the
+      // bounded retry path below (self-resuming), with its code in the journal.
       const permanentCode = (
-        [
-          'AUTH_REQUIRED',
-          'PERMISSION_DENIED',
-          'INVALID_INPUT',
-          // INVALID_RESPONSE is not here: the server answers it for a database failure
-          // it could not classify, and a malformed reply is just as likely to be
-          // transient. It takes the bounded retry path below (hourly at worst).
-          'AGENT_UPDATE_REQUIRED'
-        ] as const
+        error instanceof DriveRefusedProcess
+          ? []
+          : ([
+              'AUTH_REQUIRED',
+              'PERMISSION_DENIED',
+              'INVALID_INPUT',
+              // INVALID_RESPONSE is not here: the server answers it for a database failure
+              // it could not classify, and a malformed reply is just as likely to be
+              // transient. It takes the bounded retry path below (hourly at worst).
+              'AGENT_UPDATE_REQUIRED'
+            ] as const)
       ).find(candidate => candidate === code);
       if (permanentCode) {
         if (permanentCode === 'AUTH_REQUIRED') {

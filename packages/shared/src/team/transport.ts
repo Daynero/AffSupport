@@ -49,6 +49,13 @@ export const TEAM_TRANSLATION_ERROR_CODES = [
 ] as const;
 
 /** 064 credits and the launch assistant; seeded by 20261223090000_assistant_error_codes.sql. */
+/**
+ * The connected Google storage is full (Drive 403 storageQuotaExceeded). It used to read as
+ * PERMISSION_DENIED — «У вас немає дозволу» — and parked background work as revoked
+ * (production 2026-11-24). Seeded by 20261224120000_drive_storage_error_codes.sql.
+ */
+export const TEAM_DRIVE_STORAGE_ERROR_CODES = ['DRIVE_STORAGE_FULL'] as const;
+
 export const TEAM_ASSISTANT_ERROR_CODES = [
   'INSUFFICIENT_CREDITS',
   'AI_MONTH_EXHAUSTED',
@@ -173,6 +180,7 @@ export const TEAM_ERROR_CODES = [
   'CORRUPT_OR_PROTECTED',
   'RATE_LIMITED',
   'DRIVE_UNAVAILABLE',
+  ...TEAM_DRIVE_STORAGE_ERROR_CODES,
   'NEEDS_REAUTH',
   ...TEAM_COMMERCIAL_ERROR_CODES,
   'DELIVERY_UNAVAILABLE',

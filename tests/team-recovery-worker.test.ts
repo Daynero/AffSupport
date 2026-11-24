@@ -1412,6 +1412,43 @@ describe('background recovery worker', () => {
       });
     }
   );
+  // Production 2026-11-24: a full Google storage refused the upload of one video, and the worker
+  // parked the whole space as «permission revoked» — «У вас немає дозволу», for good.
+  it.each(['DRIVE_STORAGE_FULL', 'PERMISSION_DENIED'])(
+    'keeps background work alive when Drive refuses one video with %s',
+    async code => {
+      const f = await fixture();
+      f.process.process.mockRejectedValue(new Error(code));
+      const actions: string[] = [];
+      f.fetcher.mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        actions.push(body.action);
+        const claims = actions.filter(action => action === 'claim').length;
+        const value =
+          body.action === 'claim'
+            ? claims === 1
+              ? brokerClaim()
+              : { job: null, operationCredential: null }
+            : { pending: false };
+        return new Response(JSON.stringify({ ok: true, value }));
+      });
+      await f.worker.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await f.worker.idle();
+      expect(f.process.process).toHaveBeenCalledOnce();
+      expect(f.worker.status(TEAM)).not.toMatchObject({ reason: 'permission_revoked' });
+      expect(f.worker.status(TEAM).automaticSetup).toBe('ready');
+      await vi.advanceTimersByTimeAsync(5_000);
+      await f.worker.idle();
+      // The held claim is settled, never run again.
+      expect(actions).toContain('settle');
+      expect(f.process.process).toHaveBeenCalledOnce();
+      expect(f.record).not.toHaveBeenCalledWith(
+        'recovery_state',
+        expect.objectContaining({ reason: 'permission_revoked' })
+      );
+    }
+  );
   it.each(['AUTH_REQUIRED', 'PERMISSION_DENIED', 'INVALID_INPUT', 'AGENT_UPDATE_REQUIRED'])(
     'persists permanent %s without retries or execution; a restart asks setup verdicts once more',
     async code => {

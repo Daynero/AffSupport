@@ -178,6 +178,48 @@ describe('scoped background delegation', () => {
   // Production 2026-11-24: a desktop that could no longer read its stored handle sat
   // «Soty не бере це завдання» for good, because automatic setup refused to replace the live
   // delegation it had lost. Only the delegation the desktop names may be replaced while live.
+  // Production 2026-11-24: a person with two live delegations (the working one and one left by an
+  // earlier setup of the same computer) saw «Чекає на комп'ютерний агент» on every catalog round,
+  // because a round went to background work only when there was exactly one.
+  it('hands catalog work to the live delegation that worked most recently', async () => {
+    await db.root('delete from private.team_recovery_delegations');
+    await db.root('delete from private.team_recovery_enrollments');
+    const OTHER = '34000000-0000-4000-8000-000000000013';
+    const live = async (installation: string, hash: number) => {
+      const challenge = await call('delegate', H(hash), {
+        actorId: OWNER,
+        teamId: team,
+        installationId: installation
+      });
+      return call('redeem', H(hash), {
+        challengeId: challenge.challengeId,
+        refresh: 'q'.repeat(43),
+        refreshHash: H(hash + 1)
+      });
+    };
+    const first = await live(INSTALL, 81);
+    await live(OTHER, 83);
+    const executor = async () =>
+      (
+        await db.root<{ e: string | null }>('select private.recovery_executor_for($1,$2) e', [
+          team,
+          OWNER
+        ])
+      )[0]!.e;
+    expect(await executor()).toBe(OTHER);
+    await db.root(
+      "update private.team_recovery_delegations set last_claim_at=clock_timestamp()+interval '1 second' where id=$1",
+      [first.delegationId]
+    );
+    expect(await executor()).toBe(INSTALL);
+    const bodies = await db.root<{ adopt: string; context: string }>(
+      `select pg_get_functiondef('public.service_adopt_catalog_variant_round(uuid,uuid,uuid,uuid,uuid)'::regprocedure) adopt,
+        pg_get_functiondef('public.service_initial_catalog_video_context_before_foreground(uuid,uuid,uuid,uuid,boolean)'::regprocedure) context`
+    );
+    expect(bodies[0]!.adopt).toContain('host:=private.recovery_executor_for(p_team,p_actor)');
+    expect(bodies[0]!.context).toContain('executor:=private.recovery_executor_for(p_team,p_actor)');
+    expect(bodies[0]!.context).not.toContain('count(*)=1');
+  });
   it('renews the live delegation a desktop declared lost, and no other live one', async () => {
     await db.root('delete from private.team_recovery_delegations');
     await db.root('delete from private.team_recovery_enrollments');
