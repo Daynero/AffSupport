@@ -4078,6 +4078,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamExplorerSortBy: 'Сортувати за',
   teamExplorerSortName: 'Назва',
   teamExplorerSortModified: 'Дата змінення',
+  teamExplorerColumnRank: 'Ранг',
   teamExplorerSortRank: 'Ранг креативу',
   teamExplorerSortOrder: 'Порядок',
   teamExplorerSortAsc: 'Від «А» до «Я»',

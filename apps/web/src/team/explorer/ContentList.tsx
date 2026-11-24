@@ -111,6 +111,12 @@ export function ContentList({
   const { t } = useI18n();
   const { openFolder, selectedId, selectedIds, toggleSelected } = useExplorer();
   const drag = useMaterialDrag({ selectedIds, rows, onDropMaterials });
+  /* Names start at one x down the list (070): when any video here holds its own files, every
+     row keeps the expander's slot, the rows without one an empty slot of the same width. */
+  const expanderSlot =
+    Boolean(onToggleCompanions) && rows.some(row => (companionCounts?.get(row.id) ?? 0) > 0);
+  /* The rank's column is named, and drawn only where there is a rank to show (070). */
+  const rankColumn = Boolean(ranks?.known) && rows.some(carriesRank);
   const press = useRowPress(rows);
   const sortable = (key: SortKey) =>
     sort && onSortChange
@@ -190,7 +196,14 @@ export function ContentList({
               <TableHeaderCell className="team-explorer-row-name" {...sortable('name')}>
                 {t('teamExplorerSortName')}
               </TableHeaderCell>
-              <TableHeaderCell className="team-explorer-row-rank" />
+              {/* The honey league and its launch count, under a name of their own (070): an
+                  unlabelled number mid-row was a guess, and the column sorts like the rest. */}
+              <TableHeaderCell
+                className="team-explorer-row-rank"
+                {...(rankColumn ? sortable('rank') : {})}
+              >
+                {rankColumn ? t('teamExplorerColumnRank') : null}
+              </TableHeaderCell>
               <TableHeaderCell className="team-explorer-row-kind" {...sortable('kind')}>
                 {t('teamExplorerPaneKind')}
               </TableHeaderCell>
@@ -226,6 +239,7 @@ export function ContentList({
                 companionsOpen={openedCompanions?.has(row.id) ?? false}
                 onToggleCompanions={onToggleCompanions}
                 nested={Boolean(companionOf(row))}
+                expanderSlot={expanderSlot}
                 rank={
                   ranks?.known && carriesRank(row)
                     ? (ranks.ranks.get(row.id) ?? emptyRank(row.id))
@@ -262,6 +276,7 @@ function Row({
   companionsOpen = false,
   onToggleCompanions,
   nested = false,
+  expanderSlot = false,
   rank = null,
   rankNow = 0
 }: {
@@ -282,6 +297,8 @@ function Row({
   companionsOpen?: boolean;
   onToggleCompanions?: (rowId: string) => void;
   nested?: boolean;
+  /** Some row of the list has an expander: this one keeps its slot, empty or not. */
+  expanderSlot?: boolean;
   rank?: CreativeRank | null;
   rankNow?: number;
 }) {
@@ -361,6 +378,8 @@ function Row({
             )}
             <span>{companions}</span>
           </button>
+        ) : expanderSlot ? (
+          <span className="team-explorer-row-companions is-empty" aria-hidden="true" />
         ) : null}
         <KindIcon kind={row.kind} />{' '}
         <button

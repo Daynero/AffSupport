@@ -388,7 +388,9 @@
   grid-template-columns: subgrid;
 }
 .team-explorer-rows {
-  --ui-table-columns: auto minmax(0, max-content) minmax(min-content, 1fr) auto auto auto auto;
+  /* The name takes the free width and the rank sits at its own width beside the kind (070): a
+     1fr rank track left a hole mid-row between the combs and «Тип». */
+  --ui-table-columns: auto minmax(0, 1fr) auto auto auto auto auto;
   grid-template-columns: var(--ui-table-columns);
   column-gap: 0;
 }
@@ -1620,7 +1622,12 @@
 }
 .team-explorer-row-companions {
   display: inline-flex;
+  flex: none;
   align-items: center;
+  /* One width on every row, so the kind marks and the names after it line up (070). */
+  justify-content: flex-start;
+  width: calc(14px + 3ch);
+  font-variant-numeric: tabular-nums;
   gap: 2px;
   min-height: 0;
   padding: 0 2px;

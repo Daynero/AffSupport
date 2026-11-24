@@ -4097,6 +4097,7 @@ export const en = {
   teamExplorerSortBy: 'Sort by',
   teamExplorerSortName: 'Name',
   teamExplorerSortModified: 'Last modified',
+  teamExplorerColumnRank: 'Rank',
   teamExplorerSortRank: 'Creative rank',
   teamExplorerSortOrder: 'Order',
   teamExplorerSortAsc: 'A to Z',
