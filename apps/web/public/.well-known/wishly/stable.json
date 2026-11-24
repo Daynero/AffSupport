@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.6.2",
-  "buildNumber": "104",
-  "buildId": "1.6.2+104",
+  "version": "1.6.3",
+  "buildNumber": "105",
+  "buildId": "1.6.3+105",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-23T00:00:00.000Z",
+  "publishedAt": "2026-11-24T00:00:00.000Z",
   "summary": {
     "uk": "Помічник простору: пишіть звичайними словами — він робить у просторі те саме, що й ви, і показує картку до будь-якої зміни. Чарунки, переклад транскриптів, фонова робота без перезапусків.",
     "en": "The space assistant: write in plain words and it does in the space what you do, with a card before any change. Credits, transcript translation, background work without restarts."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.2/Soty-v1.6.2-macOS-arm64.dmg",
-      "sha256": "1ad62a128572a5db73a481840575e501f3eba04fddee9afadb47f9752be17e99"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.3/Soty-v1.6.3-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.2/Soty-v1.6.2-macOS-x64.dmg",
-      "sha256": "0aaebb35dcb0cf88d8409eff5c66595fbf44a609a3effcef0e81c265e7df8519"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.3/Soty-v1.6.3-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.2/Soty-v1.6.2-Windows-x64.exe",
-      "sha256": "953e0feaed5c08500a80a0898b192c8def8bb7ddc94ada3e4765a8f461f7f860"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.3/Soty-v1.6.3-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -48,5 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "OSuzI-LvUen_4MghlGLhQK_sAbdqCZV7AnqE_lpHAklJt1bFPD6yuRfKk5UAJNMviq--yjaxT5b5IJR3AoIdjw"
+  "signature": "I5DvlP96ZKKKXzGFyvBcUeNICYaxqCY4u-tHDbzNjdCpNq50Zo2zHAMHdSUsosCPXE8RnIjW2H6ggGqqaNt0Hg"
 }
