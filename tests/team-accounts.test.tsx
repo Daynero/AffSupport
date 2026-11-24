@@ -328,13 +328,14 @@ describe('handing an id over', () => {
 
 /** The occupancy chips share their names with the marker menu; this says which. */
 function chip(group: 'Show ad accounts', name: RegExp) {
-  return within(screen.getByRole('group', { name: group })).getByRole('button', { name });
+  // One answer out of three: the inventory's segmented control (070, T044).
+  return within(screen.getByRole('radiogroup', { name: group })).getByRole('radio', { name });
 }
 
 /** The marker filter is a menu behind one trigger; this opens it. */
 async function openMarkers(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: /^Markers/ }));
-  return within(screen.getByRole('dialog', { name: 'Filter ad accounts by run marker' }));
+  return within(await screen.findByRole('menu', { name: 'Filter ad accounts by run marker' }));
 }
 
 describe('filtering', () => {
@@ -405,9 +406,9 @@ describe('marking a run', () => {
     await waitFor(() =>
       expect(document.querySelector('.team-agent-run[data-marker="green"]')).toBeTruthy()
     );
-    expect((await openMarkers(user)).getByRole('button', { name: /^Green/ }).textContent).toBe(
-      'Green1'
-    );
+    expect(
+      (await openMarkers(user)).getByRole('menuitemradio', { name: /^Green/ }).textContent
+    ).toBe('Green1');
   });
 
   it('keeps only the agents carrying that colour when a colour is chosen', async () => {
@@ -418,11 +419,11 @@ describe('marking a run', () => {
     await waitFor(() =>
       expect(document.querySelector('.team-agent-run[data-marker="green"]')).toBeTruthy()
     );
-    await user.click((await openMarkers(user)).getByRole('button', { name: /^Green/ }));
+    await user.click((await openMarkers(user)).getByRole('menuitemradio', { name: /^Green/ }));
     expect(rows()).toHaveLength(1);
     expect(rows()[0]?.textContent).toContain('Pro Caps');
     // And back: "All" is the whole list again.
-    await user.click((await openMarkers(user)).getByRole('button', { name: /^All/ }));
+    await user.click((await openMarkers(user)).getByRole('menuitemradio', { name: /^All/ }));
     expect(rows().length).toBeGreaterThan(1);
   });
 
@@ -435,7 +436,9 @@ describe('marking a run', () => {
     await waitFor(() =>
       expect(document.querySelector('.team-agent-run[data-marker="green"]')).toBeTruthy()
     );
-    await user.click((await openMarkers(user)).getByRole('button', { name: 'Clear all markers' }));
+    await user.click(
+      (await openMarkers(user)).getByRole('menuitem', { name: 'Clear all markers' })
+    );
     await waitFor(() =>
       expect(document.querySelector('.team-agent-run[data-marker="green"]')).toBeNull()
     );
@@ -910,7 +913,7 @@ describe('how many tasks name an agent', () => {
     expect(within(free).queryByRole('link', { name: /task/ })).toBeNull();
     expect(free.textContent).not.toContain('—');
 
-    await user.click(screen.getByRole('button', { name: /^Free/ }));
+    await user.click(chip('Show ad accounts', /^Free/));
     expect(screen.queryAllByRole('link', { name: '2 tasks' })).toHaveLength(0);
   });
 });
@@ -1195,5 +1198,77 @@ describe('a stale list read', () => {
       .flatMap(account => account.agents)
       .find(item => item.id === stale.id)!;
     expect(agentNow.labels.map(label => label.id)).toContain('l-9');
+  });
+});
+
+/**
+ * Every count is pressable and a tag can be searched and kept (070, T046/T047): typing a tag
+ * finds its batch, the toolbar's tag menu keeps it, and a tag's count on an account head is
+ * the same press.
+ */
+describe('tags and counts as filters', () => {
+  function tagged() {
+    const accounts = fixture();
+    accounts[0]!.agents[0]!.labels = [{ id: 'l-2', name: 'Hot', color: 'purple' }];
+    return accounts;
+  }
+  function withDictionary(api: ReturnType<typeof client>) {
+    api.listTaskLabels = vi.fn(async (_teamId: string, scope?: 'task' | 'agent') =>
+      scope === 'agent'
+        ? [
+            {
+              id: 'l-2',
+              teamId: TEAM_ID,
+              name: 'Hot',
+              color: 'purple' as const,
+              scope: 'agent' as const,
+              taskCount: 1,
+              createdAt: STAMP,
+              updatedAt: STAMP
+            }
+          ]
+        : []
+    );
+    return api;
+  }
+
+  it('finds an agent by its tag in the search', async () => {
+    const user = userEvent.setup();
+    render(client(tagged()));
+    await waitForGroups();
+    await user.type(screen.getByRole('searchbox', { name: 'Search accounts' }), 'hot');
+    expect(groupNames()).toEqual(['v31']);
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]?.textContent).toContain('v31-434');
+  });
+
+  it('keeps one tag from the toolbar, and from the count on the account head', async () => {
+    const user = userEvent.setup();
+    render(withDictionary(client(tagged())));
+    await waitForGroups();
+    await user.click(await screen.findByRole('button', { name: 'Tag' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: /^Hot/ }));
+    expect(rows()).toHaveLength(1);
+    expect(chip('Show ad accounts', /^All/).textContent).toBe('All1');
+
+    await user.click(screen.getByRole('button', { name: 'Hot' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'All tags' }));
+    expect(rows().length).toBeGreaterThan(1);
+
+    // The head's count is the same press, and does not fold the account it sits on.
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
+    await user.click(within(v31).getByRole('button', { name: /^Hot/ }));
+    expect(rows()).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Collapse v31' })).toBeTruthy();
+  });
+
+  it('keeps the free agents when the head’s free count is pressed', async () => {
+    const user = userEvent.setup();
+    render(client());
+    await waitForGroups();
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
+    await user.click(within(v31).getByRole('button', { name: /^1 free/ }));
+    expect(chip('Show ad accounts', /^Free/).getAttribute('aria-checked')).toBe('true');
+    expect(rows().every(row => row.getAttribute('data-free') === 'true')).toBe(true);
   });
 });

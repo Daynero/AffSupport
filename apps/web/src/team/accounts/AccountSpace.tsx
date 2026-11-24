@@ -17,10 +17,9 @@ import { teamApi } from '../../api/team';
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ChevronsDownUp, ChevronsUpDown, Plus, Search, UserRound, X } from 'lucide-react';
+import { Archive, ChevronsDownUp, ChevronsUpDown, Plus, UserRound } from 'lucide-react';
 import {
   countTeamAccounts,
-  filterTeamAccounts,
   sortTeamAccounts,
   sortTeamAgents,
   TEAM_AGENT_RUN_MARKERS,
@@ -31,7 +30,17 @@ import {
   type TeamAgentRun
 } from '@video-compressor/shared';
 import { boundedText, oneOf, persistedViewKey, usePersistedState } from '../persistedView';
-import { Button, IconButton, Table, TableHeader, TableHeaderCell } from '../../components/ui/index';
+import {
+  Button,
+  IconButton,
+  SearchField,
+  SegmentedControl,
+  Table,
+  TableHeader,
+  TableHeaderCell
+} from '../../components/ui/index';
+import { countAgentTags, filterAccountsView } from './accountFilters';
+import { TagFilter } from './TagFilter';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Empty, ErrorState, LoadingState } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
@@ -453,6 +462,14 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
     'all',
     oneOf<TeamAccountMarkerFilter>(['all', ...TEAM_AGENT_RUN_MARKERS])
   );
+  /** One agent tag to keep (070, T047): the toolbar's tag menu and the heads' tag counts. */
+  const [tagFilter, setTagFilter] = usePersistedState(
+    persistedViewKey(teamId, 'accounts.tag'),
+    '',
+    boundedText()
+  );
+  /** A tag that has since been deleted filters nothing; it is read as no tag at all. */
+  const tag = agentLabels.labels.some(label => label.id === tagFilter) ? tagFilter : null;
   /** One editor at a time, across the whole list. */
   const [editor, setEditor] = useState<Editor | null>(null);
   /**
@@ -557,10 +574,15 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
     finance.timezone,
     finance.drafts.records
   ]);
-  const counts = useMemo(
-    () => countTeamAccounts(filterTeamAccounts(periodAccounts, { occupancy: 'all', search })),
+  const searched = useMemo(
+    () => filterAccountsView(periodAccounts, { occupancy: 'all', search }),
     [periodAccounts, search]
   );
+  const counts = useMemo(
+    () => countTeamAccounts(filterAccountsView(searched, { occupancy: 'all', search: '', tag })),
+    [searched, tag]
+  );
+  const tagCounts = useMemo(() => countAgentTags(searched), [searched]);
 
   /**
    * What the filter leaves — plus the account being edited, whatever the
@@ -574,7 +596,7 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
       ? editor.state.agentRowId
       : null;
   const visible = useMemo(() => {
-    const filtered = filterTeamAccounts(periodAccounts, { occupancy, search, marker });
+    const filtered = filterAccountsView(periodAccounts, { occupancy, search, marker, tag });
     if (!editingAccountId || filtered.some(account => account.id === editingAccountId)) {
       return filtered;
     }
@@ -587,14 +609,14 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
      * "Free", the moment a run was assigned the row it was assigned to came
      * back with all its busy neighbours, in server order.
      */
-    const kept = filterTeamAccounts([held], { occupancy, search, marker })[0]?.agents ?? [];
+    const kept = filterAccountsView([held], { occupancy, search, marker, tag })[0]?.agents ?? [];
     const edited =
       editingAgentRowId && !kept.some(agent => agent.id === editingAgentRowId)
         ? held.agents.filter(agent => agent.id === editingAgentRowId)
         : [];
     const agents = edited.length > 0 ? sortTeamAgents([...kept, ...edited]) : kept;
     return sortTeamAccounts([...filtered, { ...held, agents }]);
-  }, [periodAccounts, editingAccountId, editingAgentRowId, marker, occupancy, search]);
+  }, [periodAccounts, editingAccountId, editingAgentRowId, marker, occupancy, search, tag]);
   const deferAccountRows =
     periodAccounts.reduce((total, social) => total + social.agents.length, 0) > 100;
 
@@ -652,7 +674,7 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
     surface.querySelector<HTMLElement>('.team-accounts-list')?.style.removeProperty('min-height');
     const table = surface.querySelector<HTMLElement>('.team-accounts-table');
     if (table) table.scrollTop = 0;
-  }, [search, occupancy, marker]);
+  }, [search, occupancy, marker, tag]);
   useEffect(() => {
     preferences.confirmPresentation(panel.current);
   });
@@ -1161,52 +1183,47 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
           {/* Nothing to search or filter yet: no toolbar of zeros over the invitation. */}
           {showToolbar && (
             <div className="team-accounts-toolbar">
-              <label className="team-accounts-search">
-                <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                <input
-                  type="search"
-                  value={search}
-                  aria-label={t('teamAccountsSearchLabel')}
-                  placeholder={t('teamAccountsSearchPlaceholder')}
-                  onChange={event => setSearch(event.target.value)}
-                />
-                {search !== '' && (
-                  <IconButton
-                    title=""
-                    label={t('teamAccountsClearField')}
-                    tabIndex={-1}
-                    onClick={() => setSearch('')}
-                  >
-                    <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </IconButton>
-                )}
-              </label>
+              <SearchField
+                className="team-accounts-search"
+                value={search}
+                aria-label={t('teamAccountsSearchLabel')}
+                placeholder={t('teamAccountsSearchPlaceholder')}
+                onChange={setSearch}
+              />
               {/* The chips have always counted agents, never accounts; now they say
               so out loud rather than only to a screen reader. */}
               <div className="team-accounts-toolbar-end">
-                <div
+                {/* One answer out of three — all, free, busy — so one control (070, T044):
+                    the inventory's segmented control, each segment carrying its count. */}
+                <SegmentedControl
+                  size="sm"
                   className="team-accounts-occupancy"
-                  role="group"
-                  aria-label={t('teamAccountsFilterLabel')}
-                >
-                  {OCCUPANCY.filter(
+                  label={t('teamAccountsFilterLabel')}
+                  value={occupancy}
+                  onChange={setOccupancy}
+                  options={OCCUPANCY.filter(
                     value => value !== 'unknown' || counts.unknown || occupancy === 'unknown'
-                  ).map(value => (
-                    <button
-                      key={value}
-                      type="button"
-                      className={`task-status-filter-option team-accounts-occupancy-option is-${value}${occupancy === value ? ' is-active' : ''}`}
-                      aria-pressed={occupancy === value}
-                      onClick={() => setOccupancy(value)}
-                    >
-                      {value !== 'all' && (
-                        <span className="team-accounts-occupancy-dot" aria-hidden="true" />
-                      )}
-                      <span>{occupancyLabel(value)}</span>
-                      <b>{occupancyCount(value)}</b>
-                    </button>
-                  ))}
-                </div>
+                  ).map(value => ({
+                    value,
+                    label: (
+                      <span className={`team-accounts-occupancy-option is-${value}`}>
+                        {value !== 'all' && (
+                          <span className="team-accounts-occupancy-dot" aria-hidden="true" />
+                        )}
+                        <span>{occupancyLabel(value)}</span>
+                        <b className="numeric">{occupancyCount(value)}</b>
+                      </span>
+                    )
+                  }))}
+                />
+                {agentLabels.labels.length > 0 && (
+                  <TagFilter
+                    value={tag}
+                    tags={agentLabels.labels}
+                    counts={tagCounts}
+                    onChange={next => setTagFilter(next ?? '')}
+                  />
+                )}
                 {/* The colours, behind one control: they are the filter reached for
               least, and four more chips in this row pushed the fold onto a line
               of its own. Clearing every marker in the space lives in the same
@@ -1230,10 +1247,19 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                 {/* Only with two accounts or more (024): with one, folding everything is the
                   same press as folding its own head. */}
                 {visible.length > 1 && (
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
+                    variant="ghost"
                     className="team-accounts-fold-all"
                     aria-expanded={!allCollapsed}
+                    leading={
+                      allCollapsed ? (
+                        <ChevronsUpDown size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                      ) : (
+                        <ChevronsDownUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+                      )
+                    }
                     onClick={() =>
                       toggleAll(
                         visible.map(account => account.id),
@@ -1241,15 +1267,8 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                       )
                     }
                   >
-                    {allCollapsed ? (
-                      <ChevronsUpDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    ) : (
-                      <ChevronsDownUp size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    )}
-                    <span>
-                      {t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}
-                    </span>
-                  </button>
+                    {t(allCollapsed ? 'teamAccountsExpandAll' : 'teamAccountsCollapseAll')}
+                  </Button>
                 )}
               </div>
             </div>
@@ -1375,6 +1394,9 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                     index={accountIndex}
                     deferRows={deferAccountRows}
                     onRowsVisible={onRowsVisible}
+                    onFilterOccupancy={setOccupancy}
+                    onFilterTag={next => setTagFilter(next ?? '')}
+                    activeTag={tag}
                     reorderEnabled={!client && !archiveBusy}
                     colorOf={preferences.color}
                     onCycleColor={client ? undefined : preferences.cycle}

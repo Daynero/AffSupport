@@ -3716,7 +3716,6 @@
    accounts, the fold-all control, and the empty-state door added in 020. One
    shape now, which is what they were always trying to be. */
 .team-agent-run-add,
-.team-accounts-fold-all,
 .team-empty-action {
   display: inline-flex;
   align-items: center;
@@ -3737,7 +3736,6 @@
     border-color var(--motion-fast) var(--ease-out-curve);
 }
 .team-agent-run-add:hover:not(:disabled),
-.team-accounts-fold-all:hover:not(:disabled),
 .team-empty-action:hover {
   border-color: var(--color-secondary-solid);
   background: var(--color-secondary-softer);

@@ -518,31 +518,31 @@
   white-space: nowrap;
 }
 
-.team-task-label-chip[data-color='purple'] {
+:is(.team-task-label-chip, .team-accounts-tag-dot)[data-color='purple'] {
   --task-tag-color: var(--task-tag-purple);
 }
-.team-task-label-chip[data-color='blue'] {
+:is(.team-task-label-chip, .team-accounts-tag-dot)[data-color='blue'] {
   --task-tag-color: var(--task-tag-blue);
 }
-.team-task-label-chip[data-color='teal'] {
+:is(.team-task-label-chip, .team-accounts-tag-dot)[data-color='teal'] {
   --task-tag-color: var(--task-tag-teal);
 }
-.team-task-label-chip[data-color='green'] {
+:is(.team-task-label-chip, .team-accounts-tag-dot)[data-color='green'] {
   --task-tag-color: var(--task-tag-green);
 }
-.team-task-label-chip[data-color='honey'] {
+:is(.team-task-label-chip, .team-accounts-tag-dot)[data-color='honey'] {
   --task-tag-color: var(--task-tag-honey);
 }
-.team-task-label-chip[data-color='orange'] {
+:is(.team-task-label-chip, .team-accounts-tag-dot)[data-color='orange'] {
   --task-tag-color: var(--task-tag-orange);
 }
-.team-task-label-chip[data-color='red'] {
+:is(.team-task-label-chip, .team-accounts-tag-dot)[data-color='red'] {
   --task-tag-color: var(--task-tag-red);
 }
-.team-task-label-chip[data-color='pink'] {
+:is(.team-task-label-chip, .team-accounts-tag-dot)[data-color='pink'] {
   --task-tag-color: var(--task-tag-pink);
 }
-.team-task-label-chip[data-color='slate'] {
+:is(.team-task-label-chip, .team-accounts-tag-dot)[data-color='slate'] {
   --task-tag-color: var(--task-tag-slate);
 }
 

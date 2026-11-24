@@ -13,15 +13,15 @@
  */
 
 import { useRef, useState } from 'react';
-import { Check, Eraser } from 'lucide-react';
+import { ChevronDown, Eraser } from 'lucide-react';
 import {
   TEAM_AGENT_RUN_MARKERS,
   type TeamAccountMarkerFilter,
   type TeamAgentRunMarker
 } from '@video-compressor/shared';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { ICON_STROKE } from '../../components/icons';
-import { Popover } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { Button, DropdownMenu, type MenuEntry } from '../../components/ui/index';
 
 const OPTIONS: readonly TeamAccountMarkerFilter[] = ['all', ...TEAM_AGENT_RUN_MARKERS];
 
@@ -53,83 +53,72 @@ export function MarkerFilter({
   onClearAll: () => void;
 }) {
   const { t } = useI18n();
-  const root = useRef<HTMLDivElement | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
 
   const count = (option: TeamAccountMarkerFilter) => (option === 'all' ? total : counts[option]);
+  /* The inventory's menu (070, T044): each colour is one answer to "which runs?",
+     so it reads as a radio and carries a tick; clearing every marker is a
+     command, parted from the answers by a line. */
+  const items: MenuEntry[] = [
+    ...OPTIONS.map(option => ({
+      id: option,
+      label: t(markerNameKey(option)),
+      icon:
+        option === 'all' ? undefined : (
+          <span className={`team-accounts-marker-dot is-${option}`} aria-hidden="true" />
+        ),
+      trailing: <b className="numeric">{count(option)}</b>,
+      checked: value === option,
+      onSelect: () => onChange(option)
+    })),
+    ...(canEdit
+      ? [
+          'separator' as const,
+          {
+            id: 'clear',
+            label: t('teamAccountsMarkerClearAll'),
+            icon: <Eraser size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+            disabled: marked === 0,
+            onSelect: onClearAll
+          }
+        ]
+      : [])
+  ];
 
   return (
-    <div className="team-accounts-marker-filter" ref={root}>
-      <button
+    <>
+      <Button
         ref={trigger}
-        type="button"
+        size="sm"
+        variant={value === 'all' ? 'ghost' : 'soft'}
+        color={value === 'all' ? 'neutral' : 'secondary'}
         className={`team-accounts-marker-trigger${value === 'all' ? '' : ' is-active'}`}
         aria-expanded={open}
-        aria-haspopup="dialog"
+        aria-haspopup="menu"
+        leading={
+          value !== 'all' ? (
+            <span className={`team-accounts-marker-dot is-${value}`} aria-hidden="true" />
+          ) : undefined
+        }
+        trailing={<ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
         onClick={() => setOpen(current => !current)}
       >
-        {value !== 'all' && (
-          <span className={`team-accounts-marker-dot is-${value}`} aria-hidden="true" />
-        )}
-        <span>{t('teamAccountsMarkerLabel')}</span>
+        {t('teamAccountsMarkerLabel')}{' '}
         {value === 'all' ? (
-          <b>{marked}</b>
+          <b className="numeric">{marked}</b>
         ) : (
           <span className="team-accounts-marker-selected">{t(markerNameKey(value))}</span>
         )}
-      </button>
-      <Popover
+      </Button>
+      <DropdownMenu
         open={open}
-        /* Escape closes onto the trigger, so a keyboard is never left inside a
-           menu that is no longer on screen. */
-        onClose={() => {
-          setOpen(false);
-          trigger.current?.focus();
-        }}
-        anchor={root}
+        onClose={() => setOpen(false)}
+        anchor={trigger}
         placement="bottom-end"
-        frequent
         label={t('teamAccountsMarkerFilterLabel')}
-        className="team-accounts-marker-menu"
-      >
-        {OPTIONS.map(option => (
-          <button
-            key={option}
-            type="button"
-            className={`team-accounts-marker-option is-${option}${value === option ? ' is-active' : ''}`}
-            aria-pressed={value === option}
-            onClick={() => {
-              onChange(option);
-              setOpen(false);
-            }}
-          >
-            <span className="team-accounts-marker-option-mark" aria-hidden="true">
-              {value === option ? (
-                <Check size={14} strokeWidth={ICON_STROKE} />
-              ) : option === 'all' ? null : (
-                <span className={`team-accounts-marker-dot is-${option}`} />
-              )}
-            </span>
-            <span>{t(markerNameKey(option))}</span>
-            <b>{count(option)}</b>
-          </button>
-        ))}
-        {canEdit && (
-          <button
-            type="button"
-            className="team-accounts-marker-clear"
-            disabled={marked === 0}
-            onClick={() => {
-              onClearAll();
-              setOpen(false);
-            }}
-          >
-            <Eraser size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            <span>{t('teamAccountsMarkerClearAll')}</span>
-          </button>
-        )}
-      </Popover>
-    </div>
+        items={items}
+      />
+    </>
   );
 }

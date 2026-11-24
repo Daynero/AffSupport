@@ -154,127 +154,25 @@
   gap: var(--space-2) var(--space-3);
 }
 
+/* The toolbar is the inventory's (070, T044): the search field, a segmented
+   control for all / free / busy with each segment's count, the tag and colour
+   menus, and the fold. What is left here is only where they sit. */
 .team-accounts-search {
-  display: flex;
   flex: 1 1 260px;
+  min-width: 0;
+  max-width: 440px;
+}
+.team-accounts-occupancy-option {
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  max-width: 440px;
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
 }
-
-/* The field suppresses its own outline so the ring sits on the whole control
-   rather than on the bare input inside it — but it is the product's ring, not
-   a border tint: a 1px colour change is not something a keyboard user finds. */
-.team-accounts-search:focus-within {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-  border-color: var(--color-focus);
-}
-
-.team-accounts-search input {
-  width: 100%;
-  height: 38px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-text);
-  font-size: var(--text-md);
-}
-
-.team-accounts-search input:focus {
-  outline: none;
-  box-shadow: none;
-}
-
-/* The native cancel mark is replaced by the same clear mark the edit fields
-   carry, so clearing looks the same everywhere on the page. */
-.team-accounts-search input::-webkit-search-cancel-button {
-  appearance: none;
-}
-
-.team-accounts-search .icon-button {
-  display: inline-flex;
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-text-muted);
-}
-
-/* The task filter's pills (`.task-status-filter-option`, styles.css) with a
-   count on each: the count is the summary, shown where the question it
-   answers is asked. Only what the task pills do not have is declared here. */
-.team-accounts-occupancy {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-/* The same face and the same selected look as the task filters: one row of
-   pills across both tabs. */
-.team-accounts-occupancy-option {
-  gap: 7px;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  background: none;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--text-caption);
-  font-weight: 600;
-}
-
-.team-accounts-occupancy-option:hover {
-  border-color: var(--color-border);
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-}
-
-.team-accounts-occupancy-option.is-active {
-  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
-  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
-  color: var(--color-accent);
-}
-
 .team-accounts-occupancy-option b {
-  flex: 0 0 auto;
-  min-width: 1.4em;
-  padding: 1px 7px;
-  border-radius: var(--radius-full);
-  background: var(--color-surface-muted);
-  color: var(--color-text);
-  font-size: var(--text-caption);
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
-  text-align: center;
 }
-
-.team-accounts-occupancy-option.is-active b {
-  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
-  color: var(--color-accent);
-}
-
-/* The chosen chip and its count, on the dark panel: 4.27:1 and 3.10:1 on
-   their own violet tints. The lighter step of the same hue reads 6.7 and 4.8
-   without changing what the colour means. */
-:root[data-theme='dark'] .team-accounts-occupancy-option.is-active,
-:root[data-theme='dark'] .team-accounts-occupancy-option.is-active b {
-  color: var(--purple-300);
-}
-
-/* The count sits on a second violet tint inside the chip's own, so on white it
-   is 3.61:1 where the word beside it is 4.90. The deeper step reads 6.3. */
-:root:not([data-theme='dark']) .team-accounts-occupancy-option.is-active b {
-  color: var(--color-accent-active);
+.ui-segmented .is-selected .team-accounts-occupancy-option b {
+  color: inherit;
 }
 
 .team-accounts-occupancy-dot {
@@ -304,34 +202,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-}
-
-/* One press for the whole list. Quieter than the pills beside it — it changes
-   nothing about what the list holds, only how much of it is on screen. */
-.team-accounts-fold-all {
-  display: inline-flex;
-  align-items: center;
-  min-height: 34px;
-  gap: 7px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: none;
-  color: var(--color-text-muted);
-  font-family: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background-color var(--dur-control) var(--ease-standard),
-    color var(--dur-control) var(--ease-standard),
-    border-color var(--dur-control) var(--ease-standard);
-}
-
-.team-accounts-fold-all:hover {
-  border-color: var(--color-border-strong);
-  background: color-mix(in oklab, var(--color-accent) 10%, transparent);
-  color: var(--color-text);
 }
 
 /* One card per social account. The card is the boundary: what is inside it
@@ -1002,136 +872,6 @@
 
 /* --- The marker filter ------------------------------------------------------ */
 
-.team-accounts-marker-filter {
-  position: relative;
-  display: inline-flex;
-}
-
-/* The same face as the occupancy pills beside it, so the toolbar reads as one
-   row of controls rather than a row and a stray button. */
-.team-accounts-marker-trigger {
-  display: inline-flex;
-  min-height: 34px;
-  align-items: center;
-  gap: 7px;
-  padding: 0 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.team-accounts-marker-trigger:hover {
-  border-color: var(--color-border-strong);
-  background: color-mix(in oklab, var(--color-accent) 10%, transparent);
-  color: var(--color-text);
-}
-
-/* Filtered, the trigger says which colour rather than how many are marked —
-   the count belongs to the list that is no longer on screen. */
-.team-accounts-marker-trigger.is-active {
-  border-color: transparent;
-  background: var(--color-accent-soft);
-  color: var(--color-text);
-}
-
-.team-accounts-marker-trigger b {
-  color: var(--color-text);
-  font-variant-numeric: tabular-nums;
-}
-
-.team-accounts-marker-selected {
-  color: var(--color-text);
-}
-
-/* Placed by the component (021): portalled past the toolbar that would clip it
-   and flipped when the window is short. */
-.team-accounts-marker-menu {
-  z-index: var(--layer-popover);
-  display: grid;
-  min-width: 210px;
-  gap: 2px;
-  padding: 6px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-md);
-}
-
-.team-accounts-marker-option {
-  display: grid;
-  align-items: center;
-  grid-template-columns: 18px 1fr auto;
-  gap: 8px;
-  min-height: 32px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-}
-
-.team-accounts-marker-option:hover {
-  background: color-mix(in oklab, var(--color-accent) 12%, transparent);
-}
-
-.team-accounts-marker-option.is-active {
-  background: var(--color-accent-soft);
-}
-
-.team-accounts-marker-option-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-accent);
-}
-
-.team-accounts-marker-option b {
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-
-/* The one action in the menu, under a rule: it changes the data, and the four
-   above it only change what is shown. */
-.team-accounts-marker-clear {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-  margin-top: 4px;
-  padding: 0 8px;
-  border: 0;
-  border-top: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding-top: 4px;
-  background: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  text-align: left;
-}
-
-.team-accounts-marker-clear:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-error) 12%, transparent);
-  color: var(--color-error);
-}
-
-.team-accounts-marker-clear:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
 .team-agent-run-text {
   flex: 1 1 auto;
   min-width: 0;
@@ -1543,19 +1283,6 @@
     display: none;
   }
 
-  /* The task pills stretch to fill their row at this width (styles.css);
-     three of them with two-digit counts wrapped 2 + 1. Claim the whole row and
-     split it evenly, so they stay on one line. */
-  .team-accounts-occupancy {
-    flex: 1 1 100%;
-  }
-
-  .team-accounts-occupancy-option {
-    flex: 1 1 0;
-    min-width: 0;
-    padding: 0 8px;
-  }
-
   .team-account-meta > span:not(:first-child)::before {
     content: none;
   }
@@ -1662,17 +1389,6 @@
      to a screen reader through its own label. */
   .team-accounts-occupancy-label {
     display: none;
-  }
-
-  .team-accounts-occupancy {
-    flex-wrap: wrap;
-  }
-
-  /* And they wrap rather than squeeze: three chips with two-digit counts have
-     a floor of about ninety pixels each, which three of them cannot meet on a
-     320px phone. Below that they take two lines. */
-  .team-accounts-occupancy-option {
-    flex: 0 1 auto;
   }
 
   /* The buttons follow the run, not the task count: on a phone "Make free"
@@ -2779,18 +2495,13 @@ button.team-task-agent-chip.is-selected {
     max-width: none;
     min-width: 0;
   }
+  /* The filters wrap under the search rather than scroll sideways inside a
+     strip: a control past the edge of a scroller is a control nobody finds. */
   .is-unified .team-accounts-toolbar-end {
     flex: 1 1 100%;
     min-width: 0;
     max-width: 100%;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-  }
-  .is-unified .team-accounts-occupancy {
-    flex-wrap: nowrap;
-  }
-  .is-unified .team-accounts-fold-all span {
-    display: none;
+    flex-wrap: wrap;
   }
   .is-unified .team-accounts-table {
     min-height: calc(var(--space-6) * 10);
@@ -3175,6 +2886,11 @@ button.team-task-agent-chip.is-selected {
  * overflows it (a focus ring, a run's marker, a menu's trigger would be cut),
  * and the size step's type, which the cells already set for themselves.
  */
+.team-accounts-table {
+  /* The table is a grid of one column; a short list sits at its top rather than
+     spreading its rows over the height the table keeps for a long one. */
+  align-content: start;
+}
 .team-accounts-table .ui-table-row {
   min-height: 0;
   font-size: inherit;
@@ -3190,4 +2906,47 @@ button.team-task-agent-chip.is-selected {
   color: var(--color-text-muted);
   font-family: var(--team-font-mono);
   font-size: var(--text-caption);
+}
+
+/*
+ * The head's counts are presses now (070, T046): "2 free" keeps the free
+ * agents, a tag's count keeps that tag. They keep the faces they had — the
+ * free badge, the amber word, the tag's chip — and gain a press, an underline
+ * under the pointer and a focus ring; the inventory's own sizes would have
+ * made them controls in a line of words.
+ */
+.team-account-meta .team-account-count.ui-button {
+  min-height: 0;
+  font-size: inherit;
+  text-decoration: none;
+}
+.team-account-meta .team-account-count.ui-button {
+  padding: 0;
+  color: var(--color-text-muted);
+  font-weight: var(--weight-body);
+}
+/* The separator stays outside the underline: an inline-block takes no
+   decoration from the button it sits in. */
+.team-account-meta > .team-account-count:not(:first-child)::before {
+  content: '·';
+  display: inline-block;
+  margin-right: var(--space-2);
+  color: var(--color-border-strong);
+}
+.team-account-meta .team-account-count.ui-button:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.team-account-meta .team-account-tag-count .ui-chip-press {
+  min-height: 0;
+  padding: 0;
+}
+.team-account-meta .team-account-tag-count .ui-chip-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.team-account-meta .team-account-tag-count.is-selected {
+  border-color: var(--task-tag-color);
+  background: color-mix(in srgb, var(--task-tag-color) 30%, var(--color-surface));
 }

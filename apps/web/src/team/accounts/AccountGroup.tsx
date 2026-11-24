@@ -51,7 +51,7 @@ import {
   type TeamTaskLabel,
   type TeamTaskLabelRef
 } from '@video-compressor/shared';
-import { IconButton, DropdownMenu, ConfirmDialog } from '../../components/ui/index';
+import { Button, Chip, IconButton, DropdownMenu, ConfirmDialog } from '../../components/ui/index';
 import { IconButton as MenuIconButton } from '../../components/ui/Button';
 import { ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
@@ -138,6 +138,9 @@ export function AccountGroup({
   reorderEnabled = false,
   deferRows = false,
   onRowsVisible,
+  onFilterOccupancy,
+  onFilterTag,
+  activeTag = null,
   rowFinance,
   rowLaunches,
   colorOf,
@@ -179,6 +182,12 @@ export function AccountGroup({
   onRowsVisible?: () => void;
   rowLaunches?: (agent: TeamAccountAgentSummary) => ReactNode;
   rowFinance?: (agent: TeamAccountAgentSummary) => ReactNode;
+  /** The head's "N free" / "N busy" keep only those, across the list (070, T046). */
+  onFilterOccupancy?: (value: 'free' | 'busy') => void;
+  /** A tag's count on the head keeps only that tag; pressed again, it lets go. */
+  onFilterTag?: (labelId: string | null) => void;
+  /** The tag the list is narrowed to, so its count says it is the one pressed. */
+  activeTag?: string | null;
   colorOf?: (agent: TeamAccountAgentSummary) => TeamAccountNameColor;
   onCycleColor?: (agent: TeamAccountAgentSummary) => void;
   onArchive?: (agent?: TeamAccountAgentSummary) => void;
@@ -393,8 +402,11 @@ export function AccountGroup({
    * drag over the name. Selecting "v31" to paste it somewhere is a thing
    * people do to a heading, and it should not cost them the account's rows.
    */
-  const foldFromHead = () => {
+  const foldFromHead = (target: EventTarget | null) => {
     if (window.getSelection()?.isCollapsed === false) return;
+    /* A press on a control inside the head is that control's (070, T046): a tag's count
+       filters, a count of tasks opens them — none of them folds the account too. */
+    if (target instanceof Element && target.closest('button, a, input, [role="button"]')) return;
     onCollapsedChange(open);
   };
 
@@ -455,7 +467,7 @@ export function AccountGroup({
               event.preventDefault();
               return;
             }
-            foldFromHead();
+            foldFromHead(event.target);
           }}
         >
           <span hidden ref={reorder.handleRef} />
@@ -505,32 +517,65 @@ export function AccountGroup({
                         })
                       : agentsLabel(counts.agents)}
                   </span>
+                  {/* Every count is the way to what it counts (070, T046): "2 free" keeps
+                      the free ones, a tag's count keeps that tag — across the whole list,
+                      as the toolbar's own filters do. */}
                   {counts.free > 0 && (
-                    <span className="team-account-meta-free">
+                    <CountButton
+                      className="team-account-meta-free"
+                      label={t('teamAccountsFilterByOccupancy', {
+                        state: t('teamAccountsFilterFree').toLocaleLowerCase()
+                      })}
+                      onPress={onFilterOccupancy ? () => onFilterOccupancy('free') : undefined}
+                    >
                       {t(freeCountKey(language, counts.free), { count: counts.free })}
-                    </span>
+                    </CountButton>
                   )}
                   {counts.busy > 0 && (
-                    <span className="team-account-meta-busy">
+                    <CountButton
+                      className="team-account-meta-busy"
+                      label={t('teamAccountsFilterByOccupancy', {
+                        state: t('teamAccountsFilterBusy').toLocaleLowerCase()
+                      })}
+                      onPress={onFilterOccupancy ? () => onFilterOccupancy('busy') : undefined}
+                    >
                       {t(busyCountKey(language, counts.busy), { count: counts.busy })}
-                    </span>
+                    </CountButton>
                   )}
                   {/* How the account's agents are split between the tags on
                       them (019): the same chips the rows carry, each with the
                       number of agents under it, so a batch can be counted
                       without opening the account. */}
-                  {labelCounts.map(({ label, count }) => (
-                    <span
-                      key={label.id}
-                      className="team-task-label-chip is-count"
-                      data-color={label.color}
-                      title={t('teamAccountAgentsByTag', { tag: label.name, count })}
-                    >
-                      <span className="team-task-label-chip-dot" aria-hidden="true" />
-                      <span className="team-task-label-chip-name">{label.name}</span>
-                      <b>{count}</b>
-                    </span>
-                  ))}
+                  {labelCounts.map(({ label, count }) =>
+                    onFilterTag ? (
+                      <Chip
+                        key={label.id}
+                        size="xs"
+                        variant="soft"
+                        selected={activeTag === label.id}
+                        className="team-task-label-chip is-count team-account-tag-count"
+                        data-color={label.color}
+                        leading={<span className="team-task-label-chip-dot" />}
+                        title={t('teamAccountAgentsByTag', { tag: label.name, count })}
+                        aria-label={t('teamAccountsFilterByTag', { tag: label.name })}
+                        onSelect={() => onFilterTag(activeTag === label.id ? null : label.id)}
+                      >
+                        <span className="team-task-label-chip-name">{label.name}</span>
+                        <b>{count}</b>
+                      </Chip>
+                    ) : (
+                      <span
+                        key={label.id}
+                        className="team-task-label-chip is-count"
+                        data-color={label.color}
+                        title={t('teamAccountAgentsByTag', { tag: label.name, count })}
+                      >
+                        <span className="team-task-label-chip-dot" aria-hidden="true" />
+                        <span className="team-task-label-chip-name">{label.name}</span>
+                        <b>{count}</b>
+                      </span>
+                    )
+                  )}
                 </>
               )}
               {taskCount > 0 && (
@@ -998,5 +1043,38 @@ export function AccountNameRow({
         </IconButton>
       </div>
     </div>
+  );
+}
+
+/**
+ * A count that is also the way to what it counts (070, T046): the same words
+ * as before, pressable where the list can be narrowed, plain text where not.
+ */
+function CountButton({
+  className,
+  label,
+  onPress,
+  children
+}: {
+  className: string;
+  label: string;
+  onPress?: () => void;
+  children: ReactNode;
+}) {
+  if (!onPress) return <span className={className}>{children}</span>;
+  return (
+    <Button
+      size="xs"
+      variant="link"
+      className={`team-account-count ${className}`}
+      aria-label={`${children as string} · ${label}`}
+      title={label}
+      onClick={event => {
+        event.stopPropagation();
+        onPress();
+      }}
+    >
+      {children}
+    </Button>
   );
 }
