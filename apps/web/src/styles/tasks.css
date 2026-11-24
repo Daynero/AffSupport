@@ -1767,6 +1767,10 @@ button.team-task-label-chip:hover:not(:disabled),
 /* A row is an inventory button the width of the list, laid out as a row: the kind, the name
    over its caption, the check at the end. */
 .team-task-picker-results .team-task-picker-row {
+  /* A row, not the old three-column grid (070 T069): the inventory button wraps its
+     children in one label, which the grid put in its 30px first column — the
+     account picker's groups read «g» over «2», cut off. */
+  display: flex;
   justify-content: flex-start;
   height: auto;
   font-weight: inherit;
@@ -1776,12 +1780,21 @@ button.team-task-label-chip:hover:not(:disabled),
 
 .team-task-picker-results .team-task-picker-row > .ui-button-label {
   flex: 1 1 auto;
+  align-items: center;
   justify-content: flex-start;
+  gap: var(--space-2);
   min-width: 0;
 }
 
+/* The kind and the check keep their size; the name gives way (070 T069: on a phone a long
+   caption squeezed the check into an oval and pushed the name onto the account's tail). */
+.team-task-picker-row .team-task-picker-item-type,
+.team-task-picker-row .team-task-picker-check {
+  flex: none;
+}
 .team-task-picker-row .team-task-picker-item-copy {
   flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* "Add files": a tile, not a pill — its three lines stacked and centred. */

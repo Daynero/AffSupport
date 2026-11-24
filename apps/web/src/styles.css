@@ -8942,9 +8942,16 @@ body {
 /* Accounts lead; tags get their own line beneath them. Their captions stay with
    assistive technology, so the chips can use the whole row. */
 .team-task-editor-tags {
-  display: grid;
+  /* One row while the groups are short (070 T069): an empty task stacked «+ РК» over
+     «+ Тег», two lone buttons a row each. A group with many chips takes the line. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: var(--space-2);
   min-width: 0;
+}
+.team-task-editor-tags > :has(.team-task-agent-panel) {
+  flex-basis: 100%;
 }
 /* Keep each group as a row. The more general desktop rule below adds a label
    column; this selector deliberately keeps the editor's compact chip layout. */
@@ -9113,16 +9120,6 @@ body {
 }
 .team-task-status-option.is-done {
   color: var(--color-success);
-}
-.team-task-editor input,
-.team-task-editor textarea,
-.team-task-editor select {
-  min-height: 42px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
-  padding: var(--space-2) var(--space-3);
 }
 .team-task-grid {
   display: grid;
