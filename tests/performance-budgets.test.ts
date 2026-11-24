@@ -134,6 +134,13 @@ const RELEASE_162_SHARED_ALLOWANCE = 53_000;
  * Allowed as 7 000. No dependency was added.
  */
 const RELEASE_070_SHARED_ALLOWANCE = 7_000;
+/*
+ * Beta 1.6.3, merged into 070 (2026-11-24, integration/1.6-polish 36b106ad): +601 B over the
+ * measurement above — the catalog updater's stalled-background note and its repair, the
+ * recovery client's lost-handle renewal, and the Drive-full error copy. Beta's own tree fits its
+ * tolerance; on the merged tree the growth is its own line, not 070's. Allowed as 700.
+ */
+const RELEASE_163_SHARED_ALLOWANCE = 700;
 
 /**
  * How far the total may drift before this fails.
@@ -301,7 +308,8 @@ describeRequiring(
         FEATURE_053_SHARED_ALLOWANCE +
           RELEASE_159_SHARED_ALLOWANCE +
           RELEASE_162_SHARED_ALLOWANCE +
-          RELEASE_070_SHARED_ALLOWANCE
+          RELEASE_070_SHARED_ALLOWANCE +
+          RELEASE_163_SHARED_ALLOWANCE
       );
       if (
         typeof manifest !== 'object' ||
@@ -328,7 +336,8 @@ describeRequiring(
           FEATURE_053_SHARED_ALLOWANCE +
           RELEASE_159_SHARED_ALLOWANCE +
           RELEASE_162_SHARED_ALLOWANCE +
-          RELEASE_070_SHARED_ALLOWANCE
+          RELEASE_070_SHARED_ALLOWANCE +
+          RELEASE_163_SHARED_ALLOWANCE
       );
       // The allowances that used to stack on the 2026-10-09 total (045, 047+049, 053,
       // 1.5.9, 1.6.2) are inside the 070 T072 recalculation; what stays tight are the
