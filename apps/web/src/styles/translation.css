@@ -25,13 +25,6 @@
   inline-size: var(--space-4);
   block-size: var(--space-4);
 }
-.text-variant-stale-dot {
-  display: inline-block;
-  inline-size: var(--space-2);
-  block-size: var(--space-2);
-  border-radius: var(--radius-full);
-  background: var(--color-warning-solid);
-}
 
 .text-variant-reader {
   display: grid;

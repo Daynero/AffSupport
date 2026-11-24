@@ -60,13 +60,6 @@
   gap: var(--space-2) var(--space-4);
 }
 
-.home-title {
-  margin: 0;
-  font-size: var(--text-title);
-  font-weight: var(--weight-heading);
-  line-height: var(--leading-heading);
-}
-
 .home-status {
   display: inline-flex;
   flex-wrap: wrap;
@@ -380,11 +373,6 @@
 .home-section--other .home-tile-icon svg {
   color: var(--home-two-factor);
   filter: drop-shadow(0 0 var(--space-2) color-mix(in srgb, currentColor 7%, transparent));
-}
-
-.home-tile-icon svg .compressor-play {
-  fill: currentColor;
-  stroke: none;
 }
 
 .home-tile-copy {

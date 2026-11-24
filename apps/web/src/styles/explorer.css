@@ -1083,14 +1083,6 @@
   font-size: var(--text-lg);
   overflow-wrap: anywhere;
 }
-/* (024) The rule this replaced stacked them in a column and boxed them through
-   the pre-HeroUI `.soty-button` class. The migration dropped the box and kept
-   the column, which produced exactly the bare words it warned against. They are
-   small outlined controls on one line now. */
-.team-explorer-pane .creative-library-text-actions {
-  flex-direction: row;
-  flex-wrap: wrap;
-}
 /* On the file's card every action is a control, not a link: the transcript row used to be
    three bare words under two boxed buttons, which read as a caption rather than as things to
    press. Scoped to the card so the creative library's own dense rows keep their look. */
@@ -1461,11 +1453,6 @@
 }
 .team-explorer-row-check .team-explorer-check > span {
   transition: opacity var(--dur-control) var(--ease-standard);
-}
-
-/* The text's three acts as one small group (024, round 8). */
-.team-explorer-pane-transcript .creative-library-text-actions {
-  gap: var(--space-1);
 }
 /* A video's own files, on its picture (024, US25): a paperclip and a count where a version stack
    sits, always drawn — a thing that only shows on hover is a thing nobody finds. */

@@ -123,8 +123,7 @@
 /* The members page (070, T051). */
 @import './members.css' layer(soty);
 @import './accounts.css' layer(soty);
-@import './team-tasks.css' layer(soty);
-/* The board's and the launch list's toolbars on the inventory (070, T079/T080). */
+/* The board, the launch list and their cards (024, 070; team-tasks.css folded in by T066). */
 @import './tasks.css' layer(soty);
 @import './transcription.css' layer(soty);
 @import './translation.css' layer(soty);

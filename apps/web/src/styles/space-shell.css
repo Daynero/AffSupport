@@ -470,19 +470,6 @@
   align-content: start;
 }
 
-/* The tab strip was four grey words over a dialog of grey words. The active one
-   now sits in its own accent-tinted tab. */
-.team-settings-tabs .team-space-tab {
-  padding-inline: var(--space-3);
-  color: var(--color-text-muted);
-  font-weight: 650;
-}
-.team-settings-tabs .team-space-tab.is-active {
-  color: var(--color-text);
-  background: color-mix(in oklab, var(--color-accent) 16%, transparent);
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-}
-
 /* Space switcher (010 US1). The space name is the control, so the trigger has
    to look like the heading it replaces — no button chrome until hover. */
 .team-space-switcher {

@@ -8,7 +8,8 @@ import {
   RELEASE_DOWNLOAD_URL
 } from '../packages/shared/src/release';
 import { PRODUCTION_PROFILE } from '../packages/shared/src/environment';
-import { translate, translationKeys } from '../apps/web/src/i18n';
+import { translate } from '../apps/web/src/i18n';
+import { translationKeys } from './support/translation-keys';
 
 const OLD_BRAND = /Local Video Compressor/;
 
@@ -142,9 +143,23 @@ describe('Soty design system', () => {
 
   it('disables decorative loops under prefers-reduced-motion', () => {
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
-    expect(reduced).toContain('.progress-track.is-flowing > span');
     expect(reduced).toContain('.soty-skeleton');
     expect(reduced).toContain('animation: none !important');
+    // The flowing bar is the inventory's since the shim went (070 T065); its
+    // pause lives with it, in components.css.
+    const components = readFileSync(
+      new URL('../apps/web/src/styles/components.css', import.meta.url),
+      'utf8'
+    );
+    const inventoryReduced = components.slice(
+      components.indexOf(
+        '@media (prefers-reduced-motion: reduce)',
+        components.indexOf('.ui-progress')
+      )
+    );
+    expect(inventoryReduced).toMatch(
+      /\.ui-progress\.is-flowing \.ui-progress-fill \{\s*animation: none;/u
+    );
   });
 
   it('keeps every full-page header on shared geometry tokens', () => {

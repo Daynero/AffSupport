@@ -85,8 +85,8 @@ describe('page shell width', () => {
     ['.public-home-content', '--shell-width'],
     ['.page-container', '--shell-width-narrow'],
     ['.public-footer', '--shell-width-narrow'],
-    ['.team-space-page', '--shell-width-team'],
-    ['.team-workspace-page', '--shell-width-team']
+    // `.team-workspace-page` went with the rules nothing renders any more (070 T066).
+    ['.team-space-page', '--shell-width-team']
   ])('sizes %s from var(%s)', (selector, token) => {
     const rule = block(selector);
     expect(rule).toMatch(new RegExp(`width:\\s*min\\([^;]*var\\(${token}\\)`));

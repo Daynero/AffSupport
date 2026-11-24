@@ -17,20 +17,6 @@
   padding: var(--space-6);
 }
 
-.tariff-showcase-hero {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-5);
-}
-
-.tariff-showcase-art {
-  width: min(100%, 160px);
-  flex: none;
-  height: auto;
-  border-radius: var(--radius-lg);
-}
-
 .tariff-showcase-title {
   margin: 0;
   font-size: var(--text-title);
@@ -63,29 +49,6 @@
   border-radius: var(--radius-md);
   background: var(--color-secondary-softer);
   color: var(--color-secondary-text);
-}
-
-.tariff-showcase-action,
-.tariff-showcase-sent {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.tariff-showcase-sent p {
-  flex: 1 1 280px;
-  margin: 0;
-  font-size: var(--text-label);
-  overflow-wrap: anywhere;
-}
-
-.tariff-showcase-email {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin: 0;
 }
 
 .tariff-contact-popover {

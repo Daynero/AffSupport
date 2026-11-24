@@ -439,27 +439,8 @@
    question, and two badges are no badge at all. */
 .team-account-meta-free {
   display: inline-flex;
-  min-height: 20px;
   align-items: center;
-  padding: 0 8px;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--color-success) 18%, transparent);
-  color: var(--color-success);
-  font-weight: 650;
-}
-
-:root:not([data-theme='dark']) .team-account-meta-free {
-  background: color-mix(in srgb, var(--color-success) 20%, transparent);
-  color: var(--color-success-text);
-}
-
-.team-account-meta-busy {
-  color: var(--color-warning);
-  font-weight: 650;
-}
-
-:root:not([data-theme='dark']) .team-account-meta-busy {
-  color: var(--honey-800);
 }
 
 /* The part of a line that answered the search. */
@@ -636,14 +617,6 @@
   background: var(--team-account-colour);
 }
 
-.team-agent-row.is-free {
-  background: color-mix(in srgb, var(--color-success) 10%, transparent);
-}
-
-.team-agent-row.is-free:hover {
-  background: color-mix(in srgb, var(--color-success) 15%, transparent);
-}
-
 /* The agent as its tag — the chip a task shows, so the two surfaces agree on
    what an ad account looks like. The mark at the end says a press copies the
    full id; the dot says whether the agent is free. */
@@ -739,22 +712,6 @@
   flex: 0 0 auto;
   border-radius: var(--radius-full);
   background: currentcolor;
-}
-
-.team-agent-state.is-free {
-  color: var(--color-success);
-}
-
-.team-agent-state.is-busy {
-  color: var(--color-warning);
-}
-
-:root:not([data-theme='dark']) .team-agent-state.is-free {
-  color: var(--color-success-text);
-}
-
-:root:not([data-theme='dark']) .team-agent-state.is-busy {
-  color: var(--honey-800);
 }
 
 /* The runs: one line each, a pencil and a bin on the line's hover, and a
@@ -941,8 +898,6 @@
   padding: 0 10px 0 7px;
   border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
   border-radius: var(--radius-full);
-  background: none;
-  color: var(--color-accent);
   cursor: pointer;
   font: inherit;
   font-size: var(--text-caption);
@@ -953,25 +908,9 @@
     border-color var(--dur-control) var(--ease-standard);
 }
 
-.team-agent-run-add:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
-}
-
 .team-agent-run-add:disabled {
   cursor: default;
   opacity: 0.5;
-}
-
-/* On a free agent it is the row's call to action, so it is filled rather than
-   outlined: nothing else in that row competes with it. */
-.team-agent-run-add.is-assign {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
-}
-
-.team-agent-run-add.is-assign:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
 }
 
 /*
@@ -1054,8 +993,6 @@
   padding: 0 10px 0 8px;
   border: 1px solid color-mix(in srgb, var(--color-success) 35%, var(--color-border));
   border-radius: var(--radius-full);
-  background: none;
-  color: var(--color-success);
   cursor: pointer;
   font: inherit;
   font-size: var(--text-caption);
@@ -1064,11 +1001,6 @@
   transition:
     background-color var(--dur-control) var(--ease-standard),
     border-color var(--dur-control) var(--ease-standard);
-}
-
-.team-agent-release:hover:not(:disabled) {
-  border-color: var(--color-success);
-  background: color-mix(in srgb, var(--color-success) 14%, transparent);
 }
 
 .team-agent-release:disabled {
@@ -1545,34 +1477,6 @@ button.team-task-agent-chip.is-selected {
   font-size: var(--text-caption);
 }
 
-/* "+ Account": the same pill as "+ Agent" in the Accounts tab. */
-.team-task-account-add {
-  display: inline-flex;
-  min-height: 26px;
-  align-items: center;
-  gap: 5px;
-  padding: 0 10px 0 7px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
-  color: var(--color-accent);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-caption);
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.team-task-account-add:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
-}
-
-.team-task-account-add:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
 /* The open chip's panel: a named head with the × that untags, the runs one
    line each with a pencil and a bin, and a plus to write another. */
 .team-task-agent-panel {
@@ -1673,28 +1577,6 @@ button.team-task-agent-chip.is-selected {
   background: none;
 }
 
-.team-task-agent-run-add {
-  display: inline-flex;
-  width: max-content;
-  min-height: 28px;
-  align-items: center;
-  gap: 5px;
-  padding: 0 10px 0 7px;
-  border: 1px dashed color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
-  border-radius: var(--radius-full);
-  background: none;
-  color: var(--color-accent);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-caption);
-  font-weight: 650;
-}
-
-.team-task-agent-run-add:hover:not(:disabled) {
-  border-style: solid;
-  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-}
-
 .team-task-agent-run-editor {
   display: flex;
   flex: 1 1 auto;
@@ -1710,7 +1592,6 @@ button.team-task-agent-chip.is-selected {
 }
 
 .team-task-editor .team-task-agent-run-editor input {
-  flex: 1 1 200px;
   min-height: 32px;
   padding: 0 var(--space-3);
 }
@@ -1789,17 +1670,9 @@ button.team-task-agent-chip.is-selected {
   gap: 4px;
 }
 
-/* Smaller than the list-level pills: this one sits in the picker's path row. */
-.team-task-account-picker-occupancy .task-status-filter-option {
-  min-height: 28px;
-  padding: 0 10px;
-  font-size: var(--text-caption);
-}
-
 /* A floor of three rows, so the dialog does not re-centre and jump between
    the account list, an agent list and an empty "free" answer. */
-.team-task-account-picker .team-task-picker-results,
-.team-task-account-picker .team-task-picker-empty {
+.team-task-account-picker .team-task-picker-results {
   min-height: 168px;
 }
 
@@ -1826,78 +1699,12 @@ button.team-task-agent-chip.is-selected {
 
 /* --- The filter's list ------------------------------------------------------ */
 
-/* The field that opens it is `.task-filter-field` (team-tasks.css, 024); what
+/* The field that opens it is `.task-filter-field` (tasks.css, 024); what
    is here is the list itself: the options, their groups and the agent's face. */
 .task-account-filter-tag {
   font-family: var(--team-font-mono);
   font-size: var(--text-caption);
   letter-spacing: 0.02em;
-}
-
-.task-account-filter-group + .task-account-filter-group {
-  margin-top: var(--space-1);
-  padding-top: var(--space-1);
-  border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
-}
-
-.task-account-filter-option {
-  display: flex;
-  width: 100%;
-  min-height: 34px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-label);
-  text-align: left;
-}
-
-.task-account-filter-option:hover {
-  background: var(--color-surface-muted);
-}
-
-.task-account-filter-option.is-selected {
-  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-  color: var(--color-accent-active);
-}
-
-.task-account-filter-option.is-account {
-  font-weight: 700;
-}
-
-.task-account-filter-option.is-all {
-  color: var(--color-text-muted);
-  font-weight: 600;
-}
-
-.task-account-filter-option.is-agent {
-  padding-left: var(--space-5);
-}
-
-.task-account-filter-option.is-agent.is-free .team-task-agent-chip-dot {
-  background: var(--color-success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 20%, transparent);
-}
-
-.task-account-filter-tail {
-  flex: 0 0 auto;
-  font-family: var(--team-font-mono);
-  font-weight: 650;
-  letter-spacing: 0.04em;
-}
-
-.task-account-filter-note {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .task-account-filter-empty {
@@ -1914,13 +1721,10 @@ button.team-task-agent-chip.is-selected {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  padding: 0 8px;
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
   color: var(--color-accent-text);
   font-size: var(--text-caption);
   font-weight: 650;
-  text-decoration: none;
   white-space: nowrap;
 }
 
@@ -2082,7 +1886,6 @@ button.team-task-agent-chip.is-selected {
 
 /* The empty states that now carry one are a stack, not a paragraph. */
 .team-task-label-menu-empty,
-.team-task-picker-empty,
 .task-account-filter-empty {
   display: grid;
   justify-items: start;
@@ -2331,51 +2134,40 @@ button.team-task-agent-chip.is-selected {
 }
 /* The selected decoration spans the identity cell from its left rail.
    Solid palette tokens keep its colour unchanged over hover and drag surfaces. */
-.team-agent-row[data-name-color-value='green'],
-.launch-account-suffix[data-name-color-value='green'] {
+.team-agent-row[data-name-color-value='green'] {
   --account-name-fill: var(--account-name-green);
   --account-name-line: var(--account-name-green-rail);
   --account-name-ink: var(--account-name-green-ink);
 }
-.team-agent-row[data-name-color-value='yellow'],
-.launch-account-suffix[data-name-color-value='yellow'] {
+.team-agent-row[data-name-color-value='yellow'] {
   --account-name-fill: var(--account-name-yellow);
   --account-name-line: var(--account-name-yellow-rail);
   --account-name-ink: var(--account-name-yellow-ink);
 }
-.team-agent-row[data-name-color-value='red'],
-.launch-account-suffix[data-name-color-value='red'] {
+.team-agent-row[data-name-color-value='red'] {
   --account-name-fill: var(--account-name-red);
   --account-name-line: var(--account-name-red-rail);
   --account-name-ink: var(--account-name-red-ink);
 }
-.team-agent-row[data-name-color-value='blue'],
-.launch-account-suffix[data-name-color-value='blue'] {
+.team-agent-row[data-name-color-value='blue'] {
   --account-name-fill: var(--account-name-blue);
   --account-name-line: var(--account-name-blue-rail);
   --account-name-ink: var(--account-name-blue-ink);
 }
-.team-agent-row[data-name-color-value='purple'],
-.launch-account-suffix[data-name-color-value='purple'] {
+.team-agent-row[data-name-color-value='purple'] {
   --account-name-fill: var(--account-name-purple);
   --account-name-line: var(--account-name-purple-rail);
   --account-name-ink: var(--account-name-purple-ink);
 }
-.team-agent-row[data-name-color-value='pink'],
-.launch-account-suffix[data-name-color-value='pink'] {
+.team-agent-row[data-name-color-value='pink'] {
   --account-name-fill: var(--account-name-pink);
   --account-name-line: var(--account-name-pink-rail);
   --account-name-ink: var(--account-name-pink-ink);
 }
-.team-agent-row[data-name-color-value='orange'],
-.launch-account-suffix[data-name-color-value='orange'] {
+.team-agent-row[data-name-color-value='orange'] {
   --account-name-fill: var(--account-name-orange);
   --account-name-line: var(--account-name-orange-rail);
   --account-name-ink: var(--account-name-orange-ink);
-}
-.launch-account-suffix[data-name-color-value]:not([data-name-color-value='none']) {
-  background: var(--account-name-fill);
-  color: var(--account-name-ink);
 }
 .team-agent-row[data-name-color-value]:not([data-name-color-value='none']) > .team-agent-rail {
   background: var(--account-name-line);
@@ -2423,12 +2215,9 @@ button.team-task-agent-chip.is-selected {
   z-index: calc(var(--layer-sticky) + 1);
 }
 .team-account-space.is-unified .team-agent-id {
-  position: sticky;
-  left: var(--team-agent-rail);
   z-index: 1;
   align-self: stretch;
   align-content: center;
-  background: var(--color-surface);
 }
 .team-account-space.is-unified .team-accounts-columns > :nth-child(2) {
   position: sticky;
@@ -2463,11 +2252,9 @@ button.team-task-agent-chip.is-selected {
   }
   .is-unified .finance-toolbar.is-compact > div {
     min-width: 0;
-    flex-wrap: nowrap;
     gap: var(--space-1);
   }
   .is-unified .finance-toolbar.is-compact > div > div {
-    flex: 1 1 auto;
     min-width: 0;
   }
   .is-unified .finance-toolbar.is-compact .task-date-filter-calendar,
@@ -2531,7 +2318,6 @@ button.team-task-agent-chip.is-selected {
 
 .team-account-space.is-unified .team-accounts-table {
   scroll-padding-block: calc(var(--space-6) * 3) var(--space-4);
-  scroll-padding-inline-start: calc(var(--team-agent-id-width) + var(--space-4));
 }
 .team-account-space.is-unified input {
   scroll-margin-block: calc(var(--space-6) * 3) var(--space-4);
@@ -2590,8 +2376,7 @@ button.team-task-agent-chip.is-selected {
   min-height: var(--account-input-height);
   padding: 0;
 }
-.team-account-space.is-unified .team-agent-run-add span,
-.team-account-space.is-unified .team-agent-release-label {
+.team-account-space.is-unified .team-agent-run-add span {
   display: none;
 }
 .team-account-space.is-unified .team-account-head {

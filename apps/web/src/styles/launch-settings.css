@@ -299,16 +299,6 @@
 .launch-editor-compact .launch-duration-open .restitch-duration-control {
   max-width: none;
 }
-.launch-editor-catalog-advanced {
-  flex-basis: 100%;
-}
-.launch-editor-advanced-content {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--space-4);
-  padding-block: var(--space-3);
-}
 .launch-editor-compact .launch-editor-audience-row > .ui-field:last-child {
   margin-inline-start: 0;
 }
@@ -327,18 +317,6 @@
 .launch-creative-field[data-dragging] {
   border-color: var(--color-secondary-border);
   background: var(--color-secondary-soft);
-}
-.ui-button.launch-creative-empty {
-  width: 100%;
-  min-height: calc(var(--space-6) * 2);
-  justify-content: flex-start;
-  color: var(--color-neutral-text-muted);
-}
-.launch-creative-empty > .ui-button-label {
-  width: 100%;
-}
-.launch-creative-empty .ui-button-label > svg:last-child {
-  margin-inline-start: auto;
 }
 .ui-button.launch-creative-thumbnail {
   position: relative;

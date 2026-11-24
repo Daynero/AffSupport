@@ -357,28 +357,6 @@ body:has(.next-channel-badge) .assistant-dock {
 .credits-chip {
   font-variant-numeric: tabular-nums;
 }
-.ai-budget-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4) var(--space-6);
-}
-.ai-budget-figure {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.ai-budget-figure strong {
-  font-size: var(--text-title);
-}
-.ai-budget-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-caption);
-}
 .assistant-card.is-undone .assistant-rows {
   opacity: 0.55;
 }
