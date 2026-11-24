@@ -311,6 +311,13 @@
   .team-space-health[data-state='chips'] {
     order: 3;
     flex: 1 1 100%;
+    /* Their row wraps (070 T069): Drive's chip, the agent's chip and its reconnect ran
+       65 px past a 390 px screen and the reconnect was cut off. */
+    flex-wrap: wrap;
+  }
+  .team-space-health[data-state='chips'] .team-space-health-chip,
+  .team-space-health[data-state='chips'] .team-agent-link {
+    max-width: 100%;
   }
   .team-space-health-indicator .ui-button-label {
     position: absolute;
