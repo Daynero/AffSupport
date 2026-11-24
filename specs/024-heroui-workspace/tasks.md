@@ -872,6 +872,8 @@ processed copy from the attachment, and see all three on the task without it clo
       **Closed 2026-11-23 (audit).** `workspace/HistoryDialog.tsx` reads pages of 50 and offers
       "more" with `before` = the last event's time; `tests/space-history.test.tsx` covers the
       second page.
+      **Закрито `HistoryDialog`** (070 T053): невикористаний `members/TeamAuditPanel.tsx` видалено,
+      тип `TeamAuditClient` і словник дій живуть у `workspace/HistoryDialog.tsx`.
 - [ ] T127 [US8] **Перенесено в 070 T052.** Put the settings panels on the inventory —
       `workspace/TeamPreferencesSection.tsx` (which also stops failing silently),
       `product-catalog/ProductCatalogSettingsSection.tsx`, `labels/TaskLabelsSection.tsx`,

@@ -361,6 +361,21 @@ describe('catalog editing boundaries', () => {
     expect(screen.getByLabelText('From')).toHaveProperty('value', '17');
   });
 
+  it('says a refused price was not saved, beside its button and on the title line', async () => {
+    const api = {
+      ...valuesClient(),
+      setProductCatalogSettings: vi.fn().mockRejectedValue(new Error('offline'))
+    };
+    renderEditableSection(api);
+    await openEditor('product-catalog-settings-title');
+    const input = await screen.findByLabelText('From');
+    await userEvent.clear(input);
+    await userEvent.type(input, '17');
+    await userEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    expect((await screen.findAllByText('Could not save')).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('From')).toHaveProperty('value', '17');
+  });
+
   it('saves price without publishing the fallback draft', async () => {
     const api = valuesClient();
     renderEditableSection(api);

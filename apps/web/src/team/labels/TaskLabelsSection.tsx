@@ -33,6 +33,7 @@ import { agentCountKey, taskCountKey } from '../accounts/plural';
 import { TaskLabelChip, TaskLabelColorPicker } from './TaskLabelChip';
 import { useTaskLabels, type TaskLabelsClient } from './useTaskLabels';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { SaveStateWord, useSaveState } from '../workspace/SaveStateWord';
 
 export type TaskLabelsSectionClient = TaskLabelsClient;
 
@@ -86,7 +87,12 @@ export function TaskLabelsSection({
     if (!colorChosen) setColor(nextTeamTaskLabelColor(labels.labels));
   }, [colorChosen, labels.labels]);
 
+  /* The reason goes in a toast, where there is room for the server's own words; the
+     panel's title line says the outcome in one, as every settings panel does (070, T052).
+     What was typed stays in its field either way. */
+  const saveState = useSaveState();
   const fail = (cause: unknown) => {
+    saveState.setState('failed');
     const key = nameErrorKey(cause);
     push({ tone: 'error', text: key ? t(key) : teamErrorMessageFor(cause, t) });
   };
@@ -100,7 +106,9 @@ export function TaskLabelsSection({
     }
     setBusy(true);
     try {
+      saveState.setState('saving');
       await labels.create(clean, color);
+      saveState.setState('saved');
       // The field empties and keeps focus: a dictionary is written in one
       // sitting, several tags at a time.
       setName('');
@@ -121,7 +129,9 @@ export function TaskLabelsSection({
     }
     setBusy(true);
     try {
+      saveState.setState('saving');
       await labels.update(editing.id, clean, editing.color);
+      saveState.setState('saved');
       setEditing(null);
     } catch (cause) {
       fail(cause);
@@ -133,7 +143,9 @@ export function TaskLabelsSection({
   const remove = async (label: TeamTaskLabel) => {
     setBusy(true);
     try {
+      saveState.setState('saving');
       await labels.remove(label.id);
+      saveState.setState('saved');
       setConfirming(null);
       push({ tone: 'info', text: t('teamTaskTagDeleted', { name: label.name }) });
     } catch (cause) {
@@ -151,11 +163,14 @@ export function TaskLabelsSection({
       description={t(agents ? 'teamAgentTagsDescription' : 'teamTaskTagsDescription')}
       className="team-task-labels"
       aside={
-        !labels.loading || labels.labels.length > 0 ? (
-          <span className="team-task-labels-total">
-            {labels.labels.length} / {TEAM_TASK_LABEL_MAX}
-          </span>
-        ) : undefined
+        <>
+          <SaveStateWord state={saveState.state} />
+          {(!labels.loading || labels.labels.length > 0) && (
+            <span className="team-task-labels-total">
+              {labels.labels.length} / {TEAM_TASK_LABEL_MAX}
+            </span>
+          )}
+        </>
       }
     >
       {canEdit && (
@@ -230,8 +245,9 @@ export function TaskLabelsSection({
             {labels.labels.map(label =>
               editing?.id === label.id ? (
                 <li key={label.id} className="team-task-labels-row is-editing">
-                  <input
+                  <Input
                     autoFocus
+                    width="full"
                     value={editing.name}
                     maxLength={TEAM_TASK_LABEL_NAME_MAX}
                     /* Named for the row it edits: eight fields all called

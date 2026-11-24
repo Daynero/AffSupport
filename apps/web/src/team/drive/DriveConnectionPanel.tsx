@@ -12,7 +12,7 @@ import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { Modal } from '../../components/Modal';
 import { teamErrorMessageFor } from '../errors';
-import { Button } from '../../components/ui';
+import { Button } from '../../components/ui/index';
 import { BetaStorageNotice, externalStorageUnavailableInBeta } from './BetaStorageNotice';
 import { openFolderPicker, pickerConfig, type PickFolders } from '../storage/loadPicker';
 import { SelectionList, selectionModeEnabled } from '../storage/SelectionList';

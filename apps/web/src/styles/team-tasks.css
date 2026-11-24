@@ -1043,7 +1043,7 @@ button.team-task-label-chip:hover:not(:disabled),
   background: var(--color-surface-subtle);
 }
 
-.team-task-labels-row.is-editing input {
+.team-task-labels-row.is-editing > .ui-input {
   min-width: 160px;
   flex: 1 1 160px;
 }

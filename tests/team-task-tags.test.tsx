@@ -290,6 +290,9 @@ describe('the dictionary in settings', () => {
     await user.type(screen.getByLabelText('Name'), 'Hot');
     await user.click(screen.getByRole('button', { name: /Add tag/u }));
     expect(await screen.findByText('This space already has a tag by that name.')).toBeTruthy();
+    // The panel says the outcome on its title line, and what was typed stays to correct (070).
+    expect((await screen.findByText('Could not save')).getAttribute('role')).toBe('alert');
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Hot');
   });
 
   it('shows a viewer the tags and none of the controls', async () => {

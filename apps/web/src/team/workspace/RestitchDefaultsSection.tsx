@@ -28,7 +28,6 @@ import type {
 } from '@video-compressor/shared';
 import { imageSelectionSupported } from '@video-compressor/shared';
 import { ImageEmbeddingSection } from '../../components/ImageEmbeddingSection';
-import { Button } from '../../components/ui';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
@@ -43,8 +42,14 @@ import {
 } from '../restitch/useRestitchPreparation';
 import { CatalogFreshnessContext, useCatalogRead } from '../catalog/CatalogFreshness';
 import { SettingsSection } from './SettingsSection';
-import { Alert, PermissionState, SegmentedControl } from '../../components/ui/index';
-import { Checkbox } from '../../components/ui';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  PermissionState,
+  SegmentedControl
+} from '../../components/ui/index';
+import { SaveStateWord, useSaveState } from './SaveStateWord';
 import { RestitchSourcePool, type RestitchSourcePoolClient } from './RestitchSourcePool';
 import { fetchCompressorState } from '../../stitcher/api';
 import { transferLegacyRestitchImages } from '../restitch/migrate-legacy';
@@ -163,6 +168,7 @@ export function RestitchDefaultsSection({
   const [form, setForm] = useState<RestitchForm>(FORM_DEFAULTS);
   const [formValid, setFormValid] = useState(true);
   const [saving, setSaving] = useState(false);
+  const saveState = useSaveState();
   const [loaded, setLoaded] = useState(false);
   const [useOwner, setUseOwner] = useState(true);
   const [switching, setSwitching] = useState(false);
@@ -258,6 +264,7 @@ export function RestitchDefaultsSection({
     const write = isOwner ? client.setRestitchSources : client.setMemberRestitchSources;
     if (!write) return;
     setSaving(true);
+    saveState.setState('saving');
     try {
       setListing(await write(teamId, slot, items));
       // The first pool a space gets also makes its settings row; the panel learns that here.
@@ -267,7 +274,9 @@ export function RestitchDefaultsSection({
         setting_value: slot,
         file_count: items.length
       });
+      saveState.setState('saved');
     } catch (error) {
+      saveState.setState('failed');
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
       setSaving(false);
@@ -276,6 +285,7 @@ export function RestitchDefaultsSection({
 
   const save = async () => {
     setSaving(true);
+    saveState.setState('saving');
     try {
       const chosen: RestitchDefaultsInput = {
         operation,
@@ -299,8 +309,11 @@ export function RestitchDefaultsSection({
           ? listing.pools.start.eligibleCount + listing.pools.end.eligibleCount
           : 0
       });
-      push({ tone: 'success', text: t('teamRestitchSaved') });
+      // Said on the panel's title line, as every settings panel says it (070, T052): a
+      // toast for a kept value was the one panel that announced success out of place.
+      saveState.setState('saved');
     } catch (error) {
+      saveState.setState('failed');
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
       setSaving(false);
@@ -432,7 +445,7 @@ export function RestitchDefaultsSection({
         <Checkbox
           checked
           disabled={switching || !loaded}
-          onChange={event => void toggleOwner(event.target.checked)}
+          onChange={checked => void toggleOwner(checked)}
           label={t('teamRestitchUseOwner')}
         />
         {/* Read, not hidden: what the owner chose is what this member's downloads will carry,
@@ -465,12 +478,13 @@ export function RestitchDefaultsSection({
       title={t('teamRestitchSection')}
       description={client.listRestitchSources ? t('teamRestitchSourcesExplain') : undefined}
       className="team-restitch-defaults"
+      aside={<SaveStateWord state={saveState.state} />}
     >
       {!isOwner && (
         <Checkbox
           checked={false}
           disabled={switching}
-          onChange={event => void toggleOwner(event.target.checked)}
+          onChange={checked => void toggleOwner(checked)}
           label={t('teamRestitchUseOwner')}
         />
       )}

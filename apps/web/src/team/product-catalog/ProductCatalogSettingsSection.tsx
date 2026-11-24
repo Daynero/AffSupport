@@ -100,6 +100,21 @@ export type CatalogImagesSettingsClient = Pick<
   Partial<TaskAttachmentPickerClient & FolderPickerClient>;
 
 const EditorContext = createContext({ open: '', toggle: (_id: string) => {} });
+/**
+ * Beside the save button while an edit is not kept: "Unsaved", or — once the server has
+ * refused it — "Could not save", read out as an alert (070, T052). The edit stays either way.
+ */
+function UnsavedWord({ failed }: { failed: boolean }) {
+  const { t } = useI18n();
+  return failed ? (
+    <span className="product-catalog-unsaved is-failed" role="alert">
+      {t('accountSaveFailed')}
+    </span>
+  ) : (
+    <span className="product-catalog-unsaved">{t('productCatalogUnsaved')}</span>
+  );
+}
+
 function CatalogSection({
   titleId,
   title,
@@ -1233,6 +1248,8 @@ function CatalogValuesSection({
     window.addEventListener('beforeunload', prevent);
     return () => window.removeEventListener('beforeunload', prevent);
   }, [priceDirty, fallbackDirty, saving]);
+  /** Which half's last save was refused (070, T052): its edit stays, and says so in words. */
+  const [failedPart, setFailedPart] = useState<'price' | 'fallback' | null>(null);
   const save = async (part: 'price' | 'fallback') => {
     if (
       !loaded ||
@@ -1279,8 +1296,10 @@ function CatalogValuesSection({
       }
       onRange({ min: result.priceMin, max: result.priceMax });
       onFallback({ title: Boolean(result.title), image: Boolean(result.imageLink) });
+      setFailedPart(null);
       push({ tone: 'success', text: t('productCatalogSettingsSaved') });
     } catch (error) {
+      setFailedPart(part);
       diagnostic.fail('SAVE_FAILED');
       push({ tone: 'error', text: teamErrorMessageFor(error, t) });
     } finally {
@@ -1301,7 +1320,7 @@ function CatalogValuesSection({
             : !loaded
               ? t('catalogSettingsLoading')
               : priceDirty
-                ? t('productCatalogUnsaved')
+                ? t(failedPart === 'price' ? 'accountSaveFailed' : 'productCatalogUnsaved')
                 : persisted
                   ? `${persisted.priceMin}–${persisted.priceMax} USD`
                   : t('productCatalogSummaryPriceUnsaved')
@@ -1358,9 +1377,7 @@ function CatalogValuesSection({
               >
                 {t('productCatalogSettingsSave')}
               </Button>
-              {loaded && priceDirty && rangeOk && (
-                <span className="product-catalog-unsaved">{t('productCatalogUnsaved')}</span>
-              )}
+              {loaded && priceDirty && rangeOk && <UnsavedWord failed={failedPart === 'price'} />}
             </div>
           )}
         </div>
@@ -1379,7 +1396,7 @@ function CatalogValuesSection({
         )}
         aside={
           fallbackDirty
-            ? t('productCatalogUnsaved')
+            ? t(failedPart === 'fallback' ? 'accountSaveFailed' : 'productCatalogUnsaved')
             : (legacyImages && hasImages === null) || hasTexts === null
               ? t('catalogSettingsUnknown')
               : t(
@@ -1473,7 +1490,7 @@ function CatalogValuesSection({
                 {t('productCatalogFallbackSave')}
               </Button>
               {loaded && fallbackDirty && valid && (
-                <span className="product-catalog-unsaved">{t('productCatalogUnsaved')}</span>
+                <UnsavedWord failed={failedPart === 'fallback'} />
               )}
             </div>
           )}

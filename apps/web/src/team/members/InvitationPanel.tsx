@@ -445,7 +445,13 @@ export function InvitationPanel({
         <div className="team-invitation-link" role="status">
           <strong>{t('teamInvitationLinkTitle')}</strong>
           <p>{t('teamInvitationLinkHint')}</p>
-          <input type="text" readOnly value={inviteUrl} aria-label={t('teamInvitationLinkTitle')} />
+          <Input
+            type="text"
+            readOnly
+            value={inviteUrl}
+            aria-label={t('teamInvitationLinkTitle')}
+            onFocus={event => event.currentTarget.select()}
+          />
           <Button
             type="button"
             variant="secondary"

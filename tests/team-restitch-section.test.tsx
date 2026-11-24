@@ -167,6 +167,25 @@ describe('a space’s re-stitching settings', () => {
     ).toBe('true');
   });
 
+  it('says on the panel whether the save was kept, and keeps the choice when it was not', async () => {
+    const value = client({
+      setRestitchDefaults: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValue(stored)
+    });
+    renderSection(value, owned, 'disconnected');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Fill and crop' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect((await screen.findByText('Could not save')).getAttribute('role')).toBe('alert');
+    expect(screen.getByRole('button', { name: 'Fill and crop' }).getAttribute('aria-pressed')).toBe(
+      'true'
+    );
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Saved')).toBeTruthy();
+  });
+
   it('saves the form with no ids and no pictures, and works without the app running', async () => {
     const value = client();
     renderSection(value, owned, 'disconnected');

@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TeamAuditEventSummary } from '../apps/web/src/api/team';
 import { AuthContextOverride } from '../apps/web/src/auth/AuthContext';
 import { HistoryDialog } from '../apps/web/src/team/workspace/HistoryDialog';
-import { TeamAuditPanel } from '../apps/web/src/team/members/TeamAuditPanel';
 import { adminAuthStub } from './support/auth-stub';
 
 /** The space's history, readable (024): days, one line an event, problems only badged. */
@@ -223,63 +222,5 @@ describe('the space history', () => {
     fireEvent.click(link);
     expect(close).toHaveBeenCalledOnce();
     expect(window.location.pathname + window.location.search).toBe(href);
-  });
-});
-
-describe('the audit settings panel', () => {
-  it('keeps failed loading distinct from empty and recovers on refresh', async () => {
-    const listAuditEvents = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValueOnce([]);
-    const client = { listAuditEvents };
-    const view = render(<TeamAuditPanel teamId={TEAM} client={client} />);
-    expect(await screen.findByRole('alert')).toHaveProperty(
-      'textContent',
-      'Could not load this space’s history.'
-    );
-    expect(screen.queryByText('Nothing has happened here yet.')).toBeNull();
-    view.rerender(<TeamAuditPanel teamId={TEAM} client={client} revision={1} />);
-    expect(await screen.findByText('Nothing has happened here yet.')).toBeTruthy();
-    expect(screen.queryByRole('alert')).toBeNull();
-  });
-
-  it('shows the subject and distinct denied, canceled and failed outcomes without duplicate state', async () => {
-    render(
-      <TeamAuditPanel
-        teamId={TEAM}
-        client={{
-          listAuditEvents: vi.fn().mockResolvedValue([
-            event({
-              action: 'material.rename',
-              subjectLabel: 'Denied file',
-              result: 'denied',
-              target: { state: 'ready' }
-            }),
-            event({
-              action: 'operation.canceled',
-              subjectLabel: 'Canceled operation',
-              result: 'canceled',
-              target: { state: 'canceled' }
-            }),
-            event({
-              action: 'material.upload',
-              subjectLabel: 'Failed upload',
-              result: 'failed',
-              target: { warning_code: 'bounded-warning' },
-              errorCode: 'DRIVE_UNAVAILABLE'
-            })
-          ])
-        }}
-      />
-    );
-    expect(await screen.findByTitle('Denied file')).toBeTruthy();
-    expect(screen.getByTitle('Canceled operation')).toBeTruthy();
-    expect(screen.getByTitle('Failed upload')).toBeTruthy();
-    expect(screen.getByText('Denied')).toBeTruthy();
-    expect(screen.getByText('Canceled')).toBeTruthy();
-    expect(screen.getByText('Failed')).toBeTruthy();
-    expect(screen.queryByText('canceled', { exact: true })).toBeNull();
-    expect(screen.getByText('DRIVE_UNAVAILABLE')).toBeTruthy();
   });
 });

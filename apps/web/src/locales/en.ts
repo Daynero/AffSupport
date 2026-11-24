@@ -2548,6 +2548,9 @@ export const en = {
   teamOwnershipConfirm: 'I understand that {name} will become owner',
   teamOwnershipTransferAction: 'Transfer ownership',
   teamOwnershipTransferFailed: 'Could not transfer ownership.',
+  teamPreferenceSaveFailed: 'Could not save. The value is still here — try again.',
+  teamTaskMaxDefaultRange: 'A whole number from 1 to {max}.',
+  teamTaskMaxDefaultInvalid: 'Enter a whole number from 1 to {max}.',
   teamOwnershipTransferStart: 'Transfer ownership…',
   teamOwnershipTransferPick:
     'Choose who becomes the only owner, and the role your account will receive.',

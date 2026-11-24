@@ -24,9 +24,69 @@ import { useAuth } from '../../auth/AuthContext';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { navigateTo } from '../../lib/navigation';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
-import { ACTION_LABEL, type TeamAuditClient } from '../members/TeamAuditPanel';
 import { buildTeamRoute } from '../routes';
 import { taskStatusLabel } from '../tasks/TaskStatusControl';
+
+/**
+ * What the history reads (070, T053): the space's audit events, a page at a time. It lived
+ * beside `TeamAuditPanel`, a settings card nothing rendered once this dialog took the history
+ * over (024 T126); the card is gone and its type and its words live here.
+ */
+export interface TeamAuditClient {
+  listAuditEvents: (
+    teamId: string,
+    options?: { limit?: number; before?: string }
+  ) => Promise<TeamAuditEventSummary[]>;
+}
+
+/**
+ * The history is for people, so it says what happened rather than printing the
+ * identifier the database stores. An action with no entry here still renders —
+ * its raw name is better than a blank row — but every action this application
+ * writes has one.
+ */
+export const ACTION_LABEL: Readonly<Record<string, TranslationKey>> = {
+  'drive.connected': 'teamAuditDriveConnected',
+  'drive.detached': 'teamAuditDriveDetached',
+  'drive.resynced': 'teamAuditDriveResynced',
+  'invitation.accepted': 'teamAuditInvitationAccepted',
+  'invitation.created': 'teamAuditInvitationCreated',
+  'invitation.declined': 'teamAuditInvitationDeclined',
+  'invitation.resent': 'teamAuditInvitationResent',
+  'invitation.revoked': 'teamAuditInvitationRevoked',
+  // Two writers name these: the older events carry a past-tense word, while a
+  // finished transfer operation is recorded as `material.` plus its own kind
+  // ('rename', 'move', …). Both spellings are on the wire, so both are here —
+  // an unmapped action fell through to the raw key, and "material.rename" in
+  // the history of a space is a leak of the schema, not a sentence.
+  'material.content_edit': 'teamAuditMaterialEdited',
+  'material.content_edited': 'teamAuditMaterialEdited',
+  'material.download': 'teamAuditMaterialDownloaded',
+  'material.metadata_updated': 'teamAuditMaterialMetadata',
+  'material.move': 'teamAuditMaterialMoved',
+  'material.new_version': 'teamAuditMaterialVersion',
+  'material.process': 'teamAuditMaterialProcessed',
+  'material.processed': 'teamAuditMaterialProcessed',
+  'material.rename': 'teamAuditMaterialRenamed',
+  'material.restore': 'teamAuditMaterialRestored',
+  'material.trash': 'teamAuditMaterialTrashed',
+  'material.upload': 'teamAuditMaterialUploaded',
+  'material.uploaded': 'teamAuditMaterialUploaded',
+  'material.version_created': 'teamAuditMaterialVersion',
+  'storage.selection_added': 'teamAuditStorageFolderAdded',
+  'storage.selection_removed': 'teamAuditStorageFolderRemoved',
+  'membership.direct_added': 'teamAuditMemberAdded',
+  'membership.left': 'teamAuditMemberLeft',
+  'membership.removed': 'teamAuditMemberRemoved',
+  'membership.updated': 'teamAuditMemberUpdated',
+  /* The one action the server writes that had no name here, so the history read
+     `operation.canceled` in the middle of a Ukrainian list. */
+  'operation.canceled': 'teamAuditOperationCanceled',
+  'task.deleted': 'teamAuditTaskDeleted',
+  'team.created': 'teamAuditTeamCreated',
+  'team.renamed': 'teamAuditTeamRenamed',
+  'team.draft_deleted': 'teamAuditTeamDraftDeleted'
+};
 
 /**
  * What happened in the space, readable (024).

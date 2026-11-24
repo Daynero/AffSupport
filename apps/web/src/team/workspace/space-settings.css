@@ -230,10 +230,20 @@
 .team-space-settings .team-task-labels-row.is-editing {
   padding: var(--space-3);
 }
-.team-space-settings .team-task-labels-row.is-editing input {
+.team-space-settings .team-task-labels-row.is-editing > .ui-input {
   flex-basis: 100%;
   min-width: 0;
 }
 .team-space-settings .team-task-labels-row.is-editing .team-task-label-colors {
   flex-basis: 100%;
+}
+
+/* What became of the last change, on the panel's title line (070, T052): the
+   word the account page says, in the colour it says it in. */
+.settings-save-state {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+}
+.settings-save-state.is-failed {
+  color: var(--color-error-text);
 }

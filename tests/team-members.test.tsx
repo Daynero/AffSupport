@@ -4,11 +4,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
-import type {
-  TeamAuditEventSummary,
-  TeamContextSnapshot,
-  TeamMemberSummary
-} from '../apps/web/src/api/team';
+import type { TeamContextSnapshot, TeamMemberSummary } from '../apps/web/src/api/team';
 import { TeamProvider, useTeam } from '../apps/web/src/team/TeamContext';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { MemberList, type MemberManagementClient } from '../apps/web/src/team/members/MemberList';
@@ -16,7 +12,6 @@ import {
   MembersSection,
   type MembersSectionClient
 } from '../apps/web/src/team/workspace/MembersSection';
-import { TeamAuditPanel } from '../apps/web/src/team/members/TeamAuditPanel';
 
 const TEAM_ID = '21000000-0000-4000-8000-000000000001';
 const OWNER_ID = '11000000-0000-4000-8000-000000000001';
@@ -146,93 +141,6 @@ describe('team membership management', () => {
     expect(screen.getByText(/direct Google Drive access is managed separately/i)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Remove member' }));
     await waitFor(() => expect(client.removeMember).toHaveBeenCalledWith(TEAM_ID, MEMBER_ID));
-  });
-
-  it('renders only the safe owner/admin audit projection', async () => {
-    const events: TeamAuditEventSummary[] = [
-      {
-        id: '41000000-0000-4000-8000-000000000001',
-        actorLabel: 'Owner User',
-        action: 'membership.updated',
-        target: { role: 'editor' },
-        result: 'succeeded',
-        errorCode: null,
-        occurredAt: '2026-08-01T12:00:00.000Z',
-        subjectLabel: null
-      }
-    ];
-    const client = { listAuditEvents: vi.fn().mockResolvedValue(events) };
-    render(
-      <TeamProvider initialTeams={[team]} realtime={false}>
-        <TeamAuditPanel teamId={TEAM_ID} client={client} />
-      </TeamProvider>
-    );
-
-    // The history is read by people, so it says what happened; the stored
-    // identifier and the role token behind it never reach the page.
-    expect(await screen.findByText('Member role changed')).toBeTruthy();
-    expect(screen.getByText('Editor')).toBeTruthy();
-    expect(screen.queryByText('membership.updated')).toBeNull();
-    expect(screen.getByText('Owner User')).toBeTruthy();
-    expect(screen.getByText('Succeeded')).toBeTruthy();
-    expect(screen.queryByText(/41000000-/)).toBeNull();
-  });
-  it('distinguishes audit outcomes, unknown actions and safe warning details', async () => {
-    const events: TeamAuditEventSummary[] = [
-      {
-        id: 'denied',
-        action: 'material.download',
-        result: 'denied',
-        target: { state: 'failed' },
-        actorLabel: null,
-        subjectLabel: 'Creative.mp4',
-        errorCode: 'PERMISSION_DENIED',
-        occurredAt: '2026-08-01T12:00:00Z'
-      },
-      {
-        id: 'canceled',
-        action: 'operation.canceled',
-        result: 'canceled',
-        target: { state: 'canceled' },
-        actorLabel: 'Buyer',
-        subjectLabel: null,
-        errorCode: null,
-        occurredAt: '2026-08-01T12:01:00Z'
-      },
-      {
-        id: 'failed',
-        action: 'future.safe_action',
-        result: 'failed',
-        target: { warning_code: 'SOURCE_CHANGED' },
-        actorLabel: 'Buyer',
-        subjectLabel: null,
-        errorCode: null,
-        occurredAt: '2026-08-01T12:02:00Z'
-      }
-    ];
-    render(
-      <TeamAuditPanel
-        teamId={TEAM_ID}
-        client={{ listAuditEvents: vi.fn().mockResolvedValue(events) }}
-      />
-    );
-    expect(await screen.findByText('Creative.mp4')).toBeTruthy();
-    expect(screen.getByText('Denied')).toBeTruthy();
-    expect(screen.getByText('Canceled')).toBeTruthy();
-    expect(screen.getByText('future.safe_action')).toBeTruthy();
-    expect(screen.getByText('SOURCE_CHANGED')).toBeTruthy();
-    expect(screen.getByText('PERMISSION_DENIED')).toBeTruthy();
-    expect(screen.getByText('Former member')).toBeTruthy();
-  });
-  it('shows an audit read failure and recovers on a new revision', async () => {
-    const client = {
-      listAuditEvents: vi.fn().mockRejectedValueOnce(new Error('unavailable')).mockResolvedValue([])
-    };
-    const view = render(<TeamAuditPanel teamId={TEAM_ID} client={client} />);
-    expect(await screen.findByRole('alert')).toBeTruthy();
-    view.rerender(<TeamAuditPanel teamId={TEAM_ID} client={client} revision={1} />);
-    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
-    expect(client.listAuditEvents).toHaveBeenCalledTimes(2);
   });
 });
 

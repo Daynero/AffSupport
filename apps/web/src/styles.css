@@ -8313,7 +8313,8 @@ body:has(.public-home) {
   gap: var(--space-2);
   margin-top: var(--space-1);
 }
-.team-space-settings .team-inline-actions > .button-danger {
+.team-space-settings .team-inline-actions > .button-danger,
+.team-space-settings .team-inline-actions > .ui-button.ui-color-error {
   margin-left: auto;
 }
 /* The fold's contents sit under its control, not beside it. */
@@ -8339,86 +8340,7 @@ button,
 .team-invitation-inbox li > div:first-child {
   display: grid;
 }
-.team-member-list,
-/* The subject reads as the object of the sentence: after the action, before
-   the person, and allowed to take the room a file name needs. */
-.team-audit-subject {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-text);
-  font-weight: 500;
-}
-.team-audit-list {
-  display: grid;
-  gap: var(--space-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.team-member-list li,
-.team-audit-list li {
-  display: grid;
-  gap: var(--space-2);
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-3);
-}
-.team-member-list li > div:first-child,
-.team-audit-list li > div:first-child {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.team-member-list li > div:first-child > strong,
-.team-audit-list li > div:first-child > strong {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-/* An entry's header line is the action, the thing it happened to and who did
-   it. On a narrow column those three ellipsize against each other — a file cut
-   to "9.transcript.9…" and an actor to "Beta Tes…", which carries nothing — so
-   they wrap instead. The line has always been able to; nothing let it. */
-.team-audit-list li > div:first-child {
-  flex-wrap: wrap;
-}
-/* Three facts about a person — name, address, role — do not fit on one line of
-   a phone, and squeezed onto one they collide. They stack, and the row's own
-   controls go under them. The audit row's header line has the same shape and
-   the same width to work in, so it takes the same breakpoint. */
-@media (max-width: 640px) {
-  .team-member-list li,
-  .team-audit-list li,
-  .team-invitation-list li {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .team-member-list li > div:first-child,
-  .team-audit-list li > div:first-child {
-    flex-wrap: wrap;
-    align-items: baseline;
-  }
-  /* A file name is the point of the line, and on a phone it is wider than the
-     column whatever else moves. Broken across two lines it is still readable;
-     cut to "probe-17886423338…" it is not.
-     Written at the weight of the `li > div:first-child > span` rule below,
-     which sets `nowrap` and wins at `.team-audit-subject` alone. */
-  .team-audit-list li > div:first-child > .team-audit-subject {
-    overflow: visible;
-    overflow-wrap: anywhere;
-    white-space: normal;
-  }
-}
-.team-member-list li > div:first-child > small,
-.team-audit-list li > div:first-child > span {
-  overflow: hidden;
-  color: var(--color-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.team-role-badge,
-.team-audit-result {
+.team-role-badge {
   display: inline-flex;
   width: fit-content;
   border-radius: var(--radius-full);
@@ -8428,15 +8350,9 @@ button,
   font-size: var(--text-caption);
   font-weight: 700;
 }
-.team-role-badge.is-owner,
-.team-audit-result.is-succeeded {
+.team-role-badge.is-owner {
   background: var(--color-success-soft);
   color: var(--color-success);
-}
-.team-audit-result.is-denied,
-.team-audit-result.is-failed {
-  background: var(--color-error-soft);
-  color: var(--color-error);
 }
 /* One shape for a disclosure across the product. This was a full-width filled
    bar with a ▸ while the catalog's filters were a bordered pill with a ▾ — the
@@ -8551,11 +8467,6 @@ button,
   background: var(--color-warning-soft);
   color: var(--color-text);
   padding: var(--space-3);
-  font-size: var(--text-caption);
-}
-.team-audit-list time,
-.team-audit-list code {
-  color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
 .team-catalog {
@@ -9118,7 +9029,6 @@ button,
     padding: var(--space-4);
   }
   .team-invitation-list li,
-  .team-audit-list li,
   .team-invitation-inbox li {
     align-items: stretch;
     flex-direction: column;
@@ -16520,6 +16430,9 @@ a.history-subject {
   color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
+.product-catalog-unsaved.is-failed {
+  color: var(--color-error-text);
+}
 /* Re-stitch · Stitch · Remove: a picture and its word in each segment, wrapping on a phone. */
 .team-restitch-operation {
   flex-wrap: wrap;
@@ -17860,7 +17773,6 @@ a.history-subject {
 .team-invite-role-summary > span {
   flex: 1;
 }
-
 
 .catalog-settings-overview {
   display: flex;
