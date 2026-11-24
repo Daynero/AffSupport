@@ -3811,6 +3811,16 @@ export const en = {
   teamExplorerFolderReadFailed: 'Could not read that folder. Check access and try again.',
   teamExplorerUploadIncomplete: 'Some items could not be added. Check the result and retry.',
   teamExplorerDropInto: 'Drop to upload to “{name}”',
+  teamUploadVideoQuestion: 'Videos in this upload: {count}. How should they go in?',
+  teamUploadVideoOriginal: 'Original',
+  teamUploadVideoTrim: 'Trim the stitching',
+  teamUploadVideoTrimHint:
+    'Removes the start and end images the video was stitched with. The space keeps the trimmed file, with the original as its previous version.',
+  teamUploadVideoCancel: 'Cancel',
+  teamTrimQueueTitle: 'Trimming the stitching',
+  teamTrimQueueDone: 'Stitching trimmed: {count}',
+  teamTrimQueueDoneSome: 'Stitching: {count} trimmed, {failed} left as uploaded',
+  teamTrimFailedFile: 'Could not trim the stitching in “{name}” — the original stays',
   teamExplorerUploading: 'Uploading {name}…',
   teamUploadConflictTitle: '{name} is already here',
   teamUploadConflictBody:

@@ -65,7 +65,11 @@ export function AgentQueuePanel({
   return (
     <ProcessPanel
       title={t(
-        queue.active?.tool === 'compressor' ? 'teamCompressQueueTitle' : 'teamTranscribeQueueTitle'
+        queue.active?.tool === 'compressor'
+          ? 'teamCompressQueueTitle'
+          : queue.active?.tool === 'restitch'
+            ? 'teamTrimQueueTitle'
+            : 'teamTranscribeQueueTitle'
       )}
       detail={
         queue.active

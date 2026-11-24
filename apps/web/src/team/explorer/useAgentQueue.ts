@@ -19,7 +19,11 @@ import type { MaterialActionsClient } from '../catalog/useMaterialActions';
 import { rememberLocalFolder } from './TeamCompressorDialog';
 import { carryTranscriptAfterProcess, reuseTranscriptFor } from '../materials/tail';
 import { analytics, startTeamWorkflow, completeTeamWorkflow } from '../../analytics/service';
-import type { TeamAnalyticsOutcome, TeamAnalyticsStage } from '@video-compressor/shared';
+import {
+  RESTITCH_CONTRACT_VERSION,
+  type TeamAnalyticsOutcome,
+  type TeamAnalyticsStage
+} from '@video-compressor/shared';
 import { trackToolError } from '../../analytics/errors';
 
 /**
@@ -42,7 +46,11 @@ export type AgentQueueItem = {
   id: string;
   name: string;
   folderId: string | null;
-  tool: 'transcription' | 'compressor';
+  /**
+   * `restitch` is the space's re-stitch run with `unstitch`: the trim a drop asks about (070),
+   * always written over the upload it trims (`versionOf`).
+   */
+  tool: 'transcription' | 'compressor' | 'restitch';
   outputName: string;
   /** Overwrite-the-original: upload as a new version of this material. */
   versionOf?: string;
@@ -112,6 +120,8 @@ export function queueDoneMessages(tools: ReadonlySet<AgentQueueItem['tool']>) {
     return ['teamCompressQueueDone', 'teamCompressQueueDoneSome'] as const;
   if (tools.size === 1 && tools.has('transcription'))
     return ['teamTranscribeQueueDone', 'teamTranscribeQueueDoneSome'] as const;
+  if (tools.size === 1 && tools.has('restitch'))
+    return ['teamTrimQueueDone', 'teamTrimQueueDoneSome'] as const;
   return ['teamProcessQueueDone', 'teamProcessQueueDoneSome'] as const;
 }
 
@@ -244,8 +254,10 @@ export function useAgentQueue({
     };
     void (async () => {
       let started: string | null = null;
+      // The trim is the stitcher's work, and analytics knows it by that name.
+      const analyticsTool = next.tool === 'restitch' ? 'stitcher' : next.tool;
       const workflow = startTeamWorkflow({
-        category: next.tool === 'compressor' ? 'video' : 'other',
+        category: next.tool === 'transcription' ? 'other' : 'video',
         stage: 'downloading'
       });
       let outcome: TeamAnalyticsOutcome = 'success';
@@ -318,12 +330,16 @@ export function useAgentQueue({
           conflictMode: 'keep_both',
           idempotencyKey: crypto.randomUUID(),
           agentContractVersion: 1,
-          toolContractVersion: agentCtx?.toolContracts?.[next.tool] ?? 0
+          // The re-stitch speaks its own contract, as the catalog's runs of it do.
+          toolContractVersion:
+            next.tool === 'restitch'
+              ? RESTITCH_CONTRACT_VERSION
+              : (agentCtx?.toolContracts?.[next.tool] ?? 0)
         });
         started = result.operationId;
         run.operationId = result.operationId;
         analytics.track('operation_started', {
-          tool_identifier: next.tool,
+          tool_identifier: analyticsTool,
           run_id: started,
           workflow_id: workflow.workflowId
         });
@@ -418,11 +434,17 @@ export function useAgentQueue({
           const ranAndFailed = cause instanceof Error && cause.message === 'PROCESS_FAILED';
           push({
             tone: 'error',
-            text: ranAndFailed
-              ? next.tool === 'compressor'
-                ? t('teamErrorProcessFailed')
-                : t('teamTranscribeFailedFile', { name: next.name })
-              : teamErrorMessageFor(cause, t)
+            /* A trim that did not happen leaves the upload as it was, whatever the reason —
+               most often a video with no stitching to cut — and that is what the person
+               needs to know. */
+            text:
+              next.tool === 'restitch'
+                ? t('teamTrimFailedFile', { name: next.name })
+                : ranAndFailed
+                  ? next.tool === 'compressor'
+                    ? t('teamErrorProcessFailed')
+                    : t('teamTranscribeFailedFile', { name: next.name })
+                  : teamErrorMessageFor(cause, t)
           });
           setTFailed(current => current + 1);
         }
@@ -441,7 +463,7 @@ export function useAgentQueue({
                 ? 'operation_cancelled'
                 : 'operation_failed',
             {
-              tool_identifier: next.tool,
+              tool_identifier: analyticsTool,
               run_id: started,
               workflow_id: workflow.workflowId,
               outcome

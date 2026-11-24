@@ -70,6 +70,7 @@ import { ExplorerToolbar } from './ExplorerToolbar';
 import { KIND_LABEL } from './rowKinds';
 import { ExplorerSelection, type SelectedMaterial, type SelectionActs } from './ExplorerSelection';
 import { ExplorerDropZone } from './ExplorerDropZone';
+import { useUploadTrimming } from './uploadVideoChoice';
 import { ExplorerListArrangement, ExplorerListStrip, ExplorerNotices } from './ExplorerNotices';
 import { useExplorerTreePane } from './ExplorerTreePane';
 import { ExplorerProcessStack } from './ExplorerProcessStack';
@@ -393,21 +394,24 @@ function ExplorerBody({
     onQueryChange({ view: next });
   };
 
-  const { upload, uploadDrop, pickFolder, createFolder, uploading, conflict } = useExplorerUploads({
-    teamId,
-    client,
-    currentFolderId,
-    nodeOf,
-    explorer,
-    page,
-    permissions,
-    workspaceOperations,
-    retryGroupId,
-    onRetryComplete,
-    onChanged,
-    changed,
-    onFolderCreated: closeCreateFolder
-  });
+  const trimming = useUploadTrimming(permissions, queue);
+  const { upload, uploadDrop, pickFolder, createFolder, uploading, conflict, videoQuestion } =
+    useExplorerUploads({
+      teamId,
+      client,
+      currentFolderId,
+      nodeOf,
+      explorer,
+      page,
+      permissions,
+      workspaceOperations,
+      retryGroupId,
+      onRetryComplete,
+      onChanged,
+      changed,
+      onFolderCreated: closeCreateFolder,
+      ...trimming
+    });
 
   const actions = explorerRowActions({
     teamId,
@@ -628,6 +632,7 @@ function ExplorerBody({
             setAddMenuOpen(true);
           }}
           onCloseRetry={onRetryComplete}
+          videoQuestion={videoQuestion}
         >
           {/* The strip on the list (070): what arranges it, or — with something checked — what
               to do with that, in the same place and the same height, so nothing moves (T024).

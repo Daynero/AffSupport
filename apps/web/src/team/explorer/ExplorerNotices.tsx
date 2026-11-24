@@ -7,6 +7,8 @@ import { useI18n } from '../../i18n';
 import { KindFilterMenu } from './KindFilterMenu';
 import { SortMenu } from './SortMenu';
 import type { ExplorerSort } from './sort';
+import { UploadVideoQuestion } from './UploadVideoQuestion';
+import type { UploadVideoQuestion as VideoQuestion } from './useExplorerUploads';
 
 /**
  * What is true about the open folder right now, over the list (070, FR-009, T015): the notice
@@ -28,6 +30,7 @@ export function ExplorerNotices({
   chooseOpen,
   onChooseAgain,
   onCloseRetry,
+  videoQuestion,
   children
 }: {
   headerRef: Ref<HTMLDivElement>;
@@ -38,6 +41,8 @@ export function ExplorerNotices({
   chooseOpen: boolean;
   onChooseAgain: (anchor: HTMLButtonElement) => void;
   onCloseRetry?: () => void;
+  /** The question a drop with videos waits on (070), over the list the files land in. */
+  videoQuestion?: VideoQuestion | null;
   /** The strip on the list, under the notices and sticky with them. */
   children?: ReactNode;
 }) {
@@ -71,6 +76,7 @@ export function ExplorerNotices({
           {t('teamWorkspaceReselect')}
         </Alert>
       )}
+      {videoQuestion && <UploadVideoQuestion key={videoQuestion.id} question={videoQuestion} />}
       {children}
     </div>
   );

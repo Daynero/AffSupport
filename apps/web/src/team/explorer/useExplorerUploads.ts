@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { TeamPermissions } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { selectNativeDirectory } from '../../api/client';
@@ -16,6 +16,7 @@ import {
 } from './localManifest';
 import type {
   useOptionalWorkspaceOperations,
+  WorkspaceOperationGroup,
   WorkspaceUploadRequest
 } from './WorkspaceOperationsProvider';
 import { confirmWorkspaceCatalog, findFolderConflicts } from './catalogPostcondition';
@@ -23,6 +24,22 @@ import type { useExplorer } from './ExplorerProvider';
 import type { useFolderPage } from './useFolderPage';
 import type { UploadFile } from './ExplorerDropZone';
 import type { ExplorerShellClient } from './ExplorerShell';
+import type { AgentQueueItem } from './useAgentQueue';
+import {
+  isVideoUpload,
+  rememberVideoChoice,
+  trimJobs,
+  type UploadVideoChoice
+} from './uploadVideoChoice';
+
+/** The one question a drop with videos in it waits on (070): how many, and the answer. */
+export interface UploadVideoQuestion {
+  /** Which drop is asking; a new one is a new question, not the old one changed. */
+  id: number;
+  videos: number;
+  /** `null` is Esc: the whole drop is called off, nothing goes up. */
+  settle: (choice: UploadVideoChoice | null) => void;
+}
 
 /**
  * Files into the open folder, out of `ExplorerShell` (070, FR-001): a drop or a pick of loose
@@ -42,7 +59,9 @@ export function useExplorerUploads({
   onRetryComplete,
   onChanged,
   changed,
-  onFolderCreated
+  onFolderCreated,
+  canTrim = false,
+  onTrimVideos
 }: {
   teamId: string;
   client: ExplorerShellClient;
@@ -58,6 +77,14 @@ export function useExplorerUploads({
   changed: () => void;
   /** The new-folder window closes once the folder exists. */
   onFolderCreated: () => void;
+  /**
+   * Whether the videos of a drop can have their stitching cut (070): the person may process
+   * here and the local app can run the re-stitch. Without it there is one answer, and no
+   * question is asked.
+   */
+  canTrim?: boolean;
+  /** The trims a drop asked for, once its videos are in the space. */
+  onTrimVideos?: (jobs: AgentQueueItem[]) => void;
 }) {
   const { t } = useI18n();
   const { push, update, dismiss } = useToasts();
@@ -73,6 +100,39 @@ export function useExplorerUploads({
     settle: (choice: UploadConflictChoice, forRest: boolean) => void;
   } | null>(null);
 
+  /** The question about the videos in a drop, while it waits for an answer (070). */
+  const [videoQuestion, setVideoQuestion] = useState<UploadVideoQuestion | null>(null);
+  /**
+   * Asks once for the whole drop. No videos, or nothing but "original" possible: no question.
+   * The answer is not kept as a rule (owner, 2026-11-24) — only as the highlighted choice.
+   */
+  /* A second drop while the first is still being asked about waits its turn, like the name
+     collisions do: one question on screen, each answer for its own drop. */
+  const questionTurn = useRef<Promise<unknown>>(Promise.resolve());
+  const questionCount = useRef(0);
+  const askAboutVideos = useCallback(
+    (videos: number): Promise<UploadVideoChoice | null> => {
+      if (videos === 0 || !canTrim || !onTrimVideos) return Promise.resolve('original');
+      const asked = questionTurn.current.then(
+        () =>
+          new Promise<UploadVideoChoice | null>(resolve => {
+            setVideoQuestion({
+              id: ++questionCount.current,
+              videos,
+              settle: choice => {
+                setVideoQuestion(null);
+                if (choice) rememberVideoChoice(choice);
+                resolve(choice);
+              }
+            });
+          })
+      );
+      questionTurn.current = asked;
+      return asked;
+    },
+    [canTrim, onTrimVideos]
+  );
+
   /** Files dropped on the content area, or picked from the "Add files" input. */
   const upload = useCallback(
     async (files: FileList | File[] | UploadFile[]) => {
@@ -85,6 +145,11 @@ export function useExplorerUploads({
             }
       );
       if (list.length === 0 || !permissions?.upload) return;
+      const videoChoice = await askAboutVideos(
+        list.filter(item => isVideoUpload(item.file.name, item.file.type)).length
+      );
+      if (!videoChoice) return;
+      const toTrim: { materialId: string; name: string; folderId: string | null }[] = [];
       // No folder open means the space root, which the server resolves from the
       // connection. Inferring it from the first top-level folder refused every
       // upload into an empty space — with a message about Drive being
@@ -177,7 +242,7 @@ export function useExplorerUploads({
           text: t('teamExplorerUploading', { name: file.name })
         });
         try {
-          await uploadTeamFile({
+          const uploaded: unknown = await uploadTeamFile({
             teamId,
             destinationFolderId: fileDestination,
             file,
@@ -187,6 +252,9 @@ export function useExplorerUploads({
             // its place, its tags and what came before it.
             versionOfMaterialId: choice === 'replace' && clash ? clash.id : null
           });
+          const materialId = resultMaterialId(uploaded);
+          if (videoChoice === 'trim' && materialId && isVideoUpload(file.name, file.type))
+            toTrim.push({ materialId, name: file.name, folderId: fileDestination });
           update(notice, {
             tone: 'success',
             sticky: false,
@@ -209,8 +277,20 @@ export function useExplorerUploads({
           changed();
         }
       }
+      if (toTrim.length > 0) onTrimVideos?.(trimJobs(toTrim));
     },
-    [changed, currentFolderId, page.rows, permissions?.upload, push, t, teamId, update]
+    [
+      askAboutVideos,
+      changed,
+      currentFolderId,
+      onTrimVideos,
+      page.rows,
+      permissions?.upload,
+      push,
+      t,
+      teamId,
+      update
+    ]
   );
 
   const uploadDrop = useCallback(
@@ -282,6 +362,16 @@ export function useExplorerUploads({
           })
         });
         dismiss(preparingToast);
+        /* A retry is the same files chosen again to finish an interrupted upload: it was
+           asked about when it started, and asking again would only stand in its way. */
+        const videoChoice = retryGroup
+          ? 'original'
+          : await askAboutVideos(
+              manifest.entries.filter(
+                entry => entry.kind === 'file' && isVideoUpload(entry.relativePath, entry.mimeType)
+              ).length
+            );
+        if (!videoChoice) return;
         let remainingConflicts = manifest.totalFiles;
         const request: WorkspaceUploadRequest = {
           teamId,
@@ -324,6 +414,10 @@ export function useExplorerUploads({
           ? await workspaceOperations.retryUploadGroup(retryGroup.id, request)
           : await workspaceOperations.startUploadGroup(request);
         if (retryGroup && group.state === 'succeeded') onRetryComplete?.();
+        if (videoChoice === 'trim') {
+          const toTrim = uploadedVideos(manifest, group, destination.driveFolderId);
+          if (toTrim.length > 0) onTrimVideos?.(trimJobs(toTrim));
+        }
         push({
           tone:
             group.state === 'succeeded'
@@ -354,6 +448,7 @@ export function useExplorerUploads({
       }
     },
     [
+      askAboutVideos,
       currentFolderId,
       client,
       dismiss,
@@ -361,6 +456,7 @@ export function useExplorerUploads({
       nodeOf,
       onChanged,
       onRetryComplete,
+      onTrimVideos,
       page,
       permissions?.upload,
       push,
@@ -414,5 +510,42 @@ export function useExplorerUploads({
     [changed, currentFolderId, nodeOf, onFolderCreated, push, t, teamId]
   );
 
-  return { upload, uploadDrop, pickFolder, createFolder, uploading, conflict };
+  return { upload, uploadDrop, pickFolder, createFolder, uploading, conflict, videoQuestion };
+}
+
+function resultMaterialId(result: unknown): string | null {
+  return typeof result === 'object' &&
+    result !== null &&
+    'materialId' in result &&
+    typeof result.materialId === 'string'
+    ? result.materialId
+    : null;
+}
+
+/**
+ * The videos of a finished upload group that are in the space, with the folder each landed
+ * in: the drop's folder, or one the drop created on the way.
+ */
+function uploadedVideos(
+  manifest: LocalManifest,
+  group: Pick<WorkspaceOperationGroup, 'items'>,
+  rootFolderId: string | null
+): { materialId: string; name: string; folderId: string | null }[] {
+  const items = new Map(group.items.map(item => [item.clientItemKey, item]));
+  const videos: { materialId: string; name: string; folderId: string | null }[] = [];
+  for (const entry of manifest.entries) {
+    if (entry.kind !== 'file' || !isVideoUpload(entry.relativePath, entry.mimeType)) continue;
+    const item = items.get(entry.clientItemKey);
+    if (!item || item.state !== 'succeeded' || !item.resultMaterialId) continue;
+    const folderId =
+      entry.parentKey === null
+        ? rootFolderId
+        : (items.get(entry.parentKey)?.resultFolderId ?? null);
+    videos.push({
+      materialId: item.resultMaterialId,
+      name: entry.relativePath.split('/').at(-1) ?? entry.relativePath,
+      folderId
+    });
+  }
+  return videos;
 }

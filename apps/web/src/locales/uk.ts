@@ -3785,6 +3785,16 @@ export const uk: Record<keyof typeof en, string> = {
   teamExplorerFolderReadFailed: 'Не вдалося прочитати папку. Перевірте доступ і спробуйте знову.',
   teamExplorerUploadIncomplete: 'Не всі елементи додано. Перевірте результат і повторіть спробу.',
   teamExplorerDropInto: 'Відпустіть, щоб завантажити в «{name}»',
+  teamUploadVideoQuestion: 'Відео в завантаженні: {count}. Як покласти?',
+  teamUploadVideoOriginal: 'Оригінал',
+  teamUploadVideoTrim: 'Обрізати зашивку',
+  teamUploadVideoTrimHint:
+    'Прибирає початкову й кінцеву картинки, якими відео зашили. У просторі лишиться обрізаний файл, оригінал — його попередня версія.',
+  teamUploadVideoCancel: 'Скасувати',
+  teamTrimQueueTitle: 'Обрізання зашивки',
+  teamTrimQueueDone: 'Зашивку обрізано: {count}',
+  teamTrimQueueDoneSome: 'Зашивка: {count} обрізано, {failed} лишились оригіналом',
+  teamTrimFailedFile: 'У «{name}» не вдалося обрізати зашивку — лишився оригінал',
   teamExplorerUploading: 'Завантажую {name}…',
   teamUploadConflictTitle: '{name} тут уже є',
   teamUploadConflictBody:
