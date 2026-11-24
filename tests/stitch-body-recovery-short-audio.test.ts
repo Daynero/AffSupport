@@ -65,7 +65,7 @@ describeRequiring(ffmpegBinaries, 'prepared body whose sound is shorter than its
           } as Parameters<PreparedBodyCache['prepare']>[0]['plan']
         });
         expect(prepared.ok, prepared.ok ? '' : prepared.error).toBe(true);
-        if (!prepared.ok) return;
+        if (!prepared.ok) throw new Error(prepared.error);
         const measured = await measureOutput(prepared.value.path);
         expect(measured?.videoTrackSeconds).toBeCloseTo(11, 0);
         expect(

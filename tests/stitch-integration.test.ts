@@ -574,7 +574,7 @@ describeRequiring(ffmpegBinaries, 'stitching a real creative', () => {
     ]);
     const { produced } = await stitch(shortSound);
     expect(produced.ok, produced.ok ? '' : produced.error).toBe(true);
-    if (!produced.ok) return;
+    if (!produced.ok) throw new Error(produced.error);
     expect(produced.verification.withinTolerance).toBe(true);
   }, 120_000);
 
