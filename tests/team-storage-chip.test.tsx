@@ -48,7 +48,9 @@ describe('StorageChip', () => {
       { isOwner: true, canManage: true, client: { restoreRoot } }
     );
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'View only · the connected folder was deleted' }));
+    await user.click(
+      screen.getByRole('button', { name: 'View only · the connected folder was deleted' })
+    );
     await user.click(await screen.findByRole('button', { name: 'Restore from trash' }));
     expect(restoreRoot).toHaveBeenCalledWith('team-1');
   });
