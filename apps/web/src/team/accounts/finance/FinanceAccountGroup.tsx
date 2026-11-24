@@ -2,6 +2,7 @@ import { useId, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown, UserRound } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../../components/icons';
 import { useI18n } from '../../../i18n';
+import { IconButton } from '../../../components/ui/index';
 import { countAgentsByLabel, teamAccountHue } from '../AccountGroup';
 import { agentCountKey } from '../plural';
 import type { TeamAccountAgentSummary } from '@video-compressor/shared';
@@ -32,18 +33,19 @@ export function FinanceAccountGroup({
     >
       <div className="team-account-head" onClick={() => setOpen(value => !value)}>
         <div className="team-account-title">
-          <button
-            type="button"
+          <IconButton
+            size="sm"
             className="team-account-toggle"
             aria-expanded={open}
-            aria-label={t(open ? 'teamAccountCollapse' : 'teamAccountExpand', { name })}
+            label={t(open ? 'teamAccountCollapse' : 'teamAccountExpand', { name })}
+            title=""
             onClick={event => {
               event.stopPropagation();
               setOpen(value => !value);
             }}
           >
             <ChevronDown size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
+          </IconButton>
           <span className="team-account-mark" aria-hidden="true">
             <UserRound size={ICON_SIZE} strokeWidth={ICON_STROKE} />
           </span>

@@ -1039,6 +1039,9 @@ export const en = {
   financeImport: 'Confirm and import',
   financeImportConfirm:
     '{metric} · {date} · {value} USD. The original undated entry is retained; this metric can be imported only once.',
+  financeCopyTopups: 'Copy top-ups',
+  financeCopyByAccountShort: 'By social account',
+  financeCopyByLabelShort: 'By tag',
   financeCopyByAccount: 'Copy top-ups by social account',
   financeCopyByLabel: 'Copy top-ups by tag',
   financeCopyEmpty: 'No top-ups were made on {date}.',

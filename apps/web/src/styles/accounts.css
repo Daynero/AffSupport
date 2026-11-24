@@ -3004,3 +3004,80 @@ button.team-task-agent-chip.is-selected {
     letter-spacing: 0;
   }
 }
+
+/* --- The row's own controls on the inventory (070, phase 8б) ------------------------------ */
+
+/* The agent's name is the inventory's button (it cycles the row's colour): no face, no floor of
+   its own — the row decides its height — and the name gives way, not the button. */
+.team-agent-tag.ui-button {
+  justify-content: flex-start;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 650;
+}
+
+.team-agent-tag > .ui-button-label {
+  min-width: 0;
+}
+
+/* The run's mark lies under the run's own text, the whole run its target: nothing of the
+   button's box may show — no floor, no padding, no press scale shifting the text above it. */
+.team-agent-run-mark.ui-button {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  transform: none;
+}
+
+/* «2FA»: the chip is the account head's, the inventory's button under it. */
+.team-account-two-factor.ui-button {
+  min-height: 34px;
+  border-radius: var(--radius-full);
+  font-weight: 650;
+}
+
+/* --- The finance panel in two lines (070, phase 8б) ----------------------------------------- */
+
+/* The first line is the period: the way through it, the presets, and the currency and zone as a
+   caption after them; the export at its end. The second is what the period came to, then what
+   can be done with it. It used to be four lines: the period, «USD · Europe/Kiev» on its own,
+   then five buttons with the totals trailing after them. */
+.finance-toolbar-zone {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  white-space: nowrap;
+}
+
+.finance-toolbar-export {
+  margin-inline-start: auto;
+}
+
+.unified-finance-totals {
+  margin: 0;
+}
+
+.unified-finance-actions {
+  margin-inline-start: auto;
+}
+
+@media (max-width: 768px) {
+  /* On a phone the period's line keeps the way through it and the menu; the caption takes the
+     line under them rather than squeezing the date. */
+  .is-unified .finance-toolbar.is-compact > div {
+    flex-wrap: wrap;
+  }
+
+  .is-unified .finance-toolbar.is-compact > div > div {
+    flex: 1 1 0;
+  }
+
+  .is-unified .finance-toolbar.is-compact .finance-toolbar-zone {
+    flex: 1 1 100%;
+    order: 1;
+  }
+}

@@ -165,10 +165,14 @@ export function FinanceToolbar({
         >
           {t('financePrevious')}
         </Button>
+        {/* The currency and the day's zone, said once beside the period they qualify (070):
+            on a line of their own they were the panel's second row, for six words. */}
+        <span className="finance-toolbar-zone">USD · {timezone}</span>
         <Button
           size="sm"
           color="success"
           variant="soft"
+          className="finance-toolbar-export"
           data-finance-secondary="true"
           loading={exporting}
           disabled={pending || !canExport}
@@ -224,7 +228,6 @@ export function FinanceToolbar({
           </span>
         )}
       </div>
-      <p className="text-label text-ink-muted">USD · {timezone}</p>
     </div>
   );
 }

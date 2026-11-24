@@ -128,6 +128,12 @@ export interface ButtonProps extends Pick<
   'aria-pressed'?: boolean;
   'aria-current'?: boolean | 'page' | 'step' | 'location' | 'date' | 'time' | 'true' | 'false';
   'data-testid'?: string;
+  /**
+   * A `data-*` attribute reaches the element (070): React Aria passes every one through, and a
+   * screen that colours or finds a control by one — a name chip's colour, a drag guard — needed
+   * the raw element only for that.
+   */
+  [data: `data-${string}`]: string | number | boolean | undefined;
 }
 
 export function Button({

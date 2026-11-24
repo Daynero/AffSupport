@@ -29,7 +29,8 @@ import {
   IconButton,
   Input,
   LoadingState,
-  Modal
+  Modal,
+  Textarea
 } from '../../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../../components/icons';
 import { useI18n } from '../../../i18n';
@@ -47,7 +48,7 @@ import { FinanceHistoryDrawer } from './FinanceHistoryDrawer';
 import { LegacyFinanceReview } from './LegacyFinanceReview';
 import { MoveAgentDialog } from './MoveAgentDialog';
 import { MonthlyFinanceSummary, type MonthlyFinanceContext } from './MonthlyFinanceSummary';
-import { FinanceActions } from './FinanceActions';
+import { FinanceActions, FinanceCopyMenu } from './FinanceActions';
 import { accountFlowId, emitAccountSignal, type AccountSignal } from '../analytics';
 import { retainedFinanceFailure } from './useRetainedFinanceDiagnostics';
 
@@ -1242,98 +1243,15 @@ export function UnifiedFinanceToolbar() {
           {t('financeContextChanged')}
         </p>
       )}
+      {/*
+       * One line under the period (070): what the period came to on the left, what can be done
+       * with it on the right. It was a row of five buttons with the totals trailing after them —
+       * two of them the same copy, by social and by tag, now one «Копіювати» with the two ways
+       * in its menu.
+       */}
       <div className="unified-finance-summary flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="hidden md:inline-flex"
-          disabled={!confirmedReport}
-          onClick={openDetails}
-        >
-          {t('financePeriodDetails')}
-        </Button>
-
-        {!f.reportRange && (
-          <>
-            <Button
-              data-finance-copy="true"
-              size="sm"
-              variant="soft"
-              disabled={f.pending || !f.snapshot || Boolean(f.error)}
-              onClick={() => {
-                void f.copyTopups('account');
-              }}
-              leading={<Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
-            >
-              {t('financeCopyByAccount')}
-            </Button>
-            <Button
-              data-finance-copy="true"
-              size="sm"
-              variant="ghost"
-              disabled={f.pending || !f.snapshot || Boolean(f.error)}
-              className="finance-copy-labels"
-              onClick={() => {
-                void f.copyTopups('label');
-              }}
-            >
-              {t('financeCopyByLabel')}
-            </Button>
-          </>
-        )}
-        {f.canEdit && !f.reportRange && (
-          <FinanceActions
-            label={t('financePeriodActions')}
-            disabled={f.dirty || f.pending || !f.snapshot}
-            items={(['balance', 'topup'] as const).map(metric => ({
-              id: metric,
-              label: t(metric === 'balance' ? 'financeClearBalance' : 'financeClearTopup'),
-              onSelect: () => f.setClearing(metric)
-            }))}
-          />
-        )}
-        {f.dirty && (
-          <>
-            <Button
-              data-finance-primary="true"
-              size="sm"
-              color="success"
-              disabled={f.pending}
-              onClick={() => {
-                if (
-                  f
-                    .getAffectedDrafts()
-                    .some(
-                      d =>
-                        parseFinanceMoney(d.raw) === null &&
-                        f.snapshot?.fields.some(
-                          v =>
-                            v.agentRowId === d.agentRowId &&
-                            v.date === d.date &&
-                            v.metric === d.metric &&
-                            v.value !== null
-                        )
-                    )
-                )
-                  f.setClearConfirmation(true);
-                else void f.saveSubset();
-              }}
-            >
-              {t('financeSave')}
-            </Button>
-            <Button
-              data-finance-primary="true"
-              size="sm"
-              variant="ghost"
-              disabled={f.pending}
-              onClick={() => f.discardSubset()}
-            >
-              {t('financeCancel')}
-            </Button>
-          </>
-        )}
         {f.report && (
-          <p className="flex flex-wrap items-center gap-2 text-label text-ink-muted">
+          <p className="unified-finance-totals flex flex-wrap items-center gap-2 text-label text-ink-muted">
             {(['spend', 'topup'] as const).map(metric => (
               <span key={metric} className="inline-flex items-center gap-1">
                 <span>
@@ -1355,6 +1273,76 @@ export function UnifiedFinanceToolbar() {
             ))}
           </p>
         )}
+        <div className="unified-finance-actions flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="hidden md:inline-flex"
+            disabled={!confirmedReport}
+            onClick={openDetails}
+          >
+            {t('financePeriodDetails')}
+          </Button>
+          {!f.reportRange && (
+            <FinanceCopyMenu
+              disabled={f.pending || !f.snapshot || Boolean(f.error)}
+              onCopy={grouping => {
+                void f.copyTopups(grouping);
+              }}
+            />
+          )}
+          {f.canEdit && !f.reportRange && (
+            <FinanceActions
+              label={t('financePeriodActions')}
+              disabled={f.dirty || f.pending || !f.snapshot}
+              items={(['balance', 'topup'] as const).map(metric => ({
+                id: metric,
+                label: t(metric === 'balance' ? 'financeClearBalance' : 'financeClearTopup'),
+                onSelect: () => f.setClearing(metric)
+              }))}
+            />
+          )}
+          {f.dirty && (
+            <>
+              <Button
+                data-finance-primary="true"
+                size="sm"
+                color="success"
+                disabled={f.pending}
+                onClick={() => {
+                  if (
+                    f
+                      .getAffectedDrafts()
+                      .some(
+                        d =>
+                          parseFinanceMoney(d.raw) === null &&
+                          f.snapshot?.fields.some(
+                            v =>
+                              v.agentRowId === d.agentRowId &&
+                              v.date === d.date &&
+                              v.metric === d.metric &&
+                              v.value !== null
+                          )
+                      )
+                  )
+                    f.setClearConfirmation(true);
+                  else void f.saveSubset();
+                }}
+              >
+                {t('financeSave')}
+              </Button>
+              <Button
+                data-finance-primary="true"
+                size="sm"
+                variant="ghost"
+                disabled={f.pending}
+                onClick={() => f.discardSubset()}
+              >
+                {t('financeCancel')}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
       {f.loading && !f.snapshot && <LoadingState label={t('financeTitle')} />}
       {f.reportRange && f.reports.loading && !f.reports.snapshot && (
@@ -1643,9 +1631,8 @@ function UnifiedFinanceDialogs() {
       )}
       {f.manualCopy && (
         <Modal title={t('financeCopyByAccount')} onClose={() => f.setManualCopy(null)}>
-          <textarea
+          <Textarea
             readOnly
-            className="w-full"
             aria-label={t('financeCopyByAccount')}
             value={f.manualCopy}
             onFocus={e => e.currentTarget.select()}

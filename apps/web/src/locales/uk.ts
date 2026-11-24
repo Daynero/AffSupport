@@ -1037,6 +1037,9 @@ export const uk: Record<keyof typeof en, string> = {
   financeImport: 'Підтвердити та імпортувати',
   financeImportConfirm:
     '{metric} · {date} · {value} USD. Старий запис без дати зберігається; це поле можна імпортувати лише один раз.',
+  financeCopyTopups: 'Копіювати поповнення',
+  financeCopyByAccountShort: 'За соцакаунтами',
+  financeCopyByLabelShort: 'За тегами',
   financeCopyByAccount: 'Копіювати поповнення за соцами',
   financeCopyByLabel: 'Копіювати поповнення за тегами',
   financeCopyEmpty: 'За {date} поповнень не внесено.',

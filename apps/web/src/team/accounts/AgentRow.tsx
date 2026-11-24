@@ -45,7 +45,14 @@ import { AgentTasksPeek } from './AgentTasksPeek';
 import { useTeam } from '../TeamContext';
 import { copyText } from '../../two-factor/clipboard';
 import { runCountKey, taskCountKey } from './plural';
-import { DropdownMenu, IconButton, TableCell, TableRow } from '../../components/ui/index';
+import {
+  Button,
+  DropdownMenu,
+  IconButton,
+  Input,
+  TableCell,
+  TableRow
+} from '../../components/ui/index';
 import { agentMenuEntries } from './agentActions';
 import { ArchivedAccountActions } from './AccountArchiveDrawer';
 
@@ -379,8 +386,8 @@ export function AgentRow({
           second social account, however its id happens to end. The name cycles
           personal decoration; the separate small control copies the full ID. */}
       <TableCell className="team-agent-id" aria-colindex={1}>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           data-name-color="true"
           data-color={TEAM_ACCOUNT_NAME_COLORS[nameColor]}
           aria-label={t('accountsColor', { color: t(colorKey[nameColor]) })}
@@ -398,7 +405,7 @@ export function AgentRow({
           <span className="team-agent-tag-text">
             <AgentIdentity accountName={accountName} agentId={agent.agentId} revealed={revealed} />
           </span>
-        </button>
+        </Button>
         {/* The agent's own tags (019), beside its name — the heading the
             copied payment list will group this row under. */}
         <AgentLabels
@@ -473,8 +480,8 @@ export function AgentRow({
                * four presses always put the run back where it was.
                */}
               {canEdit && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
                   className="team-agent-run-mark"
                   aria-label={`${t('teamAgentRunMark')}: ${item.note} · ${t(markerLabelKey(item.marker))}`}
                   disabled={waiting || editingRun}
@@ -946,33 +953,35 @@ export function EditField({
   const ownInput = useRef<HTMLInputElement>(null);
   const fieldInput = inputRef ?? ownInput;
   return (
-    <div className={`team-accounts-field ${className}`.trim()}>
-      <input
-        ref={fieldInput}
-        type="text"
-        value={value}
-        spellCheck={false}
-        autoComplete="off"
-        aria-label={label}
-        placeholder={label}
-        onChange={event => onChange(event.target.value)}
-        onKeyDown={onKeyDown}
-      />
-      {/* Out of the tab order: Tab from the id should land in the note, not
-          on the clear mark beside it. The mouse still reaches it. */}
-      {value !== '' && (
-        <IconButton
-          title=""
-          label={t('teamAccountsClearField')}
-          tabIndex={-1}
-          onClick={() => {
-            onChange('');
-            fieldInput.current?.focus({ preventScroll: true });
-          }}
-        >
-          <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </IconButton>
-      )}
-    </div>
+    /* The inventory's field (070): the box is the row's own (`team-accounts-field`), the clear
+       mark rides at its end. Out of the tab order: Tab from the id should land in the note, not
+       on the clear mark beside it. The mouse still reaches it. */
+    <Input
+      ref={fieldInput}
+      className={`team-accounts-field ${className}`.trim()}
+      type="text"
+      value={value}
+      spellCheck={false}
+      autoComplete="off"
+      aria-label={label}
+      placeholder={label}
+      onChange={event => onChange(event.target.value)}
+      onKeyDown={onKeyDown}
+      trailing={
+        value !== '' && (
+          <IconButton
+            title=""
+            label={t('teamAccountsClearField')}
+            tabIndex={-1}
+            onClick={() => {
+              onChange('');
+              fieldInput.current?.focus({ preventScroll: true });
+            }}
+          >
+            <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        )
+      }
+    />
   );
 }

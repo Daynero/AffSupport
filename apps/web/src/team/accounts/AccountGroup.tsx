@@ -606,8 +606,10 @@ export function AccountGroup({
             onClick={event => event.stopPropagation()}
           >
             {account.twoFactorSeed && (
-              <button
-                type="button"
+              <Button
+                size="sm"
+                variant="outline"
+                color={totpSeconds !== null ? 'success' : 'secondary'}
                 className={`team-account-two-factor${totpSeconds !== null ? ' is-active' : ''}${totpSeconds !== null && totpSeconds <= 5 ? ' is-urgent' : ''}`}
                 aria-label={
                   totpSeconds === null
@@ -630,7 +632,7 @@ export function AccountGroup({
                     {t('teamAccountTwoFactorCountdown', { seconds: totpSeconds })}
                   </span>
                 )}
-              </button>
+              </Button>
             )}
             {account.archivedAt && canManageArchived && (
               <ArchivedAccountActions
