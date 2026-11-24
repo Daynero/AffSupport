@@ -84,11 +84,29 @@ export function FolderPicker({
     setFolders(null);
     setFailed(false);
     const parent = currentFolder?.providerId ?? null;
+    const fromMaterials = () =>
+      client
+        .listMaterials(teamId, parent)
+        .then(items =>
+          items.filter(item => item.kind === 'folder' && item.teamId === teamId)
+        ) as Promise<PickerFolder[]>;
+    /* Both sources, joined: the tree knows folders of a space indexed by folder pages, the
+       materials list knows folders it has rows for; either alone has missed some. */
     const read: Promise<PickerFolder[]> = client.listFolderTree
-      ? client.listFolderTree(teamId).then(nodes => childrenOf(nodes, parent))
-      : client
-          .listMaterials(teamId, parent)
-          .then(items => items.filter(item => item.kind === 'folder' && item.teamId === teamId));
+      ? Promise.allSettled([
+          client.listFolderTree(teamId).then(nodes => childrenOf(nodes, parent)),
+          fromMaterials()
+        ]).then(([tree, materials]) => {
+          if (tree.status === 'rejected' && materials.status === 'rejected') throw tree.reason;
+          const joined = new Map<string, PickerFolder>();
+          for (const result of [tree, materials])
+            if (result.status === 'fulfilled')
+              for (const folder of result.value)
+                if (!joined.has(folder.providerId ?? folder.id))
+                  joined.set(folder.providerId ?? folder.id, folder);
+          return [...joined.values()].sort((left, right) => left.name.localeCompare(right.name));
+        })
+      : fromMaterials();
     void read
       .then(items => {
         if (active) setFolders(items);
