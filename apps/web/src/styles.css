@@ -797,18 +797,6 @@ a {
   --button-sheen: color-mix(in srgb, var(--color-error) 20%, transparent);
 }
 
-.text-button {
-  padding: 0;
-  border: 0;
-  color: var(--color-accent-hover);
-  background: transparent;
-  cursor: pointer;
-}
-
-.text-button:hover {
-  color: var(--color-accent-active);
-}
-
 /* ============================================================
    Panels
    ============================================================ */
@@ -2369,9 +2357,8 @@ input.is-invalid {
   box-shadow: none;
 }
 /* The help link sits where the reading starts, not centred in a full-width button. */
-.onboarding-panel > .text-button {
+.onboarding-panel > .onboarding-help-toggle {
   justify-self: start;
-  font-size: var(--text-label);
 }
 
 .onboarding-panel p {
@@ -3655,22 +3642,11 @@ body:has(.public-home) {
 }
 
 /* Support the project dialog */
+/* The close is the inventory's `IconButton` (070 T038); only its place is the dialog's. */
 .modal-close {
   position: absolute;
   top: 14px;
   right: 14px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  color: var(--color-text-muted);
-  font-size: var(--text-3xl);
-  background: var(--color-surface-muted);
-  cursor: pointer;
-}
-
-.modal-close:hover {
-  color: var(--color-text);
 }
 
 .support-head {
@@ -10249,7 +10225,6 @@ body {
 /* Circular legacy controls must satisfy the global touch floor on both axes.
    Otherwise their fixed width and inherited minimum height produce an oval. */
 .release-update-close,
-.modal-close,
 .landing-batch-chevron,
 .team-explorer-filter-clear,
 .team-explorer-tile-play {

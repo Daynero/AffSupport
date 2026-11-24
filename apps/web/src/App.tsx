@@ -1198,9 +1198,15 @@ export function Onboarding({
         <span className="agent-search-dot" aria-hidden="true" />
         {t('lookingForAgent')}
       </p>
-      <button className="text-button" onClick={() => setHelp(!help)} aria-expanded={help}>
+      <Button
+        variant="link"
+        color="primary"
+        className="onboarding-help-toggle"
+        aria-expanded={help}
+        onClick={() => setHelp(!help)}
+      >
         {t('installationHelp')}
-      </button>
+      </Button>
       {help && (
         <div className="installation-help">
           <h3>{t('installTitle')}</h3>
