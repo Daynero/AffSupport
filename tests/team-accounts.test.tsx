@@ -263,15 +263,15 @@ describe('reading the list', () => {
     // Free first: the question the tab is opened with is where to start.
     expect(agentRows[0]?.getAttribute('data-free')).toBe('true');
     expect(agentRows[1]?.getAttribute('data-free')).toBe('false');
-    // The tail only; the whole id is in the title of the copy button.
     // The tag, never the bare tail: an agent must not read like a second account.
     expect(agentRows[1]?.textContent).toContain('v31-434');
     expect(agentRows[1]?.textContent).not.toContain('1000098765434');
-    // The tooltip carries the full id.
+    // The full id is in the row's "…", beside the press that copies it (070, T045).
+    fireEvent.click(
+      within(agentRows[1]!).getByRole('button', { name: /^More actions for v31-434/ })
+    );
     expect(
-      within(agentRows[1]!)
-        .getByRole('button', { name: /^Copy full ID v31-434/ })
-        .getAttribute('title')
+      (await screen.findByRole('menuitem', { name: /^Copy full ID v31-434/ })).textContent
     ).toContain('1000098765434');
     // The state is a word of its own, not only a colour.
     expect(within(agentRows[0]!).getByText('Free')).toBeTruthy();
@@ -297,18 +297,19 @@ describe('reading the list', () => {
 });
 
 describe('handing an id over', () => {
-  it('copies the full id on press and marks the button for a moment', async () => {
+  it('copies the full id from the row menu and says so', async () => {
     // fireEvent, not userEvent: userEvent installs its own clipboard stub.
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     render(client());
     await waitForGroups();
-    const button = screen.getByRole('button', { name: /^Copy full ID v31-434/ });
-    fireEvent.click(button);
+    const row = rows().find(item => item.textContent?.includes('v31-434'))!;
+    fireEvent.click(within(row).getByRole('button', { name: /^More actions for v31-434/ }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Copy full ID v31-434/ }));
     expect(writeText).toHaveBeenCalledWith('1000098765434');
-    await waitFor(() => expect(button.classList.contains('is-copied')).toBe(true));
+    expect(await screen.findByText('Full ID of v31-434 copied')).toBeTruthy();
     // Still the tail on screen: copying does not reveal.
-    expect(button.textContent).not.toContain('1000098765434');
+    expect(row.textContent).not.toContain('1000098765434');
   });
 
   it('reveals the full id and says so when the clipboard refuses', async () => {
@@ -316,9 +317,9 @@ describe('handing an id over', () => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     render(client());
     await waitForGroups();
-    const button = screen.getByRole('button', { name: /^Copy full ID v31-434/ });
-    const row = rows().find(item => item.contains(button))!;
-    fireEvent.click(button);
+    const row = rows().find(item => item.textContent?.includes('v31-434'))!;
+    fireEvent.click(within(row).getByRole('button', { name: /^More actions for v31-434/ }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^Copy full ID v31-434/ }));
     // The id is text beside the copy now, so the row is where it shows up.
     await waitFor(() => expect(row.textContent).toContain('1000098765434'));
     expect(screen.getByText('Could not copy — the full ID is shown instead.')).toBeTruthy();
@@ -501,8 +502,10 @@ describe('writing a run', () => {
     await waitFor(() => expect(within(busyRow).getByText('Keto | PL 06/09')).toBeTruthy());
     expect(within(busyRow).getByText('Pro Caps | TR 02/09')).toBeTruthy();
 
+    // A run's edit and delete are in the row's "…" (070, T041), under the run's own heading.
+    await user.click(within(busyRow).getByRole('button', { name: /^More actions for/ }));
     await user.click(
-      within(busyRow).getByRole('button', { name: 'Edit the run: Pro Caps | TR 02/09' })
+      await screen.findByRole('menuitem', { name: 'Edit the run: Pro Caps | TR 02/09' })
     );
     const field = screen.getByRole('textbox', { name: /^Run,/ });
     await user.clear(field);
@@ -513,8 +516,9 @@ describe('writing a run', () => {
       )
     );
 
+    await user.click(within(busyRow).getByRole('button', { name: /^More actions for/ }));
     await user.click(
-      within(busyRow).getByRole('button', { name: 'Delete the run: Keto | PL 06/09' })
+      await screen.findByRole('menuitem', { name: 'Delete the run: Keto | PL 06/09' })
     );
     await waitFor(() => expect(api.deleteAgentRun).toHaveBeenCalled());
     expect(within(busyRow).queryByText('Keto | PL 06/09')).toBeNull();
@@ -712,7 +716,9 @@ describe('accounts and agents', () => {
     render(api);
     await waitForGroups();
     const v31 = screen.getByRole('rowgroup', { name: 'v31' });
-    await user.click(within(v31).getByRole('button', { name: 'Delete account: v31' }));
+    // Renaming and deleting are in the head's "…" (070, T041).
+    await user.click(within(v31).getByRole('button', { name: 'More actions for v31' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete account: v31' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Delete v31?')).toBeTruthy();
     expect(
@@ -733,7 +739,9 @@ describe('accounts and agents', () => {
     render(api);
     await waitForGroups();
     const v31 = screen.getByRole('rowgroup', { name: 'v31' });
-    await user.click(within(v31).getByRole('button', { name: 'Delete account: v31' }));
+    // Renaming and deleting are in the head's "…" (070, T041).
+    await user.click(within(v31).getByRole('button', { name: 'More actions for v31' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete account: v31' }));
     const dialog = await screen.findByRole('dialog');
     await waitFor(() =>
       expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' }))
@@ -789,19 +797,23 @@ describe('the row menu', () => {
 
     await user.click(trigger);
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    const edit = screen.getByRole('menuitem', { name: /^Edit ad account/ });
-    const move = screen.getByRole('menuitem', { name: /^Move to another account/ });
+    // One registry, in reading order (070, T042): what anyone may do first, the runs
+    // under their own headings, the agent, and the deletion last.
+    const copy = screen.getByRole('menuitem', { name: /^Copy full ID/ });
+    const items = screen.getAllByRole('menuitem');
     const remove = screen.getByRole('menuitem', { name: /^Delete ad account/ });
-    expect(document.activeElement).toBe(edit);
+    expect(items[0]).toBe(copy);
+    expect(items.at(-1)).toBe(remove);
+    expect(screen.getByRole('menuitem', { name: /^Edit ad account/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /^Edit the run: Pro Caps/ })).toBeTruthy();
+    expect(document.activeElement).toBe(copy);
 
     await user.keyboard('{ArrowDown}');
-    expect(document.activeElement).toBe(move);
-    await user.keyboard('{ArrowDown}');
-    expect(document.activeElement).toBe(remove);
-    await user.keyboard('{ArrowDown}');
-    expect(document.activeElement).toBe(edit);
+    expect(document.activeElement).toBe(items[1]);
     await user.keyboard('{End}');
     expect(document.activeElement).toBe(remove);
+    await user.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(copy);
 
     await user.keyboard('{Tab}');
     expect(screen.queryByRole('menu')).toBeNull();
@@ -1011,9 +1023,13 @@ describe('a viewer', () => {
     expect(screen.queryByRole('button', { name: /^Add a run to/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Assign a run to/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Make free/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^More actions for/ })).toBeNull();
-    // Copying stays: a viewer still needs the id.
-    expect(screen.getAllByRole('button', { name: /^Copy full ID/ })).toHaveLength(3);
+    // Copying stays: a viewer still needs the id — the row's "…" holds that and nothing
+    // that writes (070, T049).
+    const menus = screen.getAllByRole('button', { name: /^More actions for/ });
+    expect(menus).toHaveLength(3);
+    fireEvent.click(menus[0]!);
+    expect(await screen.findByRole('menuitem', { name: /^Copy full ID/ })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /^(Edit|Delete|Move)/ })).toBeNull();
   });
 });
 

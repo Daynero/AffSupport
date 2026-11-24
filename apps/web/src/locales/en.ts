@@ -4448,6 +4448,7 @@ export const en = {
   teamAgentFree: 'Free',
   teamAgentBusy: 'Busy',
   teamAgentCopyId: 'Copy full ID',
+  teamAgentCopyIdShort: 'Copy ID',
   teamAgentCopied: 'Full ID of {tag} copied',
   teamAgentCopyFailed: 'Could not copy — the full ID is shown instead.',
   teamAccountColumnAgent: 'Ad account',

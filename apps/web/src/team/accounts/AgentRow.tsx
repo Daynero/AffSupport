@@ -3,16 +3,16 @@ import { TEAM_ACCOUNT_NAME_COLORS, type TeamAccountNameColor } from '@video-comp
 /**
  * One agent under an account, in whichever of its states it is in.
  *
- * Reading it, left to right: the agent as `v31-434` with a copy beside it, the
- * one word that says whether it is free or running, the runs written on it —
- * one line each, dated — how many tasks name it, and the two things you do to
- * the agent itself.
+ * Reading it, left to right: the agent as `v31-434`, the one word that says
+ * whether it is free or running, the runs written on it — one line each,
+ * dated — its money, and one thing to do to it: write a run, or free it.
  *
- * The two levels are kept apart on purpose. A run's pencil and bin sit on the
- * run's own line and are small; the agent's own edit and delete live behind
- * the row's "…", so a press meant for a run can never be a deleted agent. The
- * one action promoted out of the menu is freeing a busy agent, because that is
- * the thing this list is opened to do.
+ * Everything else is behind the row's "…" (070, T041/T042; 024 US14): copying
+ * the full id, the money's history, correcting or deleting a run, and the
+ * agent's own edit, move, order, archive and delete. A pencil and a bin on
+ * every run line and a copy button beside every id were nine small controls
+ * on a row that has one job; the menu's entries come from one registry,
+ * `agentActions.tsx`, so a run's delete can never sit next to the agent's.
  *
  * Being corrected: the same row. The id is edited as a field in place of the
  * chip; a run is edited as a field in place of its line; a new run is a field
@@ -20,21 +20,7 @@ import { TEAM_ACCOUNT_NAME_COLORS, type TeamAccountNameColor } from '@video-comp
  */
 
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import {
-  Archive,
-  History,
-  ArrowUp,
-  ArrowDown,
-  ArrowRightLeft,
-  Check,
-  CircleCheck,
-  Copy,
-  MoreHorizontal,
-  Pencil,
-  Plus,
-  Trash2,
-  X
-} from 'lucide-react';
+import { Check, CircleCheck, MoreHorizontal, Plus, X } from 'lucide-react';
 import {
   nextTeamAgentRunMarker,
   getTeamAgentAvailability,
@@ -46,8 +32,8 @@ import {
   type TeamAgentRunMarker,
   type TeamTaskLabel
 } from '@video-compressor/shared';
-import { IconButton, ConfirmDialog } from '../../components/ui';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { ConfirmDialog } from '../../components/ui/index';
+import { ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type Language, type TranslationKey } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
@@ -59,7 +45,8 @@ import { AgentTasksPeek } from './AgentTasksPeek';
 import { useTeam } from '../TeamContext';
 import { copyText } from '../../two-factor/clipboard';
 import { runCountKey, taskCountKey } from './plural';
-import { DropdownMenu, TableCell, TableRow } from '../../components/ui/index';
+import { DropdownMenu, IconButton, TableCell, TableRow } from '../../components/ui/index';
+import { agentMenuEntries } from './agentActions';
 import { ArchivedAccountActions } from './AccountArchiveDrawer';
 
 const ICON = 18;
@@ -146,170 +133,6 @@ export function agentTooltip(
 
 /** Which run of the row is being written, if any: a new one, or one by id. */
 export type RunEditing = { runId: string | null } | null;
-
-/**
- * The row's own actions, behind a "…": correcting the id and deleting the
- * agent. Both are rare and both are destructive of something typed, which is
- * exactly why they do not sit beside a run's pencil and bin.
- *
- * It is a real menu, so it takes the keys a menu takes: it opens onto its
- * first item, the arrows and Home/End walk it, Escape and Tab close it, and
- * the focus goes back to the "…" that opened it — including after the delete
- * dialog, which is why the trigger's ref belongs to the row above.
- */
-function AgentMenu({
-  label,
-  editLabel,
-  moveLabel,
-  deleteLabel,
-  triggerRef,
-  onEdit,
-  onMove,
-  onDelete,
-  onHistory,
-  historyLabel,
-  onArchive,
-  archiveLabel,
-  onOrderUp,
-  onOrderDown
-}: {
-  label: string;
-  editLabel: string;
-  moveLabel: string;
-  deleteLabel: string;
-  triggerRef: React.RefObject<HTMLButtonElement | null>;
-  onEdit?: () => void;
-  /** Absent when there is nowhere to move to. */
-  onMove?: () => void;
-  onDelete?: () => void;
-  onHistory?: () => void;
-  historyLabel?: string;
-  onArchive?: () => void;
-  archiveLabel?: string;
-  onOrderUp?: () => void;
-  onOrderDown?: () => void;
-}) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-
-  const actions = [
-    ...(onEdit
-      ? [
-          {
-            label: editLabel,
-            text: t('teamAgentEdit'),
-            icon: <Pencil size={ICON} strokeWidth={ICON_STROKE} />,
-            run: onEdit
-          }
-        ]
-      : []),
-    ...(onMove
-      ? [
-          {
-            label: moveLabel,
-            text: t('financeMove'),
-            icon: <ArrowRightLeft size={ICON} strokeWidth={ICON_STROKE} />,
-            run: onMove
-          }
-        ]
-      : []),
-    ...(onOrderUp
-      ? [
-          {
-            label: t('accountsMoveUp'),
-            text: t('accountsMoveUp'),
-            icon: <ArrowUp size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
-            run: onOrderUp
-          }
-        ]
-      : []),
-    ...(onOrderDown
-      ? [
-          {
-            label: t('accountsMoveDown'),
-            text: t('accountsMoveDown'),
-            icon: <ArrowDown size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
-            run: onOrderDown
-          }
-        ]
-      : []),
-    ...(onHistory
-      ? [
-          {
-            label: historyLabel ?? t('financeHistory'),
-            text: t('financeHistory'),
-            icon: <History size={ICON} strokeWidth={ICON_STROKE} />,
-            run: onHistory
-          }
-        ]
-      : []),
-    ...(onArchive
-      ? [
-          {
-            label: archiveLabel ?? t('accountsArchive'),
-            text: t('accountsArchive'),
-            icon: <Archive size={ICON} strokeWidth={ICON_STROKE} />,
-            run: onArchive
-          }
-        ]
-      : []),
-    ...(onDelete
-      ? [
-          {
-            label: deleteLabel,
-            text: t('teamAgentDelete'),
-            icon: <Trash2 size={ICON} strokeWidth={ICON_STROKE} />,
-            run: onDelete,
-            danger: true
-          }
-        ]
-      : [])
-  ];
-
-  /* The shared menu (024, T117): React Aria walks it, closes it on Escape,
-     Tab and an outside press, and gives the focus back to the "…" — so the
-     hand-rolled keys and the module-level "one menu open" register are gone. */
-  return (
-    <div className="team-agent-menu" ref={box}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="icon-button team-agent-action team-agent-menu-trigger"
-        aria-label={label}
-        title={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        data-reorder-keyboard={onOrderUp || onOrderDown ? 'true' : undefined}
-        aria-keyshortcuts={onOrderUp || onOrderDown ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
-        onClick={() => setOpen(value => !value)}
-      >
-        <MoreHorizontal size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      </button>
-      <DropdownMenu
-        open={open}
-        onClose={() => {
-          setOpen(false);
-          // After the popover has let go of the page: while it is open the
-          // rest of the document is inert, and focus cannot land there.
-          requestAnimationFrame(() => triggerRef.current?.focus());
-        }}
-        anchor={triggerRef}
-        placement="bottom-end"
-        label={label}
-        className="team-agent-menu-list"
-        items={actions.map(action => ({
-          id: action.label,
-          label: action.text,
-          ariaLabel: action.label,
-          icon: action.icon,
-          destructive: 'danger' in action,
-          onSelect: action.run
-        }))}
-      />
-    </div>
-  );
-}
 
 export function AgentRow({
   agent,
@@ -404,7 +227,9 @@ export function AgentRow({
    * `document.activeElement`, so what it would remember is `<body>`.
    */
   const menuTrigger = useRef<HTMLButtonElement>(null);
-  const [copied, setCopied] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const canMoveUp = reorder.canMove(-1);
+  const canMoveDown = reorder.canMove(1);
   const [revealed, setRevealed] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -416,12 +241,6 @@ export function AgentRow({
   const named = (key: TranslationKey) => `${t(key)} ${tag}`;
   const tooltip = agentTooltip(accountName, agent, t);
 
-  useEffect(() => {
-    if (!copied) return;
-    const timer = window.setTimeout(() => setCopied(false), 1800);
-    return () => window.clearTimeout(timer);
-  }, [copied]);
-
   /**
    * The clipboard write happens inside the click, synchronously — Safari
    * refuses one issued after an await. A failed copy never looks like a
@@ -430,7 +249,6 @@ export function AgentRow({
   const copyId = () => {
     void copyText(agent.agentId).then(ok => {
       if (ok) {
-        setCopied(true);
         // A copy that works undoes the reveal a refused one left behind;
         // otherwise the row wore the raw id until the page was reloaded.
         setRevealed(false);
@@ -577,18 +395,6 @@ export function AgentRow({
             <AgentIdentity accountName={accountName} agentId={agent.agentId} revealed={revealed} />
           </span>
         </button>
-        <IconButton
-          label={`${named('teamAgentCopyId')}: ${agent.agentId}`}
-          title={tooltip}
-          className={`team-agent-action is-small team-agent-copy${copied ? ' is-copied' : ''}`}
-          onClick={copyId}
-        >
-          {copied ? (
-            <Check size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          ) : (
-            <Copy size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          )}
-        </IconButton>
         {/* The agent's own tags (019), beside its name — the heading the
             copied payment list will group this row under. */}
         <AgentLabels
@@ -677,29 +483,6 @@ export function AgentRow({
                 <Marked text={item.note} term={search} />
               </span>
               <RunAge createdAt={item.createdAt} />
-              {/* Beside the run they act on. Half a screen away, at the end
-                  of a column that is mostly empty, the bin of one line sat
-                  level with the text of another. */}
-              {canEdit && (
-                <span className="team-agent-run-actions">
-                  <IconButton
-                    label={`${t('teamAgentRunEdit')}: ${item.note}`}
-                    className="team-agent-action is-small"
-                    disabled={waiting}
-                    onClick={() => onRunEditingChange({ runId: item.id })}
-                  >
-                    <Pencil size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </IconButton>
-                  <IconButton
-                    label={`${t('teamAgentRunDelete')}: ${item.note}`}
-                    className="team-agent-action is-small is-danger"
-                    disabled={waiting || editingRun}
-                    onClick={() => void run(() => onDeleteRun(item))}
-                  >
-                    <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  </IconButton>
-                </span>
-              )}
             </div>
           )
         )}
@@ -770,24 +553,57 @@ export function AgentRow({
             onDelete={() => setConfirming(true)}
           />
         ) : (
-          (canEdit || onHistory) && (
-            <AgentMenu
+          <div className="team-agent-menu">
+            <IconButton
+              ref={menuTrigger}
               label={named('teamAgentMore')}
-              editLabel={named('teamAgentEdit')}
-              moveLabel={named('teamAgentMove')}
-              deleteLabel={named('teamAgentDelete')}
-              historyLabel={`${t('financeHistory')} · ${accountName} · ${agent.agentId}`}
-              archiveLabel={t('accountsArchiveAction', { name: tag })}
-              triggerRef={menuTrigger}
-              onEdit={canEdit ? onEdit : undefined}
-              onMove={canEdit ? onMove : undefined}
-              onDelete={canEdit ? () => setConfirming(true) : undefined}
-              onHistory={onHistory}
-              onArchive={canEdit ? onArchive : undefined}
-              onOrderUp={reorder.canMove(-1) ? () => reorder.move(-1) : undefined}
-              onOrderDown={reorder.canMove(1) ? () => reorder.move(1) : undefined}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className="team-agent-action team-agent-menu-trigger"
+              data-reorder-keyboard={canMoveUp || canMoveDown ? 'true' : undefined}
+              aria-keyshortcuts={canMoveUp || canMoveDown ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
+              onClick={() => setMenuOpen(value => !value)}
+            >
+              <MoreHorizontal size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            </IconButton>
+            {/* The shared menu (024, T117), its entries from the row's registry (070, T042):
+                React Aria walks it, closes it on Escape, Tab and an outside press, and one
+                open menu sets the rest of the page aside, so a second cannot be open. */}
+            <DropdownMenu
+              open={menuOpen}
+              onClose={() => {
+                setMenuOpen(false);
+                // After the popover has let go of the page: while it is open the
+                // rest of the document is inert, and focus cannot land there.
+                requestAnimationFrame(() => menuTrigger.current?.focus());
+              }}
+              anchor={menuTrigger}
+              placement="bottom-end"
+              label={named('teamAgentMore')}
+              className="team-agent-menu-list"
+              items={agentMenuEntries(
+                {
+                  tag,
+                  agentId: agent.agentId,
+                  runs: agent.runs,
+                  waiting,
+                  editingRun,
+                  onCopyId: copyId,
+                  onHistory,
+                  historyLabel: `${t('financeHistory')} · ${accountName} · ${agent.agentId}`,
+                  onEditRun: canEdit ? item => onRunEditingChange({ runId: item.id }) : undefined,
+                  onDeleteRun: canEdit ? item => void run(() => onDeleteRun(item)) : undefined,
+                  onEdit: canEdit ? onEdit : undefined,
+                  onMove: canEdit ? onMove : undefined,
+                  onOrderUp: canMoveUp ? () => reorder.move(-1) : undefined,
+                  onOrderDown: canMoveDown ? () => reorder.move(1) : undefined,
+                  onArchive: canEdit ? onArchive : undefined,
+                  onDelete: canEdit ? () => setConfirming(true) : undefined
+                },
+                t
+              )}
             />
-          )
+          </div>
         )}
       </TableCell>
       {finance}

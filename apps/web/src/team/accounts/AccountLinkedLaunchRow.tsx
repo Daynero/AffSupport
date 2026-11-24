@@ -4,7 +4,7 @@ import type {
   LaunchAssignmentReceipt,
   TeamAccountLaunchAssignment
 } from '@video-compressor/shared';
-import { IconButton } from '../../components/ui';
+import { IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';

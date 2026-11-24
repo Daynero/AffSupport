@@ -51,7 +51,7 @@ import {
   type TeamTaskLabel,
   type TeamTaskLabelRef
 } from '@video-compressor/shared';
-import { IconButton, DropdownMenu, ConfirmDialog } from '../../components/ui';
+import { IconButton, DropdownMenu, ConfirmDialog } from '../../components/ui/index';
 import { IconButton as MenuIconButton } from '../../components/ui/Button';
 import { ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
@@ -600,64 +600,6 @@ export function AccountGroup({
             )}
             {canEdit && (
               <>
-                {onArchive && (
-                  <>
-                    <MenuIconButton
-                      ref={archiveMenuAnchor}
-                      label={`${t('teamAgentMore')} ${account.name}`}
-                      aria-expanded={archiveMenuOpen}
-                      aria-haspopup="menu"
-                      data-reorder-keyboard={
-                        reorderEnabled && !account.archivedAt ? 'true' : undefined
-                      }
-                      aria-keyshortcuts={
-                        reorderEnabled && !account.archivedAt
-                          ? 'Alt+ArrowUp Alt+ArrowDown'
-                          : undefined
-                      }
-                      onClick={() => setArchiveMenuOpen(value => !value)}
-                    >
-                      <MoreHorizontal size={ICON} strokeWidth={ICON_STROKE} />
-                    </MenuIconButton>
-                    <DropdownMenu
-                      open={archiveMenuOpen}
-                      onClose={() => setArchiveMenuOpen(false)}
-                      anchor={archiveMenuAnchor}
-                      label={`${t('teamAgentMore')} ${account.name}`}
-                      items={[
-                        ...(reorder.canMove(-1)
-                          ? [
-                              {
-                                id: 'order-up',
-                                label: t('accountsMoveUp'),
-                                icon: <ArrowUp size={ICON} strokeWidth={ICON_STROKE} />,
-                                onSelect: () => reorder.move(-1)
-                              }
-                            ]
-                          : []),
-                        ...(reorder.canMove(1)
-                          ? [
-                              {
-                                id: 'order-down',
-                                label: t('accountsMoveDown'),
-                                icon: <ArrowDown size={ICON} strokeWidth={ICON_STROKE} />,
-                                onSelect: () => reorder.move(1)
-                              }
-                            ]
-                          : []),
-                        {
-                          id: 'archive',
-                          label: t('accountsArchiveAction', { name: account.name }),
-                          icon: <Archive size={ICON} strokeWidth={ICON_STROKE} />,
-                          onSelect: () => {
-                            setArchiveMenuOpen(false);
-                            onArchive();
-                          }
-                        }
-                      ]}
-                    />
-                  </>
-                )}
                 <button
                   type="button"
                   className="team-account-add-agent"
@@ -667,20 +609,80 @@ export function AccountGroup({
                   <Plus size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
                   <span className="team-account-add-agent-label">{t('teamAgentAddShort')}</span>
                 </button>
-                <IconButton
-                  label={`${t('teamAccountRename')}: ${account.name}`}
-                  className="team-agent-action"
-                  onClick={() => onEditingChange({ kind: 'rename' })}
+                {/* One primary on the head — putting an agent in — and the rest behind
+                    "…" (024 US14, 070 T041): renaming and deleting sat as a pencil and a
+                    bin on every head, louder than the account's own name. */}
+                <MenuIconButton
+                  ref={archiveMenuAnchor}
+                  label={`${t('teamAgentMore')} ${account.name}`}
+                  aria-expanded={archiveMenuOpen}
+                  aria-haspopup="menu"
+                  className="team-account-menu-trigger"
+                  data-reorder-keyboard={reorderEnabled && !account.archivedAt ? 'true' : undefined}
+                  aria-keyshortcuts={
+                    reorderEnabled && !account.archivedAt ? 'Alt+ArrowUp Alt+ArrowDown' : undefined
+                  }
+                  onClick={() => setArchiveMenuOpen(value => !value)}
                 >
-                  <Pencil size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </IconButton>
-                <IconButton
-                  label={`${t('teamAccountDelete')}: ${account.name}`}
-                  className="team-agent-action is-danger"
-                  onClick={() => setConfirming(true)}
-                >
-                  <Trash2 size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </IconButton>
+                  <MoreHorizontal size={ICON} strokeWidth={ICON_STROKE} />
+                </MenuIconButton>
+                <DropdownMenu
+                  open={archiveMenuOpen}
+                  onClose={() => setArchiveMenuOpen(false)}
+                  anchor={archiveMenuAnchor}
+                  label={`${t('teamAgentMore')} ${account.name}`}
+                  items={[
+                    {
+                      id: 'rename',
+                      label: t('teamAccountRename'),
+                      ariaLabel: `${t('teamAccountRename')}: ${account.name}`,
+                      icon: <Pencil size={ICON} strokeWidth={ICON_STROKE} />,
+                      onSelect: () => onEditingChange({ kind: 'rename' })
+                    },
+                    ...(reorder.canMove(-1)
+                      ? [
+                          {
+                            id: 'order-up',
+                            label: t('accountsMoveUp'),
+                            icon: <ArrowUp size={ICON} strokeWidth={ICON_STROKE} />,
+                            onSelect: () => reorder.move(-1)
+                          }
+                        ]
+                      : []),
+                    ...(reorder.canMove(1)
+                      ? [
+                          {
+                            id: 'order-down',
+                            label: t('accountsMoveDown'),
+                            icon: <ArrowDown size={ICON} strokeWidth={ICON_STROKE} />,
+                            onSelect: () => reorder.move(1)
+                          }
+                        ]
+                      : []),
+                    ...(onArchive
+                      ? [
+                          {
+                            id: 'archive',
+                            label: t('accountsArchiveAction', { name: account.name }),
+                            icon: <Archive size={ICON} strokeWidth={ICON_STROKE} />,
+                            onSelect: () => {
+                              setArchiveMenuOpen(false);
+                              onArchive();
+                            }
+                          }
+                        ]
+                      : []),
+                    'separator' as const,
+                    {
+                      id: 'delete',
+                      label: t('teamAccountDelete'),
+                      ariaLabel: `${t('teamAccountDelete')}: ${account.name}`,
+                      icon: <Trash2 size={ICON} strokeWidth={ICON_STROKE} />,
+                      destructive: true,
+                      onSelect: () => setConfirming(true)
+                    }
+                  ]}
+                />
               </>
             )}
           </div>

@@ -4423,6 +4423,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamAgentFree: 'Вільний',
   teamAgentBusy: 'Зайнятий',
   teamAgentCopyId: 'Скопіювати повний ID',
+  teamAgentCopyIdShort: 'Копіювати ID',
   teamAgentCopied: 'Повний ID {tag} скопійовано',
   teamAgentCopyFailed: 'Не вдалося скопіювати — показуємо повний ID.',
   teamAccountColumnAgent: 'РК',

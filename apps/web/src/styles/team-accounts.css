@@ -787,35 +787,8 @@
   gap: var(--space-1) var(--space-2);
 }
 
-/* The copy is the small mark beside the name, not the name itself: it is the
-   rare thing on the row and no longer takes the row's widest target. */
-.team-agent-copy.icon-button {
-  flex: 0 0 auto;
-  opacity: 0;
-  transition:
-    opacity var(--dur-control) var(--ease-standard),
-    color var(--dur-control) var(--ease-standard);
-}
-
-.team-agent-row:hover .team-agent-copy.icon-button,
-.team-agent-row:focus-within .team-agent-copy.icon-button,
-.team-agent-copy.icon-button:focus-visible,
-.team-agent-copy.is-copied.icon-button {
-  opacity: 1;
-}
-
-.team-agent-copy.is-copied.icon-button {
-  color: var(--color-success);
-}
-
 .team-account-two-factor {
   font-variant-numeric: tabular-nums;
-}
-
-@media (hover: none) {
-  .team-agent-copy.icon-button {
-    opacity: 1;
-  }
 }
 
 /* The state in a word. Green and amber carry it at a glance, the word carries
@@ -1367,7 +1340,7 @@
   display: inline-flex;
 }
 
-.team-agent-menu-trigger[aria-expanded='true'].icon-button {
+.team-agent-menu-trigger[aria-expanded='true'] {
   background: var(--color-surface-muted);
   color: var(--color-text);
 }
@@ -2475,6 +2448,8 @@ button.team-task-agent-chip.is-selected {
   .team-agent-row:focus-within .team-agent-actions-stack,
   .team-agent-row:hover .team-agent-menu,
   .team-agent-row:focus-within .team-agent-menu,
+  .team-agent-menu:has([aria-expanded='true']),
+  .team-account-actions:has([aria-expanded='true']),
   .team-account-head:hover .team-account-actions,
   .team-account-head:focus-within .team-account-actions {
     opacity: 1;
@@ -2953,13 +2928,7 @@ button.team-task-agent-chip.is-selected {
   padding: 0;
 }
 .team-account-space.is-unified
-  :is(
-    .team-account-actions,
-    .team-agent-actions-stack,
-    .team-agent-menu,
-    .team-agent-run-actions,
-    .team-agent-copy
-  ) {
+  :is(.team-account-actions, .team-agent-actions-stack, .team-agent-menu, .team-agent-run-actions) {
   transition: none;
 }
 .team-account-space.is-unified .team-accounts-table {
@@ -3213,4 +3182,12 @@ button.team-task-agent-chip.is-selected {
 .team-accounts-table .team-agent-row > .ui-table-cell {
   overflow: visible;
   text-overflow: clip;
+}
+
+/* The full id, in the "…" menu's copy item (070, T045): set as an id is set
+   everywhere else on this screen, and quiet beside the item's own word. */
+.team-agent-menu-id {
+  color: var(--color-text-muted);
+  font-family: var(--team-font-mono);
+  font-size: var(--text-caption);
 }
