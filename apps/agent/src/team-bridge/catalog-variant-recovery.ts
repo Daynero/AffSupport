@@ -241,7 +241,7 @@ export async function runCatalogVariantRecovery(input: {
         } catch (error) {
           if (interruption === 'PROCESS_RESULT_UNCERTAIN')
             throw new Error('PROCESS_RESULT_UNCERTAIN', { cause: error });
-          throw error;
+          throw asDriveRefusal(error, input.signal);
         } finally {
           closed = true;
           clearInterval(heartbeat);
@@ -339,6 +339,32 @@ export async function runCatalogVariantRecovery(input: {
     throw error;
   }
   return setId;
+}
+
+/**
+ * Drive refused this video's own work — the storage is full, the destination folder is no
+ * longer writable, the connection needs renewing. That is about the video and its Drive, never
+ * about this computer's background work: production 2026-11-24, a full Google storage answered
+ * every upload 403, and the worker parked the whole space as «permission revoked» («У вас
+ * немає дозволу», for good). The code stays the same for everything that reports it.
+ */
+export class DriveRefusedProcess extends Error {
+  constructor(code: string, options?: { cause?: unknown }) {
+    super(code, options);
+    this.name = 'DriveRefusedProcess';
+  }
+}
+const DRIVE_PROCESS_REFUSALS = new Set(['PERMISSION_DENIED', 'DRIVE_STORAGE_FULL', 'NEEDS_REAUTH']);
+/** A process failure Drive caused, marked as such; anything else (or a stop) is left as it is. */
+export function asDriveRefusal(error: unknown, signal?: AbortSignal): unknown {
+  if (
+    signal?.aborted ||
+    error instanceof DriveRefusedProcess ||
+    !(error instanceof Error) ||
+    !DRIVE_PROCESS_REFUSALS.has(error.message)
+  )
+    return error;
+  return new DriveRefusedProcess(error.message, { cause: error });
 }
 
 /** A refusal that a cancellation of the set on the server can explain. */

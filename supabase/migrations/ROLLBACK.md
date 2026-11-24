@@ -3532,3 +3532,46 @@ condition — which brings back the 'unknown' loop of every second publication o
 Rewrites one condition of `public.service_attach_launch_catalog_before_catalog_sub` so a set matches
 its own segment's `variantCount`. Undo by restoring the bare
 `s.requested_count=(x.initial_video_plan#>>'{preferences,videoVariationCount}')::integer`.
+
+## 20261224100000 — a desktop that lost its recovery handle can be set up again
+
+Patches `public.service_team_recovery` (through `pg_get_functiondef`, failing if the text it
+replaces is missing): automatic setup naming `renewalDelegationId` may replace that delegation while
+it is still live (it used to have to be expired), and only that one — any other live delegation of
+the same person, space and computer still refuses automatic setup. Production 2026-11-24: a Windows
+desktop could no longer read its stored handle after a hard shutdown and «Soty не бере це завдання»
+stayed for good. Undo by restoring `and d.expires_at<=clock_timestamp()` to the renewal check and
+dropping the `renewalDelegationId` exclusion from the live-credential check; desktops that lost their
+handle then need the delegation revoked by hand again.
+
+## 20261224110000 — catalog work goes to the delegation that worked last
+
+Adds `private.recovery_executor_for(team, actor)` and patches `public.service_adopt_catalog_variant_round`
+and `public.service_initial_catalog_video_context_before_foreground` (through `pg_get_functiondef`,
+failing if the replaced text is missing): with several live delegations of one person the most
+recently active one carries the work instead of «Чекає на комп'ютерний агент». Production
+2026-11-24: an orphaned delegation of an earlier setup blocked every catalog round. Undo by restoring
+`if executors<>1 then return private.note_catalog_variant_round_wait(p_attempt,'AGENT_REQUIRED');end if;`
+and the `count(*)=1` executor select, then dropping the helper.
+
+## 20261224120000 — the code for a full Google storage
+
+Additive: one row in `public.team_error_codes` (`DRIVE_STORAGE_FULL`). Leave it in place on rollback;
+an older build never writes it, and rows that reference it keep their foreign key.
+
+## 20261224130000 — an orphaned working variant is requeued; a trashed catalog stops its videos
+
+Patches `private.release_silent_catalog_video_variants` (through `pg_get_functiondef`, failing if the
+replaced text is missing): a 'working' variant with no operation, no heartbeat and no execution
+fence is requeued after an observed silence instead of being skipped for ever. Adds
+`private.cancel_unfinished_video_sets_of_catalog` and the trigger `catalog_removed_cancels_video_sets`
+on `public.team_materials` (a product catalog moved to the trash or removed from Drive stops its
+unfinished sets: 'cancel_requested' or 'canceled'), and stops once the unfinished sets of catalogs
+already in the trash. Undo by dropping the trigger and both functions' additions; sets already
+cancelled stay cancelled (restoring a catalog from the trash never resumed its videos).
+
+## 20261224140000 — catalog intents found by their catalog without reading the checkpoint
+
+Additive: two expression indexes on `private.catalog_generation_intents` (created concurrently on
+production during the 1.6.3 release, so the heal of 20261224130000 fit the statement timeout).
+Dropping them is safe; finding a removed catalog's unfinished videos becomes slow again.

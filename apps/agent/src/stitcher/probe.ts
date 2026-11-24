@@ -218,6 +218,7 @@ export function sourceProfileFromProbe(
     variableFrameRate,
     videoTimescale: parseTimescale(video.time_base) ?? Math.round(frameRate * 512),
     durationSeconds: duration,
+    videoDurationSeconds: positive(video.duration),
     hasAudio: Boolean(audio),
     audioCodec: audio ? text(audio.codec_name) : null,
     audioSampleRate: audio ? positive(audio.sample_rate) : null,

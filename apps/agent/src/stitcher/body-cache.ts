@@ -428,7 +428,8 @@ async function reencodeWholeBody(
       startSeconds: plan.bodyStartSeconds,
       endSeconds: plan.bodyEndSeconds,
       profile,
-      threads: options.threads
+      threads: options.threads,
+      padAudio: profile.hasAudio
     }),
     { signal: options.signal, onChild: options.onChild }
   );

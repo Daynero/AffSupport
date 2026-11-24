@@ -201,6 +201,144 @@ describe('background recovery worker', () => {
     expect(f.fetcher).not.toHaveBeenCalled();
   });
 
+  // Production 2026-11-24 (Windows): the stored handle stopped decrypting after a hard shutdown.
+  // Every read failed like a busy store, the worker logged «retry_exhausted» once a minute for
+  // hours without one request, and a restart changed nothing.
+  it('sets a space up again when its stored handle no longer reads back, without a request or a retry loop', async () => {
+    const f = await fixture();
+    f.secrets.read = async () => {
+      throw new Error('RECOVERY_SECRET_LOST');
+    };
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(f.worker.status(TEAM)).toMatchObject({
+      automaticSetup: 'eligible',
+      state: 'blocked',
+      reason: 'needs_agent_setup'
+    });
+    expect(f.record).toHaveBeenCalledWith(
+      'recovery_state',
+      expect.objectContaining({ reason: 'needs_agent_setup', error_code: 'RECOVERY_SECRET_LOST' })
+    );
+    f.record.mockClear();
+    await vi.advanceTimersByTimeAsync(REJECTED_REASK_MS - 1000);
+    expect(f.record).not.toHaveBeenCalled();
+    expect(f.fetcher).not.toHaveBeenCalled();
+    const setup = await f.worker.beginAutomatic(
+      TEAM,
+      'http://127.0.0.1:54321/functions/v1/team-recovery',
+      ACTOR
+    );
+    expect(setup).toMatchObject({ renewalDelegationId: DELEGATION });
+  });
+
+  it('treats a missing stored handle as lost and renews its delegation by name', async () => {
+    const f = await fixture();
+    f.secrets.read = async () => null;
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.fetcher).not.toHaveBeenCalled();
+    expect(f.worker.status(TEAM).automaticSetup).toBe('eligible');
+    await expect(
+      f.worker.beginAutomatic(TEAM, 'http://127.0.0.1:54321/functions/v1/team-recovery', ACTOR)
+    ).resolves.toMatchObject({ renewalDelegationId: DELEGATION });
+  });
+
+  it('withdraws a space whose handle is lost instead of parking it as retiring for good', async () => {
+    const f = await fixture();
+    f.secrets.read = async () => {
+      throw new Error('RECOVERY_SECRET_LOST');
+    };
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    await expect(f.worker.remove(TEAM)).resolves.toEqual({ disabled: true });
+    expect(f.fetcher).not.toHaveBeenCalled();
+    expect((await f.journal.load()).registrations).toEqual([]);
+    expect(f.worker.status(TEAM).automaticSetup).toBe('eligible');
+    expect(f.record).toHaveBeenCalledWith(
+      'recovery_retirement',
+      expect.objectContaining({ stage: 'server_unknown' })
+    );
+    expect(f.record).toHaveBeenCalledWith(
+      'recovery_retirement',
+      expect.objectContaining({ stage: 'local_complete' })
+    );
+  });
+
+  it('answers «Відновити» on a lost handle by asking for setup, not by resuming', async () => {
+    const f = await fixture();
+    await f.journal.save({
+      registrations: (await f.journal.load()).registrations,
+      checkpoints: [
+        {
+          delegationId: DELEGATION,
+          requestId: REQUEST,
+          operationId: null,
+          stage: 'blocked',
+          reason: 'retry_exhausted',
+          updatedAt: new Date().toISOString(),
+          retryNotBefore: Date.now() + 3_600_000
+        }
+      ]
+    });
+    await f.worker.load();
+    f.secrets.read = async () => {
+      throw new Error('RECOVERY_SECRET_LOST');
+    };
+    await expect(f.worker.retry(TEAM)).rejects.toThrow('WRONG_STATE');
+    expect(f.worker.status(TEAM)).toMatchObject({
+      automaticSetup: 'eligible',
+      reason: 'needs_agent_setup'
+    });
+  });
+
+  it('records why a space keeps failing, so the journal names the cause', async () => {
+    const f = await fixture();
+    f.secrets.read = async () => {
+      throw new Error('AGENT_REQUIRED');
+    };
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    for (const delay of [2000, 4000, 8000, 16000, 30000]) {
+      await vi.advanceTimersByTimeAsync(delay);
+      await f.worker.idle();
+    }
+    expect(f.record).toHaveBeenCalledWith(
+      'recovery_state',
+      expect.objectContaining({ reason: 'retry_exhausted', error_code: 'AGENT_REQUIRED' })
+    );
+    expect(f.worker.status(TEAM).automaticSetup).toBe('ready');
+  });
+
+  it('drops a pending setup whose ticket no longer matches instead of failing every space', async () => {
+    const f = await fixture();
+    const saved = await f.journal.load();
+    await f.journal.save({
+      ...saved,
+      enrollments: [
+        {
+          id: JOB,
+          actorId: ACTOR,
+          teamId: TEAM,
+          installationId: INSTALL,
+          endpoint: 'http://127.0.0.1:54321/functions/v1/team-recovery',
+          account: 'soty-recovery-enrollment-' + 'a'.repeat(64)
+        }
+      ]
+    });
+    await expect(f.worker.load()).resolves.toBeUndefined();
+    await vi.advanceTimersByTimeAsync(0);
+    await f.worker.idle();
+    expect(f.fetcher).toHaveBeenCalled();
+    expect((await f.journal.load()).enrollments).toBeUndefined();
+  });
+
   it('preserves rotated credentials and held execution when confirmation metadata must be replayed', async () => {
     const f = await fixture();
     await f.journal.save({ registrations: [], checkpoints: [] });
@@ -1272,6 +1410,43 @@ describe('background recovery worker', () => {
         stage: 'settled',
         reason: null
       });
+    }
+  );
+  // Production 2026-11-24: a full Google storage refused the upload of one video, and the worker
+  // parked the whole space as «permission revoked» — «У вас немає дозволу», for good.
+  it.each(['DRIVE_STORAGE_FULL', 'PERMISSION_DENIED'])(
+    'keeps background work alive when Drive refuses one video with %s',
+    async code => {
+      const f = await fixture();
+      f.process.process.mockRejectedValue(new Error(code));
+      const actions: string[] = [];
+      f.fetcher.mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        actions.push(body.action);
+        const claims = actions.filter(action => action === 'claim').length;
+        const value =
+          body.action === 'claim'
+            ? claims === 1
+              ? brokerClaim()
+              : { job: null, operationCredential: null }
+            : { pending: false };
+        return new Response(JSON.stringify({ ok: true, value }));
+      });
+      await f.worker.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await f.worker.idle();
+      expect(f.process.process).toHaveBeenCalledOnce();
+      expect(f.worker.status(TEAM)).not.toMatchObject({ reason: 'permission_revoked' });
+      expect(f.worker.status(TEAM).automaticSetup).toBe('ready');
+      await vi.advanceTimersByTimeAsync(5_000);
+      await f.worker.idle();
+      // The held claim is settled, never run again.
+      expect(actions).toContain('settle');
+      expect(f.process.process).toHaveBeenCalledOnce();
+      expect(f.record).not.toHaveBeenCalledWith(
+        'recovery_state',
+        expect.objectContaining({ reason: 'permission_revoked' })
+      );
     }
   );
   it.each(['AUTH_REQUIRED', 'PERMISSION_DENIED', 'INVALID_INPUT', 'AGENT_UPDATE_REQUIRED'])(

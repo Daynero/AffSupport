@@ -1,8 +1,10 @@
 import { syncUpdateStateFiles } from '../update/receipt.js';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, writeFile, stat } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { isRecord, RECOVERY_BUDGET } from '@video-compressor/shared';
+import { replaceFile } from './native-restitch-vault.js';
+import { currentPlatform } from '../platform/platform.js';
 
 export interface RecoveryCheckpoint {
   delegationId: string;
@@ -221,8 +223,21 @@ export class RecoveryJournal {
         await mkdir(this.root, { recursive: true, mode: 0o700 });
         const temp = path.join(this.root, `.${randomUUID()}.tmp`);
         try {
-          await writeFile(temp, data, { mode: 0o600, flag: 'wx' });
-          await rename(temp, path.join(this.root, 'recovery.json'));
+          // Flushed before it replaces the old journal: after a hard power-off the renamed
+          // file must not point at data that never reached the disk. On Windows the rename
+          // is retried while antivirus or the search indexer still holds the old file.
+          const handle = await open(temp, 'wx', 0o600);
+          try {
+            await handle.writeFile(data);
+            await handle.sync();
+          } finally {
+            await handle.close();
+          }
+          await replaceFile(
+            temp,
+            path.join(this.root, 'recovery.json'),
+            currentPlatform() === 'win32'
+          );
         } finally {
           await rm(temp, { force: true });
         }

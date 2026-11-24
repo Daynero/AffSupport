@@ -142,6 +142,7 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   CORRUPT_OR_PROTECTED: 'teamErrorCorruptOrProtected',
   RATE_LIMITED: 'teamErrorRateLimited',
   DRIVE_UNAVAILABLE: 'teamErrorDriveUnavailable',
+  DRIVE_STORAGE_FULL: 'teamErrorDriveStorageFull',
   NEEDS_REAUTH: 'teamErrorNeedsReauth',
   GOOGLE_ACCOUNT_NOT_APPROVED: 'teamErrorGoogleAccountNotApproved',
   DELIVERY_UNAVAILABLE: 'teamErrorDeliveryUnavailable',

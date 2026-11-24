@@ -792,6 +792,13 @@ export interface HealthResponse {
 export const AGENT_CAPABILITIES = [
   'team-background-recovery',
   'team-background-recovery-actor-bound',
+  /**
+   * A space whose stored handle this computer lost (it no longer reads back) is reported as
+   * needing setup again, and «Налаштувати заново» withdraws it cleanly. Older agents retried
+   * the unreadable handle for good and parked a repaired space as «retiring», so the page
+   * offers that button on a stalled round only where this is advertised (2026-11-24).
+   */
+  'team-background-recovery-lost-handle',
   'catalog-video-foreground-v1',
   /**
    * One connection carries every channel, instead of one connection per tool.
