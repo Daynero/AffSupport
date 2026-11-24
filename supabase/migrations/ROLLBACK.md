@@ -3543,3 +3543,14 @@ and the `count(*)=1` executor select, then dropping the helper.
 
 Additive: one row in `public.team_error_codes` (`DRIVE_STORAGE_FULL`). Leave it in place on rollback;
 an older build never writes it, and rows that reference it keep their foreign key.
+
+## 20261224130000 — an orphaned working variant is requeued; a trashed catalog stops its videos
+
+Patches `private.release_silent_catalog_video_variants` (through `pg_get_functiondef`, failing if the
+replaced text is missing): a 'working' variant with no operation, no heartbeat and no execution
+fence is requeued after an observed silence instead of being skipped for ever. Adds
+`private.cancel_unfinished_video_sets_of_catalog` and the trigger `catalog_removed_cancels_video_sets`
+on `public.team_materials` (a product catalog moved to the trash or removed from Drive stops its
+unfinished sets: 'cancel_requested' or 'canceled'), and stops once the unfinished sets of catalogs
+already in the trash. Undo by dropping the trigger and both functions' additions; sets already
+cancelled stay cancelled (restoring a catalog from the trash never resumed its videos).
