@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReconnectSurface } from '../analytics/events';
 import { useOptionalAgent } from '../AgentContext';
 import type { LinkReason } from '../connection';
@@ -45,6 +45,31 @@ export function linkReasonText(reason: LinkReason | null | undefined, t: Transla
 
 type Result = { kind: 'connected' } | { kind: 'failed'; text: string };
 
+/*
+ * Whether a space's own reconnect is on screen (070 T069). The header's agent chip carries
+ * one, and the top bar's copy above it made two identical buttons on one screen; the bar
+ * leaves its own out while the space's is mounted — and only then, so a space page that
+ * shows no chip (no access, still loading) keeps the bar's.
+ */
+let spaceReconnects = 0;
+const spaceReconnectListeners = new Set<() => void>();
+function announceSpaceReconnects() {
+  for (const listener of spaceReconnectListeners) listener();
+}
+function subscribeSpaceReconnects(listener: () => void) {
+  spaceReconnectListeners.add(listener);
+  return () => {
+    spaceReconnectListeners.delete(listener);
+  };
+}
+export function useSpaceOffersReconnect(): boolean {
+  return useSyncExternalStore(
+    subscribeSpaceReconnects,
+    () => spaceReconnects > 0,
+    () => false
+  );
+}
+
 export function ReconnectAction({
   surface,
   compact = false,
@@ -70,6 +95,16 @@ export function ReconnectAction({
   const connection = agent?.connection;
   const reason = agent?.reason ?? null;
   const [result, setResult] = useState<Result | null>(null);
+  const offered = Boolean(agent) && surface === 'team_shell';
+  useEffect(() => {
+    if (!offered) return;
+    spaceReconnects += 1;
+    announceSpaceReconnects();
+    return () => {
+      spaceReconnects -= 1;
+      announceSpaceReconnects();
+    };
+  }, [offered]);
   /** Set by a press; the next attempt to end answers it. */
   const awaiting = useRef(false);
   const sawAttempt = useRef(false);

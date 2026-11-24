@@ -62,7 +62,10 @@ vi.mock('../apps/web/src/api/stream-client.js', () => ({
 }));
 
 import { ConnectionBadge } from '../apps/web/src/App';
-import { ReconnectAction } from '../apps/web/src/components/ReconnectAction';
+import {
+  ReconnectAction,
+  useSpaceOffersReconnect
+} from '../apps/web/src/components/ReconnectAction';
 import LocalAppDialog from '../apps/web/src/components/LocalAppDialog';
 import { PowerReadout } from '../apps/web/src/components/PowerReadout';
 import { PowerContextOverride, type PowerContextValue } from '../apps/web/src/lib/power';
@@ -198,6 +201,29 @@ describe('the header badge', () => {
     render(<ConnectionBadge state="disconnected" t={t} reconnect={false} />);
     expect(screen.getByText(t('agentDisconnected'))).toBeTruthy();
     expect(screen.queryByRole('button', { name: RECONNECT })).toBeNull();
+  });
+
+  it('knows a space reconnect is on screen only while one is mounted', () => {
+    function Probe() {
+      return <output>{useSpaceOffersReconnect() ? 'space' : 'bar'}</output>;
+    }
+    const view = render(
+      <>
+        <Probe />
+        <ReconnectAction surface="header_badge" />
+      </>
+    );
+    expect(screen.getByRole('status').textContent).toBe('bar');
+    view.rerender(
+      <>
+        <Probe />
+        <ReconnectAction surface="team_shell" />
+      </>
+    );
+    expect(screen.getByRole('status').textContent).toBe('space');
+    view.unmount();
+    render(<Probe />);
+    expect(screen.getByRole('status').textContent).toBe('bar');
   });
 
   it('offers the Agent copy of this page, not a retry, when the browser blocks loopback', () => {
