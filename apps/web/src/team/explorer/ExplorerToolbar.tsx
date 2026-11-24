@@ -210,6 +210,12 @@ export function ExplorerToolbar({
       className={`team-explorer-search${boxOverPath ? ' is-over-path' : ''}`}
       {...{ [EXPLORER_SEARCH_ATTRIBUTE]: '' }}
       onKeyDownCapture={searchKeys}
+      /* An empty box opened over the path gives the path back once the caret leaves the row. */
+      onBlur={event => {
+        if (inlineSearch.value !== '' || row.current?.contains(event.relatedTarget as Node | null))
+          return;
+        setBoxOpen(false);
+      }}
     >
       <SearchField
         aria-label={t('teamExplorerSearchOpen')}
