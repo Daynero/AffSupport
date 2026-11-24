@@ -117,8 +117,6 @@
 /* The invitation form in one row once the card is wide enough for it: the
    address, the role, the press. What the role allows and the beta's note go
    under the whole row. */
-/* At the weight of the rule in space-settings.css that sets every panel
-   paragraph in body type; that sheet arrives after this one. */
 .team-space-settings.team-members-section .team-invite-form p.team-member-scope,
 .team-members-section .team-invite-form .team-invite-role-hint {
   color: var(--color-text-muted);

@@ -248,3 +248,11 @@
 .settings-save-state.is-failed {
   color: var(--color-error-text);
 }
+
+/* This sheet is unlayered, so its "every panel paragraph in body type" also
+   reaches the members page, which wears the same class; the invitation's beta
+   note there is a caption (070, T051). */
+.team-space-settings.team-members-section .team-invite-form p.team-member-scope {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
