@@ -1,8 +1,8 @@
 /*
  * The account page (024, US29).
  *
- * One column of reading width, on the honeycomb every route already stands on.
- * The cards are the space settings' own `.settings-section` slab, so nothing
+ * One column of reading width on one opaque stage, the way the home launcher
+ * stands on the honeycomb every route shares. The cards are the space settings' own `.settings-section` slab, so nothing
  * here says what a card looks like — only how this page arranges what is
  * inside one. The rules that used to do this lived in `styles.css` under
  * `.account-card`, `.profile-summary`, `.account-form-grid`, `.account-details`
@@ -11,11 +11,23 @@
 
 /* Linear's and Notion's account pages are both a single ~640px column: a form
    this short, stretched to the shell's width, left a name field 800px wide and
-   a sign-out button alone in a field of card. */
+   a sign-out button alone in a field of card.
+
+   The column stands on a stage of its own (070, T083). The title and its
+   subtitle used to sit straight on the honeycomb, and a lit cell behind the
+   grey subtitle made it unreadable; the gaps between the cards were the same
+   field again. Home already answered this with one opaque surface, so the
+   account page wears that surface rather than a halo of its own. */
 .account-page {
   display: grid;
   gap: var(--space-5);
-  max-width: 640px;
+  max-width: calc(640px + 2 * var(--space-6));
+  margin-block: var(--space-6) calc(var(--space-6) * 2);
+  padding: var(--space-6);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-neutral-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .account-page > .page-heading {
@@ -257,6 +269,13 @@
 /* ---- A phone -------------------------------------------------------------- */
 
 @media (max-width: 480px) {
+  /* The stage keeps a gutter of the field on each side, as home does. */
+  .account-page {
+    gap: var(--space-4);
+    margin-top: var(--space-3);
+    padding: var(--space-4) var(--space-3) var(--space-5);
+  }
+
   /* The avatar goes above the fields: beside them it left the name 190px. */
   .account-identity {
     flex-direction: column;
