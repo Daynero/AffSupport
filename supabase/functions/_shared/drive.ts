@@ -2116,7 +2116,12 @@ export class GoogleDriveClient {
       if (RATE_LIMIT_REASONS.has(reason.reason)) {
         throw new TeamFunctionError('RATE_LIMITED', { retryable: true, details });
       }
-      throw new TeamFunctionError('PERMISSION_DENIED');
+      // Still «you may not» for every caller; a caller that knows what it read may tell a file
+      // that is gone (404) from one it is refused (2026-11-24: a deleted catalog video).
+      throw new TeamFunctionError(
+        'PERMISSION_DENIED',
+        response.status === 404 ? { details: { notFound: true } } : {}
+      );
     }
     if (response.status === 429)
       throw new TeamFunctionError('RATE_LIMITED', { retryable: true, details });

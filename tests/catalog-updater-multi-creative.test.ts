@@ -341,6 +341,57 @@ describe('an updater restitch round over several videos', () => {
       'service_note_catalog_updater_variant_admission'
     );
   });
+
+  // Production 2026-11-24: the person deleted the catalog's video while freeing Drive space;
+  // Drive answered 404 and the round read «У вас немає дозволу на цю дію».
+  it.each([
+    ['deleted (404)', { status: 404 }],
+    ['in the trash', { trashed: true }]
+  ])('names a source video %s a changed source, not a refused permission', async (_, gone) => {
+    const { materializeCatalogUpdaterVariantRequest } =
+      await import('../supabase/functions/drive-ops/updater-variants.js');
+    const { GoogleDriveClient } = await import('../supabase/functions/_shared/drive.js');
+    const notes: unknown[] = [];
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === 'service_note_catalog_updater_variant_admission') notes.push(args.p_code);
+      return { error: null, data: null };
+    });
+    const fetcher = vi.fn(async () =>
+      'status' in gone
+        ? new Response(JSON.stringify({ error: { code: 404, errors: [{ reason: 'notFound' }] } }), {
+            status: 404,
+            headers: { 'content-type': 'application/json' }
+          })
+        : new Response(
+            JSON.stringify({
+              id: 'f',
+              name: 'source.mp4',
+              mimeType: 'video/mp4',
+              trashed: true,
+              parents: ['r'],
+              capabilities: { canDownload: true }
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          )
+    );
+    const drive = new GoogleDriveClient('synthetic-token-for-test', fetcher as typeof fetch);
+    await expect(
+      materializeCatalogUpdaterVariantRequest(
+        { rpc },
+        {
+          teamId: id(1),
+          actorId: id(2),
+          catalogMaterialId: id(3),
+          requestId: id(4),
+          requestedCount: 3
+        },
+        accepted([segment(0, [100, 101], [200, 201]), segment(1, [102, 103], [202])]),
+        async () => drive
+      )
+    ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+    expect(notes).toContain('SOURCE_CHANGED');
+    expect(notes).not.toContain('PERMISSION_DENIED');
+  });
 });
 
 describe('an image catalog in the global white pool, round after round (R30)', () => {
