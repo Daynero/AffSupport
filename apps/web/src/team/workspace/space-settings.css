@@ -146,9 +146,6 @@
 .team-space-settings .team-preferences .ui-card-title {
   font-size: var(--text-section);
 }
-.team-space-settings .team-preferences .ui-card-description {
-  font-size: var(--text-caption);
-}
 
 /* Two bounded dictionaries; the form and heading stay outside their scrolling lists. */
 .team-space-settings .team-space-settings-grid.is-tags {
@@ -160,9 +157,6 @@
 }
 .team-space-settings .team-task-labels .ui-card-title {
   font-size: var(--text-section);
-}
-.team-space-settings .team-task-labels .ui-card-description {
-  font-size: var(--text-caption);
 }
 .team-space-settings .team-task-labels-total {
   font-size: var(--text-caption);
