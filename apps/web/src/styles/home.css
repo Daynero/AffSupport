@@ -476,6 +476,38 @@
   .home-panel .blocking-message .ui-alert-action {
     margin-left: calc(var(--space-6) + var(--space-4));
   }
+
+  /* The banner is a scene beside the words, and up to a small tablet there is
+     no beside: the bee stood a fixed distance from the tile's end, so on any
+     tile narrower than about 800px it landed on the title and the note
+     ("Цей простір ще налаштовується." under its wings — 070, T082). The tile
+     keeps the space's own tint instead, the one it wears without a banner. */
+  .home-tile-artwork {
+    display: none;
+  }
+
+  .home-section--spaces .home-tile.has-artwork {
+    background-image: linear-gradient(var(--color-secondary-soft), var(--color-secondary-soft));
+  }
+
+  /* On that tint the icon's own tinted plate disappeared into the tile. */
+  .home-section--spaces .home-tile.has-artwork .home-tile-icon {
+    background: var(--color-neutral-surface-raised);
+  }
+}
+
+/* From there to a laptop the scene keeps to the tile's end, so the words have
+   the whole of the left; the bee is a size smaller there, or its antennae reach
+   "All spaces" above the tile. */
+@media (width > 768px) and (width <= 1024px) {
+  .home-tile-bee {
+    right: var(--space-3);
+    height: 128%;
+  }
+
+  .home-tile-boxes {
+    right: calc(var(--space-6) * 2);
+  }
 }
 
 @media (max-width: 480px) {
@@ -492,19 +524,6 @@
   .home-tile {
     gap: var(--space-3);
     padding: var(--space-3);
-  }
-
-  .home-tile-artwork {
-    width: 52%;
-    opacity: 0.72;
-  }
-
-  .home-tile-boxes {
-    right: calc(var(--space-1-5) + var(--space-1) + var(--space-1-5));
-  }
-
-  .home-tile-bee {
-    right: calc(var(--space-1-5) + var(--space-1) + var(--space-1-5));
   }
 
   .home-panel .onboarding-panel {
