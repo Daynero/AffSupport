@@ -50,7 +50,6 @@ import { Onboarding } from '../App';
 import { useAgent } from '../AgentContext';
 import { useAgentEventStream } from '../api/useAgentEventStream';
 import { DropZone } from '../components/DropZone';
-import { Alert, Button, Checkbox, Spinner, Tooltip } from '../components/ui';
 import { ReconnectAction } from '../components/ReconnectAction';
 import { useToolStateRead } from '../lib/use-tool-state-read';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
@@ -62,7 +61,15 @@ import { analytics } from '../analytics/service';
 import { analyticsRunId, toolJobActivityEvents } from '../analytics/tools';
 import { landingFailureError, trackToolError, type ToolErrorStage } from '../analytics/errors';
 import { LandingJobCard } from './LandingJobCard';
-import { RadioGroup } from '../components/ui/index';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  HelpTip,
+  RadioGroup,
+  Spinner,
+  Switch
+} from '../components/ui/index';
 
 interface ToastMessage {
   id: number;
@@ -433,7 +440,7 @@ export default function LandingOptimizerPage() {
   if (connection === 'checking') {
     return (
       <main className={`workspace compact-state${entering ? ' page-enter' : ''}`}>
-        <Spinner />
+        <Spinner size="md" />
         <span>{t('connectingAgent')}</span>
       </main>
     );
@@ -534,9 +541,7 @@ export default function LandingOptimizerPage() {
                   className="select-all-box"
                   checked={selectableIds.length > 0 && selected.size === selectableIds.length}
                   disabled={!connected || selectableIds.length === 0}
-                  onChange={event =>
-                    setSelected(event.target.checked ? new Set(selectableIds) : new Set())
-                  }
+                  onChange={all => setSelected(all ? new Set(selectableIds) : new Set())}
                   label={<strong>{t('selectAll')}</strong>}
                 />
                 <Button
@@ -957,14 +962,14 @@ function LandingSwitch({
 }) {
   return (
     <div className="metadata-control">
-      <Checkbox
+      <Switch
         className="feature-switch"
         checked={checked}
         disabled={disabled}
         label={<strong>{label}</strong>}
-        onChange={event => onChange(event.target.checked)}
+        onChange={onChange}
       />
-      <Tooltip label={hint}>{hint}</Tooltip>
+      <HelpTip label={hint}>{hint}</HelpTip>
     </div>
   );
 }
@@ -1040,7 +1045,7 @@ function LandingFieldLabel({ label, tooltip }: { label: string; tooltip: string 
   return (
     <div className="field-label">
       <span>{label}</span>
-      <Tooltip label={tooltip}>{tooltip}</Tooltip>
+      <HelpTip label={tooltip}>{tooltip}</HelpTip>
     </div>
   );
 }

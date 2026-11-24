@@ -189,7 +189,9 @@ describe('profile onboarding, account and blocked state', () => {
       </AuthContextOverride>
     );
     const checkbox = screen.getByRole('checkbox');
-    expect((checkbox as HTMLInputElement).checked).toBe(false);
+    expect(
+      checkbox.getAttribute('aria-checked') ?? String((checkbox as HTMLInputElement).checked)
+    ).toBe('false');
     await userEvent.click(screen.getByRole('button', { name: 'Continue to Soty' }));
     expect(updateProfile).toHaveBeenCalledWith({
       language: 'en',

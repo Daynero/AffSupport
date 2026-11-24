@@ -46,7 +46,7 @@ import { stitchFailureError } from '../analytics/errors';
 import { compactPath, formatCodec, formatDuration, formatFps, formatSize } from '../format';
 import { DropZone } from '../components/DropZone';
 import { ImageEmbeddingSection } from '../components/ImageEmbeddingSection';
-import { Button, Checkbox, StatusBadge, Tooltip } from '../components/ui';
+import { StatusBadge } from '../components/StatusBadge';
 import { ReconnectAction } from '../components/ReconnectAction';
 import { toggleSelection } from '../queue-ui';
 import { useCompactToolbar } from '../components/useCompactToolbar';
@@ -69,8 +69,7 @@ import {
   updateCompressorSettings,
   uploadScreenImage
 } from './api';
-import { RadioGroup } from '../components/ui/index';
-import { EmptyState } from '../components/ui/index';
+import { Button, Checkbox, EmptyState, HelpTip, RadioGroup } from '../components/ui/index';
 
 const SETTINGS_OPEN_KEY = 'wishly.stitcher.settings-open.v1';
 
@@ -371,9 +370,7 @@ export function Stitcher() {
               className="select-all-box"
               checked={startableIds.length > 0 && selectedStartable.length === startableIds.length}
               disabled={!connected || startableIds.length === 0}
-              onChange={event =>
-                setSelected(event.target.checked ? new Set(startableIds) : new Set())
-              }
+              onChange={all => setSelected(all ? new Set(startableIds) : new Set())}
               label={<strong>{t('selectAll')}</strong>}
             />
             <Button
@@ -584,7 +581,7 @@ function StitchSettingsPanel({
           <div className="field-group">
             <div className="field-label">
               <span>{t('stitcherOperation')}</span>
-              <Tooltip label={t('stitcherOperationHint')}>{t('stitcherOperationHint')}</Tooltip>
+              <HelpTip label={t('stitcherOperationHint')}>{t('stitcherOperationHint')}</HelpTip>
             </div>
             <RadioGroup
               className="fit-mode-pictos"
@@ -617,7 +614,7 @@ function StitchSettingsPanel({
           <div className="field-group">
             <div className="field-label">
               <span>{t('saveResults')}</span>
-              <Tooltip label={t('stitcherDestinationHint')}>{t('stitcherDestinationHint')}</Tooltip>
+              <HelpTip label={t('stitcherDestinationHint')}>{t('stitcherDestinationHint')}</HelpTip>
             </div>
             <div className="output-control-row">
               <RadioGroup
@@ -744,7 +741,12 @@ function StitchRow({
       onClick={event => {
         if (running) return;
         const target = event.target as HTMLElement;
-        if (target.closest('button, a, input, label, [role="button"]')) return;
+        if (
+          target.closest(
+            'button, a, input, label, [role="button"], [role="checkbox"], .ui-checkbox'
+          )
+        )
+          return;
         onSelected(!selected, (event.nativeEvent as MouseEvent).shiftKey === true);
       }}
     >
@@ -754,13 +756,7 @@ function StitchRow({
             checked={selected}
             disabled={disabled || running}
             aria-label={job.sourceName}
-            label={<span className="sr-only">{job.sourceName}</span>}
-            onChange={event =>
-              onSelected(
-                event.target.checked,
-                (event.nativeEvent as MouseEvent | KeyboardEvent).shiftKey === true
-              )
-            }
+            onChange={(checked, { shiftKey }) => onSelected(checked, shiftKey)}
           />
           <div className="job-title-block">
             <div className="job-title-line">

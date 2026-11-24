@@ -1073,7 +1073,8 @@ a {
   min-width: 0;
 }
 
-.mode-detail .collapse.is-open > .collapse-body {
+.mode-detail .collapse.is-open > .collapse-body,
+.mode-detail .ui-collapse.is-open > .ui-collapse-body {
   padding-top: var(--space-1);
 }
 
@@ -1629,6 +1630,7 @@ input.is-invalid {
   width: fit-content;
   min-height: 38px;
   align-items: center;
+  gap: var(--space-2);
   /* The frame hugs the toggle — no wide side gutters (owner). */
   padding: 3px;
   border: 1px solid var(--color-border);
@@ -4019,27 +4021,13 @@ body:has(.public-home) {
   font-weight: 650;
 }
 
-.onboarding-language-options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding: 3px;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-muted);
+/* The two languages share the dialog's width, as the two buttons did before
+   they were the inventory's segmented control (070). */
+.onboarding-language {
+  width: 100%;
 }
-
-.onboarding-language-options button {
-  min-height: 38px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  background: transparent;
-  cursor: pointer;
-}
-
-.onboarding-language-options button.is-active {
-  color: var(--color-text);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-raise);
+.onboarding-language > * {
+  flex: 1 1 0;
 }
 
 @keyframes modal-rise {
@@ -5278,9 +5266,16 @@ body:has(.public-home) {
   justify-content: center;
 }
 
-.landing-switch-column .soty-checkbox strong {
+.landing-switch-column .soty-checkbox strong,
+.landing-switch-column .ui-switch-label strong {
   font-size: var(--text-xl);
   font-weight: 600;
+}
+
+/* An off switch inside the muted frame: the inventory's muted track on the
+   frame's own muted ground disappeared, leaving the thumb as a lone dot. */
+.metadata-control .ui-switch:not([data-selected='true']) .ui-switch-track {
+  background: var(--color-neutral-surface);
 }
 
 /* The second way into the zone, sitting inside it rather than under it, so the zone stays
@@ -7243,7 +7238,7 @@ body:has(.public-home) {
   color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
-.transcription-model-gate .progress-track {
+.transcription-model-gate .ui-progress {
   margin-top: 4px;
 }
 .transcription-model-parts {

@@ -2,10 +2,9 @@ import { useId } from 'react';
 import { Download, X } from 'lucide-react';
 import type { TranscriptionModelInfo } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
-import { Button, ProgressBar } from '../components/ui';
 import { formatSize } from '../format';
 import type { Language, Translate } from '../i18n';
-import { Alert } from '../components/ui/index';
+import { Alert, Button, Progress } from '../components/ui/index';
 
 /** The band above the queue while the speech model of the chosen mode is missing. */
 export function ModelGate({
@@ -43,7 +42,11 @@ export function ModelGate({
                 total: size
               })}
             </span>
-            <ProgressBar value={model.progress} active label={t('transcriptionModelTitle')} />
+            <Progress
+              value={model.progress ?? undefined}
+              flowing
+              label={t('transcriptionModelTitle')}
+            />
             {visibleParts.length > 1 && (
               <ul className="transcription-model-parts">
                 {visibleParts.map(part => (

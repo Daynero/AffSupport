@@ -49,7 +49,7 @@ describe('landing optimizer batch card', () => {
 
     await user.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByText('hero.jpg').closest('.collapse')?.getAttribute('aria-hidden')).toBe(
+    expect(screen.getByText('hero.jpg').closest('.ui-collapse')?.getAttribute('aria-hidden')).toBe(
       'true'
     );
   });

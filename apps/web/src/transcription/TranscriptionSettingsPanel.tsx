@@ -6,11 +6,10 @@ import {
   type TranscriptionSettings
 } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
-import { Tooltip } from '../components/ui';
 import type { Language, Translate } from '../i18n';
 import { LanguageCombobox } from './LanguageCombobox';
 import { languageDisplayName } from './language';
-import { RadioGroup } from '../components/ui/index';
+import { HelpTip, RadioGroup } from '../components/ui/index';
 
 const SETTINGS_OPEN_KEY = 'soty.transcription.settings-open.v1';
 
@@ -112,9 +111,9 @@ export const TranscriptionSettingsPanel = memo(function TranscriptionSettingsPan
           <div className="field-group transcription-language-field">
             <div className="field-label">
               <span id={languageFieldId}>{t('transcriptionLanguage')}</span>
-              <Tooltip label={t('transcriptionLanguageHintShort')}>
+              <HelpTip label={t('transcriptionLanguageHintShort')}>
                 {t('transcriptionLanguageHint')}
-              </Tooltip>
+              </HelpTip>
             </div>
             {/* Searchable speech language picker. */}
             <LanguageCombobox
@@ -132,9 +131,9 @@ export const TranscriptionSettingsPanel = memo(function TranscriptionSettingsPan
           <div className="field-group transcription-quality-field">
             <div className="field-label">
               <span>{t('transcriptionQuality')}</span>
-              <Tooltip label={t('transcriptionQualityHintShort')}>
+              <HelpTip label={t('transcriptionQualityHintShort')}>
                 {t('transcriptionQualityHint')}
-              </Tooltip>
+              </HelpTip>
             </div>
             {/* The compressor's picto pair: two marks in one bordered group, and the choice
                 spelled out under it. Which model each mode loads is the download band's

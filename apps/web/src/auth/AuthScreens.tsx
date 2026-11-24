@@ -12,12 +12,12 @@ import {
 } from './session-handoff';
 import { forgetGoogleSignIn } from './google-sign-in';
 import { internalLink, navigateTo } from '../lib/navigation';
-import { useI18n } from '../i18n';
+import { useI18n, type Language } from '../i18n';
 import { Card } from '../components/Card';
 import { Modal } from '../components/Modal';
-import { Checkbox, SotyLoader } from '../components/ui';
+import { SotyLoader } from '../components/SotyLoader';
 // Migrated screen: the inventory's button, reached past the legacy shim (021).
-import { Button } from '../components/ui/index';
+import { Button, Checkbox, SegmentedControl } from '../components/ui/index';
 import { Alert, Empty } from '../components/ui/index';
 import { SotyLogo, SotyMark } from '../components/SotyLogo';
 import { LanguageSwitch } from '../components/LanguageSwitch';
@@ -360,7 +360,7 @@ export function ProfileOnboarding() {
   };
 
   return (
-    <Modal className="onboarding-modal" labelledBy={titleId} initialFocus=".button-primary">
+    <Modal className="onboarding-modal" labelledBy={titleId} initialFocus=".ui-color-primary">
       <SotyMark size={40} />
       <div>
         <h2 id={titleId}>{t('welcomeTitle')}</h2>
@@ -368,31 +368,21 @@ export function ProfileOnboarding() {
       </div>
       <fieldset>
         <legend>{t('chooseLanguage')}</legend>
-        <div className="onboarding-language-options">
-          <button
-            type="button"
-            className={language === 'uk' ? 'is-active' : ''}
-            onClick={() => setLanguage('uk')}
-            aria-pressed={language === 'uk'}
-          >
-            Українська
-          </button>
-          <button
-            type="button"
-            className={language === 'en' ? 'is-active' : ''}
-            onClick={() => setLanguage('en')}
-            aria-pressed={language === 'en'}
-          >
-            English
-          </button>
-        </div>
+        {/* A choice of two where one is always chosen — the inventory's segmented
+            control, as the header and the account page spell the same choice. */}
+        <SegmentedControl<Language>
+          className="onboarding-language"
+          label={t('chooseLanguage')}
+          value={language}
+          onChange={setLanguage}
+          options={[
+            { value: 'uk', label: 'Українська' },
+            { value: 'en', label: 'English' }
+          ]}
+        />
       </fieldset>
       <div className="onboarding-consent">
-        <Checkbox
-          checked={marketing}
-          onChange={event => setMarketing(event.target.checked)}
-          label={t('marketingConsent')}
-        />
+        <Checkbox checked={marketing} onChange={setMarketing} label={t('marketingConsent')} />
         <small>{t('marketingOptional')}</small>
       </div>
       {failed && (

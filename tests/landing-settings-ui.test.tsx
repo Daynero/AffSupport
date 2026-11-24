@@ -53,7 +53,7 @@ describe('landing optimizer settings', () => {
     expect(screen.getByRole('radiogroup', { name: 'Save results' }).parentElement).toBe(
       row?.children[2]
     );
-    expect(screen.getByRole('checkbox', { name: 'Create ZIP' }).closest('.field-group')).toBe(
+    expect(screen.getByRole('switch', { name: 'Create ZIP' }).closest('.field-group')).toBe(
       row?.children[3]
     );
 
@@ -106,11 +106,11 @@ describe('landing optimizer settings', () => {
   it('carries the switches that apply to the whole landing', async () => {
     const user = userEvent.setup();
     const { update } = panel();
-    await user.click(screen.getByRole('checkbox', { name: 'Create ZIP' }));
+    await user.click(screen.getByRole('switch', { name: 'Create ZIP' }));
     expect(update).toHaveBeenCalledWith({ archive: true });
-    await user.click(screen.getByRole('checkbox', { name: 'Remove metadata' }));
+    await user.click(screen.getByRole('switch', { name: 'Remove metadata' }));
     expect(update).toHaveBeenCalledWith({ stripMetadata: false });
-    await user.click(screen.getByRole('checkbox', { name: 'Wipe names' }));
+    await user.click(screen.getByRole('switch', { name: 'Wipe names' }));
     expect(update).toHaveBeenCalledWith({ renameMedia: true });
   });
 });

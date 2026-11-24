@@ -13,9 +13,9 @@ import { Card } from '../components/Card';
 /* The compressor's own set, at the compressor's own size: every action on a card wears
    the icon that action wears everywhere else in Soty. */
 import { Ban, ExternalLink, FolderOpen, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
-import { Button, Checkbox, Collapse, ProgressBar, SotyLoader } from '../components/ui';
+import { SotyLoader } from '../components/SotyLoader';
 import { ImageCompareModal } from './ImageCompareModal';
-import { Alert } from '../components/ui/index';
+import { Alert, Button, Checkbox, Collapse, Progress } from '../components/ui/index';
 
 export function LandingJobCard({
   job,
@@ -142,8 +142,7 @@ export function LandingJobCard({
             checked={selected === true}
             aria-label={t('landingSelectOne', { name: job.name })}
             // The name is beside it already; the box carries the label for a screen reader.
-            label={null}
-            onChange={event => onSelect(event.target.checked)}
+            onChange={checked => onSelect(checked)}
           />
         )}
         <button
@@ -276,10 +275,10 @@ export function LandingJobCard({
             <span>{job.paused ? t('jobPaused') : landingPhaseLabel(job, t)}</span>
             {progress !== null && <strong>{Math.round(progress)}%</strong>}
           </div>
-          <ProgressBar
-            value={progress}
+          <Progress
+            value={progress ?? undefined}
             label={t('landingOverallProgress')}
-            active={running && !job.paused}
+            flowing={running && !job.paused}
           />
         </div>
       )}
@@ -683,7 +682,11 @@ function LandingAssetRow({
 
       {asset.status === 'processing' && (
         <div className="landing-asset-progress">
-          <ProgressBar value={asset.progress} label={t('landingStatusProcessing')} active />
+          <Progress
+            value={asset.progress ?? undefined}
+            label={t('landingStatusProcessing')}
+            flowing
+          />
           {asset.progress !== null && <strong>{Math.round(asset.progress)}%</strong>}
         </div>
       )}
