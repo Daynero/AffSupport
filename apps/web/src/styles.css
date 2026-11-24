@@ -2351,6 +2351,14 @@ input.is-invalid {
   gap: var(--space-3);
   margin-top: 9vh;
   padding: var(--space-6);
+  /* The body step (070 T069): its sentence, the install label and the help link inherited
+     the old sheet's section-sized body and outweighed the panel's own title. */
+  font-size: var(--text-body);
+}
+/* The help link sits where the reading starts, not centred in a full-width button. */
+.onboarding-panel > .text-button {
+  justify-self: start;
+  font-size: var(--text-label);
 }
 
 .onboarding-panel p {
