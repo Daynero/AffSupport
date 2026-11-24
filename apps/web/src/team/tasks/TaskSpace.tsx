@@ -525,7 +525,11 @@ export function TaskSpace({
     setExpandedIds(allExpanded ? new Set() : new Set(tasks.tasks.map(task => task.id)));
 
   return (
-    <section className="team-panel team-task-space" aria-labelledby="team-tasks-title">
+    <section
+      className="team-panel team-task-space"
+      aria-labelledby="team-tasks-title"
+      onPointerDown={marquee.onPointerDown}
+    >
       <div className="team-panel-heading team-task-space-heading">
         <h2 id="team-tasks-title">{t('teamTasksTitle')}</h2>
         {/* One way to make a task, and it is the fast one (024, FR-090): type
@@ -626,6 +630,7 @@ export function TaskSpace({
         />
       )}
       <SelectionBar
+        floating
         count={selected.length}
         label={t('teamTaskSelectedCount', { count: selected.length })}
         clearLabel={t('teamTaskClearSelection', { count: selected.length })}
@@ -689,7 +694,7 @@ export function TaskSpace({
           />
         }
       >
-        <div className="team-task-grid" onPointerDown={marquee.onPointerDown}>
+        <div className="team-task-grid">
           {tasks.tasks.map(task => (
             <TaskCard
               key={task.id}

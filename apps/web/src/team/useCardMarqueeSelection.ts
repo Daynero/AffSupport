@@ -20,9 +20,33 @@ type Session = {
   teardown: () => void;
 };
 
+/** What a press means something else on: a control, a field, a menu, text being edited. */
+const NOT_A_START = [
+  'button',
+  'a',
+  'input',
+  'select',
+  'textarea',
+  'label',
+  '[contenteditable]',
+  '[role="button"]',
+  '[role="tab"]',
+  '[role="checkbox"]',
+  '[role="switch"]',
+  '[role="slider"]',
+  '[role="option"]',
+  '[role="menu"]',
+  '[role="listbox"]',
+  '[role="dialog"]',
+  '.ui-popover',
+  '[data-no-marquee]'
+].join(',');
+
 /**
- * Drag from the gaps in a card grid to select every card the rectangle touches.
- * Each card carries its id in `attribute`.
+ * Drag from the empty space of a card board to select every card the rectangle touches.
+ * Each card carries its id in `attribute`. The handler goes on the whole panel, not on the
+ * grid: people start a rectangle in the margins and below the last row, and a grid-only start
+ * asked for the few pixels between two cards (owner, beta 25.11).
  */
 export function useCardMarqueeSelection(
   rows: readonly CardRow[],
@@ -44,7 +68,7 @@ export function useCardMarqueeSelection(
   useEffect(() => () => finish(), [finish]);
 
   const onPointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
+    (event: ReactPointerEvent<HTMLElement>) => {
       if (
         !latest.current.enabled ||
         event.button !== 0 ||
@@ -54,8 +78,7 @@ export function useCardMarqueeSelection(
         return;
       const card = `[${latest.current.attribute}]`;
       const target = event.target instanceof Element ? event.target : null;
-      if (!target || target.closest(`${card},button,a,input,[role="button"],[data-no-marquee]`))
-        return;
+      if (!target || target.closest(`${card},${NOT_A_START}`)) return;
       const container = event.currentTarget;
       const initial = new Set(latest.current.selectedIds);
       const state: Session = {

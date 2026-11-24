@@ -681,6 +681,7 @@ function LaunchSpaceContent({
     <section
       className="team-panel team-launch-space flex min-w-0 flex-col gap-4"
       aria-label={t('launchesTitle')}
+      onPointerDown={launchMarquee.onPointerDown}
     >
       {/*
        * The list's toolbar (070, T080): search, the date, «Фільтри», and the one primary. On a
@@ -821,6 +822,7 @@ function LaunchSpaceContent({
           />
         )}
         <SelectionBar
+          floating
           count={selectedIds.size}
           label={t('teamTaskSelectedCount', { count: selectedIds.size })}
           clearLabel={t('teamTaskClearSelection', { count: selectedIds.size })}
@@ -959,7 +961,6 @@ function LaunchSpaceContent({
           onPointerDown={event => {
             const id = cardUnder(event.target);
             if (id) warmDetail(id);
-            launchMarquee.onPointerDown(event);
           }}
           onPointerOver={event => {
             const id = cardUnder(event.target);
