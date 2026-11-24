@@ -13,7 +13,7 @@ import {
 } from '../../api/client';
 import { teamApi } from '../../api/team';
 import { X } from 'lucide-react';
-import { Button } from '../../components/ui';
+import { Button } from '../../components/ui/index';
 import { IconButton } from '../../components/ui/index';
 import { ReconnectAction } from '../../components/ReconnectAction';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
@@ -408,12 +408,12 @@ function TranscriptPreview({
       )}
       <div className="team-preview-actions">
         {preview.allowedActions.includes('download') && (
-          <Button type="button" onClick={onDownload}>
+          <Button variant="secondary" onClick={onDownload}>
             {t('teamPreviewDownloadFull')}
           </Button>
         )}
         {preview.allowedActions.includes('edit') && (
-          <Button type="button" onClick={onEdit}>
+          <Button variant="secondary" onClick={onEdit}>
             {t('teamPreviewEditText')}
           </Button>
         )}

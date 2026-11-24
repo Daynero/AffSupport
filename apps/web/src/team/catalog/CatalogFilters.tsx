@@ -8,11 +8,10 @@ import {
   type MaterialCategory,
   type TeamMaterialTagColor
 } from '@video-compressor/shared';
-import { Button } from '../../components/ui';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import { COLOR_LABEL } from '../explorer/TagDot';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { Select } from '../../components/ui/index';
+import { Button, Select } from '../../components/ui/index';
 
 /** The filters' own names, in the reader's language — they label the chips too. */
 const LABEL_KEYS: Record<Exclude<keyof CatalogSearchFilters, 'geo'>, TranslationKey> = {

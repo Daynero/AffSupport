@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Modal } from '../../components/Modal';
-import { Button, Input } from '../../components/ui';
+import { Button, Input } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 
 export function CreateFolderDialog({

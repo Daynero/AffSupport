@@ -45,7 +45,7 @@ export function UploadConflictDialog({
       onClose={() => onChoose('skip', false)}
       closeLabel={t('teamClose')}
     >
-      <h3 id={titleId}>{t('teamUploadConflictTitle', { name: request.fileName })}</h3>
+      <h2 id={titleId}>{t('teamUploadConflictTitle', { name: request.fileName })}</h2>
       <p>{t('teamUploadConflictBody')}</p>
       {/* Only when there is a rest to apply it to. */}
       {request.remaining > 0 && (
@@ -56,15 +56,16 @@ export function UploadConflictDialog({
           onChange={setForRest}
         />
       )}
+      {/* The one primary last, where reading ends (docs/DESIGN.md) — it stood first. */}
       <div className="team-dialog-actions">
-        <Button color="primary" variant="solid" onClick={() => onChoose('replace', forRest)}>
-          {t('teamUploadConflictReplace')}
+        <Button color="neutral" variant="ghost" onClick={() => onChoose('skip', forRest)}>
+          {t('teamUploadConflictSkip')}
         </Button>
         <Button color="neutral" variant="outline" onClick={() => onChoose('keep_both', forRest)}>
           {t('teamUploadConflictKeepBoth')}
         </Button>
-        <Button color="neutral" variant="ghost" onClick={() => onChoose('skip', forRest)}>
-          {t('teamUploadConflictSkip')}
+        <Button color="primary" variant="solid" onClick={() => onChoose('replace', forRest)}>
+          {t('teamUploadConflictReplace')}
         </Button>
       </div>
     </Modal>

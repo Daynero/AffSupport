@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -25,7 +26,7 @@ import { useOptionalAgent } from '../../AgentContext';
 import type { TeamProcessStartInput } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { startTeamAgentProcess } from '../../api/client';
-import { Button, EmptyState, SegmentedControl } from '../../components/ui/index';
+import { Button, EmptyState, FormField, Input, SegmentedControl } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { startTeamWorkflow, type TeamWorkflowFlow } from '../../analytics/service';
 import type { DriveConnectionStatus, TeamMaterialSummary } from '../../api/team';
@@ -743,6 +744,7 @@ function TextVersionDialog({
   const [destination, setDestination] = useState<{ id: string; name: string } | null>(null);
   const [pickingFolder, setPickingFolder] = useState(false);
   const [name, setName] = useState(() => draft.material.name.replace(/\.txt$/iu, '-v2.txt'));
+  const nameId = useId();
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
     try {
@@ -780,26 +782,23 @@ function TextVersionDialog({
           }}
         />
       )}
-      <label>
-        {t('teamFileNewName')}
-        <input value={name} onChange={event => setName(event.target.value)} />
-      </label>
+      <FormField label={t('teamFileNewName')} htmlFor={nameId}>
+        <Input id={nameId} value={name} onChange={event => setName(event.target.value)} />
+      </FormField>
       {error && (
+        /* The sentence, not the code: this printed "PROCESS_FAILED" (070, phase 8). */
         <p className="team-inline-error" role="alert">
-          {error}
+          {teamErrorMessage(error, t)}
         </p>
       )}
-      <Button
-        type="button"
-        variant="primary"
-        disabled={!destination || !name}
-        onClick={() => void save()}
-      >
-        {t('teamTextEditorSave')}
-      </Button>
-      <Button type="button" variant="ghost" onClick={onClose}>
-        {t('teamCancel')}
-      </Button>
+      <div className="team-dialog-actions">
+        <Button variant="ghost" onClick={onClose}>
+          {t('teamCancel')}
+        </Button>
+        <Button variant="primary" disabled={!destination || !name} onClick={() => void save()}>
+          {t('teamTextEditorSave')}
+        </Button>
+      </div>
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import type { TeamPreviewUnavailableReason } from '@video-compressor/shared';
-import { Button } from '../../components/ui';
+import { Button } from '../../components/ui/index';
 import { EmptyState } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 
@@ -46,12 +46,12 @@ export function PreviewUnavailable({
         allowedActions.length > 0 && (
           <div className="team-preview-actions">
             {allowedActions.includes('download') && (
-              <Button type="button" onClick={onDownload}>
+              <Button variant="secondary" onClick={onDownload}>
                 {t('teamPreviewDownload')}
               </Button>
             )}
             {allowedActions.includes('new_version') && (
-              <Button type="button" onClick={onNewVersion}>
+              <Button variant="secondary" onClick={onNewVersion}>
                 {t('teamPreviewNewVersion')}
               </Button>
             )}

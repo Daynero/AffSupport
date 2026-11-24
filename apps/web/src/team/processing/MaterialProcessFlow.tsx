@@ -8,7 +8,7 @@ import {
   startTeamWorkflow,
   type TeamWorkflowFlow
 } from '../../analytics/service';
-import { Alert, Button } from '../../components/ui';
+import { Alert, Button } from '../../components/ui/index';
 import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';

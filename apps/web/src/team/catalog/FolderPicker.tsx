@@ -1,9 +1,16 @@
 import { useEffect, useId, useState } from 'react';
 import type { TeamMaterialSummary } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import { EmptyState, ErrorState } from '../../components/ui/index';
+import {
+  Breadcrumb,
+  Button,
+  EmptyState,
+  ErrorState,
+  LoadingState
+} from '../../components/ui/index';
+import { ChevronRight, Folder } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 
 export interface FolderPickerClient {
   listMaterials: (teamId: string, parentFolderId: string | null) => Promise<TeamMaterialSummary[]>;
@@ -76,27 +83,25 @@ export function FolderPicker({
       className="team-folder-picker"
       onClose={onClose}
     >
-      <h3 id={titleId}>{title}</h3>
+      <h2 id={titleId}>{title}</h2>
 
-      <nav className="team-folder-picker-trail" aria-label={t('teamFolderPickerTrailLabel')}>
-        <button type="button" onClick={() => setTrail([])}>
-          {t('teamFolderPickerRoot')}
-        </button>
-        {trail.map((folder, index) => (
-          <button
-            key={folder.materialId}
-            type="button"
-            onClick={() => setTrail(current => current.slice(0, index + 1))}
-          >
-            {folder.name}
-          </button>
-        ))}
-      </nav>
+      {/* The way back up, as the inventory's breadcrumb (070, phase 8): it was a row of bare
+          buttons with a "/" drawn between them in CSS. */}
+      <Breadcrumb
+        className="team-folder-picker-trail"
+        label={t('teamFolderPickerTrailLabel')}
+        items={[
+          { id: 'root', label: t('teamFolderPickerRoot'), onSelect: () => setTrail([]) },
+          ...trail.map((folder, index) => ({
+            id: folder.materialId,
+            label: folder.name,
+            onSelect: () => setTrail(current => current.slice(0, index + 1))
+          }))
+        ]}
+      />
 
       {folders === null && !failed && (
-        <p className="ui-skeleton-label" aria-live="polite">
-          {t('teamFolderPickerLoading')}
-        </p>
+        <LoadingState count={3} label={t('teamFolderPickerLoading')} />
       )}
       {failed && <ErrorState className="team-inline-error" message={t('teamFolderPickerFailed')} />}
       {folders !== null && folders.length === 0 && (
@@ -106,8 +111,16 @@ export function FolderPicker({
       <ul className="team-folder-picker-list">
         {(folders ?? []).map(folder => (
           <li key={folder.id}>
-            <button
-              type="button"
+            {/* A folder row opens the folder; the icon is the product's, not an emoji. */}
+            <Button
+              block
+              color="neutral"
+              variant="ghost"
+              className="team-folder-picker-row"
+              leading={<Folder size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+              trailing={
+                <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              }
               onClick={() =>
                 setTrail(current => [
                   ...current,
@@ -119,13 +132,16 @@ export function FolderPicker({
                 ])
               }
             >
-              <span aria-hidden="true">📁</span> {folder.name}
-            </button>
+              {folder.name}
+            </Button>
           </li>
         ))}
       </ul>
 
       <div className="team-dialog-actions">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          {t('teamCancel')}
+        </Button>
         <Button
           type="button"
           variant="primary"
@@ -150,9 +166,6 @@ export function FolderPicker({
           {currentFolder
             ? t('teamFolderPickerSelectNamed', { name: currentFolder.name })
             : t('teamFolderPickerSelectRoot')}
-        </Button>
-        <Button type="button" variant="ghost" onClick={onClose}>
-          {t('teamCancel')}
         </Button>
       </div>
     </Modal>

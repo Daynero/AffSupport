@@ -1,7 +1,6 @@
 import type { TeamMaterialProvenanceEntry } from '@video-compressor/shared';
-import { Button } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import { EmptyState } from '../../components/ui/index';
+import { Button, EmptyState } from '../../components/ui/index';
 
 export function ProvenancePanel({
   materialId,

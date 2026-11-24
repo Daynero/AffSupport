@@ -7,14 +7,13 @@ import type {
   TeamMaterialTagColor,
   TeamPermissions
 } from '@video-compressor/shared';
-import { Button } from '../../components/ui';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { SearchResultActions } from './SearchResultActions';
 import type { FolderPickerClient } from './FolderPicker';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
 import { TagDot } from '../explorer/TagDot';
 import { useThumbnailSession, type ThumbnailSessionClient } from '../explorer/useThumbnailSession';
-import { EmptyState, ErrorState, FadeImage } from '../../components/ui/index';
+import { Button, EmptyState, ErrorState, FadeImage } from '../../components/ui/index';
 import { Highlighted } from '../search/highlight';
 
 /** Said beside a result found by something other than its name (search rework, 2026-10). */

@@ -1,6 +1,5 @@
 import type { TeamOperationSnapshot } from '../../api/team';
-import { Button, ProgressBar } from '../../components/ui';
-import { Alert } from '../../components/ui/index';
+import { Alert, Button, Progress } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { teamErrorMessage } from '../errors';
 
@@ -57,7 +56,11 @@ export function OperationStatus({
         <strong>{operationLabel(failedLocally ? 'failed' : operation.state, t)}</strong>
         {progress === null ? null : <span>{Math.round(progress)}%</span>}
       </div>
-      <ProgressBar value={progress} active={running} label={t('teamOperationProgressLabel')} />
+      <Progress
+        value={progress ?? undefined}
+        flowing={running}
+        label={t('teamOperationProgressLabel')}
+      />
       <small>{stageLabel(stage, t)}</small>
       {/* The code is the contract; the sentence is what a person reads. */}
       {/* Named as well as coloured: the word "failed" carries the state for a

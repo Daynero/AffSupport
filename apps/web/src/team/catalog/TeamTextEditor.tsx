@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { CatalogMaterialItem } from '@video-compressor/shared';
-import { Button } from '../../components/ui';
+import { Button, ConfirmDialog, FormField, Textarea } from '../../components/ui/index';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
@@ -87,15 +87,11 @@ export function TeamTextEditor({
       // Straight into the text: this dialog exists to be typed in.
       initialFocus="#team-text-editor-body"
       onClose={requestClose}
+      closeLabel={t('teamClose')}
     >
-      <div className="team-panel-heading">
-        <div>
-          <p className="team-workspace-eyebrow">{t('teamTextEditorEyebrow')}</p>
-          <h3 id="team-text-editor-title">{material.name}</h3>
-        </div>
-        <Button type="button" variant="ghost" onClick={requestClose}>
-          {t('teamCancel')}
-        </Button>
+      <div>
+        <p className="team-workspace-eyebrow">{t('teamTextEditorEyebrow')}</p>
+        <h2 id="team-text-editor-title">{material.name}</h2>
       </div>
       {!eligible ? (
         <p className="team-inline-error" role="alert">
@@ -103,35 +99,42 @@ export function TeamTextEditor({
         </p>
       ) : (
         <>
-          <label>
-            {t('teamTextEditorContents')}
-            <textarea
+          {/* The count of bytes is the field's help, and turns into its error past the limit. */}
+          <FormField
+            label={t('teamTextEditorContents')}
+            htmlFor="team-text-editor-body"
+            help={t('teamTextEditorBytes', { count: bytes })}
+            error={
+              bytes > MAX_TEXT_BYTES
+                ? `${t('teamTextEditorBytes', { count: bytes })} · ${t('teamTextEditorTooLarge')}`
+                : undefined
+            }
+          >
+            <Textarea
               id="team-text-editor-body"
-              aria-label={t('teamTextEditorContents')}
               value={text}
               onChange={event => setText(event.target.value)}
               rows={14}
               spellCheck
+              invalid={bytes > MAX_TEXT_BYTES}
             />
-          </label>
-          <small className={bytes > MAX_TEXT_BYTES ? 'team-inline-error' : ''}>
-            {t('teamTextEditorBytes', { count: bytes })}
-          </small>
-          {bytes > MAX_TEXT_BYTES && <p>{t('teamTextEditorTooLarge')}</p>}
+          </FormField>
           {stale && (
             <div className="team-text-stale" role="alert">
               <p>{t('teamTextEditorStale')}</p>
-              <Button type="button" onClick={() => void onReload()}>
+              <Button variant="secondary" onClick={() => void onReload()}>
                 {t('teamTextEditorReload')}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => void onCreateVersion(text)}>
+              <Button variant="secondary" onClick={() => void onCreateVersion(text)}>
                 {t('teamTextEditorSeparateVersion')}
               </Button>
             </div>
           )}
           <div className="team-dialog-actions">
+            <Button variant="ghost" onClick={requestClose}>
+              {t('teamCancel')}
+            </Button>
             <Button
-              type="button"
               variant="primary"
               loading={saving}
               disabled={bytes > MAX_TEXT_BYTES}
@@ -143,23 +146,16 @@ export function TeamTextEditor({
         </>
       )}
       {confirmingDiscard && (
-        <Modal
+        <ConfirmDialog
           nested
-          labelledBy="team-text-editor-discard-title"
-          size="sm"
-          onClose={() => setConfirmingDiscard(false)}
-        >
-          <h3 id="team-text-editor-discard-title">{t('teamTextEditorDiscardTitle')}</h3>
-          <p>{t('teamTextEditorDiscardBody')}</p>
-          <div className="team-dialog-actions">
-            <Button type="button" variant="danger" onClick={onClose}>
-              {t('teamTextEditorDiscardAction')}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setConfirmingDiscard(false)}>
-              {t('teamCancel')}
-            </Button>
-          </div>
-        </Modal>
+          title={t('teamTextEditorDiscardTitle')}
+          body={t('teamTextEditorDiscardBody')}
+          confirmLabel={t('teamTextEditorDiscardAction')}
+          cancelLabel={t('teamCancel')}
+          initialFocus="cancel"
+          onCancel={() => setConfirmingDiscard(false)}
+          onConfirm={onClose}
+        />
       )}
     </Modal>
   );
