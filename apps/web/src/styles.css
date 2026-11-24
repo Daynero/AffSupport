@@ -14683,7 +14683,10 @@ a.history-subject {
 .product-catalog-sources li {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
+  padding-block: var(--space-1);
+  /* Its own step, not the old sheet's section-sized body (070 T069). */
+  font-size: var(--text-label);
   min-width: 0;
   min-height: 34px;
   padding: 0 var(--space-2);
@@ -14695,7 +14698,8 @@ a.history-subject {
   color: var(--color-text-muted);
 }
 .product-catalog-source-name {
-  min-width: 0;
+  flex: 1 1 4rem;
+  min-width: 4rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -14706,6 +14710,28 @@ a.history-subject {
 }
 .product-catalog-sources li > button {
   margin-left: auto;
+}
+/* A source's warning sits under its name (070 T069): beside it, on a phone, "Простір не
+   підключено до Google Drive." ran 100 px past the panel and squeezed the name to nothing.
+   The row keeps the name and its remove button; the line break is the row's own. */
+.product-catalog-sources li:has(> .ui-badge) {
+  flex-wrap: wrap;
+}
+.product-catalog-sources li:has(> .ui-badge)::after {
+  content: '';
+  flex-basis: 100%;
+  order: 2;
+}
+.product-catalog-sources li > button {
+  order: 1;
+}
+.product-catalog-sources li > .ui-badge {
+  order: 3;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  margin-inline-start: calc(var(--icon-size-sm) + var(--space-2));
+  white-space: normal;
 }
 .product-catalog-generate,
 .product-catalog-price-range {
