@@ -2,11 +2,14 @@ import { useRef, useState } from 'react';
 import {
   ChevronDown,
   CircleUserRound,
+  Languages,
   LayoutGrid,
   LifeBuoy,
   LogOut,
+  Moon,
   RefreshCw,
   ShieldCheck,
+  Sun,
   type LucideIcon
 } from 'lucide-react';
 import { Button, DropdownMenu, type MenuEntry } from './ui/index';
@@ -16,6 +19,8 @@ import { useOptionalAgentStatus } from '../AgentContext';
 import { openNativeAppUpdate } from '../updates/openNativeAppUpdate';
 import { useI18n } from '../i18n';
 import { navigateTo, useBrowserRoute } from '../lib/navigation';
+import { useTheme } from '../lib/theme';
+import { NARROW_SM_QUERY, useMediaQuery } from '../lib/useMediaQuery';
 import { analytics } from '../analytics/service';
 import { SupportDialog } from './SupportDialog';
 import { UserAvatar } from './UserAvatar';
@@ -32,8 +37,11 @@ import { UserAvatar } from './UserAvatar';
  *
  * What a buyer wants from this corner, in the order they want it: get to
  * their space; manage the account; find help; sign out. That order is the
- * menu. Language and theme stay in the bar, which keeps them at every width —
- * offering them here too made the menu twice as long to say nothing new.
+ * menu. Language and theme stay in the bar on a wider screen — offering them
+ * here too made the menu twice as long to say nothing new. On a phone the bar
+ * has room for the mark, the state and this button, and nothing else (070,
+ * T077): there the two move in here, as the menu's last group before the way
+ * out, and leave the bar.
  *
  * What changed and why.
  * - It is the inventory `DropdownMenu` — the space's menu in the workspace
@@ -54,7 +62,9 @@ import { UserAvatar } from './UserAvatar';
  */
 export function UserMenu() {
   const { user, profile, isAdmin, signOut, status } = useAuth();
-  const { t } = useI18n();
+  const { t, language, setLanguage } = useI18n();
+  const { theme, toggleTheme } = useTheme();
+  const narrow = useMediaQuery(NARROW_SM_QUERY);
   const route = useBrowserRoute();
   const agent = useOptionalAgentStatus();
   // The update dialog is otherwise reachable only while an update is under way: a
@@ -147,6 +157,27 @@ export function UserMenu() {
             onSelect: () => navigateTo('/admin')
           } satisfies MenuEntry
         ]
+      : []),
+    /* On a phone, the two the bar had to let go of (070, T077). Each row says what pressing it
+       does — the other theme, the other language, named in that language. */
+    ...(narrow
+      ? ([
+          'separator',
+          {
+            id: 'theme',
+            label: theme === 'dark' ? t('themeToLight') : t('themeToDark'),
+            icon: icon(theme === 'dark' ? Sun : Moon),
+            onSelect: () => toggleTheme()
+          },
+          {
+            id: 'language',
+            label: language === 'uk' ? 'English' : 'Українська',
+            icon: icon(Languages),
+            trailing: language === 'uk' ? 'EN' : 'UA',
+            ariaLabel: `${t('language')}: ${language === 'uk' ? 'English' : 'Українська'}`,
+            onSelect: () => setLanguage(language === 'uk' ? 'en' : 'uk')
+          }
+        ] satisfies MenuEntry[])
       : []),
     'separator',
     {

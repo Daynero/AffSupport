@@ -42,6 +42,8 @@ import { MediaActionsPanel } from './components/MediaActionsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
 import { type Translate } from './components/ui';
 import { SotyLogo, SotyMark } from './components/SotyLogo';
+import { EnvironmentBadge } from './components/EnvironmentBadge';
+import { NARROW_SM_QUERY, useMediaQuery } from './lib/useMediaQuery';
 import { PowerThrottle } from './components/PowerThrottle';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useCompactToolbar } from './components/useCompactToolbar';
@@ -911,8 +913,14 @@ export default function CompressorPage() {
 /**
  * The shell every tool sits in. The language switch reads the context itself
  * (021, T040), so the header no longer takes a language it only passed on.
+ *
+ * On a phone (070, T077) the mark and the account are what the bar keeps
+ * first: the wordmark becomes the hexagon, the credits chip says only its
+ * number, and the theme and language move into the account menu. The beta
+ * badge sits beside the mark in every width rather than floating over content.
  */
 export function Header({ connection, t }: { connection: ConnectionState; t: Translate }) {
+  const narrow = useMediaQuery(NARROW_SM_QUERY);
   return (
     <header className="topbar">
       <div className="topbar-lead">
@@ -924,20 +932,22 @@ export function Header({ connection, t }: { connection: ConnectionState; t: Tran
             aria-label={t('backToTools')}
           >
             <SotyLogo name={t('appName')} />
+            <SotyMark size={32} />
           </a>
         </h1>
+        <EnvironmentBadge placement="bar" />
       </div>
       <div className="topbar-actions">
-        <CreditsButton />
+        <CreditsButton compact={narrow} />
         <PowerThrottle />
-        <ThemeToggle />
+        {!narrow && <ThemeToggle />}
         {/* A group of two states where one is always chosen, which is what
             `radiogroup` describes. Previously it was an unlabelled pair of
             buttons: a screen reader announced "EN, button" with no indication
             that a language was already selected, or which one. The active state
             was carried by a class — visible, and invisible to anything that is
             not looking at pixels. */}
-        <LanguageSwitch />
+        {!narrow && <LanguageSwitch />}
         <ConnectionBadge state={connection} t={t} />
         <UserMenu />
       </div>

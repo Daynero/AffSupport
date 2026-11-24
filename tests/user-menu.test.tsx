@@ -84,4 +84,38 @@ describe('user menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
     expect(screen.queryByRole('menuitem', { name: 'Soty updates' })).toBeNull();
   });
+
+  /** A phone (070, T077): the bar keeps the mark, the state and this button; theme and language
+      come in here. */
+  function asPhone(phone: boolean) {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: phone && query === '(max-width: 640px)',
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {}
+    }));
+  }
+
+  it('keeps theme and language in the bar on a wider screen, not in the menu', () => {
+    asPhone(false);
+    render(<UserMenu />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
+    expect(screen.queryByRole('menuitem', { name: /light mode|dark mode/u })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /Language/u })).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it('offers the other theme and the other language on a phone, each named for what it does', () => {
+    asPhone(true);
+    document.documentElement.dataset.theme = 'dark';
+    render(<UserMenu />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Switch to light mode' }));
+    expect(localStorage.getItem('theme')).toBe('light');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open user menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Language: Українська' }));
+    expect(localStorage.getItem('language')).toBe('uk');
+    vi.unstubAllGlobals();
+  });
 });

@@ -11381,7 +11381,7 @@ button.team-landing-tile:hover {
   line-height: 1.45;
 }
 
-.environment-badge {
+.environment-badge.is-floating {
   position: fixed;
   top: 0.5rem;
   left: 50%;
@@ -11406,7 +11406,7 @@ button.team-landing-tile:hover {
  * down the middle of the screen covering the toolbar and a tile.
  */
 @media (max-width: 1280px) {
-  .environment-badge {
+  .environment-badge.is-floating {
     inset: auto auto 0.5rem 0.5rem;
     transform: none;
   }

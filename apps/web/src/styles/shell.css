@@ -24,9 +24,10 @@
   font-size: var(--text-caption);
 }
 
-/* On a phone the chip is its dot: the colour is the state, and the words stay
-   in the page for a reader that asks for them. */
-@media (max-width: 640px) {
+/* On a phone and a tablet the chip is its dot: the colour is the state, and the words stay
+   in the page (and the tooltip) for a reader that asks for them. At 768 the words were cut to
+   «Soty підключен» and the beta badge touched the credits chip (070, T077). */
+@media (max-width: 768px) {
   .topbar .connection-badge {
     justify-content: center;
     min-width: var(--control-height-md);
@@ -140,4 +141,53 @@
    as two different rows. */
 .ui-menu-item.is-destructive .ui-menu-icon {
   color: inherit;
+}
+
+/* ---- The bar on a phone (070, T077) -------------------------------------- */
+
+/*
+ * The mark is the logo where the wordmark does not fit. At 390 px the lockup,
+ * shrunk to the bar's height and then squeezed by the controls, came out zero
+ * pixels wide: the bar had no logo at all, and the account button was pushed
+ * past the right edge.
+ */
+.topbar .brand-link .soty-mark {
+  display: none;
+}
+
+/* The build's name beside the mark, on the bar's own ground: quiet, read, not pressed. */
+.environment-badge.is-bar {
+  flex: none;
+  padding: var(--space-px) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  letter-spacing: 0.14em;
+  pointer-events: none;
+}
+/* A bar that carries the badge makes the floating copy redundant. */
+:root:has(.topbar .environment-badge.is-bar) .environment-badge.is-floating {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .topbar .brand-link .soty-logo-lockup {
+    display: none;
+  }
+  .topbar .brand-link .soty-mark {
+    display: block;
+    width: var(--control-height-md);
+    height: var(--control-height-md);
+  }
+  .topbar-lead {
+    flex: none;
+    overflow: visible;
+  }
+  .topbar-actions {
+    min-width: 0;
+    gap: var(--space-1);
+  }
 }
