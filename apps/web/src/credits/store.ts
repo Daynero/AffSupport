@@ -53,7 +53,12 @@ export function refreshCredits(): Promise<void> {
 registerPrivateCache(() => {
   if (timer) clearTimeout(timer);
   timer = null;
-  emit({ status: null, error: false });
+  // The scope turns over while TeamProvider renders: drop the balance now, but tell the chip
+  // after that render (like setPrivateCacheScope itself), or React updates it mid-render.
+  state = { status: null, error: false };
+  queueMicrotask(() => {
+    for (const listener of listeners) listener();
+  });
   // The private scope also turns over on a move between a space and the rest of the app; a chip
   // still on screen reads its balance again instead of staying blank. After a sign-out nothing
   // watches, so nothing is read.
