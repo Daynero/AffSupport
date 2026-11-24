@@ -79,8 +79,8 @@ const RELEASE_130_SHARED_GROWTH_CEILING = 85_500;
 // Owner approved 2026-11-10 for 1.4.1: the same features now ship in production
 // (measured +26 700 B against the original ratchet plus the 045 allocation).
 // Owner approved 2026-11-13: the coupled existing-assets ceiling is 1 083 288 B.
-// Historical baselines, entry/largest chunk and Accounts limits stay fixed.
-const RELEASE_047_049_ALLOWANCE = 46_500;
+// That allowance (46 500 B) stacked on the 2026-10-09 total; 070 T072's
+// recalculation took it in, with 045's, 053's, 1.5.9's and 1.6.2's.
 // Owner approved 2026-11-23: raise to what 1.5.9 already ships rather than cut
 // shipped features. Measured on release/1.5.9 (87c203c): Launch graph 67 530 B
 // (hosted 67 513-67 551 B), shared/existing 1 135 013 B. No dependency was added
@@ -96,14 +96,33 @@ const RELEASE_159_SHARED_ALLOWANCE = 43_500;
 // and 064 assistant/credits. The entry chunk grew from 6 019 B to 6 715-6 746 B
 // (ceiling 6 320) because healModuleCache (Cloudflare serving index.html for a
 // chunk that has not arrived yet) must run before any lazy chunk can, so it lives
-// in the entry on purpose. 070 T072 recalculates the baselines once.
+// in the entry on purpose. 070 T072 recalculated the baselines once, and the
+// entry allowance (800 B) is inside the new entry baseline.
 const RELEASE_162_LAUNCH_ALLOWANCE = 1_500;
-const RELEASE_162_ENTRY_ALLOWANCE = 800;
 // Shared/existing assets measured 103 921 B over the 053 base on the 1.6 line and
 // 105 117 B with the 024 HeroUI work (allowance 53 500 B): no dependency was added
 // since 1.5.9; the growth is 064 (workspace assistant, credits), 063 (transcript
 // translation), 062, 058, 059 and the 024 inventory adoption.
 const RELEASE_162_SHARED_ALLOWANCE = 53_000;
+/*
+ * 070 T072, the one recalculation 024 T143 was waiting for. Measured on the
+ * 070 branch with `vite build` (2026-11-24):
+ *
+ * - before phase 9 (4c671a17): shared/existing 130 842 B over the 053 base
+ *   (limit 106 500), largest chunk 144 421 B (the two dictionaries in one).
+ *   Phases 1–8b moved the explorer, cabinet, tasks, launches, assistant,
+ *   palette, accounts and catalog manager onto the inventory: +25.7 kB.
+ * - after phase 9: 110 417 B. Removed: 8.1 kB of built CSS (team-tasks.css,
+ *   a 2 740-line duplicate block in styles.css, 1 593 overridden declarations,
+ *   425 rules nothing renders), 11.8 kB of dictionary text (478 keys no code
+ *   reads), and the shim. The dictionaries load per language, so the largest
+ *   chunk is the stylesheet (124 413 B) and a reader's first download is 152 kB
+ *   smaller — though every asset still counts here.
+ *
+ * What is left over the 053 base is 070's net growth after its own cleanup:
+ * 3 917 B, allowed as 4 000. No dependency was added.
+ */
+const RELEASE_070_SHARED_ALLOWANCE = 4_000;
 
 /**
  * How far the total may drift before this fails.
@@ -118,6 +137,8 @@ interface Baseline {
   total_gzip_bytes: number;
   entry_gzip_bytes: number;
   largest_gzip_bytes: number;
+  /** Shared/existing assets as the check below computes them (070 T072). */
+  existing_gzip_bytes: number;
 }
 
 interface AccountsBefore {
@@ -266,7 +287,10 @@ describeRequiring(
       expect(
         Math.max(0, existingBytes - feature053.baseline.shared_existing_gzip)
       ).toBeLessThanOrEqual(
-        FEATURE_053_SHARED_ALLOWANCE + RELEASE_159_SHARED_ALLOWANCE + RELEASE_162_SHARED_ALLOWANCE
+        FEATURE_053_SHARED_ALLOWANCE +
+          RELEASE_159_SHARED_ALLOWANCE +
+          RELEASE_162_SHARED_ALLOWANCE +
+          RELEASE_070_SHARED_ALLOWANCE
       );
       if (
         typeof manifest !== 'object' ||
@@ -292,26 +316,28 @@ describeRequiring(
         RELEASE_130_SHARED_GROWTH_CEILING +
           FEATURE_053_SHARED_ALLOWANCE +
           RELEASE_159_SHARED_ALLOWANCE +
-          RELEASE_162_SHARED_ALLOWANCE
+          RELEASE_162_SHARED_ALLOWANCE +
+          RELEASE_070_SHARED_ALLOWANCE
+      );
+      // The allowances that used to stack on the 2026-10-09 total (045, 047+049, 053,
+      // 1.5.9, 1.6.2) are inside the 070 T072 recalculation; what stays tight are the
+      // 045- and 053-relative checks above, and this ratchet on what was measured then.
+      const existingCeiling = Math.round(
+        baseline.existing_gzip_bytes * (1 + TOLERANCE_PERCENT / 100)
       );
       expect(
         existingBytes,
-        `shared/existing assets: ${existingBytes}B; total ${measured.total}B minus Launch graph ${launchBytes}B and explicit038increment ${accountsIncrement}B; pre038 Accounts graph ${before.accounts.exclusive_gzip_bytes}B remains charged; original ratchet ${ceiling}B plus explicit045 allocation ${FEATURE_045_INCREMENTAL_ALLOWANCE}B`
-      ).toBeLessThanOrEqual(
-        ceiling +
-          FEATURE_045_INCREMENTAL_ALLOWANCE +
-          RELEASE_047_049_ALLOWANCE +
-          FEATURE_053_SHARED_ALLOWANCE +
-          RELEASE_159_SHARED_ALLOWANCE +
-          RELEASE_162_SHARED_ALLOWANCE
-      );
+        `shared/existing assets: ${existingBytes}B; total ${measured.total}B minus Launch graph ${launchBytes}B and explicit038increment ${accountsIncrement}B; recalculated ratchet ${existingCeiling}B (total ${ceiling}B)`
+      ).toBeLessThanOrEqual(existingCeiling);
+      expect(
+        measured.total,
+        `total ${measured.total}B over the ratchet ${ceiling}B`
+      ).toBeLessThanOrEqual(ceiling);
     });
 
     it('has not grown the entry chunk beyond tolerance', () => {
       const measured = measure();
-      const ceiling =
-        Math.round(baseline.entry_gzip_bytes * (1 + TOLERANCE_PERCENT / 100)) +
-        RELEASE_162_ENTRY_ALLOWANCE;
+      const ceiling = Math.round(baseline.entry_gzip_bytes * (1 + TOLERANCE_PERCENT / 100));
       // The entry is what runs before any lazy chunk can, so it is the number
       // that decides how long the first screen takes on a slow connection.
       expect(

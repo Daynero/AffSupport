@@ -1,7 +1,8 @@
 {
-  "note": "Adopts the measured 2026-10-09 024-heroui-finish ratchet (99 built JS/CSS assets; see that branch's performance-baseline.json and specs/024-heroui-workspace/findings.md). The prior 2026-10-10 main value explicitly deferred to this accepted HeroUI measurement. LaunchSpace is a new lazy route measured separately by tests/performance-budgets.test.ts: 17,489 B gzip on 2026-10-14, capped at 20,000 B. The existing/shared assets still obey the 5% total ratchet; entry and largest-chunk limits remain unchanged.",
-  "measured_at": "2026-10-09",
-  "total_gzip_bytes": 956941,
-  "entry_gzip_bytes": 6019,
-  "largest_gzip_bytes": 136110
+  "note": "070 T072 — the one recalculation 024 T143 waited for, measured 2026-11-24 with vite build on 070-explorer-cabinet-polish. Both halves: the library added (024: HeroUI v3 and the React Aria packages, @heroui/styles imported whole, 38.3 kB gzip; the inventory every 070 screen moved to, +25.7 kB shared over phases 1–8b) and the CSS deleted (team-tasks.css, a duplicated 2 740-line block of styles.css, 1 593 overridden declarations and 425 rules nothing renders: built CSS 135 365 → 127 275 B), plus 478 dictionary keys nothing reads (−11.8 kB) and per-language dictionaries (largest chunk 144 421 → 124 413 B, now the stylesheet; a reader no longer downloads the other language). Before phase 9 (4c671a17): total 1 334 329, entry 6 761, largest 144 421, shared/existing 1 212 702. Now: total 1 313 908, entry 6 769, largest 124 413, shared/existing 1 192 277 (110 417 over the 053 base; RELEASE_070_SHARED_ALLOWANCE 4 000 in tests/performance-budgets.test.ts). Against the earlier baselines: 021 (2026-09-14) 605 534 / 5 376 / 91 012; 026 temporary (2026-09-27) 860 582 / 6 022 / 122 173; 024-heroui-finish (2026-10-09) 956 941 / 6 019 / 136 110 — total +37% since 024 is feature code (038 accounts, 045 R2 library, 047/049, 053 batches, 1.5.9, 062–064) under the RELEASE_* allowances, all now inside this baseline; the 045- and 053-relative checks remain the tight ratchets. Entry absorbs the 1.6.2 allowance (healModuleCache).",
+  "measured_at": "2026-11-24",
+  "total_gzip_bytes": 1313908,
+  "entry_gzip_bytes": 6769,
+  "largest_gzip_bytes": 124413,
+  "existing_gzip_bytes": 1192277
 }
