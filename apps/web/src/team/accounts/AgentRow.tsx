@@ -293,16 +293,16 @@ export function AgentRow({
    * it does not have; on a busy one it is a quiet "+ Run" after the last line.
    */
   const addRunButton = (
-    <button
-      type="button"
+    <IconButton
+      size="sm"
       className="team-agent-run-add"
-      aria-label={named('teamAgentRunAdd')}
+      label={named('teamAgentRunAdd')}
+      title={t('teamAgentRunAddShort')}
       disabled={waiting || editingNew}
       onClick={() => onRunEditingChange({ runId: null })}
     >
-      <Plus size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      <span>{t('teamAgentRunAddShort')}</span>
-    </button>
+      <Plus size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
+    </IconButton>
   );
   /**
    * How many tasks name this agent, and the way to them — under its state. It had a column of
@@ -337,16 +337,16 @@ export function AgentRow({
    * it.
    */
   const assignRunButton = (
-    <button
-      type="button"
+    <IconButton
+      size="sm"
       className="team-agent-run-add is-assign"
-      aria-label={named('teamAgentRunAssign')}
+      label={named('teamAgentRunAssign')}
+      title={t('teamAgentRunAddShort')}
       disabled={waiting || editingNew}
       onClick={() => onRunEditingChange({ runId: null })}
     >
-      <Plus size={15} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      <span>{t('teamAgentRunAddShort')}</span>
-    </button>
+      <Plus size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
+    </IconButton>
   );
 
   return (
@@ -518,20 +518,18 @@ export function AgentRow({
               {/* Freeing an agent is the one thing done to the agent itself
                   often enough to be worth a word and a place of its own. */}
               {availability === 'busy' && (
-                <button
-                  type="button"
+                <IconButton
+                  size="sm"
                   className="team-agent-release"
                   // One press clears every run on the agent, so both the name
                   // and the tooltip say how many that is before the press
                   // rather than after it.
-                  aria-label={releaseLabel}
-                  title={releaseLabel}
+                  label={releaseLabel}
                   disabled={waiting || editingRun}
                   onClick={() => void run(onRelease)}
                 >
-                  <CircleCheck size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  <span className="team-agent-release-label">{t('teamAgentRelease')}</span>
-                </button>
+                  <CircleCheck size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </IconButton>
               )}
             </div>
             {/*

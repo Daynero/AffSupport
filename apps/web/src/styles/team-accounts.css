@@ -2974,3 +2974,10 @@ button.team-task-agent-chip.is-selected {
   background: var(--color-secondary-softer);
   box-shadow: inset 0 0 0 1px var(--color-secondary-solid);
 }
+
+/* A phone hides the head's first fact and its separators; the counts follow. */
+@media (max-width: 640px) {
+  .team-account-meta > .team-account-count::before {
+    content: none;
+  }
+}

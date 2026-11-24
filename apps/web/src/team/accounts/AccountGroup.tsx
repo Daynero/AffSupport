@@ -475,20 +475,21 @@ export function AccountGroup({
         >
           <span hidden ref={reorder.handleRef} />
           <div className="team-account-title" role="rowheader" aria-colspan={3}>
-            <button
-              type="button"
+            {/* The account's disclosure (070, T044): a real button with `aria-expanded`,
+                reached by Tab and pressed with Enter or Space. A press elsewhere on the
+                head folds too, for a pointer; the head lets a press on this go. */}
+            <IconButton
+              size="sm"
               className="team-account-toggle"
               aria-expanded={open}
-              aria-label={t(open ? 'teamAccountCollapse' : 'teamAccountExpand', {
+              label={t(open ? 'teamAccountCollapse' : 'teamAccountExpand', {
                 name: account.name
               })}
-              onClick={event => {
-                event.stopPropagation();
-                onCollapsedChange(open);
-              }}
+              title=""
+              onClick={() => onCollapsedChange(open)}
             >
               <ChevronDown size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            </button>
+            </IconButton>
             {/* The social account: an icon and the name. The icon is what
                 tells it apart from the ad accounts listed under it. */}
             <span className="team-account-mark" aria-hidden="true">
@@ -648,15 +649,17 @@ export function AccountGroup({
             )}
             {canEdit && (
               <>
-                <button
-                  type="button"
+                <Button
+                  size="sm"
+                  variant="outline"
+                  color="secondary"
                   className="team-account-add-agent"
                   aria-label={t('teamAgentAdd')}
+                  leading={<Plus size={ICON} strokeWidth={ICON_STROKE} />}
                   onClick={() => onEditingChange({ kind: 'add' })}
                 >
-                  <Plus size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
                   <span className="team-account-add-agent-label">{t('teamAgentAddShort')}</span>
-                </button>
+                </Button>
                 {/* One primary on the head — putting an agent in — and the rest behind
                     "…" (024 US14, 070 T041): renaming and deleting sat as a pencil and a
                     bin on every head, louder than the account's own name. */}
