@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { SotyToolId } from '@video-compressor/shared';
 import { useAgent } from '../AgentContext';
 import { RECONNECT_SURFACES, type ReconnectSurface } from '../analytics/events';
 import type { ConnectionState } from '../connection';
@@ -35,8 +36,11 @@ export function ToolSetupState({
   const [dialogOpen, setDialogOpen] = useState(true);
   // The dialog's own rule (032 FR-013): "update" only for an app that answered
   // and is too old, never for a link that dropped.
+  // Only a tool that runs in the local app reaches this screen: `ToolRoute`
+  // returns a browser tool (2FA) before it asks about the app at all.
+  const toolId = tool.id as SotyToolId;
   const needsUpdate =
-    connection === 'agent_update_required' || toolAvailability(tool.id) === 'too_old';
+    connection === 'agent_update_required' || toolAvailability(toolId) === 'too_old';
   const name = t(tool.labelKey);
   const surface = tool.analyticsId.replace(/-/gu, '_');
   const reconnectSurface = (RECONNECT_SURFACES as readonly string[]).includes(surface)
@@ -70,7 +74,7 @@ export function ToolSetupState({
       </main>
       {dialogOpen && (
         <LocalAppDialog
-          tool={tool.id}
+          tool={toolId}
           connection={connection}
           onClose={() => setDialogOpen(false)}
         />
