@@ -2,7 +2,9 @@ import type { TeamContextSnapshot } from '../../api/team';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { buildTeamRoute } from '../routes';
-import { PermissionState } from '../../components/ui/index';
+import { FolderX } from 'lucide-react';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { EmptyState, PermissionState, uiClasses } from '../../components/ui/index';
 
 /**
  * The states worth explaining. `none` — a space whose folder was never
@@ -51,22 +53,34 @@ export function SpaceStatePanel({
   });
 
   return (
+    /* On the inventory (070, T030, 024 T135): the state is `EmptyState` — a heading, a
+       sentence and the one door — instead of a hand-set panel with a hand-set button. */
     <section className="team-panel team-space-state" aria-labelledby="team-space-state-title">
-      <h2 id="team-space-state-title">{t(copy[explained].title)}</h2>
-      <p>{t(copy[explained].body)}</p>
-      {canManageDrive ? (
-        /* A link, not a button: settings is an address like every other
-           section, so it opens in a new tab the way people expect. */
-        <a
-          className="soty-button button-primary"
-          href={settingsRoute}
-          onClick={event => internalLink(event, settingsRoute)}
-        >
-          {t('teamSpaceStateOpenSettings')}
-        </a>
-      ) : (
-        <PermissionState className="team-space-state-hint" message={t('teamSpaceStateAskOwner')} />
-      )}
+      <EmptyState
+        size="md"
+        icon={<FolderX size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+        titleAs="h2"
+        title={<span id="team-space-state-title">{t(copy[explained].title)}</span>}
+        description={t(copy[explained].body)}
+        action={
+          canManageDrive ? (
+            /* A link, not a button: settings is an address like every other
+               section, so it opens in a new tab the way people expect. */
+            <a
+              className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
+              href={settingsRoute}
+              onClick={event => internalLink(event, settingsRoute)}
+            >
+              {t('teamSpaceStateOpenSettings')}
+            </a>
+          ) : (
+            <PermissionState
+              className="team-space-state-hint"
+              message={t('teamSpaceStateAskOwner')}
+            />
+          )
+        }
+      />
     </section>
   );
 }

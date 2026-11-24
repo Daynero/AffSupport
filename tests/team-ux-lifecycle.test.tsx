@@ -8,6 +8,7 @@ import { AuthContextOverride } from '../apps/web/src/auth/AuthContext';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamSpace } from '../apps/web/src/team/TeamSpace';
 import { ToastProvider } from '../apps/web/src/components/toast';
+import { SpaceComingSoon } from '../apps/web/src/team/SpaceComingSoon';
 import { SpaceStatePanel } from '../apps/web/src/team/workspace/SpaceStatePanel';
 import { makeClient, makeTeam } from './team-space-fixtures';
 import { adminAuthStub } from './support/auth-stub';
@@ -221,5 +222,26 @@ describe('a space whose storage is disconnected', () => {
     );
 
     expect(screen.getByRole('link', { name: 'Open space settings' })).toBeTruthy();
+  });
+});
+
+describe('whole-screen states have a way out (070, T030)', () => {
+  it('the storage state is the inventory’s empty state, with the door as its action', () => {
+    render(
+      <ToastProvider>
+        <SpaceStatePanel space={makeTeam({ connectionState: 'needs_reauth' })} canManageDrive />
+      </ToastProvider>
+    );
+    const link = screen.getByRole('link', { name: 'Open space settings' });
+    expect(link.closest('.ui-empty')).toBeTruthy();
+    expect(link.className).toContain('ui-button');
+    expect(screen.getByRole('heading', { level: 2 })).toBeTruthy();
+  });
+
+  it('the closed space before its announcement offers the way home', () => {
+    render(<SpaceComingSoon />);
+    expect(screen.getByRole('link', { name: 'Go to the home page' }).getAttribute('href')).toBe(
+      '/'
+    );
   });
 });

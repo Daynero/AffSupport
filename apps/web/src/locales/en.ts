@@ -4827,6 +4827,7 @@ export const en = {
   tariffSettingsSeats: 'Seats: {used} of {total} (you included)',
   tariffSettingsContact: 'Renew or add seats — write to the administrator',
   spaceComingSoonTitle: 'Workspace in development',
+  spaceComingSoonHome: 'Go to the home page',
   spaceComingSoonBody:
     'We’re preparing the workspace for launch. We’ll announce when it becomes available.',
   tariffHomeTitle: 'Your workspace',

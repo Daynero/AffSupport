@@ -7,7 +7,7 @@ import { Modal } from '../components/Modal';
 import { ToastProvider, useToasts } from '../components/toast';
 import { Button } from '../components/ui';
 import { ICON_STROKE } from '../components/icons';
-import { Alert, Empty, RouteSkeleton } from '../components/ui/index';
+import { Empty, RouteSkeleton } from '../components/ui/index';
 import type { TeamContextSnapshot, TeamInvitationSummary } from '../api/team';
 import { spaceTariffApi, teamApi } from '../api/team';
 import { useI18n } from '../i18n';
@@ -623,11 +623,33 @@ export function TeamSpace({
     // not leave cached content behind a failed reread. Restoring access mounts
     // a fresh workspace rather than reviving old dialogs and local drafts.
     if (!activeTeam.permissions.view) {
+      /* A terminus with a way out (070, T030, FR-022): this was a red sentence alone on the
+         page — the person had nowhere to press but Back. */
       return wrap(
-        <section className="team-space-lobby">
-          <Alert color="error" live="alert">
-            {t('teamErrorPermissionDenied')}
-          </Alert>
+        <section
+          className="team-space-lobby team-space-lobby-empty team-space-no-access"
+          aria-labelledby="team-permission-lost"
+        >
+          <Empty
+            className="team-space-no-access-card"
+            size="lg"
+            icon={<LockKeyhole size={26} strokeWidth={ICON_STROKE} />}
+            titleAs="h2"
+            title={<span id="team-permission-lost">{t('teamSpaceNoAccessTitle')}</span>}
+            description={t('teamErrorPermissionDenied')}
+            action={
+              <Button
+                type="button"
+                color="primary"
+                onClick={() => {
+                  setActiveTeamId(null);
+                  navigateTo(teamResolverRoute(), true);
+                }}
+              >
+                {t('teamSpaceNoAccessAction')}
+              </Button>
+            }
+          />
         </section>
       );
     }

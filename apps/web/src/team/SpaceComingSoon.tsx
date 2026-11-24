@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { LockKeyhole } from 'lucide-react';
 import { analytics } from '../analytics/service';
-import { Empty } from '../components/ui';
+import { Empty, uiClasses } from '../components/ui/index';
+import { internalLink } from '../lib/navigation';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
 
@@ -20,6 +21,16 @@ export function SpaceComingSoon() {
         titleAs="h2"
         title={t('spaceComingSoonTitle')}
         description={t('spaceComingSoonBody')}
+        /* Not a dead end (070, T030, FR-022): the tools are one press away. */
+        action={
+          <a
+            className={uiClasses('button', { color: 'primary', variant: 'solid', size: 'md' })}
+            href="/"
+            onClick={event => internalLink(event, '/')}
+          >
+            {t('spaceComingSoonHome')}
+          </a>
+        }
       />
     </section>
   );

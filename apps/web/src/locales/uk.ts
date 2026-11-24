@@ -4806,6 +4806,7 @@ export const uk: Record<keyof typeof en, string> = {
   tariffSettingsSeats: 'Місць: {used} з {total} (разом із вами)',
   tariffSettingsContact: 'Продовжити чи додати місця — написати адміністратору',
   spaceComingSoonTitle: 'Простір у розробці',
+  spaceComingSoonHome: 'На головну',
   spaceComingSoonBody: 'Готуємо простір до відкриття. Повідомимо, коли він стане доступним.',
   tariffHomeTitle: 'Ваш робочий простір',
   tariffHomeCaption: 'Креативи на вашому Диску, завдання, РК і каталоги — усе для вашої роботи',
