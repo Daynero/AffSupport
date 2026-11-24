@@ -54,13 +54,14 @@
   gap: var(--space-2);
   max-width: 100%;
 }
-.team-space-settings .team-preferences select,
-.team-space-settings .team-preferences input {
-  font-size: var(--text-body);
-  padding-inline: var(--space-3);
+/* The preferences are the inventory's Select and Input (070, T052): the field
+   draws its own frame and inset, and its help line is a caption. */
+.team-space-settings .team-preferences .ui-field {
+  min-width: 0;
 }
-.team-space-settings .team-preferences input[type='number'] {
-  width: 6rem;
+.team-space-settings .team-preferences p.ui-field-help,
+.team-space-settings .team-preferences p.ui-field-error {
+  font-size: var(--text-caption);
 }
 .team-space-settings .team-space-name-form {
   max-width: 44rem;

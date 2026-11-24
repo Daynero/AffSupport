@@ -2879,11 +2879,14 @@ button.team-task-agent-chip.is-selected {
   .team-agent-row
   .unified-agent-finance
   [data-finance-state='dirty']
-  .ui-input {
+  .ui-input.ui-input:not(.is-disabled) {
   border-color: var(--color-warning-solid);
   background: var(--color-surface);
 }
-.team-account-space.is-unified .team-agent-row .unified-agent-finance .ui-input.is-invalid {
+.team-account-space.is-unified
+  .team-agent-row
+  .unified-agent-finance
+  .ui-input.ui-input.is-invalid {
   border-color: var(--color-error-solid);
 }
 /* A closed period's figures are text already; they line up the same way. */

@@ -142,10 +142,11 @@ export function TeamPreferencesSection({
           >
             <Input
               id={progressId}
-              type="number"
+              /* Text with a numeric keyboard, not `type="number"`: the browser's own
+                 number field brings a second frame and spinners into the inventory's. */
+              type="text"
               inputMode="numeric"
-              min={1}
-              max={PROGRESS_MAX}
+              pattern="[0-9]*"
               width="narrow"
               value={progressMax}
               disabled={!canManage}
