@@ -139,15 +139,34 @@ describe('leaving a space', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/team'));
   });
 
-  it('tells an owner why they cannot leave, instead of offering a dead control', async () => {
-    const client = makeClient({ listTeams: vi.fn().mockResolvedValue([makeTeam()]) });
+  it('tells an owner why they cannot leave, and offers the way out instead of a dead control', async () => {
+    // Two members: the owner alone in a space is offered nothing here at all (070, T051).
+    const person = (userId: string, role: 'owner' | 'editor') => ({
+      membershipId: `m-${userId}`,
+      userId,
+      displayName: userId,
+      email: `${userId}@example.com`,
+      role,
+      baseRole: role,
+      permissionOverrides: {},
+      effectivePermissions: DEFAULT_ROLE_PERMISSIONS[role],
+      joinedAt: '2026-01-01T00:00:00Z'
+    });
+    const client = makeClient({
+      listTeams: vi.fn().mockResolvedValue([makeTeam()]),
+      listMembers: vi.fn().mockResolvedValue([person('owner', 'owner'), person('ed', 'editor')])
+    });
     renderSpace(client, `/team/${SPACE_ID}/members`);
 
+    // 070 T051: the sentence says why; the button beside it is the way, not an instruction.
     expect(
       await screen.findByText(
-        'To leave, transfer ownership first: open … beside a member → Transfer ownership.'
+        'You own this space. To leave, hand it to another member first.',
+        {},
+        { timeout: 10_000 }
       )
     ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Transfer ownership…' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Leave this space' })).toBeNull();
   });
 });

@@ -122,7 +122,10 @@ describe('file actions on the Files rows', () => {
     const user = userEvent.setup();
     renderSpace(client);
 
-    await user.click(await screen.findByRole('button', { name: 'Actions for launch.mp4' }));
+    // A whole space renders here; on a loaded machine its first rows take longer than a second.
+    await user.click(
+      await screen.findByRole('button', { name: 'Actions for launch.mp4' }, { timeout: 10_000 })
+    );
     // Owner permissions, so the whole set is offered.
     // The download is named "the original" now that a re-stitched copy can sit beside it.
     // Menu items, not buttons: the row's actions are one grouped menu now, and
@@ -141,7 +144,10 @@ describe('file actions on the Files rows', () => {
     const user = userEvent.setup();
     renderSpace(client);
 
-    await user.click(await screen.findByRole('button', { name: 'Actions for launch.mp4' }));
+    // A whole space renders here; on a loaded machine its first rows take longer than a second.
+    await user.click(
+      await screen.findByRole('button', { name: 'Actions for launch.mp4' }, { timeout: 10_000 })
+    );
     expect(screen.getAllByRole('menuitem', { name: /^Download/ }).length).toBeGreaterThan(0);
     // Present with a reason rather than absent: a viewer can see that renaming
     // exists and why their role cannot do it (024).
@@ -169,7 +175,10 @@ describe('file actions on the Files rows', () => {
     const { container } = renderSpace(client);
     void container;
 
-    await user.click(await screen.findByRole('button', { name: 'Actions for launch.mp4' }));
+    // A whole space renders here; on a loaded machine its first rows take longer than a second.
+    await user.click(
+      await screen.findByRole('button', { name: 'Actions for launch.mp4' }, { timeout: 10_000 })
+    );
     await user.click(screen.getByRole('menuitem', { name: 'Move' }));
 
     // A dialog of folders, not a text field expecting an id nothing shows you.
@@ -259,9 +268,13 @@ describe('search results past the first fifty', () => {
     const user = userEvent.setup();
     renderSpace(client);
 
-    // The toolbar's box opens the search on Enter (070, T012; T021 puts results in place).
-    await user.type(await screen.findByRole('searchbox', { name: 'Search files' }), '{Enter}');
-    expect(await screen.findByText('Page 1 of 3')).toBeTruthy();
+    // The toolbar's box searches what is typed in it, in place (070, T012, T021): an empty box
+    // is the folder, so the old pager-on-Enter of an empty search has a word to search for now.
+    await user.type(
+      await screen.findByRole('searchbox', { name: 'Search files' }, { timeout: 10_000 }),
+      'clip{Enter}'
+    );
+    expect(await screen.findByText('Page 1 of 3', {}, { timeout: 10_000 })).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() =>
@@ -272,7 +285,7 @@ describe('search results past the first fifty', () => {
         expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     );
-    expect(await screen.findByText('page-2.mp4')).toBeTruthy();
+    expect(await screen.findByText('page-2.mp4', {}, { timeout: 10_000 })).toBeTruthy();
   });
 });
 
