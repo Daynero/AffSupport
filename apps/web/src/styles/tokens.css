@@ -863,7 +863,7 @@
 
 :root {
   --account-unified-width: 1380px;
-  --account-finance-cell: 84px;
+  --account-finance-cell: 96px;
   --account-row-height: 44px;
   --account-input-height: 30px;
   --account-actions-width: 98px;

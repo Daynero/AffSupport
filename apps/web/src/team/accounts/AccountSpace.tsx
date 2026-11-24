@@ -31,7 +31,7 @@ import {
   type TeamAgentRun
 } from '@video-compressor/shared';
 import { boundedText, oneOf, persistedViewKey, usePersistedState } from '../persistedView';
-import { Button, IconButton } from '../../components/ui/index';
+import { Button, IconButton, Table, TableHeader, TableHeaderCell } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Empty, ErrorState, LoadingState } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
@@ -1294,32 +1294,46 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
             <p className="text-label text-ink-muted">{t('accountsLaunchPartial')}</p>
           )}
           {(creating || accounts.accounts.length > 0) && (
-            <div className="team-accounts-table">
+            /* The inventory's table (070, T041): a real table to a screen reader — the
+               captions are column headers, every account is a group of rows, every agent a
+               row of cells — with the grid this screen already draws. The cells are placed
+               by the screen's own columns, so `aria-colindex` says which caption each one
+               sits under whatever order they come in. */
+            <Table
+              size="sm"
+              label={t('teamAccountsTitle')}
+              className="team-accounts-table"
+              aria-colcount={client ? 4 : 5}
+            >
               {/* Printed once, above every account, and left where it is while the
               list scrolls under it. Not hidden from a screen reader either:
               read once at the top it is orientation, which is what it was
               never able to be when every account repeated it. */}
-              <div className="team-accounts-columns">
-                <span />
-                <span>{t('teamAccountColumnAgent')}</span>
-                <span>{t('teamAccountColumnStatus')}</span>
-                <span>{t('teamAccountColumnRun')}</span>
+              <TableHeader className="team-accounts-columns">
+                <span aria-hidden="true" />
+                <TableHeaderCell aria-colindex={1}>{t('teamAccountColumnAgent')}</TableHeaderCell>
+                <TableHeaderCell aria-colindex={2}>{t('teamAccountColumnStatus')}</TableHeaderCell>
+                <TableHeaderCell aria-colindex={3}>{t('teamAccountColumnRun')}</TableHeaderCell>
                 {!client && (
-                  <div className="unified-finance-headings">
+                  <TableHeaderCell aria-colindex={5} className="unified-finance-headings">
                     <span>{t('financeBalance')}</span>
                     <span>{t('financeTopup')}</span>
                     <span>{t('financeSpend')}</span>
-                  </div>
+                  </TableHeaderCell>
                 )}
                 {/* Named for a screen reader only; the row's buttons speak for
                 themselves, as they do in Airtable and Linear lists. */}
-                <span>
+                <TableHeaderCell aria-colindex={4}>
                   <span className="visually-hidden">{t('teamAccountColumnActions')}</span>
-                </span>
-              </div>
+                </TableHeaderCell>
+              </TableHeader>
               <div className="team-accounts-list" id="team-accounts-list">
                 {creating && (
-                  <section className="team-account is-new" aria-label={t('teamAccountsCreate')}>
+                  <section
+                    className="team-account is-new"
+                    role="rowgroup"
+                    aria-label={t('teamAccountsCreate')}
+                  >
                     <AccountNameRow
                       canSave={canEdit}
                       hold={hold}
@@ -1548,7 +1562,7 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                   </p>
                 )}
               </div>
-            </div>
+            </Table>
           )}
 
           {accounts.assignmentCoverage === 'partial' && !client && (

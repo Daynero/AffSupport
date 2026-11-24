@@ -146,7 +146,7 @@ it('creates a SOC and RK on yesterday, refreshes editable finance, and hides the
       <AccountSpace teamId="team" />
     </ToastProvider>
   );
-  await screen.findByRole('region', { name: 'Legacy' });
+  await screen.findByRole('rowgroup', { name: 'Legacy' });
   await user.click(screen.getByRole('button', { name: 'Yesterday' }));
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Yesterday' }).getAttribute('aria-pressed')).toBe(
@@ -177,7 +177,7 @@ it('creates a SOC and RK on yesterday, refreshes editable finance, and hides the
       (screen.getByRole('textbox', { name: /PastSOC.*Balance.*USD/ }) as HTMLInputElement).disabled
     ).toBe(false)
   );
-  expect(screen.getByRole('region', { name: 'PastSOC' })).toBeTruthy();
+  expect(screen.getByRole('rowgroup', { name: 'PastSOC' })).toBeTruthy();
   const createFlow = vi
     .mocked(emitAccountSignal)
     .mock.calls.find(
@@ -191,9 +191,9 @@ it('creates a SOC and RK on yesterday, refreshes editable finance, and hides the
       expect.objectContaining({ flowId: createFlow, operation: 'createAccount', day: 'previous' })
     );
   await user.click(screen.getByRole('button', { name: 'Previous period' }));
-  await waitFor(() => expect(screen.queryByRole('region', { name: 'PastSOC' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('rowgroup', { name: 'PastSOC' })).toBeNull());
   await user.click(screen.getByRole('button', { name: 'Today' }));
-  await screen.findByRole('region', { name: 'PastSOC' });
+  await screen.findByRole('rowgroup', { name: 'PastSOC' });
   expect(accounts.find(row => row.id === 'new')?.createdAt).toBe(audit);
   expect(accounts.find(row => row.id === 'new')?.agents[0]?.createdAt).toBe(audit);
 }, 15_000);
@@ -261,10 +261,10 @@ it('keeps a social visible as empty before the birth of its first RK', async () 
       <AccountSpace teamId="team" />
     </ToastProvider>
   );
-  await screen.findByRole('region', { name: 'EarlierSOC' });
+  await screen.findByRole('rowgroup', { name: 'EarlierSOC' });
   await user.click(screen.getByRole('button', { name: 'Yesterday' }));
   await waitFor(() => expect(screen.queryByLabelText('EarlierSOC-927')).toBeNull());
-  expect(screen.getByRole('region', { name: 'EarlierSOC' })).toBeTruthy();
+  expect(screen.getByRole('rowgroup', { name: 'EarlierSOC' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Previous period' }));
-  await waitFor(() => expect(screen.queryByRole('region', { name: 'EarlierSOC' })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('rowgroup', { name: 'EarlierSOC' })).toBeNull());
 });

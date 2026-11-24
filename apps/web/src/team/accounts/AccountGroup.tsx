@@ -402,6 +402,8 @@ export function AccountGroup({
     <section
       ref={sortableRoot}
       className={`team-account${open ? '' : ' is-collapsed'}`}
+      /* A group of the table's rows, named by the account (070, T041). */
+      role="rowgroup"
       aria-labelledby={nameId}
       data-account-id={account.id}
       data-account-member-order={visibleAgents.map(agent => agent.id).join(',')}
@@ -433,6 +435,7 @@ export function AccountGroup({
            remove, which is neither true nor the point. */
         <div
           data-reorder-id={account.id}
+          role="row"
           className="team-account-head"
           onKeyDownCapture={event => {
             if (
@@ -456,7 +459,7 @@ export function AccountGroup({
           }}
         >
           <span hidden ref={reorder.handleRef} />
-          <div className="team-account-title">
+          <div className="team-account-title" role="rowheader" aria-colspan={3}>
             <button
               type="button"
               className="team-account-toggle"
@@ -547,7 +550,12 @@ export function AccountGroup({
           </div>
           {/* Nothing here folds the account: each of these is its own action,
               and the press stops before it reaches the strip. */}
-          <div className="team-account-actions" onClick={event => event.stopPropagation()}>
+          <div
+            className="team-account-actions"
+            role="cell"
+            aria-colindex={4}
+            onClick={event => event.stopPropagation()}
+          >
             {account.twoFactorSeed && (
               <button
                 type="button"
@@ -689,7 +697,7 @@ export function AccountGroup({
           {deferred.renderRows && (
             <>
               {(visibleAgents.length > 0 || editing?.kind === 'add') && (
-                <ul className="team-account-agents">
+                <div className="team-account-agents" role="presentation">
                   {visibleAgents.map(agent =>
                     editing?.kind === 'edit' && editing.agentRowId === agent.id ? (
                       <AgentEditRow
@@ -774,16 +782,18 @@ export function AccountGroup({
                       }}
                     />
                   )}
-                </ul>
+                </div>
               )}
               {visibleAgents.length === 0 && editing?.kind !== 'add' && (
-                <p className="team-account-agents-empty">
-                  {counts.agents > 0
-                    ? t('teamAccountAgentsAllHidden')
-                    : canEdit
-                      ? t('teamAccountAgentsEmptyHint')
-                      : t('teamAccountAgentsNone')}
-                </p>
+                <div className="team-account-agents-empty" role="row">
+                  <span role="cell" aria-colspan={3}>
+                    {counts.agents > 0
+                      ? t('teamAccountAgentsAllHidden')
+                      : canEdit
+                        ? t('teamAccountAgentsEmptyHint')
+                        : t('teamAccountAgentsNone')}
+                  </span>
+                </div>
               )}
             </>
           )}
@@ -924,8 +934,8 @@ export function AccountNameRow({
   };
 
   return (
-    <div className="team-account-head is-editing">
-      <div className="team-account-edit-fields">
+    <div className="team-account-head is-editing" role="row">
+      <div className="team-account-edit-fields" role="cell" aria-colspan={3}>
         <EditField
           inputRef={field}
           className="team-account-edit-name"

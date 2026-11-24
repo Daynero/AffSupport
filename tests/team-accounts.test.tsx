@@ -228,7 +228,7 @@ function render(api: AccountSpaceClient, role: 'editor' | 'viewer' = 'editor') {
 
 /** The account sections, in list order. */
 function groups(): HTMLElement[] {
-  return screen.getAllByRole('region').filter(region => region.hasAttribute('data-account-id'));
+  return screen.getAllByRole('rowgroup').filter(region => region.hasAttribute('data-account-id'));
 }
 
 function groupNames(): (string | null)[] {
@@ -237,7 +237,7 @@ function groupNames(): (string | null)[] {
 
 /** Every agent row on screen (editors excluded). */
 function rows(): HTMLElement[] {
-  return screen.getAllByRole('listitem').filter(row => row.hasAttribute('data-agent-row-id'));
+  return screen.getAllByRole('row').filter(row => row.hasAttribute('data-agent-row-id'));
 }
 
 /** The agent's own actions sit behind the row's "…"; this opens it. */
@@ -255,9 +255,9 @@ describe('reading the list', () => {
     await waitForGroups();
     expect(groupNames()).toEqual(['v3', 'v12', 'v31']);
 
-    const v31 = screen.getByRole('region', { name: 'v31' });
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
     const agentRows = within(v31)
-      .getAllByRole('listitem')
+      .getAllByRole('row')
       .filter(row => row.hasAttribute('data-agent-row-id'));
     expect(agentRows).toHaveLength(2);
     // Free first: the question the tab is opened with is where to start.
@@ -628,7 +628,7 @@ describe('accounts and agents', () => {
         })
       )
     );
-    const v40 = screen.getByRole('region', { name: 'v40' });
+    const v40 = screen.getByRole('rowgroup', { name: 'v40' });
     expect(within(v40).getByLabelText('v40-777')).toBeTruthy();
     // The editor stays open, emptied, for the next agent; the toast is the receipt.
     expect(
@@ -667,7 +667,7 @@ describe('accounts and agents', () => {
     await user.type(screen.getByRole('textbox', { name: /^Account name/ }), 'v40{Enter}{Enter}');
     // No ad accounts yet, so the filter alone would drop it — but its editor is open.
     expect(await screen.findByRole('textbox', { name: 'Full ad account ID' })).toBeTruthy();
-    expect(screen.getByRole('region', { name: 'v40' })).toBeTruthy();
+    expect(screen.getByRole('rowgroup', { name: 'v40' })).toBeTruthy();
   });
 
   it('explains a duplicate name in the row rather than losing the typing', async () => {
@@ -696,7 +696,7 @@ describe('accounts and agents', () => {
     const user = userEvent.setup();
     render(api);
     await waitForGroups();
-    const v12 = screen.getByRole('region', { name: 'v12' });
+    const v12 = screen.getByRole('rowgroup', { name: 'v12' });
     await user.click(within(v12).getByRole('button', { name: 'Add ad account' }));
     await user.type(screen.getByRole('textbox', { name: 'Full ad account ID' }), '10 00{Enter}');
     expect(await screen.findByRole('alert')).toHaveProperty(
@@ -711,7 +711,7 @@ describe('accounts and agents', () => {
     const user = userEvent.setup();
     render(api);
     await waitForGroups();
-    const v31 = screen.getByRole('region', { name: 'v31' });
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
     await user.click(within(v31).getByRole('button', { name: 'Delete account: v31' }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText('Delete v31?')).toBeTruthy();
@@ -722,7 +722,7 @@ describe('accounts and agents', () => {
     await waitFor(() =>
       expect(api.deleteAccount).toHaveBeenCalledWith({ teamId: TEAM_ID, accountId: V31 })
     );
-    await waitFor(() => expect(screen.queryByRole('region', { name: 'v31' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('rowgroup', { name: 'v31' })).toBeNull());
     // The section's buttons are gone; focus lands on the one that is always there.
     await waitFor(() => expect(document.activeElement?.textContent).toBe('Add account'));
   });
@@ -732,7 +732,7 @@ describe('accounts and agents', () => {
     const user = userEvent.setup();
     render(api);
     await waitForGroups();
-    const v31 = screen.getByRole('region', { name: 'v31' });
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
     await user.click(within(v31).getByRole('button', { name: 'Delete account: v31' }));
     const dialog = await screen.findByRole('dialog');
     await waitFor(() =>
@@ -746,7 +746,7 @@ describe('accounts and agents', () => {
     const first = render(api);
     await waitForGroups();
     await user.click(screen.getByRole('button', { name: 'Collapse v31' }));
-    expect(within(screen.getByRole('region', { name: 'v31' })).queryByText('v31-434')).toBeNull();
+    expect(within(screen.getByRole('rowgroup', { name: 'v31' })).queryByText('v31-434')).toBeNull();
     first.unmount();
 
     render(api);
@@ -875,7 +875,7 @@ describe('deleting an agent', () => {
     await waitFor(() => {
       const active = document.activeElement;
       expect(active).not.toBe(document.body);
-      expect(screen.getByRole('region', { name: 'v31' }).contains(active)).toBe(true);
+      expect(screen.getByRole('rowgroup', { name: 'v31' }).contains(active)).toBe(true);
     });
   });
 });
@@ -921,7 +921,7 @@ describe('an editor a filter would close over', () => {
     // the list's own order, not with every agent the account happens to own.
     await user.clear(search);
     await user.type(search, 'zzz');
-    const v31 = screen.getByRole('region', { name: 'v31' });
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
     expect(within(v31).getByRole('textbox', { name: 'Full ad account ID' })).toBeTruthy();
     expect(v31.textContent).not.toContain('v31-401');
   });
@@ -939,7 +939,7 @@ describe('searching', () => {
     // Identity names stay plain even when they answer the search.
     await user.clear(screen.getByRole('searchbox', { name: 'Search accounts' }));
     await user.type(screen.getByRole('searchbox', { name: 'Search accounts' }), 'v31');
-    const v31 = screen.getByRole('region', { name: 'v31' });
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
     expect(within(v31).getByRole('heading', { name: 'v31' })).toBeTruthy();
     expect(v31.querySelector('.team-account-title mark, .team-agent-id mark')).toBeNull();
     expect(v31.querySelector('.team-agent-tail')).toBeNull();
@@ -952,7 +952,7 @@ describe('searching', () => {
     render(client());
     await waitForGroups();
     await user.type(screen.getByRole('searchbox', { name: 'Search accounts' }), '765434');
-    const v31 = screen.getByRole('region', { name: 'v31' });
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
     expect(within(v31).getByText('1 of 2 ad accounts')).toBeTruthy();
   });
 });
@@ -963,7 +963,7 @@ describe('folding an account', () => {
     const user = userEvent.setup();
     render(api);
     await waitForGroups();
-    const v31 = screen.getByRole('region', { name: 'v31' });
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
     const head = v31.querySelector('.team-account-head') as HTMLElement;
 
     // The name, not the chevron: pressing the account is what a hand does.
@@ -984,7 +984,7 @@ describe('the head of an account', () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
-    const v31 = screen.getByRole('region', { name: 'v31' });
+    const v31 = screen.getByRole('rowgroup', { name: 'v31' });
     expect(within(v31).getByText('1 free')).toBeTruthy();
     expect(within(v31).getByText('1 busy')).toBeTruthy();
 

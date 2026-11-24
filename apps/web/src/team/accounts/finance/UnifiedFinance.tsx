@@ -818,6 +818,9 @@ export function UnifiedAgentFinanceFields({
   return (
     <div
       className="finance-daily-fields unified-agent-finance"
+      /* The money cell of an agent's row (070, T041): fifth under the captions. */
+      role="cell"
+      aria-colindex={5}
       data-finance-agent={agentRowId}
       data-finance-social={accountId}
     >
@@ -987,6 +990,8 @@ function UnifiedFinanceCell({
           data-finance-column={`${date}/${metric}`}
           inputMode="decimal"
           value={draft?.raw ?? formatFinanceAmount(field?.value, '')}
+          /* A row's money reads as text at rest (070, T041): an empty cell is a quiet dash. */
+          placeholder={historical ? undefined : '—'}
           readOnly={!f.canEdit || f.switchingDate}
           disabled={
             !placement ||

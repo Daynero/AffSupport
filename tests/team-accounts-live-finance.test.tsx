@@ -280,7 +280,7 @@ it('keeps an active g4 social and its add-RK action when all old RKs are archive
   );
   expect(await screen.findByRole('button', { name: 'Collapse g4' })).toBeTruthy();
   expect(
-    within(screen.getByRole('region', { name: 'g4' })).getByRole('button', {
+    within(screen.getByRole('rowgroup', { name: 'g4' })).getByRole('button', {
       name: 'Add ad account'
     })
   ).toBeTruthy();
@@ -292,7 +292,7 @@ it('keeps an active g4 social and its add-RK action when all old RKs are archive
     )
   );
   await user.click(
-    within(screen.getByRole('region', { name: 'g4' })).getByRole('button', {
+    within(screen.getByRole('rowgroup', { name: 'g4' })).getByRole('button', {
       name: 'Add ad account'
     })
   );

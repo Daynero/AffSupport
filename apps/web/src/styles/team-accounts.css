@@ -96,11 +96,11 @@
   text-transform: uppercase;
 }
 
-.team-accounts-columns > span:nth-child(4) {
+.team-accounts-columns > :nth-child(4) {
   padding-left: var(--space-2);
 }
 
-.team-accounts-columns > span:last-child {
+.team-accounts-columns > :last-child {
   text-align: right;
 }
 
@@ -2586,7 +2586,7 @@ button.team-task-agent-chip.is-selected {
     grid-column: 6;
     grid-row: 1;
   }
-  .team-account-space.is-unified .team-accounts-columns > span:last-child {
+  .team-account-space.is-unified .team-accounts-columns > :last-child {
     grid-column: 5;
     grid-row: 1;
   }
@@ -2718,7 +2718,7 @@ button.team-task-agent-chip.is-selected {
   align-content: center;
   background: var(--color-surface);
 }
-.team-account-space.is-unified .team-accounts-columns > span:nth-child(2) {
+.team-account-space.is-unified .team-accounts-columns > :nth-child(2) {
   position: sticky;
   left: var(--team-agent-rail);
   z-index: 1;
@@ -2979,8 +2979,8 @@ button.team-task-agent-chip.is-selected {
   .team-account-space.is-unified .team-agent-status {
     display: flex;
   }
-  .team-account-space.is-unified .team-accounts-columns > span:nth-child(3),
-  .team-account-space.is-unified .team-accounts-columns > span:nth-child(4) {
+  .team-account-space.is-unified .team-accounts-columns > :nth-child(3),
+  .team-account-space.is-unified .team-accounts-columns > :nth-child(4) {
     display: none;
   }
   .team-account-space.is-unified .team-agent-actions {
@@ -3036,10 +3036,10 @@ button.team-task-agent-chip.is-selected {
   .team-account-space.is-unified .team-accounts-columns {
     grid-template-areas: 'rail id actions' 'finance finance finance';
   }
-  .team-account-space.is-unified .team-accounts-columns > span:nth-child(2) {
+  .team-account-space.is-unified .team-accounts-columns > :nth-child(2) {
     grid-area: id;
   }
-  .team-account-space.is-unified .team-accounts-columns > span:last-child {
+  .team-account-space.is-unified .team-accounts-columns > :last-child {
     grid-area: actions;
   }
   .team-account-space.is-unified .team-agent-status {
@@ -3137,4 +3137,80 @@ button.team-task-agent-chip.is-selected {
 }
 .account-linked-launch-row > [aria-hidden='true'] {
   display: none;
+}
+
+/*
+ * Money that reads as text until it is written (070, T041).
+ *
+ * Every agent row carried three empty bordered boxes — forty rows were a
+ * hundred and twenty boxes, a spreadsheet's grid laid over a list of agents.
+ * The cells are still the same fields, so Tab and Enter still walk the column
+ * the way the team enters a day's figures; what changed is what they look like
+ * at rest: a figure, right-aligned like every column of figures, or a quiet
+ * dash where nothing is written yet. The frame comes back where the hand is —
+ * a faint one over the row under the pointer, the full field once one has the
+ * caret — and it stays on a figure not yet kept or refused, which is the one
+ * state a person must not miss.
+ */
+.team-account-space.is-unified .team-agent-row .unified-agent-finance .ui-input {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.team-account-space.is-unified .team-agent-row .unified-agent-finance input {
+  text-align: right;
+}
+.team-account-space.is-unified .team-agent-row .unified-agent-finance input::placeholder {
+  color: var(--color-text-muted);
+}
+.team-account-space.is-unified
+  .team-agent-row:hover
+  .unified-agent-finance
+  .ui-input:not(.is-disabled) {
+  border-color: var(--color-border);
+}
+.team-account-space.is-unified .team-agent-row .unified-agent-finance .ui-input:focus-within {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 3px var(--color-secondary-softer);
+}
+.team-account-space.is-unified
+  .team-agent-row
+  .unified-agent-finance
+  [data-finance-state='dirty']
+  .ui-input {
+  border-color: var(--color-warning-solid);
+  background: var(--color-surface);
+}
+.team-account-space.is-unified .team-agent-row .unified-agent-finance .ui-input.is-invalid {
+  border-color: var(--color-error-solid);
+}
+/* A closed period's figures are text already; they line up the same way. */
+.team-account-space.is-unified .unified-agent-finance > .finance-cell.tabular-nums {
+  text-align: right;
+}
+/* The captions sit over their figures — right-aligned, as the figures are —
+   rather than starting where the next column's caption ends. */
+.team-account-space.is-unified .unified-finance-headings > span {
+  justify-items: end;
+  /* The field's own inset and border, so a caption ends where its figure does. */
+  padding-right: calc(var(--space-2) + 1px);
+  text-align: right;
+}
+
+/*
+ * The inventory's table underneath (070, T041): `Table`, `TableHeader`,
+ * `TableRow` and `TableCell` give the list its roles — headers, rows, cells —
+ * and this sheet keeps giving it its grid. Two of the inventory's defaults are
+ * for a table of short facts and are taken back here: a cell that hides what
+ * overflows it (a focus ring, a run's marker, a menu's trigger would be cut),
+ * and the size step's type, which the cells already set for themselves.
+ */
+.team-accounts-table .ui-table-row {
+  min-height: 0;
+  font-size: inherit;
+}
+.team-accounts-table .team-agent-row > .ui-table-cell {
+  overflow: visible;
+  text-overflow: clip;
 }

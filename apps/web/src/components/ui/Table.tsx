@@ -3,6 +3,7 @@ import {
   type HTMLAttributes,
   type KeyboardEvent,
   type ReactNode,
+  type Ref,
   type ThHTMLAttributes
 } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
@@ -115,6 +116,8 @@ export function TableHeaderCell({
 }
 
 export interface TableRowProps extends HTMLAttributes<HTMLDivElement> {
+  /** The row's node, for a list that measures or drags its rows (React 19 passes it as a prop). */
+  ref?: Ref<HTMLDivElement>;
   selected?: boolean;
   /** The row itself is the target — a file, an account, a task. */
   interactive?: boolean;

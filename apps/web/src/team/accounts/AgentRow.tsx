@@ -59,7 +59,7 @@ import { AgentTasksPeek } from './AgentTasksPeek';
 import { useTeam } from '../TeamContext';
 import { copyText } from '../../two-factor/clipboard';
 import { runCountKey, taskCountKey } from './plural';
-import { DropdownMenu } from '../../components/ui/index';
+import { DropdownMenu, TableCell, TableRow } from '../../components/ui/index';
 import { ArchivedAccountActions } from './AccountArchiveDrawer';
 
 const ICON = 18;
@@ -529,16 +529,15 @@ export function AgentRow({
   );
 
   return (
-    <li
+    <TableRow
       ref={reorder.ref}
-      role="listitem"
       data-reorder-id={agent.id}
       data-finance-social={agent.accountId}
       data-name-color-value={TEAM_ACCOUNT_NAME_COLORS[nameColor]}
       className={`team-agent-row${free ? ' is-free' : ''}${pending ? ' is-pending' : ''}`}
       data-agent-row-id={agent.id}
       data-free={free ? 'true' : 'false'}
-      aria-busy={pending || undefined}
+      busy={pending}
       onKeyDown={event => {
         if (
           event.target instanceof Element &&
@@ -557,7 +556,7 @@ export function AgentRow({
           id, the same chip a task shows — so an ad account never reads like a
           second social account, however its id happens to end. The name cycles
           personal decoration; the separate small control copies the full ID. */}
-      <div className="team-agent-id">
+      <TableCell className="team-agent-id" aria-colindex={1}>
         <button
           type="button"
           data-name-color="true"
@@ -600,12 +599,12 @@ export function AgentRow({
           agentLabel={tag}
           onToggle={(label, next) => void run(() => onToggleLabel(label.id, next))}
         />
-      </div>
+      </TableCell>
 
       {/* The state in one word, in its own column, so a folded eye can run
           down it. A dot and the word, not a pill: a row already carries two
           real buttons, and a third thing shaped like one is a press wasted. */}
-      <div className="team-agent-status">
+      <TableCell className="team-agent-status" aria-colindex={2}>
         <span
           className={`team-agent-state${agent.archivedAt ? ' is-archived' : free ? ' is-free' : ' is-busy'}`}
         >
@@ -624,11 +623,11 @@ export function AgentRow({
             pushed that run's age out of line with the others, and on a free agent it stood
             under Run. Tasks belong to the agent, not to one of its runs. */}
         {tasksLink}
-      </div>
+      </TableCell>
 
       {/* The runs: one line each, with the day it was written. A line being
           corrected is a field; a new run is a field under the last line. */}
-      <div className="team-agent-runs">
+      <TableCell className="team-agent-runs" aria-colindex={3}>
         {linkedLaunches}
         {agent.runs.map(item =>
           runEditing?.runId === item.id ? (
@@ -714,9 +713,9 @@ export function AgentRow({
             onSaved={() => onRunEditingChange(null)}
           />
         )}
-      </div>
+      </TableCell>
 
-      <div className="team-agent-actions">
+      <TableCell className="team-agent-actions" aria-colindex={4}>
         {canEdit && (
           <>
             {/*
@@ -790,7 +789,7 @@ export function AgentRow({
             />
           )
         )}
-      </div>
+      </TableCell>
       {finance}
 
       {/* Focus starts on Cancel: Enter on the menu item and Enter again must
@@ -825,7 +824,7 @@ export function AgentRow({
           }
         />
       )}
-    </li>
+    </TableRow>
   );
 }
 
@@ -1048,9 +1047,9 @@ export function AgentEditRow({
   };
 
   return (
-    <li className="team-agent-row is-editing">
+    <TableRow className="team-agent-row is-editing">
       <span className="team-agent-rail" aria-hidden="true" />
-      <div className="team-agent-edit-fields">
+      <div className="team-agent-edit-fields" role="cell" aria-colspan={3}>
         <EditField
           inputRef={firstField}
           className="team-agent-edit-id"
@@ -1087,7 +1086,7 @@ export function AgentEditRow({
           </span>
         )}
       </div>
-      <div className="team-agent-actions">
+      <div className="team-agent-actions" role="cell" aria-colindex={4}>
         <IconButton
           title=""
           label={t('teamAccountsSave')}
@@ -1106,7 +1105,7 @@ export function AgentEditRow({
           <X size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </IconButton>
       </div>
-    </li>
+    </TableRow>
   );
 }
 
