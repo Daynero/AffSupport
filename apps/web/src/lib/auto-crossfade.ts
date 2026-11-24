@@ -45,6 +45,10 @@ const CONTROLS = [
 const FLOATING = '[role="menu"], [role="listbox"], .ui-popover, .ui-menu';
 const DIALOG = '.ui-modal, .modal';
 const BUSY = '.ui-route-skeleton, .ui-skeleton, [aria-busy="true"]';
+/** What stands in for content that is on its way. */
+const PLACEHOLDER = '.ui-route-skeleton, .ui-skeleton';
+/** Content that fades itself in over the place a placeholder held (`Reveal`). */
+const ARRIVING = '.ui-reveal.is-arriving';
 const OPT_OUT = '[data-crossfade="off"]';
 
 /** Past this the copy costs more than the jump it hides. */
@@ -397,6 +401,17 @@ function hold(
     const live = scope.isConnected ? scope : parent;
     const waiting =
       Boolean(live.querySelector(waitFor)) || (requests && fetchPendingSince(sincePage));
+    // A copy of a placeholder over content that makes its own entrance is a skeleton laid on
+    // top of the arrived list (owner, beta 25.11: "a half-transparent skeleton of four rows
+    // over any content"). The content's fade-in is the second soft change; the placeholder
+    // only has to be gone before its first frame. Not after a quiet spell, and not once
+    // nothing is loading: the arrived rows have placeholders of their own (a thumbnail on its
+    // way), and waiting for those kept the copy of the old one over the list for seconds.
+    if (above !== null && copy.querySelector(PLACEHOLDER) && live.querySelector(ARRIVING)) {
+      timer = null;
+      remove();
+      return;
+    }
     if (!waiting && at - lastChange >= QUIET_MS) {
       timer = null;
       fade();

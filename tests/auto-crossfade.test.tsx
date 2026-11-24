@@ -134,6 +134,46 @@ describe('auto crossfade (058)', () => {
     expect(animations).toHaveLength(2);
   });
 
+  it('takes the placeholder copy away at once when the content makes its own entrance', async () => {
+    function Slow() {
+      const [state, setState] = useState<'old' | 'loading' | 'new'>('old');
+      return (
+        <div className="page-viewport">
+          <main>
+            <button aria-pressed={state !== 'old'} onClick={() => setState('loading')}>
+              Folder
+            </button>
+            <button data-testid="answer" onClick={() => setState('new')} />
+            {state === 'loading' ? (
+              <span className="ui-skeleton" />
+            ) : (
+              // What `Reveal` renders for content that replaces a painted placeholder.
+              <div className={state === 'new' ? 'ui-reveal is-arriving' : 'ui-reveal'}>
+                <p data-testid="rows">{state}</p>
+                {/* A row's own picture still on its way: not the placeholder that was copied. */}
+                {state === 'new' && <span className="ui-skeleton" />}
+              </div>
+            )}
+          </main>
+        </div>
+      );
+    }
+    render(<Slow />);
+    fireEvent.click(screen.getByText('Folder'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    expect(document.querySelectorAll('[data-auto-ghost]')).toHaveLength(2);
+
+    fireEvent.click(screen.getByTestId('answer'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    // No skeleton left fading over the list that has arrived: the list fades itself in.
+    const left = [...document.querySelectorAll<HTMLElement>('[data-auto-ghost]')];
+    expect(left.some(copy => copy.querySelector('.ui-skeleton'))).toBe(false);
+  });
+
   it('leaves a plain action and a link alone', () => {
     render(<Board />);
     fireEvent.click(screen.getByText('Save'));
