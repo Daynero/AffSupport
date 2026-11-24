@@ -165,7 +165,6 @@ export const TranscriptionRow = memo(function TranscriptionRow({
                 {copied ? t('transcriptionCopied') : t('transcriptionCopy')}
               </Button>
               <ExportMenu
-                portal
                 hasTimings={job.timed !== false}
                 disabled={silent}
                 onExport={(format, content) => actions.export(job.id, format, content)}

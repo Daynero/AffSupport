@@ -6721,13 +6721,6 @@ body:has(.public-home) {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
-.transcription-copy-toggle {
-  font-size: var(--text-label);
-}
-.transcription-copy-toggle:hover,
-.transcription-copy-toggle[aria-expanded='true'] {
-  background: var(--color-surface);
-}
 /* Placed by the component now (021): it is portalled to the body so the
    toolbar cannot clip it, and it flips above the trigger when the window is
    short. What is left here is what it looks like. */

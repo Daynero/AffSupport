@@ -167,24 +167,8 @@
    the panel behind it, because the figure is what draws the eye, not the question mark. */
 .transcription-row-language-share {
   flex: none;
-  padding: 2px 6px;
-  border: 0;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-warning);
-  font: inherit;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
-  cursor: pointer;
-  transition: background var(--dur-control) var(--ease-standard);
-}
-.transcription-row-language-share:hover,
-.transcription-row-language-share[aria-expanded='true'] {
-  background: color-mix(in srgb, var(--color-warning) 20%, transparent);
-}
-.transcription-row-language-share:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
 }
 .transcription-row-language.is-probing {
   gap: 6px;
@@ -201,34 +185,15 @@
   color: var(--color-warning);
 }
 
-/* The doubt marker: a target, not decoration — it opens what the detector heard. */
+/* The doubt marker — a target, not decoration: it opens what the detector heard. Both it and
+   the per cent are the inventory's (070 T035); while the panel is open, both say so with the
+   plate the inventory's hover draws. */
 .transcription-language-doubt-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex: none;
-  width: 20px;
-  /* The app gives every button a touch-sized minimum; this one lives inside a line of
-     small print, where a 44-pixel target would be a stripe rather than a mark. */
-  height: 20px;
-  min-height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  transition:
-    background var(--dur-control) var(--ease-standard),
-    color var(--dur-control) var(--ease-standard);
 }
-.transcription-language-doubt-toggle:hover,
-.transcription-language-doubt-toggle[aria-expanded='true'] {
-  background: color-mix(in srgb, var(--color-warning) 20%, transparent);
-}
-.transcription-language-doubt-toggle:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+.transcription-language-doubt-toggle[aria-expanded='true'],
+.transcription-row-language-share[aria-expanded='true'] {
+  background: var(--ui-softer);
 }
 
 /* The panel: every reading the probe took, and every line a way to settle it. */
@@ -275,35 +240,22 @@
   padding: 0;
   list-style: none;
 }
-.transcription-language-doubt-list button {
+/* A reading is the inventory's ghost button at the small size (070 T035); its label is the
+   row: name, bar, figure — the bars share one column so the lengths can be compared by eye. */
+.transcription-language-doubt-option.ui-button {
+  justify-content: stretch;
+  font-weight: inherit;
+  text-align: start;
+}
+.transcription-language-doubt-option > .ui-button-label,
+.transcription-language-doubt-rest {
   display: grid;
-  /* The app's touch-sized floor turned a table of readings into a ladder of tall rows —
-     and only the pressable ones, so the list lost its rhythm. One height for every row. */
-  min-height: 32px;
-  /* Name, bar, figure — the bars share one column so the lengths can be compared by eye. */
   grid-template-columns: minmax(0, 1fr) 78px 40px;
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  padding: 5px 6px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
 }
-.transcription-language-doubt-list button:hover:not(:disabled),
-.transcription-language-doubt-list button:focus-visible {
-  background: var(--color-accent-softer);
-  outline: none;
-}
-.transcription-language-doubt-list button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-.transcription-language-doubt-list button[aria-current] .transcription-language-doubt-name {
+.transcription-language-doubt-option[aria-current] .transcription-language-doubt-name {
   font-weight: 650;
 }
 .transcription-language-doubt-name {
@@ -312,14 +264,12 @@
   white-space: nowrap;
 }
 /* The confidence the model kept for languages it never named — a reading, not a choice, so
-   it carries no button and no hover. */
+   it carries no button and no hover; it takes the small button's box so its columns line up
+   with the rows above. */
 .transcription-language-doubt-rest {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 78px 40px;
-  align-items: center;
-  min-height: 32px;
-  gap: var(--space-2);
-  padding: 5px 6px;
+  min-height: var(--control-height-sm);
+  padding: var(--control-padding-sm);
+  border: 1px solid transparent;
   color: var(--color-text-muted);
 }
 .transcription-language-doubt-rest .transcription-language-doubt-bar > span {
@@ -357,27 +307,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-}
-.transcription-language-doubt-neighbours button {
-  min-height: 0;
-  padding: 4px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  background: var(--color-surface-subtle);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--text-caption);
-  cursor: pointer;
-}
-.transcription-language-doubt-neighbours button:hover:not(:disabled),
-.transcription-language-doubt-neighbours button:focus-visible {
-  border-color: var(--color-accent);
-  background: var(--color-accent-softer);
-  outline: none;
-}
-.transcription-language-doubt-neighbours button:disabled {
-  cursor: default;
-  opacity: 0.6;
 }
 
 /* The likely alternatives sit at the top of the picker, with a line under them so the
@@ -557,7 +486,8 @@
   }
 }
 
-/* Download: a split control in the copy menu's idiom. */
+/* Download and copy: split controls — the inventory's outline button and, joined to its
+   right edge, a narrow one holding the caret (070 T035). */
 .transcription-export-menu {
   position: relative;
   display: flex;
@@ -567,94 +497,12 @@
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
-.transcription-export-toggle,
-.transcription-copy-toggle {
-  display: flex;
-  align-items: center;
-  padding: 0 6px;
-  border: 1px solid var(--color-border);
-  border-left: 0;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  color: var(--color-text);
-  background: var(--color-surface-muted);
-  line-height: 1;
-  cursor: pointer;
-}
-.transcription-export-toggle:hover:not(:disabled),
-.transcription-export-toggle[aria-expanded='true'],
-.transcription-copy-toggle:hover:not(:disabled),
-.transcription-copy-toggle[aria-expanded='true'] {
-  background: var(--color-surface);
-}
-.transcription-export-toggle:disabled,
-.transcription-copy-toggle:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.transcription-export-toggle:focus-visible,
-.transcription-copy-toggle:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-.transcription-export-popover {
-  position: absolute;
-  z-index: var(--layer-popover);
-  top: calc(100% + 8px);
-  right: 0;
-  display: grid;
-  gap: var(--space-3);
-  width: 280px;
-  padding: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-menu);
-  animation: pop-in var(--dur-pop) var(--ease-enter);
-  transform-origin: top right;
-  text-align: left;
-}
-/* The grid is the menu's own element, sitting between the popover and its
-   groups so the arrow-key walk has something to own; it takes no space of its
-   own. */
-.transcription-export-grid {
-  display: contents;
-}
-.transcription-export-group {
-  display: grid;
-  gap: 6px;
-}
-.transcription-export-group-title {
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.transcription-export-formats {
-  display: flex;
-  gap: 6px;
-}
-.transcription-export-formats button {
-  flex: 1;
-  padding: 6px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-subtle);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--text-caption);
-  cursor: pointer;
-}
-.transcription-export-formats button:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  background: var(--color-accent-softer);
-}
-.transcription-export-formats button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-.transcription-export-formats button:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+.transcription-export-toggle.ui-button,
+.transcription-copy-toggle.ui-button {
+  padding-inline: var(--space-1);
+  border-left-width: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 /* In the toolbar the copy button folds to its icon like its neighbours; in the modal footer
    the download control keeps its words. */
@@ -705,16 +553,6 @@
   color: var(--color-text-muted);
 }
 
-/* In the viewer's footer the menu opens upward, over the footer's own space rather than
-   the text: the dialog clips anything past its edge. */
-.transcript-modal-footer .transcription-export-popover {
-  top: auto;
-  right: auto;
-  bottom: calc(100% + 8px);
-  left: 0;
-  transform-origin: bottom left;
-}
-
 /* The "this looks short" note under a fast run, with the full model one click away. */
 .transcription-row-hint {
   display: flex;
@@ -734,23 +572,6 @@
   font-size: var(--text-caption);
 }
 
-/* The reasons under a greyed-out choice, said once. */
-.transcription-export-note {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--text-caption);
-  line-height: 1.4;
-}
-/* Where the actions sit at the left edge, the menu opens to the right instead of off-screen. */
-@media (max-width: 1024px) {
-  .transcription-row-actions .transcription-export-popover {
-    right: auto;
-    left: 0;
-    transform-origin: top left;
-  }
-}
 /* A segment that can be seeked to is a keyboard stop; the ring says so without moving text. */
 .ts-segment[tabindex]:focus-visible {
   outline: 2px solid var(--color-accent);
@@ -921,14 +742,28 @@
   transform: translate(-50%, -50%);
 }
 
+/* The language picker's field is the inventory's `Input` (070 T035). Its own rules went with
+   the translation runtime in October and left a bare browser box behind; in a row it is the
+   smallest field, hugging the name it shows and never wider than the line it sits in. */
+.transcript-language-combobox {
+  min-width: 0;
+}
+.transcript-language-combobox.is-compact {
+  max-width: 100%;
+}
+.transcript-language-combobox.is-compact .ui-input {
+  max-width: min(190px, 100%);
+  padding-inline: var(--space-2);
+  font-weight: 650;
+}
+/* An unsure name takes the row's warning colour, as the mark before it does. */
+.transcription-row-language.is-uncertain .transcript-language-combobox .ui-input {
+  color: inherit;
+}
+
 /* ==========================================================================
    Layers rendered on the body: a list card clips what spills past its edge
    ========================================================================== */
-.transcription-export-popover.is-portal {
-  position: fixed;
-  inset: auto;
-  overflow-y: auto;
-}
 /* Placed by the component (021): the surface is the shared popover's, anchored
    to the field and sent to the body so no list card can clip it. */
 .transcript-language-listbox {

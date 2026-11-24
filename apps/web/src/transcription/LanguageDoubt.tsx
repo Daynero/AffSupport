@@ -1,11 +1,11 @@
-import { useId, useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { HelpCircle } from 'lucide-react';
 import {
   confusableLanguages,
   TRANSCRIPTION_LANGUAGE_CODES,
   type TranscriptionJob
 } from '@video-compressor/shared';
-import { Popover } from '../components/ui/index';
+import { Button, IconButton, Popover } from '../components/ui/index';
 import type { Language, Translate } from '../i18n';
 import { languageDisplayName } from './language';
 
@@ -49,8 +49,8 @@ export function LanguageDoubt({
     setOpen(false);
     opener.current?.focus();
   };
-  const toggle = (trigger: HTMLButtonElement | null) => {
-    opener.current = trigger;
+  const toggle = (trigger: RefObject<HTMLButtonElement | null>) => {
+    opener.current = trigger.current;
     setOpen(value => !value);
   };
 
@@ -126,8 +126,12 @@ export function LanguageDoubt({
             const percent = Math.round(candidate.share * 100);
             return (
               <li key={candidate.language}>
-                <button
-                  type="button"
+                <Button
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  block
+                  className="transcription-language-doubt-option"
                   disabled={disabled}
                   aria-current={candidate.language === detected || undefined}
                   onClick={() => choose(candidate.language)}
@@ -141,7 +145,7 @@ export function LanguageDoubt({
                   <span className="transcription-language-doubt-percent">
                     {percent > 0 ? `${percent}%` : '—'}
                   </span>
-                </button>
+                </Button>
               </li>
             );
           })}
@@ -171,9 +175,16 @@ export function LanguageDoubt({
           <p className="transcription-language-doubt-also">{t('transcriptionLanguageDoubtAlso')}</p>
           <div className="transcription-language-doubt-neighbours">
             {neighbours.map(code => (
-              <button key={code} type="button" disabled={disabled} onClick={() => choose(code)}>
+              <Button
+                key={code}
+                color="neutral"
+                variant="outline"
+                size="xs"
+                disabled={disabled}
+                onClick={() => choose(code)}
+              >
                 {name(code)}
-              </button>
+              </Button>
             ))}
           </div>
         </>
@@ -187,32 +198,36 @@ export function LanguageDoubt({
   const topShare = candidates[0]?.share;
   return (
     <>
-      <button
+      {/* The smallest plate the inventory has: it sits in a line of small print, where a
+          touch-sized target would be a stripe rather than a mark. */}
+      <IconButton
         ref={anchor}
-        type="button"
+        color="warning"
+        size="xs"
         className="transcription-language-doubt-toggle"
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={t('transcriptionLanguageDoubt')}
-        title={t('transcriptionLanguageDoubt')}
-        onClick={event => toggle(event.currentTarget)}
+        label={t('transcriptionLanguageDoubt')}
+        onClick={() => toggle(anchor)}
       >
-        <HelpCircle size={14} strokeWidth={2} aria-hidden="true" />
-      </button>
+        <HelpCircle strokeWidth={2} aria-hidden="true" />
+      </IconButton>
       {children}
       {measured && topShare !== undefined && (
-        <button
+        <Button
           ref={shareTrigger}
-          type="button"
+          color="warning"
+          variant="ghost"
+          size="xs"
           className="transcription-row-language-share"
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-label={`${Math.round(topShare * 100)}% · ${t('transcriptionLanguageDoubt')}`}
           title={t('transcriptionLanguageDoubt')}
-          onClick={event => toggle(event.currentTarget)}
+          onClick={() => toggle(shareTrigger)}
         >
           {Math.round(topShare * 100)}%
-        </button>
+        </Button>
       )}
       {/* Two triggers open it, so both count as "inside" for the dismissal. */}
       <Popover

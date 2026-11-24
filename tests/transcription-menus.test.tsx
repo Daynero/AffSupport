@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React, { useRef } from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Translate } from '../apps/web/src/i18n.js';
 import { useAnchoredLayer } from '../apps/web/src/components/ui/useAnchoredLayer.js';
@@ -18,37 +18,33 @@ afterEach(() => {
 });
 
 describe('export menu', () => {
-  it('opens on the body when portalled, names why formats are unavailable, and walks by arrow', () => {
+  it('opens the inventory menu on the body and names why formats are unavailable', async () => {
     const onExport = vi.fn();
-    const { container } = render(
-      <ExportMenu hasTimings={false} onExport={onExport} portal t={t} />
-    );
+    const { container } = render(<ExportMenu hasTimings={false} onExport={onExport} t={t} />);
     fireEvent.click(screen.getByRole('button', { name: 'transcriptionExportOptions' }));
-    const menu = screen.getByRole('menu');
-    // Portalled: the card that would clip it is not an ancestor. The surface
-    // the shared popover draws is what sits on the body and carries the
-    // placement; the menu is its content (021, T064).
+    const menu = screen.getByRole('menu', { name: 'transcriptionExportOptions' });
+    // On the body (070 T035): the card that would clip it is not an ancestor.
     expect(container.contains(menu)).toBe(false);
-    const surface = menu.closest('.ui-popover') as HTMLElement;
-    expect(surface.parentElement).toBe(document.body);
-    expect(surface.style.position).toBe('fixed');
+    expect(menu.closest('.ui-menu-popover')).toBeTruthy();
     const items = screen.getAllByRole('menuitem');
-    // txt for the transcript only; the timed formats and the translation groups are off.
-    expect(items.filter(item => !(item as HTMLButtonElement).disabled)).toHaveLength(1);
-    expect(menu.textContent).toContain('transcriptionExportNoTimings');
+    expect(items.map(item => item.textContent)).toEqual([
+      'transcriptionExportTxt',
+      expect.stringContaining('transcriptionExportSrt'),
+      expect.stringContaining('transcriptionExportVtt')
+    ]);
+    // txt only; the timed formats are off, and each says why on itself.
+    expect(items.filter(item => item.getAttribute('aria-disabled') !== 'true')).toHaveLength(1);
+    expect(items[1]!.textContent).toContain('transcriptionExportNoTimings');
     expect(menu.textContent).not.toContain('transcriptionExportNoTranslation');
 
-    // Focus lands on the first enabled item; arrows wrap around the enabled ones.
-    expect(document.activeElement).toBe(items[0]);
-    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
-    expect(document.activeElement).toBe(items[0]);
-    fireEvent.keyDown(document.activeElement!, { key: 'Enter' });
-    fireEvent.click(items[0]);
+    // Focus lands on the first enabled item.
+    await waitFor(() => expect(document.activeElement).toBe(items[0]));
+    fireEvent.click(items[0]!);
     expect(onExport).toHaveBeenCalledWith('txt', 'transcript');
-    expect(screen.queryByRole('menu')).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
   });
 
-  it('closes on Escape without closing what is above it', () => {
+  it('closes on Escape without closing what is above it, and gives focus back', async () => {
     const outer = vi.fn();
     render(
       <div onKeyDown={outer}>
@@ -56,13 +52,19 @@ describe('export menu', () => {
       </div>
     );
     const toggle = screen.getByRole('button', { name: 'transcriptionExportOptions' });
+    expect(toggle.getAttribute('aria-haspopup')).toBe('menu');
     fireEvent.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(
-      screen.getAllByRole('menuitem').every(item => !(item as HTMLButtonElement).disabled)
+      screen.getAllByRole('menuitem').every(item => item.getAttribute('aria-disabled') !== 'true')
     ).toBe(true);
+    await waitFor(() =>
+      expect(screen.getByRole('menu').contains(document.activeElement)).toBe(true)
+    );
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
-    expect(screen.queryByRole('menu')).toBeNull();
-    expect(document.activeElement).toBe(toggle);
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
+    expect(outer).not.toHaveBeenCalledWith(expect.objectContaining({ key: 'Escape' }));
+    await waitFor(() => expect(document.activeElement).toBe(toggle));
   });
 });
 
@@ -84,6 +86,8 @@ describe('language combobox', () => {
     );
     const input = screen.getByRole('combobox');
     expect(input).toHaveProperty('value', 'Українська');
+    // The inventory's field (070 T035), not a bare browser box.
+    expect(input.closest('.ui-input')).toBeTruthy();
     // The listbox exists only while open, and so does the reference to it.
     expect(input.getAttribute('aria-controls')).toBeNull();
     fireEvent.focus(input);

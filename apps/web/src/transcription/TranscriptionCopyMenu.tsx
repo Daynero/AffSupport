@@ -64,11 +64,12 @@ export function TranscriptionCopyMenu({
             put it back, overflow, fold again — a flicker between two toolbars. */}
         <span className="action-label">{label}</span>
       </Button>
-      <button
+      <Button
         ref={trigger}
-        type="button"
+        variant="secondary"
         className="transcription-copy-toggle"
         aria-label={t('transcriptionCopyOptions')}
+        title={t('transcriptionCopyOptions')}
         // "dialog", not the default "menu": what opens is a set of radio
         // choices, and announcing it as a menu tells a screen-reader user to
         // expect arrow-key menu navigation that is not there.
@@ -78,7 +79,7 @@ export function TranscriptionCopyMenu({
         onClick={() => setOpen(value => !value)}
       >
         <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
-      </button>
+      </Button>
       <Popover
         open={open}
         onClose={() => {

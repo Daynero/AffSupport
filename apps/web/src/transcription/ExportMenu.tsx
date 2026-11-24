@@ -1,16 +1,24 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronDown, Download } from 'lucide-react';
 import type { Translate } from '../i18n';
-import { Button } from '../components/ui/index';
-import { Popover } from '../components/ui/index';
+import { Button, DropdownMenu, type MenuEntry } from '../components/ui/index';
 import type { TranscriptExportContent, TranscriptExportFormat } from './export';
 
+/**
+ * Download: a split control. The button saves the plain text straight away; the caret
+ * beside it opens every format.
+ *
+ * The menu is the inventory's (070 T035): focus lands on the first choice, arrows walk
+ * the enabled ones with Home and End, Escape closes the menu and nothing above it — inside
+ * the viewer it used to fall through and close the whole dialog — and Tab leaves it. It is
+ * on the body and flips above the caret when there is no room below, so neither a list
+ * card nor the viewer's footer clips it.
+ */
 export function ExportMenu({
   hasTimings,
   busy = false,
   disabled = false,
   compact = false,
-  portal = false,
   onExport,
   t
 }: {
@@ -19,156 +27,71 @@ export function ExportMenu({
   disabled?: boolean;
   /** Icon-only trigger, for a row where every word is fought over. */
   compact?: boolean;
-  /** Rendered on the body and placed beside the button: inside a list card the card clips it. */
-  portal?: boolean;
   onExport: (format: TranscriptExportFormat, content: TranscriptExportContent) => void;
   t: Translate;
 }) {
   const [open, setOpen] = useState(false);
-  const menuId = useId();
-  const root = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
 
-  const close = (restoreFocus: boolean) => {
-    setOpen(false);
-    if (restoreFocus) toggle.current?.focus();
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    // A menu takes the keyboard: focus lands on its first choice, arrows move between
-    // the enabled ones, Escape closes the menu and nothing above it — inside the viewer
-    // it used to fall through and close the whole dialog.
-    const items = () =>
-      Array.from(
-        menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? []
-      );
-    items()[0]?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as Node;
-      const inside = root.current?.contains(target) || menu.current?.contains(target);
-      if (!inside) return;
-      if (event.key === 'Tab') {
-        // Tab leaves the menu the way Escape does: back on the toggle. Portalled to the end
-        // of the body, the menu has nothing after it, and a natural Tab out of it landed on
-        // the first link of the page.
-        event.preventDefault();
-        close(true);
-        return;
-      }
-      const list = items();
-      const index = list.indexOf(document.activeElement as HTMLButtonElement);
-      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
-        event.preventDefault();
-        list[(index + 1) % list.length]?.focus();
-      } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
-        event.preventDefault();
-        list[(index - 1 + list.length) % list.length]?.focus();
-      } else if (event.key === 'Home') {
-        list[0]?.focus();
-      } else if (event.key === 'End') {
-        list.at(-1)?.focus();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [open]);
-
-  const choose = (format: TranscriptExportFormat, content: TranscriptExportContent) => {
-    close(true);
-    onExport(format, content);
-  };
-  const formats: Array<{ format: TranscriptExportFormat; label: string; enabled: boolean }> = [
-    { format: 'txt', label: t('transcriptionExportTxt'), enabled: true },
-    { format: 'srt', label: t('transcriptionExportSrt'), enabled: hasTimings },
-    { format: 'vtt', label: t('transcriptionExportVtt'), enabled: hasTimings }
+  const formats: Array<{ format: TranscriptExportFormat; label: string; timed: boolean }> = [
+    { format: 'txt', label: t('transcriptionExportTxt'), timed: false },
+    { format: 'srt', label: t('transcriptionExportSrt'), timed: true },
+    { format: 'vtt', label: t('transcriptionExportVtt'), timed: true }
   ];
-  const contents: Array<{ content: TranscriptExportContent; label: string; enabled: boolean }> = [
-    { content: 'transcript', label: t('transcriptionCopyContentTranscript'), enabled: true }
+  const contents: Array<{ content: TranscriptExportContent; label: string }> = [
+    { content: 'transcript', label: t('transcriptionCopyContentTranscript') }
   ];
-
-  /*
-   * One markup for both homes: beside a list card, where it has to leave the
-   * card to avoid being clipped, and in place inside the viewer, which has room
-   * for it. Anchoring is what decides — the shared Popover portals whatever it
-   * anchors.
-   */
-  const grid = (
-    <div id={menuId} ref={menu} role="menu" className="transcription-export-grid">
-      {contents.map(entry => (
-        <div
-          key={entry.content}
-          className="transcription-export-group"
-          role="group"
-          aria-labelledby={`${menuId}-${entry.content}`}
-        >
-          <span id={`${menuId}-${entry.content}`} className="transcription-export-group-title">
-            {entry.label}
-          </span>
-          <div className="transcription-export-formats">
-            {formats.map(item => (
-              <button
-                key={`${entry.content}-${item.format}`}
-                type="button"
-                role="menuitem"
-                disabled={!entry.enabled || !item.enabled}
-                onClick={() => choose(item.format, entry.content)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-      {/* Why something is greyed out, said once where everyone can read it — a title on a
-      disabled button reaches neither the keyboard nor a finger. */}
-      {!hasTimings && (
-        <p className="transcription-export-note">
-          {!hasTimings && <span>{t('transcriptionExportNoTimings')}</span>}
-        </p>
-      )}
-    </div>
-  );
+  const items: MenuEntry[] = contents.flatMap(entry => [
+    { heading: entry.label },
+    ...formats.map(item => {
+      const available = hasTimings || !item.timed;
+      return {
+        id: `${entry.content}-${item.format}`,
+        label: item.label,
+        disabled: !available,
+        // Why it is greyed out, said on the item itself: a title on a disabled control
+        // reaches neither the keyboard nor a finger.
+        note: available ? undefined : t('transcriptionExportNoTimings'),
+        onSelect: () => onExport(item.format, entry.content)
+      };
+    })
+  ]);
 
   return (
-    <div className="transcription-export-menu" ref={root}>
+    <div className="transcription-export-menu">
       <Button
         variant="secondary"
         className="transcription-export-action"
         title={t('transcriptionExport')}
         loading={busy}
         disabled={disabled}
-        onClick={() => choose('txt', 'transcript')}
+        onClick={() => onExport('txt', 'transcript')}
       >
         <Download size={16} strokeWidth={1.75} aria-hidden="true" />
         {!compact && <span className="action-label">{t('transcriptionExport')}</span>}
       </Button>
-      <button
+      <Button
         ref={toggle}
-        type="button"
+        variant="secondary"
         className="transcription-export-toggle"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-controls={menuId}
         aria-label={t('transcriptionExportOptions')}
+        title={t('transcriptionExportOptions')}
         disabled={disabled || busy}
         onClick={() => setOpen(value => !value)}
       >
         <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
-      </button>
-      <Popover
+      </Button>
+      <DropdownMenu
         open={open}
-        onClose={() => close(true)}
-        anchor={portal ? root : undefined}
+        onClose={() => setOpen(false)}
+        anchor={toggle}
         placement="bottom-end"
-        frequent
+        minWidth={200}
         label={t('transcriptionExportOptions')}
-        surface="none"
-        className={`transcription-export-popover${portal ? ' is-portal' : ''}`}
-      >
-        {grid}
-      </Popover>
+        items={items}
+      />
     </div>
   );
 }
