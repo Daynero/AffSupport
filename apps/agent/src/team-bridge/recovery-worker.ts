@@ -18,6 +18,7 @@ import {
 } from '@video-compressor/shared';
 import {
   platformRecoverySecrets,
+  RECOVERY_SECRET_LOST,
   type RecoverySecretStore,
   type RecoverySecrets
 } from '../platform/recovery-credentials.js';
@@ -77,6 +78,19 @@ export function recoveryEndpoint(value: unknown, environment: AppEnvironment): s
   )
     throw new Error('INVALID_INPUT');
   return url.toString();
+}
+/**
+ * A failure's code as the diagnostics journal may carry it. Without it every transient failure
+ * was the same «retry_exhausted» line (production 2026-11-24: two and a half hours of them, and
+ * nothing said the stored handle no longer read back). Never a message or a path.
+ */
+function diagnosticCode(error: unknown): string {
+  if (error instanceof Error && /^[A-Z][A-Z0-9_]{1,63}$/u.test(error.message)) return error.message;
+  const code = error instanceof Error && 'code' in error ? error.code : undefined;
+  return typeof code === 'string' && /^E[A-Z]{1,30}$/u.test(code) ? code : 'UNCLASSIFIED';
+}
+function isLostHandle(error: unknown) {
+  return error instanceof Error && error.message === RECOVERY_SECRET_LOST;
 }
 function text(value: unknown): string {
   if (typeof value !== 'string') throw new Error('INVALID_RESPONSE');
@@ -255,22 +269,26 @@ export class TeamRecoveryWorker {
     }
     for (const metadata of saved.enrollments ?? []) {
       const endpoint = recoveryEndpoint(metadata.endpoint, this.options.environment);
-      if (metadata.account !== this.#enrollmentAccount(metadata.id, endpoint))
-        throw new Error('INVALID_RESPONSE');
-      const secret = await this.#secrets.read(metadata.account);
-      if (!secret) {
+      // A pending setup whose ticket is gone or does not match is dropped, never fatal: one
+      // used to fail the whole load, and with it every space's background work on this
+      // computer stayed off until the journal was removed by hand. Its delegation, if the
+      // server issued one, is still unknown here, so setup stays explicit (setupRequired).
+      const secret =
+        metadata.account === this.#enrollmentAccount(metadata.id, endpoint)
+          ? await this.#readHandle(metadata.account)
+          : null;
+      const challengeId = secret?.active?.challengeId;
+      if (
+        !secret ||
+        secret.rotationId !== metadata.id ||
+        secret.claim !== null ||
+        secret.claimExpiresAt !== null ||
+        (challengeId !== undefined && (typeof challengeId !== 'string' || !UUID.test(challengeId)))
+      ) {
+        if (secret) await this.#secrets.delete(metadata.account).catch(() => undefined);
         this.#setupRequired = true;
         continue;
       }
-      if (
-        secret.rotationId !== metadata.id ||
-        secret.claim !== null ||
-        secret.claimExpiresAt !== null
-      )
-        throw new Error('INVALID_RESPONSE');
-      const challengeId = secret.active?.challengeId;
-      if (challengeId !== undefined && (typeof challengeId !== 'string' || !UUID.test(challengeId)))
-        throw new Error('INVALID_RESPONSE');
       this.#enrollments.set(metadata.id, {
         ...metadata,
         endpoint,
@@ -478,7 +496,7 @@ export class TeamRecoveryWorker {
         await this.#removeRegistrations(enrollment.teamId, registration);
       // A lost metadata save/redeem reply can replay the original refresh after
       // rotation. Never replace a durable claim or refresh with that old receipt.
-      const existingSecrets = await this.#secrets.read(account);
+      const existingSecrets = await this.#readHandle(account);
       if (!existingSecrets)
         await this.#secrets.write(account, {
           refresh,
@@ -583,9 +601,14 @@ export class TeamRecoveryWorker {
       this.#running.has(registration.delegationId)
     )
       throw new Error('WRONG_STATE');
-    const secrets = await this.#secrets.read(registration.account);
-    const active = secrets?.active ? activeClaim(secrets.active, registration) : null;
-    if (secrets?.active && !active) throw new Error('INVALID_RESPONSE');
+    const secrets = await this.#readHandle(registration.account);
+    if (!secrets) {
+      // «Відновити» cannot resume a space whose handle is gone; it is set up again instead.
+      await this.#handleLost(registration, checkpoint.requestId);
+      throw new Error('WRONG_STATE');
+    }
+    const active = secrets.active ? activeClaim(secrets.active, registration) : null;
+    if (secrets.active && !active) throw new Error('INVALID_RESPONSE');
     // Retry transport/registration only. Any potentially executed grant is settled,
     // never handed to the process bridge a second time.
     this.#episodes.delete(registration.delegationId);
@@ -610,7 +633,13 @@ export class TeamRecoveryWorker {
   }
   async remove(teamId: string) {
     await this.#cancelSetups(teamId);
-    return this.#removeRegistrations(teamId);
+    const result = await this.#removeRegistrations(teamId);
+    // The page withdraws this computer's delegation on the server before it asks here
+    // («Налаштувати заново»). With nothing left locally, an unknown earlier setup no longer
+    // stands in the way: the page may set background work up again by itself. It used to
+    // stay «blocked» after the repair, so the repair button changed nothing.
+    if (!this.#registrations.length && !this.#enrollments.size) this.#setupRequired = false;
+    return result;
   }
   async #cancelSetups(teamId?: string) {
     const canceled: RecoveryEnrollment[] = [];
@@ -705,20 +734,24 @@ export class TeamRecoveryWorker {
       return;
     }
     try {
+      let serverUnknown = false;
       if (!r.revocationConfirmed) {
-        const secrets = await this.#secrets.read(r.account);
-        if (!secrets) {
-          this.#setupRequired = true;
-          this.#recordRetirement(r, 'server_unknown');
-          return;
+        const secrets = await this.#readHandle(r.account);
+        if (secrets) {
+          const value = await this.#call(r.endpoint, 'disconnect', secrets.refresh, {});
+          if (value.revoked !== true) throw new Error('INVALID_RESPONSE');
+          r.revocationConfirmed = true;
+        } else {
+          // Nothing here can speak for this delegation any more (its handle is missing or no
+          // longer reads back). Whoever retires it withdraws it on the server — the page's
+          // revoke, a new setup of this computer — or it expires. Keeping the registration
+          // only parked the space as «retiring» for good, refusing every new setup of it.
+          serverUnknown = true;
         }
-        const value = await this.#call(r.endpoint, 'disconnect', secrets.refresh, {});
-        if (value.revoked !== true) throw new Error('INVALID_RESPONSE');
-        r.revocationConfirmed = true;
       }
       // A previous acknowledgement write may have failed; commit it before deleting the handle.
       await this.#save();
-      this.#recordRetirement(r, 'server_confirmed');
+      this.#recordRetirement(r, serverUnknown ? 'server_unknown' : 'server_confirmed');
       await this.#secrets.delete(r.account);
       this.#registrations = this.#registrations.filter(row => row !== r);
       this.#emptyClaimRecordedAt.delete(r.delegationId);
@@ -793,7 +826,9 @@ export class TeamRecoveryWorker {
     );
   }
   async flushForUpdate() {
-    if (!this.#loaded || this.#setupRequired) throw new Error('APP_UPDATE_BUSY');
+    // A computer that needs setting up again has nothing in flight; refusing the update kept
+    // it on the build that could not recover (the same lesson as a blocked space, 2026-11-17).
+    if (!this.#loaded) throw new Error('APP_UPDATE_BUSY');
     await this.idle();
     await Promise.all(this.#retirements.values());
     // A blocked space has nothing in flight: its checkpoint is durable and resumes after
@@ -871,7 +906,7 @@ export class TeamRecoveryWorker {
     operationId: string | null,
     stage: RecoveryCheckpoint['stage'],
     reason: string | null = null,
-    errorCode?: TeamErrorCode
+    errorCode?: string
   ) {
     this.#checkpoints = this.#checkpoints.filter(c => c.delegationId !== r.delegationId);
     this.#checkpoints.push({
@@ -988,6 +1023,38 @@ export class TeamRecoveryWorker {
     secrets.rotationId = randomUUID();
     await this.#secrets.write(r.account, secrets);
   }
+  /** The stored handle, or null when it is missing or can no longer be read back (lost). */
+  async #readHandle(account: string): Promise<RecoverySecrets | null> {
+    try {
+      return await this.#secrets.read(account);
+    } catch (error) {
+      if (isLostHandle(error)) return null;
+      throw error;
+    }
+  }
+  /**
+   * This computer no longer holds the space's handle, while the server may still hold the
+   * delegation as live (production 2026-11-24: the handle stopped decrypting after the computer
+   * went down; every read was retried as a busy store for good, and «Soty не бере це завдання»
+   * outlived every restart). Reading the same bytes again never helps: the page sets the space
+   * up again by itself, renewing this delegation by name, and the worker asks once an hour.
+   */
+  async #handleLost(r: RecoveryRegistration, requestId: string) {
+    this.#expiredCredentials.add(r.delegationId);
+    this.#rejectedCredentials.add(r.delegationId);
+    this.#failures.delete(r.delegationId);
+    // No retry deadline: that one is shared with withdrawal, which must not wait an hour to
+    // drop a handle that is already gone.
+    await this.#checkpoint(
+      r,
+      requestId,
+      null,
+      'blocked',
+      'needs_agent_setup',
+      RECOVERY_SECRET_LOST
+    );
+    this.#schedule(r, REJECTED_REASK_MS);
+  }
   async #tick(r: RecoveryRegistration) {
     let requestId =
       this.#checkpoints.find(c => c.delegationId === r.delegationId)?.requestId ?? randomUUID();
@@ -1002,9 +1069,12 @@ export class TeamRecoveryWorker {
         this.#schedule(r, RECOVERY_BUDGET.probeMs);
         return;
       }
-      const secrets = await this.#secrets.read(r.account);
+      const secrets = await this.#readHandle(r.account);
       if (!(await this.#checkIdentity(r))) return;
-      if (!secrets) throw new Error('AUTH_REQUIRED');
+      if (!secrets) {
+        await this.#handleLost(r, requestId);
+        return;
+      }
       if (Date.parse(secrets.expiresAt) <= this.#now()) {
         this.#expiredCredentials.add(r.delegationId);
         throw new Error('AUTH_REQUIRED');
@@ -1368,6 +1438,10 @@ export class TeamRecoveryWorker {
         return;
       }
       const code = error instanceof Error ? error.message : '';
+      if (isLostHandle(error)) {
+        await this.#handleLost(r, requestId);
+        return;
+      }
       if (code === 'PROCESS_RESULT_UNCERTAIN') {
         const saved = this.#checkpoints.find(c => c.delegationId === r.delegationId);
         await this.#checkpoint(
@@ -1419,7 +1493,14 @@ export class TeamRecoveryWorker {
           t => t > this.#now() - 3_600_000
         );
         if (history.length >= RECOVERY_BUDGET.episodesPerHour) {
-          await this.#checkpoint(r, requestId, null, 'blocked', 'retry_exhausted');
+          await this.#checkpoint(
+            r,
+            requestId,
+            null,
+            'blocked',
+            'retry_exhausted',
+            diagnosticCode(error)
+          );
           this.#schedule(
             r,
             Math.max(RECOVERY_BUDGET.probeMs, Math.min(...history) + 3_600_000 - this.#now())
@@ -1452,7 +1533,14 @@ export class TeamRecoveryWorker {
             this.#now() + RECOVERY_BUDGET.probeMs
           )
         );
-        await this.#checkpoint(r, requestId, null, 'blocked', 'retry_exhausted');
+        await this.#checkpoint(
+          r,
+          requestId,
+          null,
+          'blocked',
+          'retry_exhausted',
+          diagnosticCode(error)
+        );
         const history = (this.#episodes.get(r.delegationId) ?? []).filter(
           time => time > this.#now() - 3_600_000
         );

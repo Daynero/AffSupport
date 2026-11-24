@@ -3517,3 +3517,14 @@ condition — which brings back the 'unknown' loop of every second publication o
 Rewrites one condition of `public.service_attach_launch_catalog_before_catalog_sub` so a set matches
 its own segment's `variantCount`. Undo by restoring the bare
 `s.requested_count=(x.initial_video_plan#>>'{preferences,videoVariationCount}')::integer`.
+
+## 20261224100000 — a desktop that lost its recovery handle can be set up again
+
+Patches `public.service_team_recovery` (through `pg_get_functiondef`, failing if the text it
+replaces is missing): automatic setup naming `renewalDelegationId` may replace that delegation while
+it is still live (it used to have to be expired), and only that one — any other live delegation of
+the same person, space and computer still refuses automatic setup. Production 2026-11-24: a Windows
+desktop could no longer read its stored handle after a hard shutdown and «Soty не бере це завдання»
+stayed for good. Undo by restoring `and d.expires_at<=clock_timestamp()` to the renewal check and
+dropping the `renewalDelegationId` exclusion from the live-credential check; desktops that lost their
+handle then need the delegation revoked by hand again.

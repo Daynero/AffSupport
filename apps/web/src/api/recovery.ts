@@ -152,18 +152,27 @@ export async function ensureBackgroundRecovery(
         }
         ownership = await bounded(signal => backgroundRecoveryStatus(teamId, signal));
         await current();
-        if (!ownership.enabled || ownership.automaticSetup !== 'ready')
-          throw new Error('PERMISSION_DENIED');
-        if (
-          retryRefused &&
-          !['idle', 'claiming', 'running', 'accepted', 'settled'].includes(ownership.state)
-        )
-          throw new Error('WRONG_STATE');
-        notifyRecoveryChanged();
+        // A computer that found its handle lost while resuming asks to be set up again
+        // (2026-11-24): that is the setup below, not «no permission» until the next focus.
+        const lostOnResume =
+          !!ownership.automaticSetup && ['eligible', 'pending'].includes(ownership.automaticSetup);
+        if (!lostOnResume) {
+          if (!ownership.enabled || ownership.automaticSetup !== 'ready')
+            throw new Error('PERMISSION_DENIED');
+          if (
+            retryRefused &&
+            !['idle', 'claiming', 'running', 'accepted', 'settled'].includes(ownership.state)
+          )
+            throw new Error('WRONG_STATE');
+          notifyRecoveryChanged();
+        }
       }
-      observe('succeeded');
-      return ownership;
+      if (ownership.automaticSetup === 'ready') {
+        observe('succeeded');
+        return ownership;
+      }
     }
+    if (!ownership.automaticSetup) throw new Error('AGENT_UPDATE_REQUIRED');
     if (!['eligible', 'pending'].includes(ownership.automaticSetup))
       throw new Error('PERMISSION_DENIED');
     observe('succeeded');

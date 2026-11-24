@@ -4,22 +4,36 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, expect, it, vi } from 'vitest';
 import { CatalogBackgroundStalledNote } from '../apps/web/src/team/catalog-updater/CatalogBackgroundStalledNote.js';
 import { BackgroundRecoveryNotice } from '../apps/web/src/team/catalog-updater/BackgroundRecoveryNotice.js';
-const seam = vi.hoisted(() => ({ connection: 'connected' }));
+const seam = vi.hoisted(() => ({ connection: 'connected', capabilities: [] as string[] }));
 const recovery = vi.hoisted(() => ({ disable: vi.fn(async () => ({})) }));
 vi.mock('../apps/web/src/api/recovery.js', () => ({
   disableBackgroundRecovery: recovery.disable
 }));
 vi.mock('../apps/web/src/AgentContext.js', () => ({
-  useOptionalAgent: () => ({ connection: seam.connection })
+  useOptionalAgent: () => ({ connection: seam.connection, capabilities: seam.capabilities })
 }));
 afterEach(() => {
   cleanup();
   seam.connection = 'connected';
+  seam.capabilities = [];
+  recovery.disable.mockClear();
 });
 it('tells a stalled round to restart Soty instead of promising an automatic recovery', () => {
   render(<CatalogBackgroundStalledNote teamId="team" />);
   expect(screen.getByRole('status').textContent).toContain('Restart Soty');
   expect(screen.queryByRole('button')).toBeNull();
+});
+// Production 2026-11-24: «Перезапустіть Soty» did not help a computer whose stored handle no
+// longer read back. An agent that reports that cleanly gets a way out on the stalled round.
+it('offers to set a stalled round up again where the agent reports a lost handle cleanly', async () => {
+  seam.capabilities = ['team-background-recovery-lost-handle'];
+  const reloaded = vi.fn();
+  render(<CatalogBackgroundStalledNote teamId="team-2" onRetried={reloaded} />);
+  expect(screen.getByRole('status').textContent).toContain('has stopped');
+  expect(screen.getByRole('status').textContent).not.toContain('Restart Soty');
+  fireEvent.click(screen.getByRole('button', { name: 'Set up again' }));
+  await waitFor(() => expect(recovery.disable).toHaveBeenCalledWith('team-2'));
+  await waitFor(() => expect(reloaded).toHaveBeenCalled());
 });
 it('reports connection dependency honestly instead of claiming a successful retry', () => {
   seam.connection = 'disconnected';

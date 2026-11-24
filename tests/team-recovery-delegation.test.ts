@@ -148,7 +148,7 @@ describe('scoped background delegation', () => {
     ).toEqual([{ count: 1 }]);
   });
 
-  it('does not renew a revoked, live, wrong-actor or missing delegation as an expired credential', async () => {
+  it('does not renew a revoked, wrong-actor or missing delegation', async () => {
     await db.root('delete from private.team_recovery_delegations');
     const input = { actorId: OWNER, teamId: team, installationId: INSTALL, automatic: true };
     const first = await call('delegate', H(65), input);
@@ -158,7 +158,9 @@ describe('scoped background delegation', () => {
       refreshHash: H(66)
     });
     const renewal = { ...input, renewalDelegationId: redeemed.delegationId };
-    await expect(call('delegate', H(67), renewal)).rejects.toThrow(/PERMISSION_DENIED/u);
+    await expect(
+      call('delegate', H(67), { ...input, renewalDelegationId: ROTATION })
+    ).rejects.toThrow(/PERMISSION_DENIED/u);
     await db.root(
       "update private.team_recovery_delegations set expires_at=clock_timestamp()-interval '1 second',revoked_at=clock_timestamp() where id=$1",
       [redeemed.delegationId]
@@ -172,6 +174,43 @@ describe('scoped background delegation', () => {
     );
     const renewed = await call('delegate', H(67), renewal);
     expect(renewed.challengeId).toBeTruthy();
+  });
+  // Production 2026-11-24: a desktop that could no longer read its stored handle sat
+  // «Soty не бере це завдання» for good, because automatic setup refused to replace the live
+  // delegation it had lost. Only the delegation the desktop names may be replaced while live.
+  it('renews the live delegation a desktop declared lost, and no other live one', async () => {
+    await db.root('delete from private.team_recovery_delegations');
+    await db.root('delete from private.team_recovery_enrollments');
+    const input = { actorId: OWNER, teamId: team, installationId: INSTALL, automatic: true };
+    const first = await call('delegate', H(71), input);
+    const lost = await call('redeem', H(71), {
+      challengeId: first.challengeId,
+      refresh: 'x'.repeat(43),
+      refreshHash: H(72)
+    });
+    await expect(call('delegate', H(73), input)).rejects.toThrow(/AUTH_REQUIRED/u);
+    const renewed = await call('delegate', H(73), {
+      ...input,
+      renewalDelegationId: lost.delegationId
+    });
+    expect(renewed.challengeId).toBeTruthy();
+    const fresh = await call('redeem', H(73), {
+      challengeId: renewed.challengeId,
+      refresh: 'y'.repeat(43),
+      refreshHash: H(74)
+    });
+    expect(
+      await db.root(
+        'select id, revoked_at is null live from private.team_recovery_delegations order by created_at'
+      )
+    ).toEqual([
+      { id: lost.delegationId, live: false },
+      { id: fresh.delegationId, live: true }
+    ]);
+    // The replaced delegation cannot be named again to displace the new live one.
+    await expect(
+      call('delegate', H(75), { ...input, renewalDelegationId: lost.delegationId })
+    ).rejects.toThrow(/PERMISSION_DENIED/u);
   });
   it('replays one setup ticket and its exact Vault redemption without revoking live work', async () => {
     await db.root('delete from private.team_recovery_delegations');
