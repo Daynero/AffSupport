@@ -151,6 +151,8 @@ describe('how much of the toolbar fits (T014)', () => {
     const bar = document.querySelector<HTMLElement>('.team-explorer-toolbar')!;
     await waitFor(() => expect(bar.dataset.fit).toBe('tight'));
     expect(screen.queryByRole('searchbox')).toBeNull();
+    // The search keeps its place in the row as its magnifier: the main way to a file on a phone.
+    expect(within(bar).getByRole('button', { name: 'Search files' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Previous folder' })).toBeNull();
     expect(within(bar).queryByRole('radiogroup')).toBeNull();
     // The primary keeps its colour and its name; every icon left in the row has a name.
@@ -162,7 +164,8 @@ describe('how much of the toolbar fits (T014)', () => {
     const names = (await screen.findAllByRole('menuitem', {}, { timeout: 2000 }))
       .concat(screen.queryAllByRole('menuitemradio'))
       .map(item => item.textContent?.replace('✓', '').trim());
-    expect(names).toEqual(expect.arrayContaining(['Search files', 'List', 'Tiles', 'Trash']));
+    expect(names).toEqual(expect.arrayContaining(['List', 'Tiles', 'Trash']));
+    expect(names).not.toContain('Search files');
   });
 });
 

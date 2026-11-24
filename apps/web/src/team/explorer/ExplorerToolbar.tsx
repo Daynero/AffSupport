@@ -176,7 +176,6 @@ export function ExplorerToolbar({
   );
   const arrowsInRow = fit !== 'tight';
   const searchBox = fit === 'full';
-  const searchInRow = fit !== 'tight';
   const viewInRow = fit === 'full' || fit === 'compact';
   const inline = Boolean(inlineSearch);
   /* The box stands in the path's place while it is open on a short row, or holds words. */
@@ -302,7 +301,10 @@ export function ExplorerToolbar({
       {!trash && inline ? (
         boxOverPath ? null : searchBox ? (
           inlineBox
-        ) : searchInRow ? (
+        ) : (
+          /* The search stays in the row at every width (070, phase 5): on a phone it is the
+             main way to a file, and as an item of «…» it was two presses away and out of sight.
+             Its magnifier takes the room the path gives up; the path is what truncates. */
           <IconButton
             label={t('teamExplorerSearchOpen')}
             title={`${t('teamExplorerSearchOpen')} · ${shortcut}`}
@@ -310,7 +312,7 @@ export function ExplorerToolbar({
           >
             <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </IconButton>
-        ) : null
+        )
       ) : (
         !trash &&
         (searching ? (
@@ -342,7 +344,7 @@ export function ExplorerToolbar({
               </kbd>
             )}
           </div>
-        ) : searchInRow ? (
+        ) : (
           /* Too narrow for a box: its magnifier, with the box's name and its key. */
           <IconButton
             label={t('teamExplorerSearchOpen')}
@@ -351,7 +353,7 @@ export function ExplorerToolbar({
           >
             <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </IconButton>
-        ) : null)
+        ))
       )}
       <div className="team-explorer-toolbar-actions">
         {canUpload && !trash && (
@@ -435,12 +437,6 @@ export function ExplorerToolbar({
               ...collapsedActions({
                 t,
                 history: arrowsInRow ? null : history,
-                search:
-                  searchInRow || boxOverPath || (searching && !inline)
-                    ? null
-                    : inline
-                      ? openBox
-                      : () => onOpenSearch(''),
                 view: viewInRow ? null : { value: view, onChange: onViewChange }
               }),
               ...moreActions({
@@ -465,29 +461,19 @@ type Translate = ReturnType<typeof useI18n>['t'];
 const SOMETIMES_PX = { treeToggle: 52, backToTask: 128 };
 
 /**
- * What left the row for lack of room (T014), first in "…" and in words: the search, the
- * arrows (only the steps there are), and the view as two choices of one question.
+ * What left the row for lack of room (T014), first in "…" and in words: the arrows (only the
+ * steps there are), and the view as two choices of one question. The search never leaves.
  */
 function collapsedActions({
   t,
   history,
-  search,
   view
 }: {
   t: Translate;
   history: FolderHistory | null;
-  search: (() => void) | null;
   view: { value: ExplorerView; onChange: (view: ExplorerView) => void } | null;
 }): MenuEntry[] {
   const moves: MenuEntry[] = [];
-  if (search) {
-    moves.push({
-      id: 'search',
-      label: t('teamExplorerSearchOpen'),
-      icon: <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
-      onSelect: search
-    });
-  }
   if (history?.canBack) {
     moves.push({
       id: 'back',

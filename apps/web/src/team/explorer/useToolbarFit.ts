@@ -6,8 +6,9 @@ import { useLayoutEffect, useState, type RefObject } from 'react';
  * - `full` — everything: the arrows, the path, the search box, Upload, the view switch, "…".
  * - `compact` — the search box becomes its magnifier (still named, still one press).
  * - `narrow` — the view switch moves into "…", as two named choices.
- * - `tight` — the arrows and the search move into "…" too; the row is the folder toggle, the
- *   folder you are in, Upload and "…".
+ * - `tight` — the arrows move into "…" too; the row is the folder toggle, the folder you are
+ *   in, the search's magnifier, Upload and "…". The search never leaves the row: on a phone
+ *   it is the main way to a file.
  *
  * Nothing is ever dropped: what leaves the row is an item of "…" with its words, never an icon
  * without a name. Measured on the toolbar itself, not the window — the folder tree and the
