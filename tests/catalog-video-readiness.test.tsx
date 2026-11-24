@@ -22,10 +22,10 @@ it('fills measured preparation, reserves full green for usable readiness and res
   const view = render(<CatalogIconControls {...props} restitchProgress={42} />);
   const button = document.querySelector<HTMLButtonElement>('[data-catalog-field="restitch"]')!;
   expect(button.dataset.videoState).toBe('preparing');
-  expect(button.style.getPropertyValue('--catalog-video-fill')).toBe('0.42');
+  expect(button.style.getPropertyValue('--ui-picto-fill')).toBe('0.42');
   expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('42');
   view.rerender(<CatalogIconControls {...props} restitchProgress={100} />);
-  expect(button.style.getPropertyValue('--catalog-video-fill')).toBe('0.99');
+  expect(button.style.getPropertyValue('--ui-picto-fill')).toBe('0.99');
   view.rerender(
     <CatalogIconControls
       {...props}
@@ -34,7 +34,7 @@ it('fills measured preparation, reserves full green for usable readiness and res
     />
   );
   expect(button.dataset.videoState).toBe('ready');
-  expect(button.style.getPropertyValue('--catalog-video-fill')).toBe('1');
+  expect(button.style.getPropertyValue('--ui-picto-fill')).toBe('1');
   expect(button.getAttribute('aria-label')).toContain('Video ready for the next update');
   expect(screen.queryByRole('progressbar')).toBeNull();
   view.rerender(
@@ -44,7 +44,7 @@ it('fills measured preparation, reserves full green for usable readiness and res
       restitchProgress={100}
     />
   );
-  expect(button.style.getPropertyValue('--catalog-video-fill')).toBe('0');
+  expect(button.style.getPropertyValue('--ui-picto-fill')).toBe('0');
   fireEvent.click(button);
   expect(change).toHaveBeenCalledWith('restitch', false);
 });
@@ -76,7 +76,7 @@ it('clears stale green when blocked or switched off, while preserving the video 
     />
   );
   expect(button.dataset.videoState).toBe('blocked');
-  expect(button.style.getPropertyValue('--catalog-video-fill')).toBe('0');
+  expect(button.style.getPropertyValue('--ui-picto-fill')).toBe('0');
   view.rerender(
     <CatalogIconControls
       {...props}
@@ -84,7 +84,7 @@ it('clears stale green when blocked or switched off, while preserving the video 
     />
   );
   expect(button.dataset.videoState).toBe('off');
-  expect(button.style.getPropertyValue('--catalog-video-fill')).toBe('0');
+  expect(button.style.getPropertyValue('--ui-picto-fill')).toBe('0');
 });
 it('does not say it is waiting for a video before any update asked for one (1.4.3)', () => {
   const props = {

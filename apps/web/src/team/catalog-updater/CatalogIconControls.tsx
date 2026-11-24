@@ -1,5 +1,5 @@
 import { useLegacyCatalogImageSettings } from '../TeamContext';
-import { useRef, useState, type CSSProperties } from 'react';
+import { useRef, useState } from 'react';
 import {
   Clapperboard,
   CloudUpload,
@@ -13,7 +13,7 @@ import {
 import { catalogUpdateFieldAllowed, type CatalogUpdateProfile } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { spaceRouteFor } from '../SpaceSettingsLink';
-import { Tooltip } from '../../components/ui/index';
+import { PictoToggle, Tooltip } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import type { CatalogField, InlineChangeState } from './useCatalogInlineChanges';
 import type { CatalogVideoR2Row } from '../product-catalog/useCatalogVideoR2Team';
@@ -174,19 +174,13 @@ export function CatalogIconControls({
               className={`fit-mode-pictos is-single${index === 0 ? ' catalog-video-toggle' : ''}`}
             >
               <Tooltip asChild label={description} disabled={pending}>
-                <button
-                  type="button"
-                  className={selected ? 'is-selected' : undefined}
+                <PictoToggle
+                  pressed={selected}
+                  unavailable={Boolean(disabledReason)}
+                  busy={waiting}
+                  fill={field === 'restitch' ? percent / 100 : undefined}
                   data-video-state={field === 'restitch' ? videoState : undefined}
-                  style={
-                    field === 'restitch'
-                      ? ({ '--catalog-video-fill': percent / 100 } as CSSProperties)
-                      : undefined
-                  }
                   tabIndex={activeIndex === index ? 0 : -1}
-                  aria-pressed={selected}
-                  aria-disabled={Boolean(disabledReason)}
-                  aria-busy={waiting}
                   aria-label={`${description}: ${name}`}
                   data-catalog-field={field}
                   onFocus={() => setActive(index)}
@@ -207,7 +201,7 @@ export function CatalogIconControls({
                   ) : (
                     <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                   )}
-                </button>
+                </PictoToggle>
               </Tooltip>
               {field === 'restitch' && videoState === 'preparing' && (
                 <span
@@ -238,9 +232,10 @@ export function CatalogIconControls({
             return (
               <div key="videoR2" className="fit-mode-pictos is-single catalog-video-r2-toggle">
                 <Tooltip asChild label={description} disabled={row.pending}>
-                  <button
-                    type="button"
-                    className={row.enabled ? 'is-selected' : undefined}
+                  <PictoToggle
+                    pressed={row.enabled}
+                    unavailable={Boolean(r2Disabled) || row.pending}
+                    busy={row.pending}
                     data-video-r2-state={
                       !row.enabled
                         ? 'off'
@@ -251,9 +246,6 @@ export function CatalogIconControls({
                             : 'preparing'
                     }
                     tabIndex={activeIndex === index ? 0 : -1}
-                    aria-pressed={row.enabled}
-                    aria-disabled={Boolean(r2Disabled) || row.pending}
-                    aria-busy={row.pending}
                     aria-invalid={error ? true : undefined}
                     aria-label={`${description}: ${name}`}
                     data-catalog-field="copyVideoToR2"
@@ -274,7 +266,7 @@ export function CatalogIconControls({
                     ) : (
                       <CloudUpload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                     )}
-                  </button>
+                  </PictoToggle>
                 </Tooltip>
               </div>
             );

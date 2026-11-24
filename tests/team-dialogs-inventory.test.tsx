@@ -189,15 +189,12 @@ describe('the phase 8 files', () => {
     expect(shim.map(file => path.relative(ROOT, file))).toEqual([]);
   });
 
-  it('write no raw control, but the catalog icon toggles left on purpose', () => {
+  it('write no raw control — the catalog icon toggles are the inventory PictoToggle (8б)', () => {
     const RAW = /<(button|input|select|textarea)(?=[\s/>])/gu;
     const found = files.flatMap(file => {
       const source = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//gu, '');
       return [...source.matchAll(RAW)].map(() => path.relative(ROOT, file));
     });
-    expect(found).toEqual([
-      'apps/web/src/team/catalog-updater/CatalogIconControls.tsx',
-      'apps/web/src/team/catalog-updater/CatalogIconControls.tsx'
-    ]);
+    expect(found).toEqual([]);
   });
 });

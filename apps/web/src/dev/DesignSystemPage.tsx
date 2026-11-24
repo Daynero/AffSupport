@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Clapperboard, Link2, LockKeyhole } from 'lucide-react';
 import { SyncStatusPanel } from '../team/explorer/SyncStatusPanel';
 import type { FolderSyncStatus } from '../team/syncStatus';
 import { Button as HeroButton } from '@heroui/react/button';
@@ -21,6 +22,7 @@ import {
   DropdownMenu,
   Empty,
   FileTrigger,
+  PictoToggle,
   FormField,
   IconButton,
   Input,
@@ -158,6 +160,7 @@ export default function DesignSystemPage() {
   const [popover, setPopover] = useState(false);
   const [page, setPage] = useState(1);
   const [picked, setPicked] = useState('Nothing chosen yet');
+  const [toggled, setToggled] = useState(true);
   const [paneWidth, setPaneWidth] = useState(240);
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['root']));
   const [openPanels, setOpenPanels] = useState<Set<string>>(new Set(['one']));
@@ -433,6 +436,22 @@ export default function DesignSystemPage() {
               defaultValue={25}
               aria-label="Copies"
             />
+          </Row>
+          <Row title="picto toggle">
+            <PictoToggle
+              pressed={toggled}
+              aria-label="Links"
+              title="Links"
+              onClick={() => setToggled(value => !value)}
+            >
+              <Link2 size={20} strokeWidth={1.75} aria-hidden="true" />
+            </PictoToggle>
+            <PictoToggle pressed={false} unavailable aria-label="Locked" title="Locked">
+              <LockKeyhole size={20} strokeWidth={1.75} aria-hidden="true" />
+            </PictoToggle>
+            <PictoToggle pressed fill={0.6} aria-label="Video, 60%" title="Video, 60%">
+              <Clapperboard size={20} strokeWidth={1.75} aria-hidden="true" />
+            </PictoToggle>
           </Row>
           <Row title="file trigger">
             <FileTrigger onSelect={files => setPicked(`${files.length} file(s)`)}>

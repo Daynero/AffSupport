@@ -52,6 +52,9 @@ export { FileTrigger } from './FileTrigger';
 export type { FileTriggerHandle, FileTriggerProps } from './FileTrigger';
 
 export { Checkbox, RadioGroup, SegmentedControl, Slider, Switch } from './Choice';
+/* One picto that is on or off, pressable while it explains why it cannot act (070, phase 8б). */
+export { PictoToggle } from './PictoToggle';
+export type { PictoToggleProps } from './PictoToggle';
 export type {
   CheckboxProps,
   RadioGroupProps,

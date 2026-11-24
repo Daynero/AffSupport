@@ -20221,7 +20221,7 @@ a.history-subject {
   inset: 0;
   z-index: -1;
   background: var(--color-success-soft);
-  transform: scaleY(var(--catalog-video-fill, 0));
+  transform: scaleY(var(--ui-picto-fill, 0));
   transform-origin: bottom;
   transition: transform var(--motion-base) var(--ease-out-curve);
 }

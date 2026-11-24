@@ -2343,6 +2343,54 @@
 .ui-pictos button:hover:not(:disabled) {
   color: var(--color-neutral-text);
 }
+/* One picto that is on or off (070): the plate of a picto group, standing alone — no frame,
+   per docs/DESIGN.md's `is-single`. Unavailable is announced, not dimmed out of reach: the
+   plate keeps answering presses with its reason. A job behind it fills it from the bottom. */
+.ui-picto-toggle {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--icon-plate-row-width);
+  height: var(--icon-plate-row-height);
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-neutral-text-muted);
+  cursor: pointer;
+}
+.ui-picto-toggle svg {
+  flex: none;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  max-width: none;
+}
+.ui-picto-toggle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--color-success-soft);
+  transform: scaleY(var(--ui-picto-fill, 0));
+  transform-origin: bottom;
+  transition: transform var(--motion-base) var(--ease-out-curve);
+}
+.ui-picto-toggle:hover {
+  color: var(--color-neutral-text);
+}
+.ui-picto-toggle.is-selected {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-softer);
+  color: var(--color-secondary-text);
+}
+.ui-picto-toggle[aria-disabled='true'] {
+  cursor: help;
+}
+.ui-picto-toggle:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
 /* `is-selected`, never `is-active` — there is no such class in this system. */
 .ui-pictos button.is-selected {
   border-color: var(--color-secondary-solid);
