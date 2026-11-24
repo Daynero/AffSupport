@@ -1221,7 +1221,15 @@ async function handleUploadFinalize(
     }
     // 023: a re-stitched copy the updater asked for becomes the catalog's spare. Best-effort like
     // the transcript link: the file is committed either way, and an unrecorded copy is prepared again.
-    if (resultMaterialId && operation.kind === 'process' && operation.toolId === 'restitch') {
+    // A run written over its own source is never one (a catalog copy is always a new file, and a
+    // launch refuses an overwrite): it is a creative trimmed in place on upload (070), and
+    // recording it would share that file with anyone who has the link.
+    if (
+      resultMaterialId &&
+      operation.kind === 'process' &&
+      operation.toolId === 'restitch' &&
+      !operation.versionOfMaterialId
+    ) {
       await recordRestitchOutput(
         {
           drive: client,
