@@ -27,6 +27,7 @@ import {
 } from '../../components/ui/index';
 import { searchWithLayoutFallback } from '../../lib/layoutFallback';
 import { useI18n } from '../../i18n';
+import { useOptionalTeam } from '../TeamContext';
 
 export interface TaskAttachmentCandidate {
   id: string;
@@ -157,6 +158,19 @@ export function TaskAttachmentPicker({
   const parentId = path.at(-1)?.id ?? null;
   const pickerTitleId = 'team-task-attachment-picker-title';
   /** What the list shows: search answers while a term is typed, the folder otherwise. */
+  /*
+   * A space whose storage needs its owner lists nothing to attach (the server reads only a
+   * connected Drive), and the picker said «this folder is empty» (070 T069). It says what the
+   * space header says instead.
+   */
+  const team = useOptionalTeam();
+  const connectionState = team?.teams.find(space => space.id === teamId)?.connectionState;
+  const storageGone =
+    connectionState === 'needs_reauth'
+      ? ({ title: 'teamStorageChipNeedsReauth', body: 'teamStorageBodyNeedsReauth' } as const)
+      : connectionState === 'root_missing'
+        ? ({ title: 'teamStorageChipRootMissing', body: 'teamStorageBodyRootMissing' } as const)
+        : null;
   const shown = useMemo(
     () =>
       (found ? found : materials).filter(
@@ -371,7 +385,14 @@ export function TaskAttachmentPicker({
               {!loading && !searching && !error && shown.length === 0 && (
                 <EmptyState
                   size="sm"
-                  title={found === null ? t('teamTaskFolderEmpty') : t('teamTaskSearchEmpty')}
+                  title={
+                    storageGone
+                      ? t(storageGone.title)
+                      : found === null
+                        ? t('teamTaskFolderEmpty')
+                        : t('teamTaskSearchEmpty')
+                  }
+                  description={storageGone ? t(storageGone.body) : undefined}
                 />
               )}
               {!loading && !searching && !error && shown.length > 0 && (
