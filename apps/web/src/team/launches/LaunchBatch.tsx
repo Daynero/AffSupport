@@ -124,7 +124,7 @@ export function LaunchBatch({
           return {
             id: batch.id,
             title: t('launchesBulkSummary', { done, total: batch.items.length }),
-            aside: <span className="text-caption text-muted">{stamp}</span>,
+            aside: <span className="text-caption text-muted whitespace-nowrap">{stamp}</span>,
             content: (
               <div className="flex min-w-0 flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">

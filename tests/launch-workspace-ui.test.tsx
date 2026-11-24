@@ -885,8 +885,9 @@ it('refreshes active assignee choices after a member is revoked in another sessi
   fireEvent.click(await screen.findByRole('button', { name: 'Filters' }));
   const filter = screen.getByRole('button', { name: 'Assignee' });
   fireEvent.click(filter);
-  expect(screen.getByRole('option', { name: 'Member A' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('option', { name: 'Member A' }));
+  // The list filters are the inventory's menu (070, T080): one ticked answer.
+  expect(await screen.findByRole('menuitemradio', { name: 'Member A' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'Member A' }));
   await waitFor(() =>
     expect(seams.list).toHaveBeenCalledWith(
       TEAM,
@@ -900,7 +901,8 @@ it('refreshes active assignee choices after a member is revoked in another sessi
     expect(screen.getByRole('button', { name: 'Assignee' }).textContent).toContain('All')
   );
   fireEvent.click(screen.getByRole('button', { name: 'Assignee' }));
-  expect(screen.queryByRole('option', { name: 'Member A' })).toBeNull();
+  expect(await screen.findByRole('menu')).toBeTruthy();
+  expect(screen.queryByRole('menuitemradio', { name: 'Member A' })).toBeNull();
   expect(seams.metadata).not.toHaveBeenCalled();
 });
 
@@ -1742,7 +1744,7 @@ it('loads an editor assignee filter without querying private member management d
     expect(management).not.toHaveBeenCalled();
     fireEvent.click(await screen.findByRole('button', { name: 'Filters' }));
     fireEvent.click(screen.getByRole('button', { name: 'Assignee' }));
-    expect(screen.getByRole('option', { name: 'Editor B' })).toBeTruthy();
+    expect(await screen.findByRole('menuitemradio', { name: 'Editor B' })).toBeTruthy();
   } finally {
     management.mockRestore();
     directory.mockRestore();
@@ -2131,7 +2133,7 @@ it('preserves Today and search when returning to launches, scoped to actor and w
   const query = emptyTeamRouteQuery();
   const first = render(<LaunchSpace teamId={TEAM} query={query} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Today' }));
-  fireEvent.change(screen.getByRole('textbox', { name: 'Search' }), {
+  fireEvent.change(screen.getByRole('searchbox', { name: 'Search' }), {
     target: { value: 'needle' }
   });
   const today = quickRangeValue('today', new Date());
@@ -2151,7 +2153,7 @@ it('preserves Today and search when returning to launches, scoped to actor and w
   await waitFor(() =>
     expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-pressed')).toBe('true')
   );
-  expect((screen.getByRole('textbox', { name: 'Search' }) as HTMLInputElement).value).toBe(
+  expect((screen.getByRole('searchbox', { name: 'Search' }) as HTMLInputElement).value).toBe(
     'needle'
   );
   await waitFor(() =>
@@ -2172,7 +2174,7 @@ it('preserves Today and search when returning to launches, scoped to actor and w
   await waitFor(() =>
     expect(seams.list).toHaveBeenLastCalledWith(TEAM, { sort: 'created', search: '' })
   );
-  expect((screen.getByRole('textbox', { name: 'Search' }) as HTMLInputElement).value).toBe('');
+  expect((screen.getByRole('searchbox', { name: 'Search' }) as HTMLInputElement).value).toBe('');
 });
 
 it.each(['section', 'outside while saving', 'save failure'] as const)(

@@ -11,7 +11,7 @@ import { useLaunchListSelection } from './useLaunchListSelection.js';
 import { useOptionalToasts } from '../../components/toast';
 import { launchBatchLoading, launchMutation } from './analytics';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Copy, Play, Link2, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Copy, Play, Link2, Plus, Trash2 } from 'lucide-react';
 import {
   LAUNCH_BATCH_MAX_ITEMS,
   launchInputsLocked,
@@ -26,9 +26,8 @@ import {
   Button,
   Checkbox,
   DropdownMenu,
-  Input,
   Modal,
-  Popover,
+  SearchField,
   SelectionBar,
   LoadingState,
   Reveal,
@@ -41,6 +40,7 @@ import { teamErrorMessageFor } from '../errors';
 import { buildTeamRoute, emptyTeamRouteQuery, type TeamRouteQuery } from '../routes';
 import { crossfadeLayout, navigateTo } from '../../lib/navigation';
 import { TaskDateFilterControl } from '../tasks/TaskDateFilter';
+import { TaskFiltersButton } from '../tasks/TaskFiltersButton';
 import { encodeDateFilter, parseStoredDateFilter, type TaskDateFilter } from '../tasks/useTasks';
 import { boundedText, persistedViewKey, usePersistedState } from '../persistedView';
 import { LaunchCard } from './LaunchCard';
@@ -180,8 +180,6 @@ function LaunchSpaceContent({
     parseStoredDateFilter,
     encodeDateFilter
   );
-  const filtersRoot = useRef<HTMLDivElement | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const filterHeadingId = useId();
   const activeListFilterCount =
     Number(Boolean(accountFilter)) + Number(Boolean(offerFilter)) + Number(Boolean(assigneeFilter));
@@ -681,100 +679,73 @@ function LaunchSpaceContent({
       className="team-panel team-launch-space flex min-w-0 flex-col gap-4"
       aria-label={t('launchesTitle')}
     >
-      <div className="launch-list-toolbar flex flex-wrap items-center gap-2">
-        <div className="w-full sm:w-56">
-          <Input
-            aria-label={t('launchesSearch')}
-            placeholder={t('launchesSearch')}
-            value={search}
-            onChange={e => {
-              const next = e.target.value;
-              changeFilters(() => setSearch(next));
-            }}
-          />
-        </div>
-        <div className="w-full min-w-0 sm:w-auto sm:flex-1">
-          <TaskDateFilterControl
-            value={dates}
-            onChange={next => changeFilters(() => setDates(next))}
-            status="all"
-            onStatusChange={() => {}}
-            showStatus={false}
-            inlineDays
-            inlineTomorrow
-          >
-            <div ref={filtersRoot} className="task-filter-more">
-              <button
-                type="button"
-                className={`task-quick-range${activeListFilterCount > 0 ? ' is-active' : ''}`}
-                aria-expanded={filtersOpen}
-                aria-label={
-                  activeListFilterCount > 0
-                    ? t('teamTasksMoreFiltersActive', { count: activeListFilterCount })
-                    : undefined
-                }
-                onClick={() => setFiltersOpen(current => !current)}
-              >
-                <SlidersHorizontal size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                <span>{t('teamTasksMoreFilters')}</span>
-                {activeListFilterCount > 0 && (
-                  <span className="task-filter-more-count" aria-hidden="true">
-                    {activeListFilterCount}
-                  </span>
-                )}
-              </button>
-              <Popover
-                open={filtersOpen}
-                onClose={() => setFiltersOpen(false)}
-                anchor={filtersRoot}
-                placement="bottom-start"
-                frequent
-                label={t('teamTasksMoreFilters')}
-                className="task-filter-more-popover"
-              >
-                <div
-                  className="task-filter-section"
-                  role="group"
-                  aria-labelledby={`${filterHeadingId}-show`}
-                >
-                  <span id={`${filterHeadingId}-show`} className="task-filter-heading">
-                    {t('teamTasksFilterGroup')}
-                  </span>
-                  <LaunchListFilter
-                    label={t('launchesFilterAccount')}
-                    allLabel={t('launchesFilterAllAccounts')}
-                    value={accountFilter}
-                    onChange={next => changeFilters(() => setAccountFilter(next))}
-                    options={accounts
-                      .map(account => ({ value: account.id, label: account.name }))
-                      .sort((a, b) => a.label.localeCompare(b.label))}
-                  />
-                  <LaunchListFilter
-                    label={t('launchesOffer')}
-                    allLabel={t('launchesAllOffers')}
-                    value={offerFilter}
-                    onChange={next => changeFilters(() => setOfferFilter(next))}
-                    options={offers
-                      .map(offer => ({ value: offer.id, label: offer.value }))
-                      .sort((a, b) => a.label.localeCompare(b.label))}
-                  />
-                  <LaunchListFilter
-                    label={t('launchesFilterAssignee')}
-                    allLabel={t('launchesFilterAllAssignees')}
-                    value={assigneeFilter}
-                    onChange={next => changeFilters(() => setAssigneeFilter(next))}
-                    options={assignees
-                      .map(member => ({ value: member.userId, label: member.label }))
-                      .sort((a, b) => a.label.localeCompare(b.label))}
-                  />
-                </div>
-              </Popover>
+      {/*
+       * The list's toolbar (070, T080): search, the date, «Фільтри», and the one primary. On a
+       * phone it is two rows and no more — the search, then the date, «Фільтри» and «Новий
+       * запуск» — with "Вчора / Сьогодні / Завтра" folded into the calendar's presets, where the
+       * calendar glyph used to stand alone on a row of its own.
+       */}
+      <div className="launch-list-toolbar">
+        <SearchField
+          className="launch-list-search"
+          aria-label={t('launchesSearch')}
+          placeholder={t('launchesSearch')}
+          clearLabel={t('teamSearchClear')}
+          value={search}
+          onChange={next => changeFilters(() => setSearch(next))}
+        />
+        <TaskDateFilterControl
+          value={dates}
+          onChange={next => changeFilters(() => setDates(next))}
+          status="all"
+          onStatusChange={() => {}}
+          showStatus={false}
+          inlineDays
+          inlineTomorrow
+        >
+          <TaskFiltersButton count={activeListFilterCount}>
+            <div
+              className="task-filter-section"
+              role="group"
+              aria-labelledby={`${filterHeadingId}-show`}
+            >
+              <span id={`${filterHeadingId}-show`} className="task-filter-heading">
+                {t('teamTasksFilterGroup')}
+              </span>
+              <LaunchListFilter
+                label={t('launchesFilterAccount')}
+                allLabel={t('launchesFilterAllAccounts')}
+                value={accountFilter}
+                onChange={next => changeFilters(() => setAccountFilter(next))}
+                options={accounts
+                  .map(account => ({ value: account.id, label: account.name }))
+                  .sort((a, b) => a.label.localeCompare(b.label))}
+              />
+              <LaunchListFilter
+                label={t('launchesOffer')}
+                allLabel={t('launchesAllOffers')}
+                value={offerFilter}
+                onChange={next => changeFilters(() => setOfferFilter(next))}
+                options={offers
+                  .map(offer => ({ value: offer.id, label: offer.value }))
+                  .sort((a, b) => a.label.localeCompare(b.label))}
+              />
+              <LaunchListFilter
+                label={t('launchesFilterAssignee')}
+                allLabel={t('launchesFilterAllAssignees')}
+                value={assigneeFilter}
+                onChange={next => changeFilters(() => setAssigneeFilter(next))}
+                options={assignees
+                  .map(member => ({ value: member.userId, label: member.label }))
+                  .sort((a, b) => a.label.localeCompare(b.label))}
+              />
             </div>
-          </TaskDateFilterControl>
-        </div>
+          </TaskFiltersButton>
+        </TaskDateFilterControl>
         {can('edit') && (
           <Button
             type="button"
+            className="launch-list-new"
             variant={selectedIds.size ? 'outline' : 'primary'}
             onClick={() => route('new', 'settings')}
           >

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { teamTaskDate, type LaunchSummary } from '@video-compressor/shared';
 import {
+  Button,
   Card,
   Badge,
   Checkbox,
@@ -173,8 +174,8 @@ export function LaunchCard({
             onChange={onSelectedChange}
           />
         )}
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           className="launch-card-heading"
           title={heading}
           onClick={event => {
@@ -185,7 +186,7 @@ export function LaunchCard({
           }}
         >
           {heading}
-        </button>
+        </Button>
         {accountChipLabel && (
           <span
             className={`team-task-agent-chip${accountStatus === 'free' ? ' is-free' : accountStatus === 'unknown' || accountStatus === 'historical' ? ' is-neutral' : ''}`}

@@ -11,7 +11,7 @@ import {
 import { AccountPickerLabel } from '../accounts/AccountPickerLabel';
 import { analytics } from '../../analytics/service';
 import { Modal } from '../../components/Modal';
-import { Button, EmptyState, Input } from '../../components/ui';
+import { Button, EmptyState, Input, SegmentedControl } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 
@@ -94,42 +94,37 @@ export function LaunchAccountBrowser({
           value={search}
           onChange={event => setSearch(event.target.value)}
         />
-        <div
+        {/* One of three or four, so the inventory's segmented control (070, T080). */}
+        <SegmentedControl<TeamAccountOccupancyFilter>
           className="team-task-account-picker-occupancy"
-          role="group"
-          aria-label={t('teamAccountsFilterLabel')}
-        >
-          {filters.map(filter => (
-            <button
-              key={filter}
-              type="button"
-              aria-pressed={occupancy === filter}
-              className={`task-status-filter-option team-accounts-occupancy-option is-${filter}${occupancy === filter ? ' is-active' : ''}`}
-              onClick={() => setOccupancy(filter)}
-            >
-              {t(
-                filter === 'unknown'
-                  ? 'teamAgentAvailabilityUnknown'
-                  : filter === 'all'
-                    ? 'teamAccountsFilterAll'
-                    : filter === 'free'
-                      ? 'teamAccountsFilterFree'
-                      : 'teamAccountsFilterBusy'
-              )}{' '}
-              · {totals[filter]}
-            </button>
-          ))}
-        </div>
+          size="xs"
+          label={t('teamAccountsFilterLabel')}
+          value={occupancy}
+          onChange={setOccupancy}
+          options={filters.map(filter => ({
+            value: filter,
+            label: `${t(
+              filter === 'unknown'
+                ? 'teamAgentAvailabilityUnknown'
+                : filter === 'all'
+                  ? 'teamAccountsFilterAll'
+                  : filter === 'free'
+                    ? 'teamAccountsFilterFree'
+                    : 'teamAccountsFilterBusy'
+            )} · ${totals[filter]}`
+          }))}
+        />
         {social && (
           <nav className="team-task-account-picker-crumb" aria-label={t('teamAccountsTitle')}>
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant="ghost"
               className="team-task-account-picker-back"
+              leading={<ArrowLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
               onClick={() => setSocialId(null)}
             >
-              <ArrowLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} />
               {t('teamAccountsTitle')}
-            </button>
+            </Button>
             <strong aria-current="page">{social.name}</strong>
           </nav>
         )}
@@ -143,7 +138,12 @@ export function LaunchAccountBrowser({
                 // Search exposes matching RK directly; browsing starts at the social level.
                 return !socialId && !search.trim() ? (
                   <li key={account.id}>
-                    <button type="button" onClick={() => setSocialId(account.id)}>
+                    <Button
+                      variant="ghost"
+                      block
+                      className="team-task-picker-row"
+                      onClick={() => setSocialId(account.id)}
+                    >
                       <span className="team-task-picker-item-type" aria-hidden="true">
                         <UserRound size={ICON_SIZE} strokeWidth={ICON_STROKE} />
                       </span>
@@ -174,7 +174,7 @@ export function LaunchAccountBrowser({
                         </small>
                       </span>
                       <ChevronRight size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    </button>
+                    </Button>
                   </li>
                 ) : (
                   account.agents.map(agent => {
@@ -182,10 +182,11 @@ export function LaunchAccountBrowser({
                     const free = availability === 'free';
                     return (
                       <li key={agent.id}>
-                        <button
-                          type="button"
+                        <Button
+                          variant="ghost"
+                          block
                           aria-pressed={agent.id === value}
-                          className={`${agent.id === value ? 'is-selected' : ''} ${free ? 'is-free' : ''}`}
+                          className={`team-task-picker-row ${agent.id === value ? 'is-selected' : ''} ${free ? 'is-free' : ''}`}
                           onClick={() => {
                             onChange(agent.id);
                             if (attempt.current) {
@@ -226,7 +227,7 @@ export function LaunchAccountBrowser({
                           {agent.id === value && (
                             <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                           )}
-                        </button>
+                        </Button>
                       </li>
                     );
                   })

@@ -144,8 +144,9 @@ it('browses socials with occupancy counts, filters busy RK and selects the real 
   await user.click(screen.getByRole('button', { name: 'Choose account' }));
   const dialog = screen.getByRole('dialog');
   const ui = within(dialog);
-  expect(ui.getByRole('button', { name: /Free · 2/ })).toBeTruthy();
-  await user.click(ui.getByRole('button', { name: /^Busy · 1$/ }));
+  // The occupancy filter is a segmented control (070, T080): one radio each.
+  expect(ui.getByRole('radio', { name: /Free · 2/ })).toBeTruthy();
+  await user.click(ui.getByRole('radio', { name: /^Busy · 1$/ }));
   expect(ui.queryByRole('button', { name: /g2/ })).toBeNull();
   await user.click(ui.getByRole('button', { name: /Main social/ }));
   expect(ui.getByText('TR ProCaps')).toBeTruthy();

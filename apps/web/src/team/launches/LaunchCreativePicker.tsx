@@ -22,7 +22,13 @@ import { MaterialPreview } from '../preview/MaterialPreview.js';
 import { TaskAttachmentPicker } from '../tasks/TaskAttachmentPicker.js';
 import { teamApi } from '../../api/team.js';
 import { uploadTeamFile } from '../catalog/material-actions-client.js';
-import { Button, DropdownMenu, FormField } from '../../components/ui/index.js';
+import {
+  Button,
+  DropdownMenu,
+  FileTrigger,
+  FormField,
+  type FileTriggerHandle
+} from '../../components/ui/index.js';
 import { creativeSelectKey, useI18n } from '../../i18n.js';
 import { useThumbnailSession } from '../explorer/useThumbnailSession.js';
 import { privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope.js';
@@ -72,7 +78,7 @@ export function LaunchCreativePicker({
 }) {
   const { t, language } = useI18n();
   const id = useId();
-  const fileInput = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<FileTriggerHandle>(null);
   const menuAnchor = useRef<HTMLButtonElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWasOpen = useRef(false);
@@ -531,7 +537,7 @@ export function LaunchCreativePicker({
                       label: t('launchCreativeComputer'),
                       icon: <Monitor size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
                       onSelect: () => {
-                        if (allowed(currentRevision) && !active.current) fileInput.current?.click();
+                        if (allowed(currentRevision) && !active.current) fileInput.current?.open();
                       }
                     },
                     {
@@ -547,18 +553,15 @@ export function LaunchCreativePicker({
               </>
             )}
           />
-          <input
+          {/* The inventory's way into the file system (070, T080): opened from the menu item
+              through the ref; an unavailable picker never opens it (the item checks first). */}
+          <FileTrigger
             ref={fileInput}
-            type="file"
-            accept={accept}
-            multiple={catalogMode}
-            hidden
-            disabled={unavailable}
-            aria-label={t('launchCreativeComputer')}
-            onChange={event => {
-              const files = Array.from(event.target.files ?? []);
-              event.target.value = '';
-              if (files.length) void upload(files);
+            acceptedFileTypes={accept.split(',')}
+            allowsMultiple={catalogMode}
+            label={t('launchCreativeComputer')}
+            onSelect={files => {
+              if (!unavailable) void upload(files);
             }}
           />
         </div>
