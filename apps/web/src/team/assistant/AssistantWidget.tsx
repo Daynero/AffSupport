@@ -51,7 +51,7 @@ import { launchApi } from '../../api/launches';
 import { agentReleaseApi } from '../../api/team-agent-release';
 import { TeamApiError } from '../../api/team';
 import { CreditsButton } from '../../credits/CreditsButton';
-import { Button, DropdownMenu, IconButton, Spinner } from '../../components/ui/index.js';
+import { Button, DropdownMenu, IconButton, Spinner, Textarea } from '../../components/ui/index.js';
 import { CreditIcon, ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
 import { kyivTime, refreshCredits, setCredits, useCredits } from '../../credits/store';
 import { assistantDraftsKey, useI18n, type TranslationKey } from '../../i18n';
@@ -1154,18 +1154,20 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
     <div className="assistant-dock">
       <section className="assistant-window" aria-label={t('assistantTitle')}>
         <header className="assistant-head">
-          <button
+          {/* The conversation's name is the way to the others (070, T081): an inventory button
+              with no face, the spark before it and the caret after. */}
+          <Button
             ref={menuAnchor}
-            type="button"
+            variant="ghost"
             className="assistant-dialog-switch"
             aria-haspopup="menu"
             aria-expanded={menu}
+            leading={<CreditIcon size={18} />}
+            trailing={<ChevronDown size={16} strokeWidth={ICON_STROKE} />}
             onClick={() => setMenu(value => !value)}
           >
-            <CreditIcon size={18} />
             <span className="assistant-dialog-title">{currentTitle}</span>
-            <ChevronDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
+          </Button>
           <DropdownMenu
             open={menu}
             onClose={() => setMenu(false)}
@@ -1250,7 +1252,7 @@ export function AssistantWidget({ teamId, canEdit }: AssistantWidgetProps) {
         <div
           className={`assistant-bar${focused ? ' is-focused' : ''}${tooLong ? ' is-invalid' : ''}`}
         >
-          <textarea
+          <Textarea
             ref={input}
             rows={1}
             className="assistant-input"

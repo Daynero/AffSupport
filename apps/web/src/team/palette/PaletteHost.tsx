@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { navigateTo } from '../../lib/navigation';
 import { useI18n } from '../../i18n';
+import { Button } from '../../components/ui/index';
 import { buildTeamRoute } from '../routes';
 import { WorkspacePalette } from './WorkspacePalette';
 import { usePaletteResults } from './usePaletteResults';
@@ -59,10 +60,16 @@ export function PaletteHost({
       loading={loading}
       onClose={onClose}
       footer={
-        <button type="button" className="workspace-palette-footer" onClick={onShortcuts}>
+        <Button
+          size="sm"
+          variant="ghost"
+          block
+          className="workspace-palette-footer"
+          trailing={<kbd>{formatShortcut('mod+/')}</kbd>}
+          onClick={onShortcuts}
+        >
           {t('shortcutSheetTitle')}
-          <kbd>{formatShortcut('mod+/')}</kbd>
-        </button>
+        </Button>
       }
     />
   );

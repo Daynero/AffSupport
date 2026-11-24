@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Modal } from '../../components/Modal';
-import { EmptyState, Spinner } from '../../components/ui/index';
+import { EmptyState, Input, Spinner } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 import type {
   MaterialCategory,
@@ -244,26 +244,30 @@ export function WorkspacePalette({
         <h2 id="workspace-palette-title" className="visually-hidden">
           {t('paletteTitle')}
         </h2>
-        <div className="workspace-palette-field">
-          <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          <input
-            ref={input}
-            id="workspace-palette-input"
-            autoFocus
-            type="search"
-            value={query}
-            role="combobox"
-            aria-expanded
-            aria-controls="workspace-palette-list"
-            aria-activedescendant={flat[active] ? `palette-${flat[active]!.id}` : undefined}
-            aria-label={t('paletteTitle')}
-            placeholder={t('palettePlaceholder')}
-            onChange={event => onQueryChange(event.target.value)}
-          />
-          {/* Beside the field, not in place of the list: the answers that are
-              already there stay readable while the next ones are on the way. */}
-          {loading && <Spinner size="sm" label={t('loading')} />}
-        </div>
+        {/* The inventory's field (070, T081), at the palette's size; it stays the combobox
+            whose arrows walk the list below while the focus never leaves it. */}
+        <Input
+          ref={input}
+          size="lg"
+          className="workspace-palette-field"
+          leading={<Search size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+          trailing={
+            /* Beside the field, not in place of the list: the answers that are
+               already there stay readable while the next ones are on the way. */
+            loading ? <Spinner size="sm" label={t('loading')} /> : undefined
+          }
+          id="workspace-palette-input"
+          autoFocus
+          type="search"
+          value={query}
+          role="combobox"
+          aria-expanded
+          aria-controls="workspace-palette-list"
+          aria-activedescendant={flat[active] ? `palette-${flat[active]!.id}` : undefined}
+          aria-label={t('paletteTitle')}
+          placeholder={t('palettePlaceholder')}
+          onChange={event => onQueryChange(event.target.value)}
+        />
         <div
           id="workspace-palette-list"
           className="workspace-palette-list modal-search-results"
@@ -284,11 +288,12 @@ export function WorkspacePalette({
               {group.items.map(item => {
                 const index = flat.indexOf(item);
                 const Icon = KIND_ICON[item.kind];
+                /* An option, not a button (070, T081): the focus stays in the field, which walks
+                   the list by `aria-activedescendant`; a press here chooses, as Enter does. */
                 return (
-                  <button
+                  <div
                     key={item.id}
                     id={`palette-${item.id}`}
-                    type="button"
                     role="option"
                     tabIndex={-1}
                     aria-selected={index === active}
@@ -312,7 +317,7 @@ export function WorkspacePalette({
                     {(item.hint ?? hintOf(item, t, language)) && (
                       <small>{item.hint ?? hintOf(item, t, language)}</small>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>

@@ -67,8 +67,23 @@ body:has(.next-channel-badge) .assistant-dock {
 .assistant-dialog-switch:focus-visible {
   background: var(--color-surface-raised);
 }
-.assistant-dialog-switch svg:first-child {
+/* The switch is the inventory's button (070, T081): laid out from the start, the name the one
+   part that gives way. */
+.assistant-dialog-switch.ui-button {
+  justify-content: flex-start;
+  min-height: 0;
+  height: auto;
+  white-space: nowrap;
+}
+.assistant-dialog-switch > .ui-button-label {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.assistant-dialog-switch .ui-button-leading svg {
   color: var(--color-accent-text);
+}
+.assistant-dialog-switch .ui-button-trailing svg {
+  color: var(--color-text-muted);
 }
 .assistant-dialog-title {
   overflow: hidden;
@@ -270,6 +285,13 @@ body:has(.next-channel-badge) .assistant-dock {
   font: inherit;
   font-size: var(--text-body);
   resize: none;
+}
+/* The field is the inventory's textarea, drawn by the bar around it: no box, no ring of its own. */
+.assistant-bar .assistant-input,
+.assistant-bar .assistant-input:focus {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 .assistant-input::placeholder {
   color: var(--color-text-muted);
