@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { TeamPermissions } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { selectNativeDirectory } from '../../api/client';
-import { useI18n } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 import { uploadTeamFile } from '../catalog/material-actions-client';
@@ -46,6 +46,24 @@ export interface UploadVideoQuestion {
  * files, a dropped or picked folder through the space's upload groups, and the one name
  * collision the upload is waiting on — and a new, empty folder.
  */
+/**
+ * Why a whole upload failed, when every file failed for the same known reason (070 T069): a
+ * Drive that answered 403 to each file said "check the result and try again" with no result
+ * to check. A mixed or unknown failure keeps that sentence.
+ */
+function failedReason(
+  group: { items: ReadonlyArray<{ state: string; errorCode: string | null }> },
+  t: (key: TranslationKey) => string
+): string {
+  const codes = new Set(
+    group.items.filter(item => item.state === 'failed').map(item => item.errorCode ?? '')
+  );
+  const [code] = [...codes];
+  if (codes.size !== 1 || !code) return t('teamExplorerUploadIncomplete');
+  const reason = teamErrorMessageFor({ code }, t);
+  return reason === t('teamErrorUnknown') ? t('teamExplorerUploadIncomplete') : reason;
+}
+
 export function useExplorerUploads({
   teamId,
   client,
@@ -432,7 +450,7 @@ export function useExplorerUploads({
                 ? t('teamWorkspacePartial')
                 : group.state === 'canceled'
                   ? t('teamWorkspaceCanceled')
-                  : t('teamExplorerUploadIncomplete')
+                  : failedReason(group, t)
         });
       } catch (cause) {
         push({
