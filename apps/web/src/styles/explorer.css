@@ -773,7 +773,8 @@
 }
 /* No picture: the mark stands on the card's own surface, not on a dark slab of nothing, ruled
    off from the caption the same way on a folder and on a file. */
-.team-explorer-tile-visual:has(> .team-explorer-tile-icon) {
+.team-explorer-tile-visual:has(> .team-explorer-tile-icon),
+.team-explorer-tile-visual:has(> .ui-button-label > .team-explorer-tile-icon) {
   border-bottom: 1px solid var(--color-border);
   background: transparent;
 }
@@ -1870,4 +1871,89 @@
     align-self: flex-end;
     margin-block-end: calc(-1 * var(--space-2));
   }
+}
+
+/* --- The list's and the grid's own controls on the inventory (070, phase 8б) --------------- */
+
+/* The picture is the inventory's button: the press, the focus ring, the disabled look are the
+   button's; the frame stays the tile's. Its words wrapper steps aside so the picture, the
+   glyph and the play mark are the frame's own grid items again; no press scale or hover wash
+   on a picture. */
+.team-explorer-tile-visual.ui-button {
+  /* The library gives every button a fixed height; the picture is as tall as its 4:3 frame. */
+  height: auto;
+  min-height: 0;
+  transform: none;
+  font-weight: inherit;
+}
+.team-explorer-tile-visual > .ui-button-label {
+  display: contents;
+}
+.team-explorer-tile-visual.ui-button:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+}
+.team-explorer-tile-visual.ui-button:has(> .ui-button-label > .team-explorer-tile-icon):hover {
+  background: transparent;
+}
+
+/* The name in a row: text that takes the press, with no box of its own. */
+.team-explorer-row-open.ui-button {
+  display: inline-block;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: inherit;
+  text-align: start;
+}
+.team-explorer-row-open.ui-button:hover:not(:disabled) {
+  background: none;
+}
+.team-explorer-row-open > .ui-button-label {
+  display: inline;
+}
+
+/* The count of a video's own files before its name, at the width every row keeps for it. */
+.team-explorer-row-companions.ui-button {
+  justify-content: flex-start;
+  font-weight: inherit;
+}
+
+/* The badge and the rows of the companions' list. */
+.team-explorer-tile-badge.ui-button {
+  min-height: 0;
+  height: var(--control-height-xs);
+}
+.team-explorer-companion.ui-button {
+  justify-content: flex-start;
+  height: auto;
+  font-weight: inherit;
+  white-space: normal;
+  text-align: start;
+}
+.team-explorer-companion > .ui-button-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The boxes: the inventory's checkbox in a 40px cell, waiting for the pointer until a row is
+   ticked — as the hand-drawn box did — and on a picture a plate under it, so it reads over an
+   image as well as over the card. */
+.team-explorer-row-check > .team-explorer-row-box {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  transition: opacity var(--dur-control) var(--ease-standard);
+}
+@media (hover: hover) {
+  .team-explorer-rows:not(:has(.team-explorer-row.is-checked))
+    .team-explorer-row:not(:hover):not(:focus-within)
+    .team-explorer-row-box {
+    opacity: 0;
+  }
+}
+.team-explorer-tile-check .ui-checkbox-mark {
+  background: var(--color-surface);
 }

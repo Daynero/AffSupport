@@ -7,9 +7,12 @@ import type {
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
 import {
+  Button,
+  Checkbox,
   EmptyState,
   ErrorState,
   FadeImage,
+  IconButton,
   LoadingState,
   Popover,
   Reveal
@@ -344,8 +347,8 @@ function Tile({
       onClick={event => onPress(row, event)}
       onDoubleClick={open}
     >
-      <button
-        type="button"
+      <Button
+        variant="ghost"
         className="team-explorer-tile-visual"
         aria-label={t('teamExplorerOpenNamed', { name: row.name })}
         /*
@@ -358,11 +361,8 @@ function Tile({
           event.stopPropagation();
           onPress(row, event);
         }}
-        onDoubleClick={event => {
-          event.stopPropagation();
-          open();
-        }}
       >
+        {/* A double press reaches the tile's own, which opens. */}
         {image ? (
           <FadeImage
             src={image}
@@ -390,7 +390,7 @@ function Tile({
             </svg>
           </span>
         )}
-      </button>
+      </Button>
       {companions.length > 0 && (
         <TileCompanions owner={row} rows={companions} onSelect={onSelect} onPreview={onPreview} />
       )}
@@ -408,18 +408,16 @@ function Tile({
       {/* Selection and the menu sit over the picture, the way every file
           manager puts them: out of the caption, where they competed with the
           name, and out of the flow, where the bare checkbox floated loose. */}
-      <label
-        className="team-explorer-check team-explorer-tile-check"
-        onClick={event => event.stopPropagation()}
-      >
-        <input
-          type="checkbox"
+      {/* The inventory's checkbox on the picture (070, phase 8б); its plate keeps the press to
+          itself, so ticking never also selects or opens the tile. */}
+      <div className="team-explorer-tile-check" onClick={event => event.stopPropagation()}>
+        <Checkbox
+          size="sm"
           aria-label={t('teamExplorerSelectNamed', { name: row.name })}
           checked={checked}
           onChange={() => onToggle(row)}
         />
-        <span aria-hidden="true" />
-      </label>
+      </div>
       {actions && (
         <div className="team-explorer-tile-actions" onClick={event => event.stopPropagation()}>
           <RowActions {...actions} row={row} />
@@ -507,24 +505,28 @@ function TileCompanions({
     <>
       {/* The picture's own box, laid over it: the badge sits in the picture's corner without
           being inside the button that is the picture. */}
-      <span className="team-explorer-tile-badge-layer">
-        <button
+      <span
+        className="team-explorer-tile-badge-layer"
+        /* A double press on the badge is two presses on the badge, not "open the video". */
+        onDoubleClick={event => event.stopPropagation()}
+      >
+        <Button
           ref={badge}
-          type="button"
+          size="xs"
+          variant="ghost"
           className="team-explorer-tile-badge"
           aria-label={`${owner.name}: ${label}`}
           aria-haspopup="dialog"
           aria-expanded={open}
           title={label}
+          leading={<Paperclip size={14} strokeWidth={ICON_STROKE} />}
           onClick={event => {
             event.stopPropagation();
             setOpen(value => !value);
           }}
-          onDoubleClick={event => event.stopPropagation()}
         >
-          <Paperclip size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
           {rows.length}
-        </button>
+        </Button>
       </span>
       <Popover
         open={open}
@@ -538,15 +540,14 @@ function TileCompanions({
         <p className="team-explorer-companions-title">{t('teamExplorerCompanionsOf')}</p>
         <ul role="list" onClick={event => event.stopPropagation()}>
           {rows.map(row => (
-            <li key={row.id}>
-              <button
-                type="button"
+            <li key={row.id} onDoubleClick={() => onPreview?.(previewSummary(row))}>
+              <Button
+                variant="ghost"
                 className="team-explorer-companion"
                 onClick={() => {
                   onSelect(row.id);
                   setOpen(false);
                 }}
-                onDoubleClick={() => onPreview?.(previewSummary(row))}
               >
                 <KindIcon kind={row.kind} />
                 <span className="team-explorer-companion-copy">
@@ -555,20 +556,19 @@ function TileCompanions({
                   </span>
                   <span className="team-explorer-companion-kind">{t(companionLabel(row))}</span>
                 </span>
-              </button>
+              </Button>
               {onPreview && (
-                <button
-                  type="button"
+                <IconButton
+                  size="sm"
                   className="team-explorer-companion-open"
-                  aria-label={t('teamExplorerOpenNamed', { name: row.name })}
-                  title={t('teamExplorerOpenNamed', { name: row.name })}
+                  label={t('teamExplorerOpenNamed', { name: row.name })}
                   onClick={() => {
                     onPreview(previewSummary(row));
                     setOpen(false);
                   }}
                 >
                   <ExternalLink size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                </button>
+                </IconButton>
               )}
             </li>
           ))}

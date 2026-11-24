@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import type { TeamMaterialRow, TeamMaterialTagColor } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
 import {
+  Button,
+  Checkbox,
   EmptyState,
   ErrorState,
   LoadingState,
@@ -342,22 +344,23 @@ function Row({
       onClick={event => onPress(row, event)}
       onDoubleClick={open}
     >
-      <TableCell className="team-explorer-row-check">
-        <label className="team-explorer-check" onClick={event => event.stopPropagation()}>
-          <input
-            type="checkbox"
-            aria-label={t('teamExplorerSelectNamed', { name: row.name })}
-            checked={checked}
-            onChange={() => onToggle(row)}
-          />
-          <span aria-hidden="true" />
-        </label>
+      {/* The inventory's checkbox, the one the search results tick (070, phase 8б); the cell
+          keeps the press to itself, so ticking never also selects or opens the row. */}
+      <TableCell className="team-explorer-row-check" onClick={event => event.stopPropagation()}>
+        <Checkbox
+          size="sm"
+          className="team-explorer-row-box"
+          aria-label={t('teamExplorerSelectNamed', { name: row.name })}
+          checked={checked}
+          onChange={() => onToggle(row)}
+        />
       </TableCell>
       <TableCell className={`team-explorer-row-name${nested ? ' is-nested' : ''}`}>
         {companions > 0 && onToggleCompanions ? (
           /* The video's own files, on a press (024, US25). */
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="ghost"
             className="team-explorer-row-companions"
             aria-expanded={companionsOpen}
             aria-label={t(
@@ -377,13 +380,13 @@ function Row({
               <ChevronRight size={14} strokeWidth={ICON_STROKE} aria-hidden="true" />
             )}
             <span>{companions}</span>
-          </button>
+          </Button>
         ) : expanderSlot ? (
           <span className="team-explorer-row-companions is-empty" aria-hidden="true" />
         ) : null}
         <KindIcon kind={row.kind} />{' '}
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           className="team-explorer-row-open"
           /* The name selects like the rest of the row, and opens on the
              second press like the rest of the row (024): it used to open on
@@ -393,13 +396,10 @@ function Row({
             event.stopPropagation();
             onPress(row, event);
           }}
-          onDoubleClick={event => {
-            event.stopPropagation();
-            open();
-          }}
         >
+          {/* A double press reaches the row's own, which opens. */}
           {row.name}
-        </button>
+        </Button>
         {/* The colour mark belongs to the file, so it follows the file's name,
             as Finder's does (the owner, 024). Beside the size it read as part of
             the size. */}

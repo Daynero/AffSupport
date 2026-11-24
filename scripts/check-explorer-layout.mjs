@@ -206,7 +206,11 @@ async function searchAndSelection(page) {
   await settle(page);
   // The selection: a row's box, ticked and let go.
   const before = await places(page);
-  const box = page.locator('.team-explorer-rows .team-explorer-row-check input').first();
+  const box = page
+    .locator(
+      '.team-explorer-rows .team-explorer-row-check [role="checkbox"], .team-explorer-rows .team-explorer-row-check input'
+    )
+    .first();
   if (await box.count()) {
     await box.check({ force: true });
     const bar = page.getByRole('toolbar', { name: /Дії з вибраним|What to do with the selection/ });
