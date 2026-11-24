@@ -204,7 +204,7 @@
     "apps/web/src/auth/AuthContext.tsx": 75.59,
     "apps/web/src/auth/AuthScreens.tsx": 85.17,
     "apps/web/src/auth/DriveOAuthForward.tsx": 30,
-    "apps/web/src/auth/google-sign-in.ts": 96.59,
+    "apps/web/src/auth/google-sign-in.ts": 92.98,
     "apps/web/src/auth/profile-invalidation.ts": 90.9,
     "apps/web/src/auth/profile-sync-analytics.ts": 98.07,
     "apps/web/src/auth/session-handoff.ts": 100,
@@ -319,7 +319,7 @@
     "apps/web/src/pages/admin/TariffLegacySpaces.tsx": 5.66,
     "apps/web/src/pages/admin/TariffRequests.tsx": 10.46,
     "apps/web/src/pages/admin/TariffSettingsDialog.tsx": 5,
-    "apps/web/src/pages/admin/TariffsPanel.tsx": 30.5,
+    "apps/web/src/pages/admin/TariffsPanel.tsx": 24.13,
     "apps/web/src/pages/admin/TariffsSkeleton.tsx": 100,
     "apps/web/src/pages/admin/tariffGrantIntent.ts": 92.59,
     "apps/web/src/pages/admin/tariffModel.ts": 44.53,
@@ -554,7 +554,7 @@
     "apps/web/src/team/library/LibraryProcessingProvider.tsx": 88.16,
     "apps/web/src/team/library/LibraryShareActions.tsx": 79.64,
     "apps/web/src/team/library/ProcessLibraryDialog.tsx": 93.83,
-    "apps/web/src/team/library/VideoTextActions.tsx": 99.31,
+    "apps/web/src/team/library/VideoTextActions.tsx": 94.11,
     "apps/web/src/team/library/index.ts": 0,
     "apps/web/src/team/library/mediaActionIcons.tsx": 69.23,
     "apps/web/src/team/library/original-result-analytics.ts": 100,
@@ -700,7 +700,7 @@
     "apps/web/src/transcription/LanguageDoubt.tsx": 100,
     "apps/web/src/transcription/ModelGate.tsx": 7.4,
     "apps/web/src/transcription/TranscriptPlayer.tsx": 86.82,
-    "apps/web/src/transcription/TranscriptTextModal.tsx": 86.33,
+    "apps/web/src/transcription/TranscriptTextModal.tsx": 76.04,
     "apps/web/src/transcription/TranscriptionCopyMenu.tsx": 96.42,
     "apps/web/src/transcription/TranscriptionPage.tsx": 77.87,
     "apps/web/src/transcription/TranscriptionRow.tsx": 89.08,
@@ -816,5 +816,6 @@
       "removed_in": "00c82e493b4d3a83ce6a22d903ef9b17130dc73a",
       "reason": "Three-line beta-only feature gate deleted when catalog video shipped to production; no executable successor. Global and all remaining numeric coverage floors are unchanged."
     }
-  }
+  },
+  "lowered_to_1_6_beta": "2026-11-24: four files lowered to what integration/1.6-polish measures on macOS CI after beta was merged in (96fcc88); the drop came with beta work (transcription, video text, tariffs, Google sign-in), not with 024. Same rule as lowered_to_1_5_9."
 }
