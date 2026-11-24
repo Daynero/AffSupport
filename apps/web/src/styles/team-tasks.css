@@ -356,7 +356,7 @@
 }
 
 /* The × that takes the date filter off. Shared with the account filter, which
-   sets its own size beside its own pill (team-accounts.css). `min-height: 0`
+   sets its own size beside its own pill (accounts.css). `min-height: 0`
    is what keeps it at 24px under the global button floor. */
 .task-date-filter-clear {
   display: inline-flex;

@@ -126,7 +126,7 @@ describe('the stylesheet entry', () => {
       './base.css',
       './components.css',
       '../styles.css',
-      './team-accounts.css',
+      './accounts.css',
       './team-tasks.css',
       './transcription.css',
       './landing-viewer.css',

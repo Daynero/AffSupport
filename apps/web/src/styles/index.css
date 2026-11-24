@@ -122,7 +122,7 @@
 @import './space-shell.css' layer(soty);
 /* The members page (070, T051). */
 @import './members.css' layer(soty);
-@import './team-accounts.css' layer(soty);
+@import './accounts.css' layer(soty);
 @import './team-tasks.css' layer(soty);
 @import './transcription.css' layer(soty);
 @import './translation.css' layer(soty);

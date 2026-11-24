@@ -1,11 +1,15 @@
 /* ============================================================
-   Team accounts (017) — the accounts list inside a space.
+   Accounts (017; 070 T055 — was team-accounts.css) — the accounts list
+   inside a space.
 
-   Loaded after styles.css and built from its tokens. The section is a
-   team-panel like Tasks; the list inside it borrows the 2FA wallet's table
-   grammar — quiet row actions, an inline editor that keeps the row's height,
-   a copy-on-press value — because that is the one list in the product that
-   already does what this one does.
+   The list is the inventory's Table now (070, T041): its roles, its header
+   and its rows come from `Table`, `TableHeader`, `TableRow` and `TableCell`.
+   What stays here is what a Table does not give — the screen's own grid of
+   columns and how it folds on a phone, the account heads, the run lines and
+   their markers, the money that reads as text at rest, the account colours.
+   The toolbar's own chrome went with its controls (search, segmented
+   control, menus, the fold are the inventory's); so did the copy button and
+   the run's pencil and bin.
    ============================================================ */
 
 .team-account-space {
