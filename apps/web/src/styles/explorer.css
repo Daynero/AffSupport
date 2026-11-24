@@ -763,8 +763,22 @@
   }
 }
 .team-explorer-tile-icon .team-kind-icon {
-  width: 72cqmin;
-  height: 72cqmin;
+  /* A modest mark in the middle of the frame (070), the same size on a folder and on a file:
+     at 72cqmin a video's camera filled half the tile and read as the picture itself. Sized
+     against the frame still (cqmin), so a short folder strip does not get more than it holds. */
+  width: min(40px, 48cqmin);
+  height: min(40px, 48cqmin);
+}
+/* No picture: the mark stands on the card's own surface, not on a dark slab of nothing, ruled
+   off from the caption the same way on a folder and on a file. */
+.team-explorer-tile-visual:has(> .team-explorer-tile-icon) {
+  border-bottom: 1px solid var(--color-border);
+  background: transparent;
+}
+/* The details card's frame is the thing being looked at: a larger mark, still not a poster. */
+.team-material-detail-visual .team-explorer-tile-icon .team-kind-icon {
+  width: min(72px, 36cqmin);
+  height: min(72px, 36cqmin);
 }
 /* A play mark belongs over the frame it plays, centred, and only when there is
    a frame — on the fallback glyph it was a second icon saying the same thing. */
