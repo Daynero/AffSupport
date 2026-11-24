@@ -123,8 +123,14 @@ export function LaunchBatch({
           }).format(new Date(batch.createdAt));
           return {
             id: batch.id,
-            title: t('launchesBulkSummary', { done, total: batch.items.length }),
-            aside: <span className="text-caption text-muted whitespace-nowrap">{stamp}</span>,
+            /* The time under the summary, not beside it (070 T069): on a phone the two
+               shared one line and the summary wrapped while the time stood in a column. */
+            title: (
+              <span className="flex min-w-0 flex-col">
+                <span>{t('launchesBulkSummary', { done, total: batch.items.length })}</span>
+                <span className="text-caption font-normal text-muted">{stamp}</span>
+              </span>
+            ),
             content: (
               <div className="flex min-w-0 flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">

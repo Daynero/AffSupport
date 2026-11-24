@@ -3431,10 +3431,16 @@
   background: none;
   color: var(--color-neutral-text);
   font-weight: var(--weight-label);
+  /* Its own step (070 T069): it inherited the old sheet's section-sized body, so a
+     launch group's title wrapped to two lines at headline size on a phone. */
+  font-size: var(--text-label);
   text-align: left;
   cursor: pointer;
 }
 .ui-accordion-title {
+  /* The title takes the row, so the chevron stands at the end whether or not
+     there is an aside (070 T069: without one it followed the words). */
+  flex: 1 1 auto;
   min-width: 0;
 }
 .ui-accordion-aside {
