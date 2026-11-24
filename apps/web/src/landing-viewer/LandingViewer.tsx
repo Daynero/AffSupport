@@ -27,7 +27,7 @@ import {
   Search,
   TriangleAlert
 } from 'lucide-react';
-import { Button, Progress, Spinner } from '../components/ui/index';
+import { Button, Progress, Spinner, useToolbarStages } from '../components/ui/index';
 import { ReconnectAction } from '../components/ReconnectAction';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
@@ -45,7 +45,7 @@ import { GalleryIconButton } from './internal/GalleryIconButton';
 import { GalleryEmpty } from './internal/GalleryEmpty';
 import { MenuHeading, MenuItem, MenuSeparator } from './internal/ViewerMenu';
 import { phaseKey } from './internal/phaseKey';
-import { useToolbarStages } from './internal/useToolbarStages';
+import { VIEWER_TOOLBAR_STAGES, viewerToolbarFits } from './internal/viewerToolbarFit';
 import { LandingTree } from './LandingTree';
 import { LandingGalleryGrid } from './LandingGalleryGrid';
 import { GallerySettingsMenu } from './GallerySettingsMenu';
@@ -117,7 +117,7 @@ export function LandingViewer({
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragDepth = useRef(0);
   const [dragging, setDragging] = useState(false);
-  const toolbar = useToolbarStages();
+  const toolbar = useToolbarStages({ stages: VIEWER_TOOLBAR_STAGES, fits: viewerToolbarFits });
 
   const preferences = useMemo(() => readViewerPreferences(), []);
   const selectedIndexRef = useRef(selectedIndex);

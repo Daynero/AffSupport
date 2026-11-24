@@ -49,7 +49,6 @@ import { ImageEmbeddingSection } from '../components/ImageEmbeddingSection';
 import { StatusBadge } from '../components/StatusBadge';
 import { ReconnectAction } from '../components/ReconnectAction';
 import { toggleSelection } from '../queue-ui';
-import { useCompactToolbar } from '../components/useCompactToolbar';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { StitcherProvider, useStitcher } from './StitcherContext';
 import {
@@ -69,7 +68,15 @@ import {
   updateCompressorSettings,
   uploadScreenImage
 } from './api';
-import { Alert, Button, Checkbox, EmptyState, HelpTip, RadioGroup } from '../components/ui/index';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  EmptyState,
+  HelpTip,
+  RadioGroup,
+  useCompactToolbar
+} from '../components/ui/index';
 
 const SETTINGS_OPEN_KEY = 'wishly.stitcher.settings-open.v1';
 
