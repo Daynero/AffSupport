@@ -121,8 +121,19 @@ const RELEASE_162_SHARED_ALLOWANCE = 53_000;
  *
  * What is left over the 053 base is 070's net growth after its own cleanup:
  * 3 917 B, allowed as 4 000. No dependency was added.
+ *
+ * Phase 9b (2026-11-24) measured 6 986 B: +3 069 B on top, of which ≈1.4 kB is the
+ * owner's two items taken into 070 after phase 9a (a drop with videos asks once and
+ * trims on the agent — the explorer chunk; the download tab follows the app into the
+ * space) and the rest the beta pass's fixes (inventory Table/Pagination/Select/Button,
+ * accordion and empty-state steps, a language switch that shows it is loading, one
+ * reconnect per screen, a failed upload that says why, the picker's storage state,
+ * about 0.5 kB of CSS). A fresh scan found nothing left to cut without cutting those:
+ * 0 dead CSS rules or overridden declarations, 0 unread dictionary keys; the unread
+ * custom properties are the HeroUI/Tailwind bridge, read from the library's CSS.
+ * Allowed as 7 000. No dependency was added.
  */
-const RELEASE_070_SHARED_ALLOWANCE = 4_000;
+const RELEASE_070_SHARED_ALLOWANCE = 7_000;
 
 /**
  * How far the total may drift before this fails.
