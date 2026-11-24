@@ -2,9 +2,9 @@
  * The component inventory (021).
  *
  * Forty-five named components, thirty-three of them mapped onto Nuxt UI's
- * catalogue and twelve product-specific. Screens import from here; the older
- * `components/ui.tsx` re-exports this file, so the sixty modules that already
- * import from that path keep working while their screens migrate.
+ * catalogue and twelve product-specific. Screens import from here. The pre-021
+ * shim that stood beside it, `components/ui.tsx`, was deleted by 070 T065, so
+ * `components/ui` and `components/ui/index` now name the same module.
  *
  * The contract for all of it is in
  * `specs/021-design-system-redesign/contracts/components.md`.
