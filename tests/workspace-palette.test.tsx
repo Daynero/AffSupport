@@ -13,7 +13,8 @@ import {
   shortcutKeys,
   matches
 } from '../apps/web/src/team/palette/shortcuts';
-import { translate, translationKeys } from '../apps/web/src/i18n';
+import { translate } from '../apps/web/src/i18n';
+import { translationKeys } from './support/translation-keys';
 import { isCatalogSheet, rankByName } from '../apps/web/src/team/palette/usePaletteResults';
 
 /**

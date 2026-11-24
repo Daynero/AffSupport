@@ -6,9 +6,9 @@ import {
   detectLanguage,
   selectedCountKey,
   translate,
-  translationKeys,
   type TranslationKey
 } from '../apps/web/src/i18n';
+import { translationKeys } from './support/translation-keys';
 
 const teamSourceDirectory = join(dirname(fileURLToPath(import.meta.url)), '../apps/web/src/team');
 

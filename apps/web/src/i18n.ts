@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { analytics } from './analytics/service';
-import { en } from './locales/en';
-import { uk } from './locales/uk';
+import type { en } from './locales/en';
 import { pluralRules } from './lib/plural-rules';
+import { dictionaryFor, isLanguageLoaded, loadLanguage } from './dictionaries';
 
 export type Language = 'en' | 'uk';
 
@@ -10,8 +10,8 @@ export type TranslationKey = keyof typeof en;
 
 /** The shape of `t`, for a component handed one rather than calling `useI18n` (moved here from the shim, 070). */
 export type Translate = (key: TranslationKey, values?: Record<string, string | number>) => string;
-const dictionaries = { en, uk };
-export const translationKeys = Object.keys(en) as TranslationKey[];
+
+export { isLanguageLoaded, loadLanguage };
 
 export function detectLanguage(
   saved: string | null,
@@ -26,9 +26,12 @@ export function translate(
   key: TranslationKey,
   values: Record<string, string | number> = {}
 ) {
+  // A language still on its way borrows whichever one is here; a key is the last resort, and
+  // only reachable if the boot could not load any dictionary at all.
+  const dictionary = dictionaryFor(language);
   return Object.entries(values).reduce(
     (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
-    dictionaries[language][key]
+    dictionary?.[key] ?? key
   );
 }
 
@@ -138,17 +141,26 @@ export function syncProfileLanguage(language: Language) {
   window.dispatchEvent(new CustomEvent('wishly-language-changed', { detail: language }));
 }
 
-export function useI18n() {
-  const [language, update] = useState<Language>(() =>
-    detectLanguage(
-      typeof localStorage === 'undefined' ? null : localStorage.getItem('language'),
-      typeof navigator === 'undefined'
-        ? ['en']
-        : navigator.languages?.length
-          ? navigator.languages
-          : [navigator.language]
-    )
+/** The language this browser will be shown in, before anything has rendered. */
+export function initialLanguage(): Language {
+  return detectLanguage(
+    typeof localStorage === 'undefined' ? null : localStorage.getItem('language'),
+    typeof navigator === 'undefined'
+      ? ['en']
+      : navigator.languages?.length
+        ? navigator.languages
+        : [navigator.language]
   );
+}
+
+/** Runs `apply` once `language` is here: at once when it already is, so a switch between two loaded languages stays synchronous. */
+function whenLoaded(language: Language, apply: () => void) {
+  if (isLanguageLoaded(language)) apply();
+  else void loadLanguage(language).then(apply, () => undefined);
+}
+
+export function useI18n() {
+  const [language, update] = useState<Language>(initialLanguage);
   const languageRef = useRef(language);
   languageRef.current = language;
   useEffect(() => {
@@ -162,7 +174,7 @@ export function useI18n() {
           : event instanceof StorageEvent
             ? event.newValue
             : null;
-      if (next === 'en' || next === 'uk') update(next);
+      if (next === 'en' || next === 'uk') whenLoaded(next, () => update(next));
     };
     window.addEventListener('wishly-language-changed', sync);
     window.addEventListener('storage', sync);
@@ -174,11 +186,15 @@ export function useI18n() {
   const setLanguage = useCallback((next: Language) => {
     localStorage.setItem('language', next);
     if (languageRef.current === next) return;
-    languageRef.current = next;
-    update(next);
-    analytics.setLocale(next);
-    analytics.track('language_changed', { language: next });
-    window.dispatchEvent(new CustomEvent('wishly-language-changed', { detail: next }));
+    whenLoaded(next, () => {
+      // A second choice made while this one was loading wins.
+      if (languageRef.current === next || localStorage.getItem('language') !== next) return;
+      languageRef.current = next;
+      update(next);
+      analytics.setLocale(next);
+      analytics.track('language_changed', { language: next });
+      window.dispatchEvent(new CustomEvent('wishly-language-changed', { detail: next }));
+    });
   }, []);
   const t = useMemo(
     () => (key: TranslationKey, values?: Record<string, string | number>) =>

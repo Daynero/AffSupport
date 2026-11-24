@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { translate, translationKeys, type TranslationKey } from '../apps/web/src/i18n';
+import { translate, type TranslationKey } from '../apps/web/src/i18n';
+import { translationKeys } from './support/translation-keys';
 
 /**
  * The interface glossary, enforced (contracts/glossary.md, SC-007).

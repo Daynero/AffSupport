@@ -7,7 +7,8 @@ import {
   type ActionHost,
   type MaterialRef
 } from '../apps/web/src/team/materials/actions';
-import { translate, translationKeys } from '../apps/web/src/i18n';
+import { translate } from '../apps/web/src/i18n';
+import { translationKeys } from './support/translation-keys';
 
 /**
  * The registry's own rules, checked rather than remembered.

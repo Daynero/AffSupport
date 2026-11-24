@@ -1,6 +1,7 @@
 import { cleanup, configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
 import { clearPreviewUrlCache } from '../../apps/web/src/team/preview-url-cache';
+import { loadLanguage } from '../../apps/web/src/dictionaries';
 
 /**
  * Unmounts anything a DOM test rendered, and returns the address to `/`, after
@@ -70,6 +71,16 @@ if (typeof Element !== 'undefined' && typeof Element.prototype.scrollTo !== 'fun
 }
 
 configure({ asyncUtilTimeout: 5_000 });
+
+/**
+ * Both dictionaries, before any test (070 T072).
+ *
+ * The application loads the reader's language before its first render and the
+ * other on a switch; `translate` is synchronous after that. A test renders
+ * without the boot, and plenty of them call `translate('en', …)` and
+ * `translate('uk', …)` side by side, so both are here from the start.
+ */
+await Promise.all([loadLanguage('en'), loadLanguage('uk')]);
 
 afterEach(() => {
   cleanup();

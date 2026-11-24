@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom/client';
 import Root from './Root';
 import { consumePairingToken } from './api/pairing-token';
 import { healModuleGraph } from './lib/healModuleCache';
+import { initialLanguage, loadLanguage } from './i18n';
 // One entry, because the order the sheets load in is a cascade decision and it
 // belongs in a cascade file. `styles/index.css` declares the layer ladder and
 // imports every sheet into its place; see the comment at the top of it.
@@ -55,8 +56,16 @@ window.addEventListener('vite:preloadError', event => {
   void healModuleGraph(start).then(reload, reload);
 });
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <Root />
-  </React.StrictMode>
-);
+// The reader's dictionary before the first render (070 T072): `translate` is synchronous, and the
+// other language is downloaded only if they switch to it. A failed load still renders — the
+// chunk-recovery above may already be reloading the page.
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+void loadLanguage(initialLanguage())
+  .catch(() => undefined)
+  .then(() =>
+    root.render(
+      <React.StrictMode>
+        <Root />
+      </React.StrictMode>
+    )
+  );

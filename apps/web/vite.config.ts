@@ -5,10 +5,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import optimizeLocales from '@react-aria/optimize-locales-plugin';
-import {
-  compactLocalesPlugin,
-  COMPACT_LOCALE_KEYS_ID
-} from '../../scripts/lib/compact-locales.mjs';
+import { compactLocalesPlugin } from '../../scripts/lib/compact-locales.mjs';
 import { PRODUCTION_SITE_ORIGIN } from '../../packages/shared/src/release';
 import { supportEmail } from './src/lib/support';
 import { staticPublicPages } from './src/static-public-pages';
@@ -103,25 +100,41 @@ export default defineConfig(({ mode }) => ({
          * a decision rather than an accident, and lets the browser cache them
          * across releases that do not change them.
          */
-        manualChunks(id: string) {
-          // Dictionaries have no runtime dependencies. Keep their data separate
-          // so UI component edits can reuse the unchanged dictionary chunk.
-          if (id === COMPACT_LOCALE_KEYS_ID || /[\\/]src[\\/]locales[\\/](?:en|uk)\.ts$/u.test(id))
-            return 'locales';
-          if (!id.includes('node_modules')) return undefined;
-          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/u.test(id)) return 'react';
-          if (id.includes('@supabase')) return 'supabase';
-          // The component inventory is imported by every screen, so the library
-          // behind it would otherwise land in whichever route chunk got there
-          // first and be re-downloaded by the next one.
-          if (
-            /[\\/]node_modules[\\/](@heroui|react-aria|react-aria-components|@react-aria|@react-stately|@react-types|@internationalized|tailwind-variants|tailwind-merge)[\\/]/u.test(
-              id
-            )
-          ) {
-            return 'heroui';
-          }
-          return undefined;
+        codeSplitting: {
+          groups: [
+            /*
+             * The dictionaries' shared key list, first (070 T072). Each language
+             * imports it, and a group takes its modules' imports along with it —
+             * so without its own, earlier group the keys rode inside whichever
+             * language came first, and a Ukrainian reader downloaded the English
+             * dictionary to get them.
+             */
+            { name: 'locale-keys', test: /soty:compact-locale-keys$/u, priority: 1 },
+            {
+              name(id: string) {
+                // Dictionaries have no runtime dependencies. Keep their data separate so UI
+                // component edits can reuse the unchanged dictionary chunks — one per language:
+                // `dictionaries.ts` imports each on demand.
+                const locale = /[\\/]src[\\/]locales[\\/](en|uk)\.ts$/u.exec(id);
+                if (locale) return `locale-${locale[1]}`;
+                if (!id.includes('node_modules')) return null;
+                if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/u.test(id))
+                  return 'react';
+                if (id.includes('@supabase')) return 'supabase';
+                // The component inventory is imported by every screen, so the library
+                // behind it would otherwise land in whichever route chunk got there
+                // first and be re-downloaded by the next one.
+                if (
+                  /[\\/]node_modules[\\/](@heroui|react-aria|react-aria-components|@react-aria|@react-stately|@react-types|@internationalized|tailwind-variants|tailwind-merge)[\\/]/u.test(
+                    id
+                  )
+                ) {
+                  return 'heroui';
+                }
+                return null;
+              }
+            }
+          ]
         }
       }
     }
