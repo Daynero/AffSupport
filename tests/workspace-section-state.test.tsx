@@ -219,7 +219,9 @@ it('discards mounted workspace content when authoritative view permission is rev
   await user.type(await shown('tasks filter'), 'private retained draft');
   await user.click(screen.getByRole('button', { name: 'Revoke view' }));
   expect(screen.queryByLabelText('tasks filter')).toBeNull();
-  expect(screen.getByRole('alert').textContent).toMatch(/permission|дозвол/i);
+  expect(screen.getByText(/permission|дозвол/i)).toBeTruthy();
+  // A terminus with a way out (070, T030), not a red sentence alone on the page.
+  expect(screen.getByRole('button', { name: /my spaces|моїх просторів/i })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Restore view' }));
   expect(((await shown('tasks filter')) as HTMLInputElement).value).toBe('');
 });
