@@ -217,7 +217,6 @@
     "apps/web/src/components/HoneycombField.tsx": 0,
     "apps/web/src/components/ImageEmbeddingSection.tsx": 90.39,
     "apps/web/src/components/InstallerDownload.tsx": 100,
-    "apps/web/src/components/InstantTips.tsx": 84.03,
     "apps/web/src/components/JobRow.tsx": 90.4,
     "apps/web/src/components/LabeledSkeleton.tsx": 100,
     "apps/web/src/components/LanguageSwitch.tsx": 100,
@@ -240,8 +239,6 @@
     "apps/web/src/components/icons.tsx": 6.54,
     "apps/web/src/components/toast.tsx": 100,
     "apps/web/src/components/tool-icons.tsx": 0,
-    "apps/web/src/components/ui.tsx": 94.73,
-    "apps/web/src/components/useAnchoredLayer.ts": 100,
     "apps/web/src/components/useCompactToolbar.ts": 100,
     "apps/web/src/components/ui/Alert.tsx": 100,
     "apps/web/src/components/ui/Badge.tsx": 96,
@@ -299,7 +296,6 @@
     "apps/web/src/lib/power.tsx": 55.63,
     "apps/web/src/lib/realtimeTopic.ts": 100,
     "apps/web/src/lib/redirects.ts": 94.59,
-    "apps/web/src/lib/searchField.ts": 100,
     "apps/web/src/lib/supabase.ts": 91.86,
     "apps/web/src/lib/support.ts": 100,
     "apps/web/src/lib/theme.ts": 96.2,
@@ -375,13 +371,10 @@
     "apps/web/src/team/accounts/useAccountPreferences.ts": 100,
     "apps/web/src/team/accounts/useAccounts.ts": 96.55,
     "apps/web/src/team/accounts/useDeferredAccountRows.ts": 100,
-    "apps/web/src/team/accounts/finance/DailyFinanceFields.tsx": 93.08,
-    "apps/web/src/team/accounts/finance/FinanceAccountGroup.tsx": 100,
     "apps/web/src/team/accounts/finance/FinanceActions.tsx": 100,
     "apps/web/src/team/accounts/finance/FinanceHistoryDrawer.tsx": 82.75,
     "apps/web/src/team/accounts/finance/FinanceToolbar.tsx": 97.47,
     "apps/web/src/team/accounts/finance/FinanceTopupStatement.tsx": 100,
-    "apps/web/src/team/accounts/finance/FinanceWorkspace.tsx": 76.37,
     "apps/web/src/team/accounts/finance/LegacyFinanceReview.tsx": 92.18,
     "apps/web/src/team/accounts/finance/MonthlyFinanceSummary.tsx": 88.7,
     "apps/web/src/team/accounts/finance/MoveAgentDialog.tsx": 92.39,
@@ -455,7 +448,6 @@
     "apps/web/src/team/explorer/CreateFolderDialog.tsx": 96.22,
     "apps/web/src/team/explorer/ExplorerProvider.tsx": 90.5,
     "apps/web/src/team/explorer/ExplorerShell.tsx": 77.15,
-    "apps/web/src/team/explorer/FolderScopeDialog.tsx": 93.33,
     "apps/web/src/team/explorer/FolderTree.tsx": 90,
     "apps/web/src/team/explorer/KindFilterMenu.tsx": 100,
     "apps/web/src/team/explorer/KindIcon.tsx": 100,
@@ -549,7 +541,6 @@
     "apps/web/src/team/launches/useLaunchProgressScroll.ts": 100,
     "apps/web/src/team/launches/useLaunchProgressWatch.ts": 100,
     "apps/web/src/team/launches/useOfferDefaults.ts": 100,
-    "apps/web/src/team/library/BulkUploadDialog.tsx": 0,
     "apps/web/src/team/library/CopyDriveLinkButton.tsx": 0,
     "apps/web/src/team/library/LibraryProcessingProvider.tsx": 88.16,
     "apps/web/src/team/library/LibraryShareActions.tsx": 79.64,
@@ -585,7 +576,6 @@
     "apps/web/src/team/members/MemberList.tsx": 97.41,
     "apps/web/src/team/members/MemberPermissionsDialog.tsx": 99.58,
     "apps/web/src/team/members/OwnershipTransferDialog.tsx": 85.71,
-    "apps/web/src/team/members/TeamAuditPanel.tsx": 100,
     "apps/web/src/team/members/diagnostics.ts": 97.95,
     "apps/web/src/team/palette/PaletteHost.tsx": 100,
     "apps/web/src/team/palette/ShortcutSheet.tsx": 100,
@@ -815,6 +805,56 @@
       "coverage": 100,
       "removed_in": "00c82e493b4d3a83ce6a22d903ef9b17130dc73a",
       "reason": "Three-line beta-only feature gate deleted when catalog video shipped to production; no executable successor. Global and all remaining numeric coverage floors are unchanged."
+    },
+    "apps/web/src/components/InstantTips.tsx": {
+      "coverage": 84.03,
+      "removed_in": "bc56a1b7e6bb8323286caf4d0d835d98cf6eae3e",
+      "reason": "070: every hint moved to the inventory HelpTip/HintLayer; data-tip and its renderer were removed. Global and remaining numeric floors unchanged."
+    },
+    "apps/web/src/components/ui.tsx": {
+      "coverage": 94.73,
+      "removed_in": "ed3eae2e2467ceb71fd389ff44ef50d61fa3b4b7",
+      "reason": "070 T065: the compatibility shim was removed; components/ui is now the inventory (components/ui/index.ts), whose own floors stand."
+    },
+    "apps/web/src/components/useAnchoredLayer.ts": {
+      "coverage": 100,
+      "removed_in": "bc56a1b7e6bb8323286caf4d0d835d98cf6eae3e",
+      "reason": "070: moved into the inventory as components/ui/useAnchoredLayer.ts with the hints; no behaviour left at the old path."
+    },
+    "apps/web/src/lib/searchField.ts": {
+      "coverage": 100,
+      "removed_in": "93938d68a1f954f5063505d39574283fafd34d15",
+      "reason": "070 phase 8b: the explorer and tasks search moved to the inventory SearchField; the helper had no remaining caller."
+    },
+    "apps/web/src/team/accounts/finance/DailyFinanceFields.tsx": {
+      "coverage": 93.08,
+      "removed_in": "dffc25b8fb525d80c9e4aef6da7d3c249735ac8a",
+      "reason": "070 T065: used only by FinanceWorkspace, which nothing mounted since 038; deleted with it."
+    },
+    "apps/web/src/team/accounts/finance/FinanceAccountGroup.tsx": {
+      "coverage": 100,
+      "removed_in": "dffc25b8fb525d80c9e4aef6da7d3c249735ac8a",
+      "reason": "070 T065: used only by FinanceWorkspace, which nothing mounted since 038; deleted with it."
+    },
+    "apps/web/src/team/accounts/finance/FinanceWorkspace.tsx": {
+      "coverage": 76.37,
+      "removed_in": "dffc25b8fb525d80c9e4aef6da7d3c249735ac8a",
+      "reason": "070 T065: not mounted since 038 (UnifiedFinance replaced it); its live behaviours stay covered on UnifiedFinance and useAgentFinance."
+    },
+    "apps/web/src/team/explorer/FolderScopeDialog.tsx": {
+      "coverage": 93.33,
+      "removed_in": "00f82daf1b042980de1781206bb2638c29ded55f",
+      "reason": "070 US4: folder processing opens the one ProcessScope dialog; the separate folder-scope dialog was removed."
+    },
+    "apps/web/src/team/library/BulkUploadDialog.tsx": {
+      "coverage": 0,
+      "removed_in": "3928aa1c997c8d2248075e6eed8e60b3119708b8",
+      "reason": "070 T059: the explorer upload menu and drop zone replaced the bulk upload dialog."
+    },
+    "apps/web/src/team/members/TeamAuditPanel.tsx": {
+      "coverage": 100,
+      "removed_in": "e9cd78d038cfbe8323361274e0745983e9972c4c",
+      "reason": "070 US7: nothing rendered the members audit panel; the space history dialog is the one audit view."
     }
   }
 }
