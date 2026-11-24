@@ -168,6 +168,44 @@ it('does not conceal a retry refusal when the authoritative state remains blocke
   ).rejects.toThrow('WRONG_STATE');
   expect(localStorage.getItem('soty.recovery.changed')).toBeNull();
 });
+// Production 2026-11-24: a computer that finds its handle lost while resuming asks to be set up
+// again; the page sets it up at once instead of reporting «no permission» until the next focus.
+it('sets background work up again when resuming finds the stored handle lost', async () => {
+  state.request
+    .mockReset()
+    .mockResolvedValueOnce({ ...ready, state: 'blocked', reason: 'retry_exhausted' })
+    .mockResolvedValueOnce({
+      ...ready,
+      enabled: true,
+      automaticSetup: 'eligible',
+      state: 'blocked',
+      reason: 'needs_agent_setup'
+    })
+    .mockResolvedValue(ready);
+  state.body
+    .mockReset()
+    .mockRejectedValueOnce(new Error('WRONG_STATE'))
+    .mockResolvedValueOnce({
+      enrollmentId: INSTALL,
+      installationId: INSTALL,
+      ticketDigest: 'a'.repeat(64),
+      renewalDelegationId: ACTOR
+    })
+    .mockResolvedValue({ enabled: true });
+  await expect(
+    ensureBackgroundRecovery(INSTALL, {
+      actorId: ACTOR,
+      isCurrent: () => true,
+      resumeBlockedWork: true
+    })
+  ).resolves.toEqual(ready);
+  expect(state.cloud).toHaveBeenCalledWith(
+    'team-recovery',
+    expect.objectContaining({ action: 'delegate', renewalDelegationId: ACTOR }),
+    expect.any(Function),
+    expect.any(Object)
+  );
+});
 it('does not resume background work after the actor changes during the status read', async () => {
   state.request.mockReset().mockImplementation(async () => {
     state.revision++;

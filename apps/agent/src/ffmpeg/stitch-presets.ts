@@ -446,6 +446,13 @@ export interface HeadReencodeOptions {
   profile: SourceProfile;
   crf?: number;
   threads?: number | null;
+  /**
+   * Fill the sound to the picture's length with silence (and from the start, when the source's
+   * sound begins late). Only the whole-body recovery asks for it: its result has to pass the
+   * track check that sent it there, and a source whose sound is shorter than its picture failed
+   * it every time (production 2026-11-24, BODY_RECOVERY_VERIFICATION_FAILED on one creative).
+   */
+  padAudio?: boolean;
 }
 
 /** What the body's audio is rebuilt as, wherever it is rebuilt. See {@link buildBodyRemuxArgs}. */
@@ -497,6 +504,7 @@ export function buildHeadReencodeArgs(options: HeadReencodeOptions): string[] {
      * head is seconds long and its picture is being re-encoded anyway; its sound costs
      * nothing beside that.
      */
+    ...(options.padAudio ? ['-af', 'aresample=async=1:first_pts=0,apad'] : []),
     ...bodyAudioArgs(profile.audioBitrateKbps),
     '-video_track_timescale',
     String(profile.videoTimescale),

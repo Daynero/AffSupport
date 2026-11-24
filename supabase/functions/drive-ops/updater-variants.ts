@@ -331,8 +331,17 @@ export async function materializeCatalogUpdaterVariantRequest(
       'INVALID_RESPONSE',
       'SHARE_NOT_ALLOWED'
     ]);
-    const code =
-      cause instanceof TeamFunctionError && known.has(cause.code)
+    // Production 2026-11-24: the person deleted the catalog's video while freeing Drive space;
+    // Drive answered 404 and the round read «У вас немає дозволу». A source that is gone, in the
+    // trash or outside the space's folder is a changed source, not a refused permission.
+    const sourceGone =
+      cause instanceof TeamFunctionError &&
+      (cause.code === 'NOT_FOUND' ||
+        cause.code === 'ROOT_ESCAPE' ||
+        (cause.code === 'PERMISSION_DENIED' && cause.details?.notFound === true));
+    const code = sourceGone
+      ? 'SOURCE_CHANGED'
+      : cause instanceof TeamFunctionError && known.has(cause.code)
         ? cause.code
         : 'PROCESS_RESULT_UNCERTAIN';
     await note('admitted', code);

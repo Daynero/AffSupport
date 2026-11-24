@@ -99,6 +99,29 @@ describe('parsing helpers', () => {
 });
 
 describe('narrowing a payload', () => {
+  // Production 2026-11-24 («KZ v12»): the sound ran 0.39 s past the picture, the container
+  // reported the sound's length, and every re-stitch planned a body longer than its frames.
+  it('records where the picture ends when the sound runs past it', () => {
+    const result = unwrap(
+      sourceProfileFromProbe(
+        probePayload({ video: { duration: '181.266667' }, format: { duration: '181.657007' } }),
+        FILE,
+        [0]
+      )
+    );
+    expect(result.durationSeconds).toBeCloseTo(181.657007, 6);
+    expect(result.videoDurationSeconds).toBeCloseTo(181.266667, 6);
+    const containerOnly = unwrap(
+      sourceProfileFromProbe(
+        probePayload({ video: { duration: undefined }, format: { duration: '12.5' } }),
+        FILE,
+        [0]
+      )
+    );
+    expect(containerOnly.durationSeconds).toBe(12.5);
+    expect(containerOnly.videoDurationSeconds).toBeUndefined();
+  });
+
   it('produces a profile a screen can be rendered against', () => {
     const result = unwrap(sourceProfileFromProbe(probePayload(), FILE, [0, 8.333333]));
     expect(result).toMatchObject({

@@ -2916,6 +2916,8 @@ export const en = {
   catalogSpareVideoReady: 'Video ready for the next update',
   catalogRunVideoNotPrepared: 'No video prepared yet',
   catalogRunVideoWaiting: 'Waiting for video preparation…',
+  catalogBackgroundStalled:
+    ' · Background work on this computer has stopped, so the video is not being prepared.',
   catalogBackgroundStalledRetried:
     ' · Soty is not taking this job. Restart Soty: quit it from the menu (Quit) and open it again.',
   catalogRunVideoRetryWaiting: 'Video preparation failed · details',
@@ -4198,6 +4200,8 @@ export const en = {
   teamErrorCorruptOrProtected: 'That file could not be read — it may be damaged or protected.',
   teamErrorRateLimited: 'Too many requests. Wait a moment and try again.',
   teamErrorDriveUnavailable: 'Google Drive is not responding. Try again shortly.',
+  teamErrorDriveStorageFull:
+    'Google Drive storage is full. Free up space or empty the Drive trash — Soty will continue on its own.',
   teamErrorGoogleAccountNotApproved:
     'This Google account is not approved for this connection. Choose the previously connected account or the email granted the plan. Contact the administrator to replace it.',
   teamErrorNeedsReauth:

@@ -210,6 +210,11 @@ function redirectTarget(location: string, from: URL): URL | null {
 }
 
 /** Drive's 403 reasons that mean throttling rather than a lost permission. */
+/** Drive's «the owner's storage is full» (a 403 that no retry or permission can fix). */
+const STORAGE_FULL_REASONS: ReadonlySet<string> = new Set([
+  'storageQuotaExceeded',
+  'teamDriveFileLimitExceeded'
+]);
 const RATE_LIMIT_REASONS: ReadonlySet<string> = new Set([
   'rateLimitExceeded',
   'userRateLimitExceeded',
@@ -2100,13 +2105,23 @@ export class GoogleDriveClient {
     const reason = await driveErrorReason(response);
     if (reason.reason === 'exportSizeLimitExceeded')
       throw new TeamFunctionError('CATALOG_EXPORT_TOO_LARGE', { retryable: false });
+    // Production 2026-11-24: the owner's Google storage filled up mid-round, every upload was
+    // answered 403 storageQuotaExceeded, and the person read «У вас немає дозволу» — and the
+    // computer parked its background work as revoked. A full storage is its own answer.
+    if (response.status === 403 && STORAGE_FULL_REASONS.has(reason.reason))
+      throw new TeamFunctionError('DRIVE_STORAGE_FULL', { retryable: false });
     if (response.status === 403 || response.status === 404) {
       // Drive spells "slow down" with the same status as "you may not": only
       // the reason tells them apart, and the first must never retire a job.
       if (RATE_LIMIT_REASONS.has(reason.reason)) {
         throw new TeamFunctionError('RATE_LIMITED', { retryable: true, details });
       }
-      throw new TeamFunctionError('PERMISSION_DENIED');
+      // Still «you may not» for every caller; a caller that knows what it read may tell a file
+      // that is gone (404) from one it is refused (2026-11-24: a deleted catalog video).
+      throw new TeamFunctionError(
+        'PERMISSION_DENIED',
+        response.status === 404 ? { details: { notFound: true } } : {}
+      );
     }
     if (response.status === 429)
       throw new TeamFunctionError('RATE_LIMITED', { retryable: true, details });

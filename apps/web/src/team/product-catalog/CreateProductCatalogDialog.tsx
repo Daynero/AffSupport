@@ -264,6 +264,23 @@ function forgetPendingCreation(storageKey: string) {
   localStorage.removeItem(pendingFormStorageKey(storageKey));
 }
 
+/**
+ * Forget what this browser remembers for a video when the server has nothing left to show for
+ * it: no catalog and no unfinished creation (1.6.3). A creation whose catalog was registered
+ * leaves the server's unfinished list, and its catalog leaves the video's list once it is in
+ * the trash — but the browser kept the key while the videos were still preparing, so every
+ * «Каталог товарів» on the video reopened the deleted catalog's progress, and «Готово» closed
+ * the window before a new catalog could be made (production, 2026-11-24). A creation sent from
+ * here moments ago may not be on the server's list yet; that one stays.
+ */
+export function forgetSettledPendingCatalogCreation(storageKey: string, now = Date.now()): void {
+  const key = localStorage.getItem(storageKey);
+  if (!key) return;
+  const form = readPendingCreationForm(storageKey, key);
+  if (form?.savedAt !== undefined && now - form.savedAt < CREATION_NOT_RECEIVED_AFTER_MS) return;
+  forgetPendingCreation(storageKey);
+}
+
 function errorKey(error: unknown): TranslationKey | null {
   // A delayed publication checked on submit: a passed time is the person's to fix,
   // never the generic "some data is invalid" that names no field.

@@ -14,6 +14,7 @@ const PLATFORM_REQUIREMENTS: Partial<Record<AgentCapability, keyof PlatformCapab
   'catalog-video-foreground-v1': 'recoveryCredentials',
   'team-background-recovery': 'recoveryCredentials',
   'team-background-recovery-actor-bound': 'recoveryCredentials',
+  'team-background-recovery-lost-handle': 'recoveryCredentials',
   'finder-image-conversion': 'shellContextMenuIntegration',
   'native-file-picker': 'nativeFilePicker',
   'directory-intake': 'directoryIntake',

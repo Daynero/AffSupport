@@ -2903,6 +2903,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogSpareVideoReady: 'Відео готове до наступного оновлення',
   catalogRunVideoNotPrepared: 'Відео ще не підготовлене',
   catalogRunVideoWaiting: 'Очікуємо підготовку відео…',
+  catalogBackgroundStalled:
+    ' · Фонова робота на цьому комп’ютері зупинилась, тому відео не готується.',
   catalogBackgroundStalledRetried:
     ' · Soty не бере це завдання. Перезапустіть Soty: закрийте його через меню (Quit) і відкрийте знову.',
   catalogRunVideoRetryWaiting: 'Не вдалося підготувати відео · деталі',
@@ -4173,6 +4175,8 @@ export const uk: Record<keyof typeof en, string> = {
     'Файл не вдалося прочитати — можливо, він пошкоджений або захищений.',
   teamErrorRateLimited: 'Забагато запитів. Зачекайте мить і спробуйте ще раз.',
   teamErrorDriveUnavailable: 'Google Drive не відповідає. Спробуйте трохи згодом.',
+  teamErrorDriveStorageFull:
+    'На Google Диску закінчилось місце. Звільніть місце або очистіть Кошик на Диску — після цього Soty продовжить сам.',
   teamErrorGoogleAccountNotApproved:
     'Цей Google-акаунт не схвалений для підключення. Оберіть раніше підключений акаунт або пошту, на яку видано тариф. Для заміни зверніться до адміністратора.',
   teamErrorNeedsReauth:

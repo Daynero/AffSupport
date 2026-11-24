@@ -959,6 +959,14 @@ export function isRecoveryCredentialAccount(account: unknown): account is string
   return typeof account === 'string' && /^soty-recovery-[a-z0-9-]{1,100}$/u.test(account);
 }
 
+/**
+ * A stored recovery handle that exists but can no longer be read back (it does not decrypt,
+ * or what decrypts is not a handle). Unlike AGENT_REQUIRED (the store is busy or absent) it
+ * never heals by itself: the handle is gone, and background work has to be set up again.
+ */
+export const RECOVERY_SECRET_LOST = 'RECOVERY_SECRET_LOST';
+const LOST_SECRET_EXIT = 3;
+
 export async function recoveryCredential(
   action: 'read' | 'write' | 'delete',
   account: string,
@@ -1008,6 +1016,13 @@ export async function recoveryCredential(
   const file = path.join(appSupportRoot(), 'SotyRecovery', `${account}.bin`);
   // DPAPI CurrentUser binds ciphertext to this Windows account. No secret enters
   // the command line or a temporary plaintext file; replacement is atomic.
+  //
+  // Production 2026-11-24 (Windows, 1.6.2): after the computer went down mid-session
+  // the stored handle no longer decrypted. Every read failed exactly like a busy
+  // PowerShell does, so background work retried it for good and a restart never
+  // helped. A file that exists but does not decrypt now exits 3 (the handle is
+  // lost, not the store busy), and a write reaches the disk before it replaces the
+  // old file: the temporary file is written through and flushed, then moved.
   const script = `$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Security
 $r = [Console]::In.ReadToEnd() | ConvertFrom-Json
@@ -1015,13 +1030,19 @@ $p = $r.file
 if ($r.action -eq 'delete') { if (Test-Path -LiteralPath $p) { Remove-Item -LiteralPath $p }; exit }
 if ($r.action -eq 'read') {
  if (!(Test-Path -LiteralPath $p)) { exit }
- $b = [Security.Cryptography.ProtectedData]::Unprotect([IO.File]::ReadAllBytes($p),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
+ $c = [IO.File]::ReadAllBytes($p)
+ if ($c.Length -eq 0) { exit ${LOST_SECRET_EXIT} }
+ try { $b = [Security.Cryptography.ProtectedData]::Unprotect($c,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser) } catch [Security.Cryptography.CryptographicException] { exit ${LOST_SECRET_EXIT} }
  [Console]::Out.Write([Text.Encoding]::UTF8.GetString($b)); exit
 }
 $b = [Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes($r.value),$null,[Security.Cryptography.DataProtectionScope]::CurrentUser)
 [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($p)) | Out-Null
 $t = $p + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
-try { [IO.File]::WriteAllBytes($t,$b); Move-Item -LiteralPath $t -Destination $p -Force } finally { if (Test-Path -LiteralPath $t) { Remove-Item -LiteralPath $t } }`;
+try {
+ $s = New-Object IO.FileStream($t,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None,4096,[IO.FileOptions]::WriteThrough)
+ try { $s.Write($b,0,$b.Length); $s.Flush($true) } finally { $s.Dispose() }
+ for ($i = 0; ; $i++) { try { Move-Item -LiteralPath $t -Destination $p -Force; break } catch { if ($i -ge 4) { throw }; Start-Sleep -Milliseconds (100 * ($i + 1)) } }
+} finally { if (Test-Path -LiteralPath $t) { Remove-Item -LiteralPath $t } }`;
   const result = await nativeSecretCommand(
     'powershell.exe',
     [
@@ -1033,6 +1054,7 @@ try { [IO.File]::WriteAllBytes($t,$b); Move-Item -LiteralPath $t -Destination $p
     JSON.stringify({ action, file, value }),
     WINDOWS_SECRET_TIMEOUT_MS
   );
+  if (action === 'read' && result.code === LOST_SECRET_EXIT) throw new Error(RECOVERY_SECRET_LOST);
   if (result.code !== 0) throw new Error('AGENT_REQUIRED');
   return action === 'read' ? result.output || null : null;
 }

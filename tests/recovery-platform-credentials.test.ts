@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const native = vi.hoisted(() => ({ spawn: vi.fn() }));
 vi.mock('node:child_process', () => ({ spawn: native.spawn, execFile: vi.fn() }));
 import { recoveryCredential } from '../apps/agent/src/platform/platform';
+import { platformRecoverySecrets } from '../apps/agent/src/platform/recovery-credentials';
 
 const originalPlatform = process.platform;
 const ACCOUNT = 'soty-recovery-synthetic-036';
@@ -113,6 +114,29 @@ it('keeps missing Windows credentials distinct from native command failure', asy
   await expect(recoveryCredential('read', ACCOUNT)).resolves.toBeNull();
   reply(null);
   await expect(recoveryCredential('read', ACCOUNT)).rejects.toThrow('AGENT_REQUIRED');
+});
+
+// Production 2026-11-24: a stored handle that no longer decrypted failed like a busy store,
+// and background work retried it for good.
+it('tells a Windows handle that no longer decrypts apart from a busy store', async () => {
+  platform('win32');
+  reply(3);
+  await expect(recoveryCredential('read', ACCOUNT)).rejects.toThrow('RECOVERY_SECRET_LOST');
+  reply(1);
+  await expect(recoveryCredential('read', ACCOUNT)).rejects.toThrow('AGENT_REQUIRED');
+  reply(3);
+  await expect(recoveryCredential('write', ACCOUNT, SECRET)).rejects.toThrow('AGENT_REQUIRED');
+  const script = Buffer.from(native.spawn.mock.calls[0][1][3], 'base64').toString('utf16le');
+  expect(script).toContain('catch [Security.Cryptography.CryptographicException] { exit 3 }');
+  expect(script).toContain('[IO.FileOptions]::WriteThrough');
+  expect(script).toContain('$s.Flush($true)');
+});
+
+it('reads a stored handle that no longer parses as lost, not as a malformed server reply', async () => {
+  reply(0, 'not a handle !!\n');
+  await expect(platformRecoverySecrets.read(ACCOUNT)).rejects.toThrow('RECOVERY_SECRET_LOST');
+  reply(0, Buffer.from(JSON.stringify({ refresh: 'short' })).toString('base64url'));
+  await expect(platformRecoverySecrets.read(ACCOUNT)).rejects.toThrow('RECOVERY_SECRET_LOST');
 });
 
 it('rejects invalid accounts and payloads before spawning any native command', async () => {
