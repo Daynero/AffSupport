@@ -225,6 +225,9 @@ export function SegmentedControl<T extends string>({
           key={option.value}
           id={option.value}
           title={option.title}
+          /* An option drawn as an icon is named by its title (070): a tooltip alone is the
+             accessible name of last resort, and some readers skip it. */
+          aria-label={typeof option.label === 'string' ? undefined : option.title}
           isDisabled={option.disabled}
           className={option.value === value ? 'is-selected' : undefined}
         >

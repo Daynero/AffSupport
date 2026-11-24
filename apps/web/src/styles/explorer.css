@@ -612,6 +612,11 @@
   flex: none;
   white-space: nowrap;
 }
+/* The way back to the task is a control of the row, at the row's type — not the path's. */
+.team-explorer-back-to-task {
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
 /* The view switch at the row's height, as the launch editor's switches are: the inventory's md
    track is its 38 px segments plus its own frame, and stood 8 px taller than the buttons
    beside it. Its segments hold an icon, so they are square plates, not word-wide pills. */

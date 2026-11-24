@@ -23,7 +23,7 @@ import { useLayoutEffect, useState, type RefObject } from 'react';
 export type ToolbarFit = 'full' | 'compact' | 'narrow' | 'tight';
 
 const STEPS: ReadonlyArray<[ToolbarFit, number]> = [
-  ['full', 760],
+  ['full', 800],
   ['compact', 560],
   ['narrow', 440]
 ];

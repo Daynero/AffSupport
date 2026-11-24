@@ -50,6 +50,7 @@
     "beta:verify": "zsh scripts/verify-beta-package.sh",
     "beta:reset": "npm run build -w @video-compressor/shared && node scripts/beta-reset.mjs",
     "check:accounts-layout": "node scripts/check-accounts-layout.mjs",
+    "check:explorer-layout": "node scripts/check-explorer-layout.mjs",
     "check:design-tokens": "node scripts/check-design-tokens.mjs",
     "start": "npm run start -w @video-compressor/agent",
     "analytics": "tsx scripts/analytics/index.ts",

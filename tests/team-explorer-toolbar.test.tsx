@@ -128,7 +128,8 @@ describe('how much of the toolbar fits (T014)', () => {
     expect(fitFor(500)).toBe('narrow');
     expect(fitFor(294)).toBe('tight');
     // Controls that are there only sometimes take their room from the steps.
-    expect(fitFor(800, 128)).toBe('compact');
+    expect(fitFor(900, 128)).toBe('compact');
+    expect(fitFor(780)).toBe('compact');
   });
 
   it('shows everything on a wide row, with one primary', async () => {
