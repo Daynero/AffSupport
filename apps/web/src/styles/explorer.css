@@ -1328,6 +1328,25 @@
   gap: var(--space-2);
 }
 
+/* The question a drop with videos waits on (070): the words keep their width and the three
+   answers drop under them, past the icon, when the strip is too narrow for one line. */
+.team-upload-video-question {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.team-upload-video-question .ui-alert-body {
+  flex: 1 1 24ch;
+}
+.team-upload-video-question .ui-alert-action {
+  margin-left: auto;
+  flex: 0 1 auto;
+}
+@media (max-width: 768px) {
+  .team-upload-video-question .ui-alert-action {
+    margin-left: calc(var(--icon-size) + var(--space-3));
+  }
+}
+
 /* The list row's kind glyph, at text size. */
 .team-explorer-row-name .team-kind-icon {
   width: 17px;
