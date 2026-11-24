@@ -21,7 +21,8 @@ export function ExplorerFolderPane({
   onCreateTask,
   onDownload,
   onDeliverRestitched,
-  onTrash
+  onTrash,
+  onClose
 }: {
   row: TeamMaterialRow;
   client: ExplorerShellClient;
@@ -38,6 +39,7 @@ export function ExplorerFolderPane({
   onDownload: (row: TeamMaterialRow) => void;
   onDeliverRestitched: (rows: TeamMaterialRow[]) => void;
   onTrash: (rows: TeamMaterialRow[]) => void;
+  onClose: () => void;
 }) {
   return (
     <PreviewPane
@@ -73,6 +75,7 @@ export function ExplorerFolderPane({
           : null
       }
       onCreateTask={onCreateTask}
+      onClose={onClose}
     />
   );
 }

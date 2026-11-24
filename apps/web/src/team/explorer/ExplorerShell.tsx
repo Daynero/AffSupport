@@ -734,6 +734,7 @@ function ExplorerBody({
           onDownload={row => void downloadOriginal(row)}
           onDeliverRestitched={rows => void deliverRestitched(rows)}
           onTrash={rows => void trashRows(rows)}
+          onClose={() => select(null)}
         />
       )}
       {/* The search's details pane lands here (070, T023); it takes the same column. */}

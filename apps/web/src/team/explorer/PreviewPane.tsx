@@ -1,6 +1,6 @@
-import { AudioLines, Rocket } from 'lucide-react';
+import { AudioLines, Rocket, X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { Button } from '../../components/ui/index';
+import { Button, IconButton } from '../../components/ui/index';
 import { buildTeamRoute } from '../routes';
 import { navigateTo } from '../../lib/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -68,6 +68,7 @@ export function PreviewPane({
   onDelete,
   browseClient,
   onChanged,
+  onClose,
   revision = 0
 }: {
   /** The selected row, or null when nothing is selected. */
@@ -97,6 +98,8 @@ export function PreviewPane({
   onDelete?: (row: TeamMaterialRow) => void;
   /** The space's realtime revision; a video's catalog is read again when it moves (022). */
   revision?: number;
+  /** Puts the card away — on a phone it is a sheet over the list, and needs a way down. */
+  onClose?: () => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -195,6 +198,7 @@ export function PreviewPane({
   return (
     <aside ref={leaving} className="team-explorer-pane" aria-label={t('teamExplorerPaneLabel')}>
       <BeforeChange of={row.id} run={swap} />
+      {onClose && <PaneClose onClose={onClose} />}
       <MaterialDetail
         name={row.name}
         className="team-explorer-pane-detail"
@@ -377,6 +381,23 @@ export function PreviewPane({
         </div>
       )}
     </aside>
+  );
+}
+
+/** The sheet's way down on a phone (070); beside a list it is not drawn — the list is there. */
+export function PaneClose({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
+  return (
+    <IconButton
+      className="team-explorer-pane-close"
+      size="sm"
+      variant="ghost"
+      label={t('teamClose')}
+      title=""
+      onClick={onClose}
+    >
+      <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+    </IconButton>
   );
 }
 

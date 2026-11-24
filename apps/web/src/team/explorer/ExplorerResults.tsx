@@ -323,6 +323,7 @@ function InlineResults({
             onChanged={view.refetch}
             tagging={tagging}
             revision={revision}
+            onClose={() => selection.focus(null)}
           />,
           hosts.pane
         )}

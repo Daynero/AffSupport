@@ -12,6 +12,7 @@ import type { CatalogOpeners } from '../catalog/TeamCatalog';
 import { VideoTextActions } from '../library/VideoTextActions';
 import { MaterialDetailCard } from '../materials/MaterialDetailCard';
 import { resultKind } from './ResultList';
+import { PaneClose } from './PreviewPane';
 
 /**
  * The details pane for a search result (070, T023): the folder's own card, drawn from the
@@ -35,7 +36,8 @@ export function ResultPane({
   onCreateTask,
   onChanged,
   tagging,
-  revision
+  revision,
+  onClose
 }: {
   material: CatalogMaterialItem;
   folderName: string | null;
@@ -53,6 +55,7 @@ export function ResultPane({
     onSetTag: (material: CatalogMaterialItem, color: TeamMaterialTagColor | null) => void;
   };
   revision: number;
+  onClose: () => void;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -65,6 +68,7 @@ export function ResultPane({
 
   return (
     <aside className="team-explorer-pane" aria-label={t('teamExplorerPaneLabel')}>
+      <PaneClose onClose={onClose} />
       <MaterialDetailCard
         key={material.id}
         className="team-explorer-pane-detail"

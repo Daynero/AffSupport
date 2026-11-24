@@ -1311,14 +1311,18 @@
 @media (max-width: 768px) {
   .team-explorer-pane {
     position: fixed;
+    /* A sheet from the bottom (070): the sticky pane's `top` stayed set, so the sheet ran from
+       under the header to the window's foot and the sticky list header was drawn over it. */
+    top: auto;
     left: 0;
     right: 0;
     bottom: 0;
     max-height: 60vh;
+    max-height: 60dvh;
     overflow: auto;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    box-shadow: var(--shadow-sm);
-    z-index: var(--layer-raised);
+    box-shadow: var(--shadow-md);
+    z-index: calc(var(--layer-header) + 3);
   }
   .team-explorer-pane.is-empty {
     display: none;
@@ -1853,4 +1857,16 @@
 /* Embedded, the catalogue draws no frame of its own: its facets and its note sit on the list. */
 .team-catalog.is-embedded {
   gap: var(--space-3);
+}
+
+/* The sheet's way down (070): drawn only where the card is a sheet over the list. */
+.team-explorer-pane-close {
+  display: none;
+}
+@media (max-width: 768px) {
+  .team-explorer-pane-close {
+    display: inline-flex;
+    align-self: flex-end;
+    margin-block-end: calc(-1 * var(--space-2));
+  }
 }
