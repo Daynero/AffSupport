@@ -1268,12 +1268,19 @@ function AccountSpaceContent({
                     value => value !== 'unknown' || counts.unknown || occupancy === 'unknown'
                   ).map(value => ({
                     value,
+                    /* "Occupancy not confirmed" is four words in a row of one-word
+                       segments: it says "?" there, and its whole name in the hint and
+                       to a screen reader. */
+                    title:
+                      value === 'unknown'
+                        ? `${occupancyLabel(value)} · ${occupancyCount(value)}`
+                        : undefined,
                     label: (
                       <span className={`team-accounts-occupancy-option is-${value}`}>
                         {value !== 'all' && (
                           <span className="team-accounts-occupancy-dot" aria-hidden="true" />
                         )}
-                        <span>{occupancyLabel(value)}</span>
+                        <span>{value === 'unknown' ? '?' : occupancyLabel(value)}</span>
                         <b className="numeric">{occupancyCount(value)}</b>
                       </span>
                     )

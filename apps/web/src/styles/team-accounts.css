@@ -2981,3 +2981,24 @@ button.team-task-agent-chip.is-selected {
     content: none;
   }
 }
+
+/* All / free / busy keeps one line on the narrowest phone: the control takes
+   the row and its three segments share it, rather than running 7 px past the
+   edge of a 320 px screen. */
+@media (max-width: 480px) {
+  .team-accounts-occupancy.ui-segmented {
+    width: 100%;
+  }
+  .team-accounts-occupancy.ui-segmented > * {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: var(--space-1);
+  }
+  .team-accounts-occupancy-option {
+    gap: var(--space-1);
+  }
+  .team-account-space.is-unified .unified-finance-headings > span {
+    padding-right: 0;
+    letter-spacing: 0;
+  }
+}

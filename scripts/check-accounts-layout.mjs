@@ -4,13 +4,20 @@
 /**
  * 038 unified Accounts: the TABLE owns vertical scrolling. Compact variable-height rows
  * are expected when runs wrap; every complete run line must fit its own cell.
+ *
+ * 070 (T050): the list is the inventory's Table — the script also checks the roles (a
+ * table, column headers, an agent row of cells each under a caption by `aria-colindex`),
+ * that the row's money reads as text at rest (no field frame on a row the pointer is not
+ * on), and it walks both sides of every step of the five-width grid (R4: 480, 640, 768,
+ * 1024, 1280) as well as the 560 / 1000 / 1200 the invariant was first written at.
  * Only the local beta is supported. No database writes or DOM fixture cloning.
  * Usage: node scripts/check-accounts-layout.mjs [teamId] [--site=http://127.0.0.1:5175]
  *        [--storage-state=/path/to/local-auth.json]
  */
 import { openAccountsBrowser } from './lib/accounts-browser.mjs';
 const WIDTHS = [
-  320, 360, 390, 414, 480, 560, 561, 700, 900, 1000, 1001, 1100, 1200, 1201, 1280, 1440, 1600
+  320, 360, 390, 414, 480, 481, 560, 640, 641, 700, 768, 769, 900, 1000, 1024, 1025, 1100, 1200,
+  1280, 1281, 1440, 1600
 ];
 const { browser, page } = await openAccountsBrowser();
 const failures = [];
@@ -21,6 +28,8 @@ try {
   ]);
   for (const { width, height } of viewports) {
     await page.setViewportSize({ width, height });
+    // The pointer off the table: a hovered row shows its fields' frames on purpose.
+    await page.mouse.move(0, 0);
     // Wrapped controls can place the minimum-height table below the fold.
     // Bring the real viewport into view before checking its reachable bounds.
     await page.locator('.team-accounts-table').scrollIntoViewIfNeeded();
@@ -65,7 +74,7 @@ try {
           );
           const centers = boxes.map(box => (box.top + box.bottom) / 2);
           const spread = Math.max(...centers) - Math.min(...centers);
-          return outside || overlap || (innerWidth > 1000 && spread > 2)
+          return outside || overlap || (innerWidth > 1024 && spread > 2)
             ? [{ id: row.getAttribute('data-agent-row-id'), spread, outside, overlap }]
             : [];
         });
@@ -107,6 +116,26 @@ try {
             (line.parentElement?.getBoundingClientRect().right ?? Number.NEGATIVE_INFINITY)
         }))
         .filter(line => line.excess > 1 || line.cellExcess > 1);
+      // The inventory's table (070, T041): its roles, and every cell under a caption.
+      const headerCells = [...table.querySelectorAll('[role="columnheader"]')];
+      const semantics =
+        table.getAttribute('role') === 'table' &&
+        headerCells.length >= 4 &&
+        rows.every(
+          row =>
+            row.getAttribute('role') === 'row' &&
+            [...row.querySelectorAll(':scope > [role="cell"]')].every(cell =>
+              cell.hasAttribute('aria-colindex')
+            )
+        );
+      // Money at rest is text: no frame on a field the pointer and the caret are not on.
+      const framedMoney = [
+        ...table.querySelectorAll('.team-agent-row .unified-agent-finance .ui-input')
+      ]
+        .filter(field => !field.matches(':focus-within'))
+        .filter(field => !field.closest('[data-finance-state="dirty"]'))
+        .filter(field => !field.classList.contains('is-invalid'))
+        .filter(field => getComputedStyle(field).borderTopColor !== 'rgba(0, 0, 0, 0)').length;
       const toolbar = document.querySelector('.team-accounts-sticky')?.getBoundingClientRect();
       const toolbarOverlapsTable = !toolbar || toolbar.bottom > rect.top + 1;
       const tableBelowViewport = rect.bottom > innerHeight + 1;
@@ -121,6 +150,8 @@ try {
       return {
         toolbarOverlapsTable,
         tableBelowViewport,
+        semantics,
+        framedMoney,
         rowCount: rows.length,
         runCount: runLines.length,
         rowHeights: [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().height)))],
@@ -140,6 +171,8 @@ try {
     const ok =
       !seen.toolbarOverlapsTable &&
       !seen.tableBelowViewport &&
+      seen.semantics &&
+      seen.framedMoney === 0 &&
       seen.rowCount > 0 &&
       seen.runCount > 0 &&
       !seen.spill.length &&
