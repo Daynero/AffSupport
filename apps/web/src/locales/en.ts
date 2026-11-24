@@ -3228,6 +3228,7 @@ export const en = {
   catalogIconsHidden: 'Saved; catalog hidden by the filter.',
   catalogIconsPendingRun: 'Wait until the settings are confirmed.',
   catalogIconsReadinessWarning: 'Video preparation failed.',
+  catalogCreatedShort: 'Created',
   catalogCreatedFilter: 'Creation date',
   catalogCreatedFrom: 'From',
   catalogCreatedTo: 'Through',

@@ -19999,6 +19999,12 @@ a.history-subject {
   flex: 0 0 auto;
   max-width: 60%;
 }
+/* A name with no "_vN_catalog" tail is all stem: it takes the whole width before it gives way
+   (070, phase 8б) — «QA-next-1411 — ручна перевірка» was cut at 60% of its column. */
+.catalog-name-prefix:only-child {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
 .catalog-identity:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;

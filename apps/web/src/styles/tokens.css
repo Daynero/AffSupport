@@ -931,8 +931,11 @@
   --catalog-schedule-panel-scale: 0.825;
   --catalog-schedule-panel-height: 338.8px;
   --catalog-manager-height: 680px;
-  --catalog-toggle-column: 316px;
-  --catalog-schedule-column: 224px;
+  /* The two columns at what they hold (070, phase 8б): five 44px plates and their gaps, and
+     «Вимкнено ▾» / «Кожні 30 хв ▾». The width they gave up goes to the catalog's name, which
+     was cut at «QA-next-1411 — p…» beside 90px of nothing. */
+  --catalog-toggle-column: 284px;
+  --catalog-schedule-column: 176px;
   --catalog-success-column: 128px;
   --catalog-actions-column: 108px;
   --duration-spinner: 900ms;

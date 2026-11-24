@@ -75,7 +75,9 @@ export function CatalogCreatedFilter({
         leading={<CalendarDays size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
         onClick={() => setOpen(current => !current)}
       >
-        {selectedLabel || undefined}
+        {/* A word beside the glyph until a range is on (070, phase 8б): the calendar alone after
+            «Фільтри» read as decoration. */}
+        {selectedLabel || t('catalogCreatedShort')}
       </Button>
       {active && (
         <IconButton

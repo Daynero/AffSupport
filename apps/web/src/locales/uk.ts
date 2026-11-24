@@ -3215,6 +3215,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogIconsHidden: 'Збережено; каталог приховано фільтром.',
   catalogIconsPendingRun: 'Дочекайтеся підтвердження налаштувань.',
   catalogIconsReadinessWarning: 'Не вдалося підготувати відео.',
+  catalogCreatedShort: 'Створено',
   catalogCreatedFilter: 'Дата створення',
   catalogCreatedFrom: 'Від',
   catalogCreatedTo: 'До',

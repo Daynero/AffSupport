@@ -41,7 +41,7 @@ export function CatalogIdentity({
         onClick={() => setOpen(value => !value)}
       >
         <span className="catalog-name-prefix">{parts[0]}</span>
-        <span className="catalog-name-suffix">{parts[1]}</span>
+        {parts[1] && <span className="catalog-name-suffix">{parts[1]}</span>}
       </Button>
       <Popover
         anchor={anchor}
