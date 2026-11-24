@@ -2354,6 +2354,16 @@ input.is-invalid {
   /* The body step (070 T069): its sentence, the install label and the help link inherited
      the old sheet's section-sized body and outweighed the panel's own title. */
   font-size: var(--text-body);
+  /* Its own ground (070 T069): on a tool page it stood bare on the hexagon field and a lit
+     cell sat behind its words. The home page already draws it inside a card. */
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+.home-panel .onboarding-panel {
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 /* The help link sits where the reading starts, not centred in a full-width button. */
 .onboarding-panel > .text-button {
