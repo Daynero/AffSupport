@@ -23,7 +23,7 @@ const connected: StorageHealth = { kind: 'connected', lastReconciledAt: '2026-11
 
 const updater = (overrides: Partial<CatalogUpdaterState> = {}): CatalogUpdaterState => ({
   state: 'running',
-  interval: { kind: 'hours', value: 6 } as CatalogUpdaterState['interval'],
+  interval: '1h',
   restitch: false,
   nextRunAt: '2026-11-24T06:00:00Z',
   startedAt: '2026-11-24T00:00:00Z',

@@ -47,7 +47,7 @@ function teamContext(realtimeState: TeamRealtimeState = 'connected'): TeamContex
 
 const updater = (overrides: Partial<CatalogUpdaterState> = {}): CatalogUpdaterState => ({
   state: 'running',
-  interval: { kind: 'hours', value: 6 } as CatalogUpdaterState['interval'],
+  interval: '1h',
   restitch: false,
   nextRunAt: new Date(Date.now() + 3 * 3_600_000).toISOString(),
   startedAt: new Date().toISOString(),
