@@ -2,6 +2,7 @@
 
 import React, { useRef } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Translate } from '../apps/web/src/i18n.js';
 import { useAnchoredLayer } from '../apps/web/src/components/ui/useAnchoredLayer.js';
@@ -19,10 +20,11 @@ afterEach(() => {
 
 describe('export menu', () => {
   it('opens the inventory menu on the body and names why formats are unavailable', async () => {
+    const user = userEvent.setup();
     const onExport = vi.fn();
     const { container } = render(<ExportMenu hasTimings={false} onExport={onExport} t={t} />);
-    fireEvent.click(screen.getByRole('button', { name: 'transcriptionExportOptions' }));
-    const menu = screen.getByRole('menu', { name: 'transcriptionExportOptions' });
+    await user.click(screen.getByRole('button', { name: 'transcriptionExportOptions' }));
+    const menu = await screen.findByRole('menu', { name: 'transcriptionExportOptions' });
     // On the body (070 T035): the card that would clip it is not an ancestor.
     expect(container.contains(menu)).toBe(false);
     expect(menu.closest('.ui-menu-popover')).toBeTruthy();
@@ -37,23 +39,24 @@ describe('export menu', () => {
     expect(items[1]!.textContent).toContain('transcriptionExportNoTimings');
     expect(menu.textContent).not.toContain('transcriptionExportNoTranslation');
 
-    // Focus lands on the first enabled item.
+    // Focus lands on the first enabled item, and Enter chooses it.
     await waitFor(() => expect(document.activeElement).toBe(items[0]));
-    fireEvent.click(items[0]!);
+    await user.keyboard('{Enter}');
     expect(onExport).toHaveBeenCalledWith('txt', 'transcript');
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
   });
 
   it('closes on Escape without closing what is above it, and gives focus back', async () => {
+    const user = userEvent.setup();
     const outer = vi.fn();
     render(
-      <div onKeyDown={outer}>
+      <div onKeyDown={event => outer(event.key)}>
         <ExportMenu hasTimings onExport={() => {}} t={t} />
       </div>
     );
     const toggle = screen.getByRole('button', { name: 'transcriptionExportOptions' });
     expect(toggle.getAttribute('aria-haspopup')).toBe('menu');
-    fireEvent.click(toggle);
+    await user.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(
       screen.getAllByRole('menuitem').every(item => item.getAttribute('aria-disabled') !== 'true')
@@ -61,9 +64,9 @@ describe('export menu', () => {
     await waitFor(() =>
       expect(screen.getByRole('menu').contains(document.activeElement)).toBe(true)
     );
-    fireEvent.keyDown(document.activeElement!, { key: 'Escape' });
+    await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
-    expect(outer).not.toHaveBeenCalledWith(expect.objectContaining({ key: 'Escape' }));
+    expect(outer).not.toHaveBeenCalledWith('Escape');
     await waitFor(() => expect(document.activeElement).toBe(toggle));
   });
 });
