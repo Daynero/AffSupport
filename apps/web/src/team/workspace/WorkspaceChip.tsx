@@ -1,4 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react';
+import { Button } from '../../components/ui/index';
 
 /**
  * The header's chips, as one shape (024, FR-052).
@@ -66,16 +67,21 @@ export function WorkspaceChip({
   }
   if (onPress) {
     return (
-      <button
-        type="button"
-        className={classes}
+      /* The inventory's button wearing the chip (070): the press, the focus ring and the
+         disabled look are the button's; the shape and the tone stay the chip's. What it says
+         changes while it is on screen, so the words are a polite live region. */
+      <Button
+        size="sm"
+        variant="ghost"
+        className={`workspace-chip-button ${classes}`}
         aria-label={label}
         aria-haspopup={opensDialog ? 'dialog' : undefined}
-        aria-live="polite"
         onClick={onPress}
       >
-        {body}
-      </button>
+        <span className="workspace-chip-body" aria-live="polite">
+          {body}
+        </span>
+      </Button>
     );
   }
   /* Nothing to do about it: then it is a status, and says so. */

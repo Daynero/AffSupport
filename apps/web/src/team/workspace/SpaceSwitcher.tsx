@@ -5,7 +5,8 @@ import { internalLink } from '../../lib/navigation';
 import { buildTeamRoute, teamResolverRoute } from '../routes';
 import { spaceReadiness } from '../lobby/SpaceCard';
 import { useTeam } from '../TeamContext';
-import { Popover } from '../../components/ui/index';
+import { ChevronDown } from 'lucide-react';
+import { Button, Popover } from '../../components/ui/index';
 
 /**
  * The space name, made into the way you change space.
@@ -40,18 +41,16 @@ export function SpaceSwitcher({
   return (
     <div className="team-space-switcher" ref={containerRef}>
       <h1 id={headingId} className="team-space-shell-title">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           className="team-space-switcher-trigger"
           aria-expanded={open}
           aria-controls={menuId}
+          trailing={<ChevronDown className="team-space-switcher-caret" />}
           onClick={() => setOpen(value => !value)}
         >
-          <span>{activeTeam?.name ?? ''}</span>
-          <span className="team-space-switcher-caret" aria-hidden="true">
-            ▾
-          </span>
-        </button>
+          {activeTeam?.name ?? ''}
+        </Button>
       </h1>
       <Popover
         open={open}

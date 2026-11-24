@@ -1,5 +1,6 @@
 import type { TeamContextSnapshot } from '../../api/team';
 import { Card } from '../../components/Card';
+import { Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 
 export type SpaceReadiness = 'ready' | 'setup_incomplete' | 'preparing';
@@ -96,8 +97,9 @@ export function SpaceCard({
       </div>
       <span className={`team-space-card-action is-${readiness}`}>{actionLabel}</span>
       {readiness === 'setup_incomplete' && space.role === 'owner' && onDeleteDraft && (
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="ghost"
           className="team-space-card-discard"
           // Stops the card's own activation: pressing "discard" must not also
           // resume the setup it is discarding.
@@ -107,7 +109,7 @@ export function SpaceCard({
           }}
         >
           {t('teamDraftDeleteAction')}
-        </button>
+        </Button>
       )}
     </Card>
   );

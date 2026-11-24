@@ -2,7 +2,7 @@ import type { TeamContextSnapshot } from '../../api/team';
 import { FolderPlus } from 'lucide-react';
 import { ICON_STROKE } from '../../components/icons';
 import { Empty, ErrorState } from '../../components/ui/index';
-import { Button } from '../../components/ui';
+import { Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { SpaceCard } from './SpaceCard';
 import { InvitationList, type InvitationListClient } from './InvitationList';

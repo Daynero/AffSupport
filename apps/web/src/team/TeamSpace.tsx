@@ -5,7 +5,7 @@ import { LockKeyhole } from 'lucide-react';
 import { useOptionalAuth } from '../auth/AuthContext';
 import { Modal } from '../components/Modal';
 import { ToastProvider, useToasts } from '../components/toast';
-import { Button } from '../components/ui';
+import { Button } from '../components/ui/index';
 import { ICON_STROKE } from '../components/icons';
 import { Empty, RouteSkeleton } from '../components/ui/index';
 import type { TeamContextSnapshot, TeamInvitationSummary } from '../api/team';

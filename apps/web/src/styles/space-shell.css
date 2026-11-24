@@ -516,10 +516,27 @@
   background: var(--color-surface-muted);
 }
 
+/* The trigger is the inventory's button (070): the title's own size and weight, laid out from
+   the start, and a drawn caret where a "▾" character used to stand. */
+.team-space-switcher-trigger.ui-button {
+  justify-content: flex-start;
+  min-height: 0;
+  font-weight: inherit;
+}
+
+.team-space-switcher-trigger > .ui-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .team-space-switcher-caret {
   flex: 0 0 auto;
-  font-size: 0.6em;
   color: var(--color-text-muted);
+}
+
+.team-space-card-discard.ui-button {
+  align-self: flex-start;
+  font-weight: inherit;
 }
 
 /* Placed by the component (021). */
@@ -638,4 +655,20 @@
 .team-space-lobby-list > .ui-button,
 .team-space-lobby-list > .soty-button {
   justify-self: start;
+}
+
+/* The header's chips are inventory buttons wearing the chip (070): the chip keeps its own size,
+   shape and tone; the button brings the press and the focus ring. */
+.workspace-chip-button.ui-button {
+  min-height: var(--control-height-sm);
+  height: auto;
+  padding: 0 var(--space-3);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+}
+
+.workspace-chip-body {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
 }

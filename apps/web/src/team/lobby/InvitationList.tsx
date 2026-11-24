@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { TeamInvitationSummary } from '../../api/team';
 import { teamApi, TeamApiError } from '../../api/team';
-import { Button } from '../../components/ui';
+import { Button } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { navigateTo } from '../../lib/navigation';
