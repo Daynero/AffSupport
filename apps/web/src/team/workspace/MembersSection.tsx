@@ -36,6 +36,7 @@ export function MembersSection({
   } = useTeam();
   const revision = membersRevision ?? generalRevision;
   const [memberCount, setMemberCount] = useState<number | null>(null);
+  const isOwner = activeTeam?.role === 'owner';
   const changed = () => {
     notifyStateChanged();
   };
@@ -49,8 +50,11 @@ export function MembersSection({
       <h2 id="team-members-title" className="visually-hidden">
         {t('teamSectionMembers')}
       </h2>
+      {/* One column (070): the members, then the invitations, each as wide as the
+          panel. Side by side they were two cards of different heights with a field
+          of empty background under the shorter one. */}
       {can('manage_members') ? (
-        <div className="team-space-settings-grid">
+        <div className="team-members-stack">
           <MemberList
             teamId={teamId}
             client={client}
@@ -60,6 +64,15 @@ export function MembersSection({
               changed();
               void refreshTeams();
             }}
+            footer={({ candidates, transferOwnership }) => (
+              <LeaveSpacePanel
+                teamId={teamId}
+                client={client}
+                isOwner={isOwner}
+                alone={memberCount === 1}
+                onTransferOwnership={candidates.length > 0 ? transferOwnership : undefined}
+              />
+            )}
           />
           <InvitationPanel
             key={`invitations:${teamId}`}
@@ -72,14 +85,11 @@ export function MembersSection({
           />
         </div>
       ) : (
-        <PermissionState message={t('teamMembersRestricted')} />
+        <div className="team-members-stack">
+          <PermissionState message={t('teamMembersRestricted')} />
+          <LeaveSpacePanel teamId={teamId} client={client} isOwner={isOwner} alone={false} />
+        </div>
       )}
-      <LeaveSpacePanel
-        teamId={teamId}
-        client={client}
-        isOwner={activeTeam?.role === 'owner'}
-        alone={memberCount === 1}
-      />
     </section>
   );
 }

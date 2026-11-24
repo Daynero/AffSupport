@@ -1,0 +1,209 @@
+/* ============================================================
+   Members (070, T051) — who is in the space, who has been asked,
+   and how you stop being one of them.
+
+   One column: the member table, its one line about leaving, and the
+   invitations under it. Side by side the two cards were of different
+   heights, and the shorter one left a field of background under itself.
+   The table is the inventory's; what is here is only what a member row
+   needs beyond it — a person in one cell, the role and its exception in
+   the next, and the row's two actions right-aligned in a column of their
+   own, so they sit in the same place on every row.
+   ============================================================ */
+
+.team-members-stack {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.team-member-table {
+  --team-member-actions-width: 13rem;
+}
+.team-member-table .ui-table-row {
+  padding-block: var(--space-2);
+}
+.team-member-table .ui-table-header-cell:last-child {
+  justify-self: end;
+}
+
+/* A person: the name at the label step, the address under it at the caption
+   step — one scale, not a 20 px name beside a 13 px address. */
+.team-member-person {
+  overflow: visible;
+}
+.team-member-person .user-avatar {
+  font-size: var(--text-caption);
+}
+.team-member-person .ui-user-name {
+  color: var(--color-text);
+  font-size: var(--text-label);
+}
+.team-member-person .ui-user-meta {
+  overflow: hidden;
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-member-self {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-body);
+}
+
+.team-member-role {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  overflow: visible;
+}
+.team-member-joined {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.team-member-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  overflow: visible;
+}
+
+/* The way out, under the table it belongs to — a line, not a third card. */
+.team-member-footer {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+.team-leave-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.team-leave-icon {
+  flex: none;
+  color: var(--color-text-muted);
+}
+.team-leave-copy {
+  display: grid;
+  flex: 1 1 14rem;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+}
+.team-leave-title {
+  color: var(--color-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+.team-leave-row > .ui-button {
+  margin-left: auto;
+}
+.team-leave-note {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+/* Without the member list (no right to manage it), the line stands on its own
+   surface, as the permission notice above it does. */
+.team-members-stack > .team-leave-row {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+/* The invitation form in one row once the card is wide enough for it: the
+   address, the role, the press. What the role allows and the beta's note go
+   under the whole row. */
+/* At the weight of the rule in space-settings.css that sets every panel
+   paragraph in body type; that sheet arrives after this one. */
+.team-space-settings.team-members-section .team-invite-form p.team-member-scope,
+.team-members-section .team-invite-form .team-invite-role-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+/* The (i) belongs to the sentence it explains, not to the card's far edge. */
+.team-members-section .team-invite-role-summary > span {
+  flex: 0 1 auto;
+}
+/* The address field is the inventory's, at the inventory's height — the old
+   settings rule gave its inner input 40 px of its own, which put the field 4 px
+   taller than the role beside it and the two labels on different lines. */
+.team-members-section .team-invite-form .ui-input input {
+  height: auto;
+  min-height: 0;
+}
+@container (min-width: 46rem) {
+  .team-members-section .team-invite-form {
+    grid-template-columns: minmax(14rem, 1fr) minmax(10rem, 16rem) auto;
+  }
+  .team-members-section .team-invite-form > .ui-button {
+    grid-row: 1;
+    grid-column: 3;
+    align-self: end;
+  }
+}
+
+/* The invitations: address, state and the one menu, as a member row is. */
+.team-members-section .team-invitation-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-members-section .team-invitation-list li {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+.team-members-section .team-invitation-email {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A phone: the person and the actions on one line, the role under the name,
+   the date and the column captions gone — the row says them itself. */
+@media (max-width: 640px) {
+  .team-member-table .ui-table-header {
+    display: none;
+  }
+  .team-member-table .ui-table-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'person person'
+      'role actions';
+    row-gap: var(--space-1);
+  }
+  .team-member-table .team-member-person {
+    grid-area: person;
+  }
+  .team-member-table .team-member-role {
+    grid-area: role;
+    padding-left: calc(32px + var(--space-2));
+  }
+  .team-member-table .team-member-joined {
+    display: none;
+  }
+  .team-member-table .team-member-actions {
+    grid-area: actions;
+  }
+  .team-leave-row {
+    flex-wrap: wrap;
+  }
+  .team-leave-row > .ui-button {
+    margin-left: calc(20px + var(--space-3));
+  }
+  .team-members-section .team-invitation-list li {
+    flex-wrap: wrap;
+  }
+}

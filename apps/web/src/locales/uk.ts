@@ -2536,6 +2536,17 @@ export const uk: Record<keyof typeof en, string> = {
   teamOwnershipConfirm: 'Я розумію, що {name} стане власником',
   teamOwnershipTransferAction: 'Передати володіння',
   teamOwnershipTransferFailed: 'Не вдалося передати власність.',
+  teamOwnershipTransferStart: 'Передати володіння…',
+  teamOwnershipTransferPick: 'Оберіть, хто стане єдиним власником, і роль, яку отримає ваш акаунт.',
+  teamOwnershipNewOwner: 'Новий власник',
+  teamOwnershipNewOwnerPlaceholder: 'Знайти учасника',
+  teamOwnershipNobodyFound: 'Нікого не знайдено',
+  teamOwnershipConfirmChooseFirst: 'Спершу оберіть нового власника',
+  teamMembersColumnPerson: 'Учасник',
+  teamMembersColumnRole: 'Роль',
+  teamMembersColumnJoined: 'У просторі з',
+  teamMembersColumnActions: 'Дії',
+  teamMemberYou: 'ви',
   teamAuditTitle: 'Історія простору',
   historyToday: 'Сьогодні',
   historyYesterday: 'Учора',
@@ -3863,8 +3874,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Ви втратите доступ до його файлів, завдань та історії, доки вас не запросять знову.',
   teamLeaveDone:
     'Ви вийшли з простору. Файли, якими з вами поділилися напряму в Google Drive, лишаються доступними — попросіть адміна забрати цей доступ, якщо його треба відкликати.',
-  teamLeaveOwnerExplanation:
-    'Щоб вийти, спершу передайте володіння: … біля учасника → Передати володіння.',
+  teamLeaveOwnerExplanation: 'Ви власник. Щоб вийти, спершу передайте простір іншому учаснику.',
   teamDraftDeleteAction: 'Видалити чернетку',
   teamDraftDeleteConfirmTitle: 'Видалити «{name}»?',
   teamDraftDeleteConfirmBody:

@@ -129,7 +129,8 @@ describe('team membership management', () => {
     // Rare and heavy, so behind "…" (024, FR-097).
     await user.click(screen.getByRole('button', { name: 'More for Alex Editor' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Transfer ownership' }));
-    await user.selectOptions(screen.getByLabelText('Your new role'), 'editor');
+    await user.click(screen.getByRole('button', { name: /Your new role/ }));
+    await user.click(await screen.findByRole('option', { name: 'Editor' }));
     await user.click(screen.getByLabelText('I understand that Alex Editor will become owner'));
     await user.click(screen.getByRole('button', { name: 'Transfer ownership' }));
     await waitFor(() =>
@@ -348,4 +349,42 @@ it('refreshes members and invitations when the workspace receives a remote revis
   await waitFor(() => expect(client.listMembers).toHaveBeenCalledTimes(2));
   expect(await screen.findByText('Alex Editor')).toBeTruthy();
   expect(client.listInvitations).toHaveBeenCalledTimes(2);
+});
+
+it('lets an owner leave by transferring from the leave line, choosing the new owner by search', async () => {
+  const client: MembersSectionClient = {
+    listMembers: vi.fn().mockResolvedValue([owner, editor]),
+    updateMembership: vi.fn(),
+    removeMember: vi.fn(),
+    transferOwnership: vi.fn().mockResolvedValue({ ...team, role: 'admin' }),
+    listInvitations: vi.fn().mockResolvedValue([]),
+    createInvitation: vi.fn(),
+    leaveTeam: vi.fn()
+  };
+  const user = userEvent.setup();
+  render(
+    <TeamProvider initialTeams={[team]} realtime={false}>
+      <ToastProvider>
+        <MembersSection teamId={TEAM_ID} client={client} />
+      </ToastProvider>
+    </TeamProvider>
+  );
+  // The way out is an action on the members table, not a sentence describing where one is.
+  expect(await screen.findByRole('table', { name: 'Members' })).toBeTruthy();
+  await user.click(await screen.findByRole('button', { name: 'Transfer ownership…' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Transfer ownership of this space' });
+  const confirm = screen.getByRole('checkbox', { name: 'Choose the new owner first' });
+  expect((confirm as HTMLInputElement).disabled).toBe(true);
+  await user.type(screen.getByRole('combobox', { name: 'New owner' }), 'alex@');
+  await user.click(await screen.findByRole('option', { name: /Alex Editor/ }));
+  await user.click(screen.getByLabelText('I understand that Alex Editor will become owner'));
+  await user.click(screen.getByRole('button', { name: 'Transfer ownership' }));
+  await waitFor(() =>
+    expect(client.transferOwnership).toHaveBeenCalledWith({
+      teamId: TEAM_ID,
+      toUserId: MEMBER_ID,
+      demoteTo: 'admin'
+    })
+  );
+  expect(dialog).toBeTruthy();
 });

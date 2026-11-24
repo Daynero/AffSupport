@@ -8339,16 +8339,6 @@ button,
 .team-invitation-inbox li > div:first-child {
   display: grid;
 }
-.team-member-section {
-  display: grid;
-  gap: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-  padding: var(--space-5);
-  min-width: 0;
-}
 .team-member-list,
 /* The subject reads as the object of the sentence: after the action, before
    the person, and allowed to take the room a file name needs. */
@@ -9128,7 +9118,6 @@ button,
     padding: var(--space-4);
   }
   .team-invitation-list li,
-  .team-member-list li,
   .team-audit-list li,
   .team-invitation-inbox li {
     align-items: stretch;
@@ -17818,9 +17807,6 @@ a.history-subject {
   font-size: var(--text-caption);
   white-space: normal;
 }
-.team-member-list li > div:first-child {
-  flex-wrap: wrap;
-}
 .team-member-permission-row .ui-checkbox-content {
   display: flex;
   flex-direction: row;
@@ -17855,27 +17841,6 @@ a.history-subject {
   flex-direction: row;
 }
 
-/* Members keep the primary column; the invitation remains a compact companion. */
-@media (width > 1280px) {
-  .team-members-section > .team-space-settings-grid {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  }
-}
-.team-member-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  white-space: normal;
-}
-.team-member-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-.team-member-list .team-inline-actions {
-  flex-shrink: 0;
-}
 .team-members-section .team-invite-form {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -17885,19 +17850,6 @@ a.history-subject {
 .team-invite-form .team-member-scope {
   grid-column: 1 / -1;
   margin: 0;
-}
-.team-leave-panel .ui-card-title {
-  font-size: var(--text-body);
-}
-.team-leave-panel {
-  padding: var(--space-4) var(--space-5);
-}
-@media (max-width: 768px) {
-  .team-member-list li {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-  }
 }
 
 .team-invite-role-summary {
@@ -17909,9 +17861,6 @@ a.history-subject {
   flex: 1;
 }
 
-.team-members-section .team-member-list .team-inline-actions {
-  margin-top: 0;
-}
 
 .catalog-settings-overview {
   display: flex;

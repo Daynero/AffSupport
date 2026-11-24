@@ -120,6 +120,8 @@
 @import './explorer.css' layer(soty);
 /* The space's frame, lifted out the same way (070, FR-042); see the top of space-shell.css. */
 @import './space-shell.css' layer(soty);
+/* The members page (070, T051). */
+@import './members.css' layer(soty);
 @import './team-accounts.css' layer(soty);
 @import './team-tasks.css' layer(soty);
 @import './transcription.css' layer(soty);

@@ -1,16 +1,24 @@
 import { withReadDeadline } from '../readCoordinator';
 import { useVisibleSerialRead } from '../catalog/useVisibleSerialRead';
 import { useOptionalAuth } from '../../auth/AuthContext';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { MoreHorizontal, Users } from 'lucide-react';
 import {
+  Badge,
   Button,
   DropdownMenu,
   ErrorState,
   IconButton,
   LoadingState,
-  Tooltip
+  Table,
+  TableCell,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  Tooltip,
+  User
 } from '../../components/ui/index';
+import { UserAvatar } from '../../components/UserAvatar';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import type {
   TeamContextSnapshot,
@@ -23,7 +31,7 @@ import {
   type TeamBaseRole
 } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
-import { useI18n } from '../../i18n';
+import { useI18n, type Language, type TranslationKey } from '../../i18n';
 import { memberCountKey } from '../accounts/plural';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
@@ -52,6 +60,31 @@ export interface MemberManagementClient {
   }) => Promise<TeamContextSnapshot>;
 }
 
+export interface MemberListFooterActions {
+  /** Members who could become the owner. */
+  candidates: readonly TeamMemberSummary[];
+  /** Opens the transfer with nobody chosen yet. */
+  transferOwnership: () => void;
+}
+
+const ROLE_KEY = {
+  owner: 'teamRoleOwner',
+  admin: 'teamRoleAdmin',
+  editor: 'teamRoleEditor',
+  viewer: 'teamRoleViewer'
+} as const satisfies Record<TeamMemberSummary['role'], TranslationKey>;
+
+/** When someone joined, as a short date — a column read down, so it is never relative. */
+function joinedLabel(joinedAt: string, language: Language): string {
+  const at = new Date(joinedAt);
+  if (Number.isNaN(at.getTime())) return '';
+  return at.toLocaleDateString(language === 'uk' ? 'uk-UA' : 'en-US', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+
 function memberName(member: TeamMemberSummary, fallback: string) {
   return member.displayName ?? member.email ?? fallback;
 }
@@ -62,7 +95,8 @@ export function MemberList({
   activeCount = 1,
   revision = 0,
   onChanged,
-  onLoaded
+  onLoaded,
+  footer
 }: {
   teamId?: string;
   client?: MemberManagementClient;
@@ -71,6 +105,12 @@ export function MemberList({
   onChanged?: () => void;
   /** The list as read, for a neighbour whose wording depends on it. */
   onLoaded?: (members: TeamMemberSummary[]) => void;
+  /**
+   * The line under the table — how to leave (024, FR-049). It is handed the way to
+   * start a transfer, because an owner's way out *is* a transfer: the action sits
+   * where the instruction used to send them looking for it.
+   */
+  footer?: (actions: MemberListFooterActions) => ReactNode;
 }) {
   const { t, language } = useI18n();
   const { push } = useToasts();
@@ -87,7 +127,8 @@ export function MemberList({
   const [removing, setRemoving] = useState<TeamMemberSummary | null>(null);
   const [removingBusy, setRemovingBusy] = useState(false);
   const removalPending = useRef(false);
-  const [transferring, setTransferring] = useState<TeamMemberSummary | null>(null);
+  /** Whom the transfer dialog opens on: a member's id, '' for "choose", null when closed. */
+  const [transferring, setTransferring] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(teamId && client));
   const [retry, setRetry] = useState(0);
@@ -134,6 +175,8 @@ export function MemberList({
   const count = client && teamId ? members.length : activeCount;
   const canManage = activeTeam?.permissions.manage_members === true;
   const isOwner = activeTeam?.role === 'owner';
+  /** Who could take the space over: everyone in it but its owner. */
+  const transferCandidates = members.filter(member => member.role !== 'owner');
   return (
     <SettingsSection
       icon={Users}
@@ -166,87 +209,129 @@ export function MemberList({
         <LoadingState shape="row" count={2} label={t('teamMemberLoading')} />
       )}
       {(!loading || members.length > 0) && !error && client && teamId && (
-        <ul className="team-member-list">
+        /* A table, as Linear's members page is (070, T051): who, in what role, since when,
+           and the row's two actions — one column each, read down as well as across. The
+           name and the address are one person, so they share a cell at the label and
+           caption steps of the type scale rather than a 20 px name beside a 13 px address. */
+        <Table
+          size="sm"
+          label={t('teamMembers')}
+          className="team-member-table"
+          columns="minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) var(--team-member-actions-width)"
+        >
+          <TableHeader>
+            <TableHeaderCell>{t('teamMembersColumnPerson')}</TableHeaderCell>
+            <TableHeaderCell>{t('teamMembersColumnRole')}</TableHeaderCell>
+            <TableHeaderCell className="team-member-joined">
+              {t('teamMembersColumnJoined')}
+            </TableHeaderCell>
+            <TableHeaderCell>
+              <span className="visually-hidden">{t('teamMembersColumnActions')}</span>
+            </TableHeaderCell>
+          </TableHeader>
           {members.map(member => {
             const name = memberName(member, t('teamFormerMember'));
-            const custom =
-              member.role !== 'owner' &&
-              TEAM_PERMISSION_FLAGS.some(
-                flag =>
-                  member.effectivePermissions[flag] !== ROLE_PERMISSIONS[member.baseRole][flag]
-              );
+            const changed =
+              member.role === 'owner'
+                ? 0
+                : TEAM_PERMISSION_FLAGS.filter(
+                    flag =>
+                      member.effectivePermissions[flag] !== ROLE_PERMISSIONS[member.baseRole][flag]
+                  ).length;
+            const self = member.userId === auth?.user?.id;
             return (
-              <li key={member.membershipId}>
-                <div>
-                  <strong>{name}</strong>
-                  {member.email && member.email !== name && <small>{member.email}</small>}
-                  <span className={`team-role-badge is-${member.role}`}>
-                    {t(
-                      member.role === 'owner'
-                        ? 'teamRoleOwner'
-                        : member.role === 'admin'
-                          ? 'teamRoleAdmin'
-                          : member.role === 'editor'
-                            ? 'teamRoleEditor'
-                            : 'teamRoleViewer'
-                    )}
-                  </span>
-                  {custom && (
-                    <Tooltip
-                      label={t('teamMemberCustomCount', {
-                        count: TEAM_PERMISSION_FLAGS.filter(
-                          flag =>
-                            member.effectivePermissions[flag] !==
-                            ROLE_PERMISSIONS[member.baseRole][flag]
-                        ).length
-                      })}
-                    >
+              <TableRow key={member.membershipId} data-member-id={member.userId}>
+                <TableCell className="team-member-person">
+                  <User
+                    size="sm"
+                    avatar={
+                      <UserAvatar
+                        url={null}
+                        name={member.displayName}
+                        email={member.email}
+                        alt=""
+                        size="small"
+                      />
+                    }
+                    name={
+                      <>
+                        {name}
+                        {self && <span className="team-member-self"> · {t('teamMemberYou')}</span>}
+                      </>
+                    }
+                    meta={member.email && member.email !== name ? member.email : undefined}
+                  />
+                </TableCell>
+                <TableCell className="team-member-role">
+                  <Badge
+                    size="sm"
+                    variant="soft"
+                    color={member.role === 'owner' ? 'success' : 'neutral'}
+                    className={`team-role-badge is-${member.role}`}
+                  >
+                    {t(ROLE_KEY[member.role])}
+                  </Badge>
+                  {changed > 0 && (
+                    <Tooltip label={t('teamMemberCustomCount', { count: changed })}>
                       <span className="team-member-custom" tabIndex={0}>
                         {t('teamMemberCustom')}
                       </span>
                     </Tooltip>
                   )}
-                </div>
-                {canManage && member.role !== 'owner' && (
-                  <div className="team-inline-actions">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      aria-label={t('teamMemberEditFor', { name })}
-                      onClick={() => setEditing(member)}
-                    >
-                      {t('teamMemberEdit')}
-                    </Button>
-                    {/* Rare and heavy, so behind "…" (024, FR-097): three bordered
-                        buttons on every member made removing someone look as
-                        ordinary as editing them. */}
-                    <MemberRowMenu
-                      label={t('teamMemberActionsFor', { name })}
-                      items={[
-                        ...(isOwner
-                          ? [
-                              {
-                                id: 'transfer',
-                                label: t('teamOwnershipTransferAction'),
-                                onSelect: () => setTransferring(member)
-                              }
-                            ]
-                          : []),
-                        {
-                          id: 'remove',
-                          label: t('teamMemberRemove'),
-                          destructive: true,
-                          onSelect: () => setRemoving(member)
-                        }
-                      ]}
-                    />
-                  </div>
-                )}
-              </li>
+                </TableCell>
+                <TableCell className="team-member-joined numeric">
+                  {joinedLabel(member.joinedAt, language)}
+                </TableCell>
+                <TableCell className="team-member-actions">
+                  {canManage && member.role !== 'owner' && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t('teamMemberEditFor', { name })}
+                        onClick={() => setEditing(member)}
+                      >
+                        {t('teamMemberEdit')}
+                      </Button>
+                      {/* Rare and heavy, so behind "…" (024, FR-097): three bordered
+                          buttons on every member made removing someone look as
+                          ordinary as editing them. */}
+                      <MemberRowMenu
+                        label={t('teamMemberActionsFor', { name })}
+                        items={[
+                          ...(isOwner
+                            ? [
+                                {
+                                  id: 'transfer',
+                                  label: t('teamOwnershipTransferAction'),
+                                  onSelect: () => setTransferring(member.userId)
+                                }
+                              ]
+                            : []),
+                          {
+                            id: 'remove',
+                            label: t('teamMemberRemove'),
+                            destructive: true,
+                            onSelect: () => setRemoving(member)
+                          }
+                        ]}
+                      />
+                    </>
+                  )}
+                </TableCell>
+              </TableRow>
             );
           })}
-        </ul>
+        </Table>
+      )}
+      {footer && !error && client && teamId && members.length > 0 && (
+        <div className="team-member-footer">
+          {footer({
+            candidates: transferCandidates,
+            transferOwnership: () => setTransferring('')
+          })}
+        </div>
       )}
 
       {editing && client && teamId && (
@@ -342,16 +427,13 @@ export function MemberList({
         </Modal>
       )}
 
-      {transferring && client && teamId && (
+      {transferring !== null && client && teamId && (
         <OwnershipTransferDialog
-          member={transferring}
+          members={transferCandidates}
+          initialMemberId={transferring || undefined}
           onClose={() => setTransferring(null)}
-          onTransfer={async demoteTo => {
-            await client.transferOwnership({
-              teamId,
-              toUserId: transferring.userId,
-              demoteTo
-            });
+          onTransfer={async (toUserId, demoteTo) => {
+            await client.transferOwnership({ teamId, toUserId, demoteTo });
             onChanged?.();
           }}
         />

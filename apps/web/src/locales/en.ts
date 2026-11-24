@@ -2548,6 +2548,18 @@ export const en = {
   teamOwnershipConfirm: 'I understand that {name} will become owner',
   teamOwnershipTransferAction: 'Transfer ownership',
   teamOwnershipTransferFailed: 'Could not transfer ownership.',
+  teamOwnershipTransferStart: 'Transfer ownership…',
+  teamOwnershipTransferPick:
+    'Choose who becomes the only owner, and the role your account will receive.',
+  teamOwnershipNewOwner: 'New owner',
+  teamOwnershipNewOwnerPlaceholder: 'Find a member',
+  teamOwnershipNobodyFound: 'No one found',
+  teamOwnershipConfirmChooseFirst: 'Choose the new owner first',
+  teamMembersColumnPerson: 'Member',
+  teamMembersColumnRole: 'Role',
+  teamMembersColumnJoined: 'Joined',
+  teamMembersColumnActions: 'Actions',
+  teamMemberYou: 'you',
   teamAuditTitle: 'Space history',
   historyToday: 'Today',
   historyYesterday: 'Yesterday',
@@ -3881,8 +3893,7 @@ export const en = {
     'You will lose access to its files, tasks and history until someone invites you again.',
   teamLeaveDone:
     'You have left the space. Files shared with you directly in Google Drive stay shared — ask an admin to remove that access if you need it revoked.',
-  teamLeaveOwnerExplanation:
-    'To leave, transfer ownership first: open … beside a member → Transfer ownership.',
+  teamLeaveOwnerExplanation: 'You own this space. To leave, hand it to another member first.',
   teamDraftDeleteAction: 'Discard this draft',
   teamDraftDeleteConfirmTitle: 'Discard “{name}”?',
   teamDraftDeleteConfirmBody:
