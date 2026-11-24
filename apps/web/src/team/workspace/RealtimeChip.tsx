@@ -1,18 +1,7 @@
-import { useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import { useTeam } from '../TeamContext';
 import { WorkspaceChip } from './WorkspaceChip';
-
-/**
- * A brief drop — or a slow first connect — is normal and self-healing;
- * announcing either immediately would make the header flicker on every tab
- * switch. Only a wait that is still unresolved after this long is worth saying
- * out loud.
- */
-const WAITING_GRACE_MS = 8_000;
-
-/** The two states in which live events are not arriving and we are still trying. */
-const WAITING: ReadonlySet<string> = new Set(['connecting', 'reconnecting']);
+import { useRealtimeGrace } from './useSpaceHealth';
 
 /**
  * Says when live updates are not arriving — and nothing at all when they are.
@@ -20,23 +9,16 @@ const WAITING: ReadonlySet<string> = new Set(['connecting', 'reconnecting']);
  * The realtime state has been tracked since 001 but rendered nowhere, so a
  * degraded channel was invisible: the space simply stopped changing (finding
  * S5). Keep it quiet during a short reconnect, then offer an explicit retry.
+ *
+ * The header's health (070, US5) decides when this chip is shown and passes
+ * the grace it has already waited out, so the chip does not start a second
+ * eight-second wait of its own when it is mounted.
  */
-export function RealtimeChip() {
+export function RealtimeChip({ graceElapsed }: { graceElapsed?: boolean } = {}) {
   const { t } = useI18n();
   const { realtimeState, retryRealtime } = useTeam();
-  const [graceElapsed, setGraceElapsed] = useState(false);
-
-  useEffect(() => {
-    if (!WAITING.has(realtimeState)) {
-      setGraceElapsed(false);
-      return;
-    }
-    // Moving between the two waiting states restarts the timer but does not
-    // clear an elapsed grace: once we have said live updates are missing,
-    // saying it differently is not a reason to go quiet and flicker back.
-    const timer = window.setTimeout(() => setGraceElapsed(true), WAITING_GRACE_MS);
-    return () => window.clearTimeout(timer);
-  }, [realtimeState]);
+  const ownGrace = useRealtimeGrace(realtimeState);
+  const elapsed = graceElapsed ?? ownGrace;
 
   if (realtimeState === 'disabled') {
     return (
@@ -51,7 +33,7 @@ export function RealtimeChip() {
   // the socket while its upstream is dead leaves the handshake hanging, so no
   // subscribe status ever fires and the state never leaves `connecting`
   // (FR-018).
-  if (graceElapsed && WAITING.has(realtimeState)) {
+  if (elapsed && (realtimeState === 'connecting' || realtimeState === 'reconnecting')) {
     return (
       /*
        * Pressable, because there is something to do (024, FR-052).
