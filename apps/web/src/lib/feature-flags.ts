@@ -98,3 +98,30 @@ export function useFeatureLock(feature: FeatureId): boolean {
 /** Temporary pre-announcement presentation switch; server access stays authoritative.
  * Enable with the workspace announcement to restore the retained plans/contact page. */
 export const workspaceAnnouncementEnabled = true;
+
+/*
+ * Behaviour flags (070): a change of habit that rides the beta before it rides production.
+ * Unlike the acknowledgements above these gate nothing — they choose between two working
+ * paths, and the old one stays intact until the flag is removed.
+ */
+export type BehaviourFlag = 'explorerInlineSearch';
+
+const BEHAVIOUR_PREFIX = 'soty.flag.';
+
+/** On in a dev build and on the beta; a browser can override it either way (`on` / `off`). */
+const BEHAVIOUR_DEFAULTS: Record<BehaviourFlag, () => boolean> = {
+  // 070 US3: the explorer's search is the toolbar field, its results take the list's place.
+  explorerInlineSearch: () =>
+    import.meta.env.DEV === true || import.meta.env.VITE_APP_ENVIRONMENT === 'beta'
+};
+
+export function behaviourFlag(flag: BehaviourFlag): boolean {
+  try {
+    const override = localStorage.getItem(BEHAVIOUR_PREFIX + flag);
+    if (override === 'on') return true;
+    if (override === 'off') return false;
+  } catch {
+    // Storage blocked: the build's default.
+  }
+  return BEHAVIOUR_DEFAULTS[flag]();
+}

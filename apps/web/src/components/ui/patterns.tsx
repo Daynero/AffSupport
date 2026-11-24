@@ -244,6 +244,8 @@ export interface SelectionBarProps {
   /** Always carries its count: "Clear selection (3)". */
   onClear: () => void;
   clearLabel: string;
+  /** The bar's own name for a screen reader; the clear label when not given. */
+  toolbarLabel?: string;
   className?: string;
 }
 
@@ -254,13 +256,17 @@ export function SelectionBar({
   actions,
   onClear,
   clearLabel,
+  toolbarLabel,
   className
 }: SelectionBarProps) {
   if (count === 0) return null;
   return (
     /* On the inventory's Toolbar (024, T032): one Tab stop, the arrows walk the
        actions, and the count is read as the bar's own text. */
-    <Toolbar label={clearLabel} className={uiClasses('selection-bar', { className })}>
+    <Toolbar
+      label={toolbarLabel ?? clearLabel}
+      className={uiClasses('selection-bar', { className })}
+    >
       <span className="ui-selection-count">{label}</span>
       <div className="ui-selection-actions">{actions}</div>
       <Button size="sm" color="neutral" variant="ghost" onClick={onClear}>

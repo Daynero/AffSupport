@@ -35,7 +35,9 @@ export function SearchResultActions({
   onEditMetadata,
   onShowProvenance,
   onCreateTask,
-  onReveal
+  onReveal,
+  maxInline,
+  className = 'team-catalog-material-actions'
 }: {
   material: CatalogMaterialItem;
   permissions: TeamPermissions;
@@ -51,6 +53,9 @@ export function SearchResultActions({
   onShowProvenance: (material: CatalogMaterialItem) => void;
   onCreateTask?: (material: CatalogMaterialItem) => void;
   onReveal?: (material: CatalogMaterialItem) => void;
+  /** Fewer on screen (070): a results row carries its "…", the details pane the rest. */
+  maxInline?: number;
+  className?: string;
 }) {
   const { teams, activeTeam } = useTeam();
   const space = spaceOf(teams, activeTeam, material.teamId);
@@ -100,20 +105,25 @@ export function SearchResultActions({
   });
 
   const addToTask = useOptionalAddToTask();
-  const list = useMaterialActionList(ref, context, {
-    ...host.handlers,
-    open: () => onPreview(material),
-    showInFolder: onReveal ? () => onReveal(material) : undefined,
-    provenance: () => onShowProvenance(material),
-    editText: material.kind === 'file' ? () => onEditText(material) : undefined,
-    process: () => onProcess(material),
-    editMetadata: canManageMetadata ? () => onEditMetadata(material) : undefined,
-    createTask: onCreateTask ? () => onCreateTask(material) : undefined,
-    addToTask: addToTask ? () => addToTask([{ id: material.id, name: material.name }]) : undefined
-  });
+  const list = useMaterialActionList(
+    ref,
+    context,
+    {
+      ...host.handlers,
+      open: () => onPreview(material),
+      showInFolder: onReveal ? () => onReveal(material) : undefined,
+      provenance: () => onShowProvenance(material),
+      editText: material.kind === 'file' ? () => onEditText(material) : undefined,
+      process: () => onProcess(material),
+      editMetadata: canManageMetadata ? () => onEditMetadata(material) : undefined,
+      createTask: onCreateTask ? () => onCreateTask(material) : undefined,
+      addToTask: addToTask ? () => addToTask([{ id: material.id, name: material.name }]) : undefined
+    },
+    maxInline === undefined ? {} : { maxInline }
+  );
 
   return (
-    <div className="team-catalog-material-actions">
+    <div className={className}>
       <MaterialInlineActions list={list} name={material.name} />
       {host.dialogs}
     </div>

@@ -1,281 +1,319 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
-import {
-  Download,
-  ListChecks,
-  ListPlus,
-  MoreHorizontal,
-  Play,
-  Shrink,
-  Trash2,
-  X
-} from 'lucide-react';
-import type { TeamMaterialRow, TeamPermissions } from '@video-compressor/shared';
-import { DropdownMenu } from '../../components/ui/index';
+import { ListChecks, MoreHorizontal, Play } from 'lucide-react';
+import type { MaterialCategory, TeamPermissions } from '@video-compressor/shared';
+import { Button, DropdownMenu, IconButton, SelectionBar } from '../../components/ui/index';
 import type { MenuItem } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
-import { useI18n } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
 import type { LibraryBatchScope } from '../library/ProcessLibraryDialog';
 import type { useOptionalAddToTask } from '../tasks/AddToTask';
+import {
+  MATERIAL_ACTION_BY_ID,
+  type ActionContext,
+  type MaterialActionId,
+  type MaterialRef
+} from '../materials/actions';
 import { BATCH_SCOPE_LIMIT } from './FolderScopeDialog';
 import type { CompressPlanItem } from './TeamCompressorDialog';
 
 /**
- * What to do with a selection (070, FR-001, out of `ExplorerShell`): the count, the way out,
- * select-all, and the acts a selection takes — three in words, the rest under "…".
+ * The little a selection needs to know about each thing in it — met in a folder (a row) or in
+ * the search's results (a catalog item), which is why it is not either of those shapes.
  */
-export function ExplorerSelection({
-  selectedRows,
-  selectedIds,
-  rows,
-  sortedRows,
-  currentFolderId,
-  permissions,
+export interface SelectedMaterial {
+  id: string;
+  teamId: string;
+  name: string;
+  kind: string;
+  category: MaterialCategory | null;
+  parentFolderId?: string | null;
+}
+
+/** What a selection can be handed to — the same acts in the folder and in the results. */
+export interface SelectionActs<T extends SelectedMaterial> {
+  permissions: TeamPermissions | null;
+  onCreateTask?: (assets: Array<{ id: string; name: string }>) => void;
+  addToTask: ReturnType<typeof useOptionalAddToTask>;
+  onProcess?: (materialIds: string[], scope?: LibraryBatchScope) => void;
+  onCompress: (items: CompressPlanItem[]) => void;
+  onDownloadRestitched: (items: T[]) => void;
+  onTrash: (items: T[]) => void;
+  /** The folder open now, where a selected file's own folder is not known. */
+  currentFolderId: string | null;
+}
+
+/**
+ * What to do with a selection (070, FR-012): the inventory's `SelectionBar`, drawn in the strip
+ * above the list in place of what arranges the list — so it moves nothing when it appears, and
+ * covers nothing: it used to lie over the toolbar row, which took the path, the search and
+ * «Завантажити» away for as long as anything was checked.
+ *
+ * The acts come from the one registry with `host: 'selection'`: what applies to the checked set,
+ * in the registry's icons. Three are on the bar (the ones a batch is for), the rest are named
+ * under "…". An act that takes only part of the set says how many it takes.
+ */
+export function ExplorerSelection<T extends SelectedMaterial>({
+  items,
+  shownIds,
+  selectable,
+  elsewhereKey,
   onClear,
   onSelectAll,
-  onCreateTaskFromSelection,
-  onProcessSelection,
-  trashRows,
-  addToTask,
-  onCompress,
-  deliverRestitched
+  acts
 }: {
-  /** The selection, across folders. */
-  selectedRows: TeamMaterialRow[];
-  selectedIds: ReadonlyMap<string, unknown>;
-  /** The rows of the open folder that are loaded. */
-  rows: TeamMaterialRow[];
-  /** Those rows as the list shows them, which select-all takes. */
-  sortedRows: TeamMaterialRow[];
-  currentFolderId: string | null;
-  permissions: TeamPermissions | null;
+  /** The selection, wherever its things live. */
+  items: readonly T[];
+  /** What is on screen now; the rest of the selection is "elsewhere". */
+  shownIds: ReadonlySet<string>;
+  /** What select-all would take; offered while some of it is not checked yet. */
+  selectable: readonly { id: string }[];
+  /** How "elsewhere" is said here: other folders, or outside these results. */
+  elsewhereKey: TranslationKey;
   onClear: () => void;
   onSelectAll: () => void;
-  onCreateTaskFromSelection?: (assets: Array<{ id: string; name: string }>) => void;
-  onProcessSelection?: (materialIds: string[], scope?: LibraryBatchScope) => void;
-  trashRows: (rows: TeamMaterialRow[]) => Promise<void>;
-  addToTask: ReturnType<typeof useOptionalAddToTask>;
-  onCompress: (items: CompressPlanItem[]) => void;
-  deliverRestitched: (rows: TeamMaterialRow[]) => Promise<void>;
+  acts: SelectionActs<T>;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
-  /* The videos in the selection, once: three of the bar's actions ask for exactly this
-     and one of them decides whether it is offered at all. */
-  const selectedVideos = useMemo(
-    () => selectedRows.filter(row => row.category === 'video'),
-    [selectedRows]
-  );
-  /*
-   * What the batch can actually take. A folder, a transcript or an image can be
-   * checked like anything else, and passing those on gave a window titled
-   * "Обробка: обрано 1" that scanned nothing and then said "everything is
-   * already current" — which reads as done, not as "not a thing I process".
-   */
-  /*
-   * How many of the selection are not on screen — measured against the rows
-   * shown, not against the folder id.
-   *
-   * At the root `currentFolderId` is null while every row carries the drive's
-   * real root id, so comparing ids called three tiles in plain view "3 з інших
-   * папок". This is also the truer sentence: a selected row hidden by a kind
-   * filter, or waiting behind "Показати ще", is out of sight wherever it lives.
-   */
+  const checked = useMemo(() => new Set(items.map(item => item.id)), [items]);
   const elsewhere = useMemo(
-    () => selectedRows.filter(row => !rows.some(shown => shown.id === row.id)).length,
-    [rows, selectedRows]
+    () => items.filter(item => !shownIds.has(item.id)).length,
+    [items, shownIds]
   );
-  const processableRows = useMemo(
-    () => selectedRows.filter(row => row.category === 'video' || row.category === 'landing'),
-    [selectedRows]
-  );
-  if (selectedRows.length === 0) return null;
+  const videos = useMemo(() => items.filter(item => item.category === 'video'), [items]);
   /*
-   * What to do with a selection, in the compressor's idiom.
-   *
-   * It was five full-width buttons of prose that wrapped onto three lines above the
-   * files and pushed them down the page — the bar meant to help was the widest thing
-   * on the screen. Each action is now the icon it already has elsewhere in this
-   * workspace, named on hover and to a screen reader; the count leads, and the way out
-   * sits at the far end where a dismissal belongs.
+   * What the batch can actually take. A folder, a transcript or an image can be checked like
+   * anything else, and passing those on gave a window titled "Обробка: обрано 1" that scanned
+   * nothing and then said "everything is already current".
    */
+  const processable = useMemo(
+    () => items.filter(item => item.category === 'video' || item.category === 'landing'),
+    [items]
+  );
+  const { permissions } = acts;
+  if (items.length === 0) return null;
+
+  const context: ActionContext = {
+    host: 'selection',
+    permissions,
+    isOwner: false,
+    currentFolderId: acts.currentFolderId,
+    agentAvailability: 'ready',
+    storageConnected: true,
+    restitchConfigured: true,
+    catalogSettingsReady: true,
+    selectionSize: items.length
+  };
+  /** Whether the registry offers this act on any of the selection, and lets this member run it. */
+  const offers = (id: MaterialActionId, among: readonly T[] = items) => {
+    const action = MATERIAL_ACTION_BY_ID.get(id);
+    if (!action || among.length === 0) return false;
+    return among.some(item => {
+      const ref = refOf(item);
+      if (!action.applies(ref, context)) return false;
+      const availability = action.available(ref, context);
+      // The agent and the storage are asked when the act starts; only a permission is final.
+      return availability.ok || availability.reason !== 'NO_PERMISSION';
+    });
+  };
+  const icon = (id: MaterialActionId) => {
+    const Icon = MATERIAL_ACTION_BY_ID.get(id)!.icon;
+    return <Icon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />;
+  };
+  const assets = () => items.map(item => ({ id: item.id, name: item.name }));
+
+  const bar: ReactNode[] = [];
+  if (acts.onCreateTask && offers('createTask')) {
+    const create = acts.onCreateTask;
+    bar.push(
+      <SelectionAct
+        key="create-task"
+        label={t('teamExplorerCreateTaskFromSelection')}
+        icon={icon('createTask')}
+        onPress={() => create(assets())}
+      />
+    );
+  }
+  if (acts.onProcess && permissions?.process && processable.length > 0) {
+    const run = acts.onProcess;
+    bar.push(
+      <SelectionAct
+        key="process"
+        label={
+          processable.length === 1
+            ? t('teamExplorerProcessSelection')
+            : t('teamExplorerProcessSelectionMany', { count: processable.length })
+        }
+        icon={<Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+        onPress={() => {
+          /* The bound the folder path already respects: refused here it is a sentence;
+             refused by the RPC it is "Частина даних некоректна" in a window with no fields. */
+          if (processable.length > BATCH_SCOPE_LIMIT) {
+            push({
+              tone: 'error',
+              text: t('teamBatchFolderTooMany', {
+                count: processable.length,
+                limit: BATCH_SCOPE_LIMIT
+              })
+            });
+            return;
+          }
+          run(
+            processable.map(item => item.id),
+            {
+              kind: 'selection',
+              count: processable.length,
+              ...(processable.length < items.length ? { picked: items.length } : {})
+            }
+          );
+        }}
+      />
+    );
+  }
+  if (offers('trash')) {
+    bar.push(
+      <SelectionAct
+        key="trash"
+        destructive
+        label={t('teamFileTrash')}
+        icon={icon('trash')}
+        onPress={() => acts.onTrash([...items])}
+      />
+    );
+  }
+
+  const more: MenuItem[] = [];
+  if (selectable.some(item => !checked.has(item.id))) {
+    more.push({
+      id: 'select-all',
+      label: t('selectAll'),
+      icon: <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+      onSelect: onSelectAll
+    });
+  }
+  if (acts.addToTask && offers('addToTask')) {
+    const add = acts.addToTask;
+    more.push({
+      id: 'add-to-task',
+      label: t('materialActionAddToTask'),
+      icon: icon('addToTask'),
+      onSelect: () => add(assets())
+    });
+  }
+  if (permissions?.process && offers('compress', videos)) {
+    more.push({
+      id: 'compress',
+      label:
+        videos.length < items.length
+          ? t('teamCompressSelectedVideos', { count: videos.length })
+          : t('teamCompressSelected'),
+      icon: icon('compress'),
+      onSelect: () =>
+        acts.onCompress(
+          videos.map(item => ({
+            id: item.id,
+            name: item.name,
+            folderId: item.parentFolderId ?? acts.currentFolderId ?? null
+          }))
+        )
+    });
+  }
+  if (permissions?.download && offers('downloadRestitched', videos)) {
+    more.push({
+      id: 'download-restitched',
+      label: t('teamRestitchDownloadRestitched'),
+      icon: icon('downloadRestitched'),
+      onSelect: () => acts.onDownloadRestitched(videos)
+    });
+  }
+
   return (
-    <div
+    <SelectionBar
       className="team-explorer-selection-bar"
-      role="region"
-      /* A static name: it used to be the same string as the count beside
-               it, so a screen reader said "Обрано: 3" twice on entry. */
-      aria-label={t('teamExplorerSelectionRegion')}
-    >
-      {/* The way out leads, as a bare cross, the way Drive and Gmail draw
-                it: at the far end, in words, it repeated the count beside it and
-                took the room the bin's own label needed, which then scrolled
-                out of sight. Its name still carries the count for a reader. */}
-      <SelectionAction
-        iconOnly
-        label={t('teamExplorerClearSelectionCount', { count: selectedRows.length })}
-        onClick={onClear}
-      >
-        <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      </SelectionAction>
-      <span className="team-explorer-selection-count">
-        {t('teamExplorerSelectedCount', { count: selectedRows.length })}
-        {/* The selection survives walking into another folder, which is
-                  what makes it useful and what makes the bin a surprise: three
-                  of the five being acted on can be two folders back. */}
-        {elsewhere > 0 && (
-          <span className="team-explorer-selection-elsewhere">
-            {t('teamExplorerSelectedElsewhere', { count: elsewhere })}
-          </span>
-        )}
-      </span>
-      {sortedRows.some(row => !selectedIds.has(row.id)) && (
-        <SelectionAction label={t('selectAll')} onClick={onSelectAll}>
-          <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </SelectionAction>
-      )}
-      <div className="team-explorer-selection-actions">
-        {onCreateTaskFromSelection && (
-          <SelectionAction
-            label={t('teamExplorerCreateTaskFromSelection')}
-            onClick={() =>
-              onCreateTaskFromSelection(selectedRows.map(row => ({ id: row.id, name: row.name })))
-            }
-          >
-            <ListPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </SelectionAction>
-        )}
-        {/*
-         * The selection, whatever its size. This used to say "Process…"
-         * over four files and quietly start work on the entire space —
-         * the selection was never passed anywhere — so it was cut back
-         * to one file. Now the ids travel with the press, and the count
-         * in the label is the count of files the batch can take.
-         */}
-        {onProcessSelection && permissions?.process && processableRows.length > 0 && (
-          <SelectionAction
-            primary
-            label={
-              processableRows.length === 1
-                ? t('teamExplorerProcessSelection')
-                : t('teamExplorerProcessSelectionMany', { count: processableRows.length })
-            }
-            onClick={() => {
-              /* The same bound the folder path already respects: the
-                       scan and the claim refuse a scope over five hundred, and
-                       the selection survives folder changes, so it can get
-                       there. Refused here, it is a sentence; refused by the
-                       RPC, it is "Частина даних некоректна" in a window with
-                       no fields. */
-              if (processableRows.length > BATCH_SCOPE_LIMIT) {
-                push({
-                  tone: 'error',
-                  text: t('teamBatchFolderTooMany', {
-                    count: processableRows.length,
-                    limit: BATCH_SCOPE_LIMIT
-                  })
-                });
-                return;
-              }
-              onProcessSelection(
-                processableRows.map(row => row.id),
-                {
-                  kind: 'selection',
-                  count: processableRows.length,
-                  ...(processableRows.length < selectedRows.length
-                    ? { picked: selectedRows.length }
-                    : {})
-                }
-              );
-            }}
-          >
-            <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </SelectionAction>
-        )}
-        {permissions?.delete && (
-          <SelectionAction
-            label={t('teamFileTrash')}
-            destructive
-            onClick={() => void trashRows(selectedRows)}
-          >
-            <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </SelectionAction>
-        )}
-        {/* Three acts in words, the rest under "…" — Linear's and
-                  Airtable's bulk bars. With a video in the selection the bar
-                  held six worded acts, the last cut mid-word and the rest a
-                  sideways scroll nobody knew to try. */}
-        <SelectionMore
-          label={t('teamTaskCardMore')}
-          items={[
-            ...(addToTask
-              ? [
-                  {
-                    id: 'add-to-task',
-                    label: t('materialActionAddToTask'),
-                    icon: (
-                      <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    ),
-                    onSelect: () =>
-                      addToTask(selectedRows.map(row => ({ id: row.id, name: row.name })))
-                  }
-                ]
-              : []),
-            ...(permissions?.process && selectedVideos.length > 0
-              ? [
-                  {
-                    id: 'compress',
-                    label: t('teamCompressSelected'),
-                    icon: <Shrink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
-                    onSelect: () =>
-                      onCompress(
-                        selectedVideos.map(row => ({
-                          id: row.id,
-                          name: row.name,
-                          folderId: row.parentFolderId ?? currentFolderId ?? null
-                        }))
-                      )
-                  }
-                ]
-              : []),
-            ...(permissions?.download && selectedVideos.length > 0
-              ? [
-                  {
-                    id: 'download-restitched',
-                    label: t('teamRestitchDownloadRestitched'),
-                    icon: (
-                      <Download size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                    ),
-                    onSelect: () => void deliverRestitched(selectedVideos)
-                  }
-                ]
-              : [])
-          ]}
-        />
-      </div>
-    </div>
+      count={items.length}
+      toolbarLabel={t('teamExplorerSelectionRegion')}
+      label={
+        <>
+          {t('teamExplorerSelectedCount', { count: items.length })}
+          {/* The selection survives walking into another folder (and out of a search), which
+              is what makes it useful and what makes the bin a surprise. */}
+          {elsewhere > 0 && (
+            <span className="team-explorer-selection-elsewhere">
+              {t(elsewhereKey, { count: elsewhere })}
+            </span>
+          )}
+        </>
+      }
+      actions={
+        <>
+          {bar}
+          {more.length > 0 && <SelectionMore label={t('teamTaskCardMore')} items={more} />}
+        </>
+      }
+      clearLabel={t('teamExplorerClearSelectionCount', { count: items.length })}
+      onClear={onClear}
+    />
   );
 }
 
-/** The bar's "…": the acts a selection needs less often, one press away. */
+function refOf(item: SelectedMaterial): MaterialRef {
+  return {
+    id: item.id,
+    teamId: item.teamId,
+    name: item.name,
+    kind: item.kind === 'folder' ? 'folder' : 'file',
+    category: item.category,
+    parentFolderId: item.parentFolderId ?? null,
+    availability: 'ready'
+  };
+}
+
+/** One act on the selection: its icon and its word — CSS takes the word only where room runs out. */
+function SelectionAct({
+  label,
+  icon,
+  onPress,
+  destructive = false
+}: {
+  label: string;
+  icon: ReactNode;
+  onPress: () => void;
+  destructive?: boolean;
+}) {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      color={destructive ? 'error' : 'neutral'}
+      className="team-explorer-selection-act"
+      aria-label={label}
+      leading={icon}
+      onClick={onPress}
+    >
+      <span className="team-explorer-selection-act-label">{label}</span>
+    </Button>
+  );
+}
+
+/** The bar's "…": the acts a selection needs less often, named. */
 function SelectionMore({ label, items }: { label: string; items: MenuItem[] }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  if (items.length === 0) return null;
   return (
     <>
-      <button
+      <IconButton
         ref={trigger}
-        type="button"
-        className="team-explorer-selection-action is-icon"
-        aria-label={label}
+        size="sm"
+        variant="ghost"
+        label={label}
+        title=""
         aria-haspopup="menu"
         aria-expanded={open}
-        data-tip={label}
         onClick={() => setOpen(true)}
       >
         <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      </button>
+      </IconButton>
       <DropdownMenu
         open={open}
         onClose={() => setOpen(false)}
@@ -284,49 +322,5 @@ function SelectionMore({ label, items }: { label: string; items: MenuItem[] }) {
         items={items}
       />
     </>
-  );
-}
-
-/**
- * One action on the selection: an icon, and its name where a name belongs.
- *
- * The bar used to spell each of these out in a button, and at the content column's width the
- * five of them wrapped onto three lines above the files. The names have not gone anywhere —
- * they are the tooltip and the accessible label, exactly as on a file's own card.
- */
-function SelectionAction({
-  label,
-  onClick,
-  destructive,
-  primary,
-  iconOnly,
-  children
-}: {
-  label: string;
-  onClick: () => void;
-  /** Drawn as its icon alone; the name stays for a reader and the tooltip. */
-  iconOnly?: boolean;
-  /** The one that throws things away; coloured apart from the rest. */
-  destructive?: boolean;
-  /** The action this screen exists for; it keeps its word at any width. */
-  primary?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className={`team-explorer-selection-action ${destructive ? 'is-destructive' : ''} ${
-        primary ? 'is-primary' : ''
-      } ${iconOnly ? 'is-icon' : ''}`.trim()}
-      aria-label={label}
-      data-tip={label}
-      onClick={onClick}
-    >
-      {children}
-      {/* The word is in the markup and only CSS takes it away, and only where
-          the bar runs out of room. Five unlabelled icons — one of them a bin —
-          asked people to guess, with four hundred pixels of the bar unused. */}
-      {!iconOnly && <span className="team-explorer-selection-action-label">{label}</span>}
-    </button>
   );
 }

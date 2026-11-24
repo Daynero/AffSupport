@@ -1,8 +1,12 @@
-import type { Ref } from 'react';
+import type { ReactNode, Ref } from 'react';
+import type { TeamMaterialRowKind } from '@video-compressor/shared';
 import { Eye, RotateCcw } from 'lucide-react';
 import { Alert, Button } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
+import { KindFilterMenu } from './KindFilterMenu';
+import { SortMenu } from './SortMenu';
+import type { ExplorerSort } from './sort';
 
 /**
  * What is true about the open folder right now, over the list (070, FR-009, T015): «Лише
@@ -21,7 +25,8 @@ export function ExplorerNotices({
   canUpload,
   chooseOpen,
   onChooseAgain,
-  onCloseRetry
+  onCloseRetry,
+  children
 }: {
   headerRef: Ref<HTMLDivElement>;
   readOnly: boolean;
@@ -32,6 +37,8 @@ export function ExplorerNotices({
   chooseOpen: boolean;
   onChooseAgain: (anchor: HTMLButtonElement) => void;
   onCloseRetry?: () => void;
+  /** The strip on the list, under the notices and sticky with them. */
+  children?: ReactNode;
 }) {
   const { t } = useI18n();
   return (
@@ -72,6 +79,53 @@ export function ExplorerNotices({
           {t('teamWorkspaceReselect')}
         </Alert>
       )}
+      {children}
     </div>
+  );
+}
+
+/**
+ * The strip on the list (070): what arranges it, or — with something checked — what to do with
+ * that, in the same place and at the same height, so nothing moves when a box is ticked (T024).
+ * The search's results draw theirs into it (`hostRef`).
+ */
+export function ExplorerListStrip({
+  hostRef,
+  children
+}: {
+  hostRef: Ref<HTMLDivElement>;
+  children?: ReactNode;
+}) {
+  return (
+    <div ref={hostRef} className="team-explorer-list-controls">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * What arranges the folder's list, on the list (070, FR-002), as Drive's filter chips do. The
+ * grid has no headers, so its order is the menu's; the list's headers sort it, and the menu stays
+ * there only for an order no column shows (tag, rank).
+ */
+export function ExplorerListArrangement({
+  kinds,
+  onKinds,
+  sortMenu,
+  sort,
+  onSort
+}: {
+  kinds: TeamMaterialRowKind[];
+  onKinds: (kinds: TeamMaterialRowKind[]) => void;
+  sortMenu: boolean;
+  sort: ExplorerSort;
+  onSort: (sort: ExplorerSort) => void;
+}) {
+  return (
+    <>
+      <KindFilterMenu kinds={kinds} onChange={onKinds} />
+      {/* Re-sorting is one move, not a reshuffle in a single frame (058). */}
+      {sortMenu && <SortMenu sort={sort} onChange={onSort} />}
+    </>
   );
 }

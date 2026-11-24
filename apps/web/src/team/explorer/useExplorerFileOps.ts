@@ -21,6 +21,16 @@ import type { useFolderPage } from './useFolderPage';
 import type { ExplorerShellClient } from './ExplorerShell';
 
 /**
+ * What the bin needs of a thing: a folder row or a search result (070, T024). A folder's provider
+ * id, when there is one, keeps a file inside a folder that goes too from being trashed twice.
+ */
+export type TrashableMaterial = Pick<TeamMaterialRow, 'id' | 'name' | 'category'> & {
+  kind: string;
+  parentFolderId?: string | null;
+  driveFileId?: string;
+};
+
+/**
  * What the explorer does to files it already has, out of `ExplorerShell` (070, FR-001): the
  * tail client every file operation goes through, a drag onto a folder, saving an original to
  * this computer, the trash with its way back, and a tag's colour.
@@ -196,7 +206,7 @@ export function useExplorerFileOps({
    */
   /** Rows going to the trash from the keyboard or the selection bar, with the way back. */
   const trashRows = useCallback(
-    async (rows: TeamMaterialRow[]) => {
+    async (rows: readonly TrashableMaterial[]) => {
       if (!permissions?.delete) return;
       if (workspaceOperations?.bulkTrash) {
         await workspaceOperations.bulkTrash
@@ -208,7 +218,7 @@ export function useExplorerFileOps({
       if (!owner.current()) return;
       const trashed: string[] = [];
       const selectedFolders = new Set(
-        rows.filter(row => row.kind === 'folder').map(row => row.driveFileId)
+        rows.flatMap(row => (row.kind === 'folder' && row.driveFileId ? [row.driveFileId] : []))
       );
       for (const row of rows) {
         if (

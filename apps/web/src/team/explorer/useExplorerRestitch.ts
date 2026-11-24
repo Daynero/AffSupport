@@ -31,11 +31,21 @@ export function useExplorerRestitch(teamId: string, settingsOpen: boolean) {
    * their turn, and a failure stops that video rather than the queue.
    */
   const deliverRestitched = useCallback(
-    async (rows: TeamMaterialRow[]) => {
+    async (
+      rows: ReadonlyArray<
+        Pick<TeamMaterialRow, 'id' | 'name' | 'category'> & { driveVersion?: string | null }
+      >
+    ) => {
       for (const row of rows) {
         if (row.category !== 'video') continue;
+        /* A search result has no Drive version (070): the delivery then reads the file rather
+           than reuse a preparation made for a version it cannot name. */
         await restitch
-          .deliver({ materialId: row.id, fileName: row.name, driveVersion: row.driveVersion })
+          .deliver({
+            materialId: row.id,
+            fileName: row.name,
+            driveVersion: row.driveVersion ?? null
+          })
           .catch(() => {
             // Each delivery already reports its own outcome; one refusal is not the others'.
           });

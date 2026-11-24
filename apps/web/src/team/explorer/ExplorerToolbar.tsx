@@ -1,4 +1,4 @@
-import { useRef, useState, type MutableRefObject, type ReactNode } from 'react';
+import { useRef, useState, type KeyboardEvent, type MutableRefObject } from 'react';
 import {
   ArrowLeft,
   ChevronDown,
@@ -59,6 +59,16 @@ export type ExplorerToolbarResync = {
   onStart: () => void;
 };
 
+/** The toolbar's search when it is the explorer's one search (070, US3). */
+export type ExplorerToolbarSearch = {
+  value: string;
+  onChange: (text: string) => void;
+  /** Down or Enter in the box: the keyboard goes to the results. */
+  onToResults: () => void;
+  /** Filled with what opens the box on a short row, for the `/` key. */
+  openRef: MutableRefObject<(() => void) | null>;
+};
+
 /** Marks the toolbar's search box, so the `/` shortcut can put the caret in it. */
 export const EXPLORER_SEARCH_ATTRIBUTE = 'data-explorer-search';
 
@@ -73,7 +83,8 @@ export const EXPLORER_SEARCH_ATTRIBUTE = 'data-explorer-search';
  * that arrange the list (they live above the list now, and the list's own headers sort it),
  * two primaries side by side («Нова папка» and «Додати файли»), a Search button that opened
  * a different screen, and a hidden `<input type="file">` — the explorer's one raw control,
- * now the inventory's `FileTrigger`. The selection bar sits over it (`children`).
+ * now the inventory's `FileTrigger`. The selection bar no longer lies over it (070, T024): it
+ * is in the strip above the list, where the list's own controls are.
  */
 export function ExplorerToolbar({
   teamId,
@@ -100,7 +111,8 @@ export function ExplorerToolbar({
   onOpenTrash,
   view,
   onViewChange,
-  children
+  inlineSearch,
+  backToResults
 }: {
   teamId: string;
   /** The tree is a drawer on this window (up to 1024 px), opened from here. */
@@ -130,17 +142,33 @@ export function ExplorerToolbar({
   onOpenTrash: () => void;
   view: ExplorerView;
   onViewChange: (view: ExplorerView) => void;
-  children?: ReactNode;
+  /**
+   * The one search (070, US3, `explorerInlineSearch`): the box holds the words and the results
+   * follow them. Without it the box opens the old search screen on Enter.
+   */
+  inlineSearch?: ExplorerToolbarSearch | null;
+  /** A search left by «Показати в папці», and the way back to it (070, T023). */
+  backToResults?: { query: string; onBack: () => void } | null;
 }) {
   const { t } = useI18n();
   const filePicker = useRef<FileTriggerHandle>(null);
   const history = useFolderHistory();
   const [draft, setDraft] = useState('');
+  /* On a row too short for the box, the magnifier opens it in the path's place (070). */
+  const [boxOpen, setBoxOpen] = useState(false);
   const taskRoute = backToTask
     ? buildTeamRoute({ spaceId: teamId, section: 'tasks', query: { taskId: backToTask } })
     : null;
   const shortcut = formatShortcut(shortcutOf('search')!.keys);
   const row = useRef<HTMLDivElement>(null);
+  /* A search left from elsewhere (a result shown in its folder, Back) gives the path back. */
+  const [wasSearching, setWasSearching] = useState(searching);
+  if (wasSearching !== searching) {
+    setWasSearching(searching);
+    const typingHere =
+      typeof document !== 'undefined' && row.current?.contains(document.activeElement);
+    if (!searching && (inlineSearch?.value ?? '') === '' && !typingHere) setBoxOpen(false);
+  }
   /* The controls that are there only sometimes take their room from the steps (T014). */
   const fit = useToolbarFit(
     row,
@@ -150,6 +178,57 @@ export function ExplorerToolbar({
   const searchBox = fit === 'full';
   const searchInRow = fit !== 'tight';
   const viewInRow = fit === 'full' || fit === 'compact';
+  const inline = Boolean(inlineSearch);
+  /* The box stands in the path's place while it is open on a short row, or holds words. */
+  const boxOverPath =
+    inline && !searchBox && (boxOpen || (inlineSearch?.value ?? '').trim() !== '');
+  const openBox = () => {
+    setBoxOpen(true);
+    // After the box is drawn: it is not in the row until this render lands.
+    window.requestAnimationFrame(() =>
+      row.current?.querySelector<HTMLInputElement>(`[${EXPLORER_SEARCH_ATTRIBUTE}] input`)?.focus()
+    );
+  };
+  if (inlineSearch) inlineSearch.openRef.current = openBox;
+  const closeBox = () => {
+    setBoxOpen(false);
+    inlineSearch?.onChange('');
+  };
+  const searchKeys = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!inlineSearch) return;
+    if (event.key === 'ArrowDown' && inlineSearch.value.trim() !== '') {
+      event.preventDefault();
+      event.stopPropagation();
+      inlineSearch.onToResults();
+    } else if (event.key === 'Escape' && inlineSearch.value === '' && boxOverPath) {
+      event.preventDefault();
+      setBoxOpen(false);
+    }
+  };
+  const inlineBox = inlineSearch && (
+    <div
+      className={`team-explorer-search${boxOverPath ? ' is-over-path' : ''}`}
+      {...{ [EXPLORER_SEARCH_ATTRIBUTE]: '' }}
+      onKeyDownCapture={searchKeys}
+    >
+      <SearchField
+        aria-label={t('teamExplorerSearchOpen')}
+        placeholder={t('teamExplorerSearchPlaceholder')}
+        value={inlineSearch.value}
+        onChange={inlineSearch.onChange}
+        onSubmit={text => {
+          if (text.trim() !== '') inlineSearch.onToResults();
+        }}
+      />
+      {/* The key that puts the caret here, as ⌘K sits in «Знайти ⌘K»: in the box's end,
+          while the box is empty — not in the placeholder's words. */}
+      {inlineSearch.value === '' && (
+        <kbd className="team-explorer-search-key" aria-hidden="true">
+          {shortcut}
+        </kbd>
+      )}
+    </div>
+  );
 
   return (
     <div ref={row} className="team-explorer-toolbar" data-fit={fit}>
@@ -173,6 +252,13 @@ export function ExplorerToolbar({
             {trashReturnLabel ?? t('teamExplorerBackToFiles')}
           </Button>
         </div>
+      ) : boxOverPath ? (
+        <>
+          {inlineBox}
+          <IconButton label={t('teamExplorerSearchClose')} title="" onClick={closeBox}>
+            <X size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        </>
       ) : (
         <Breadcrumb
           before={
@@ -191,11 +277,36 @@ export function ExplorerToolbar({
                   {t('teamExplorerBackToTask')}
                 </Link>
               )}
+              {/* The search «Показати в папці» came from, one press away (070, T023). */}
+              {backToResults && (
+                <Button
+                  variant="ghost"
+                  className="team-explorer-back-to-results"
+                  leading={<ArrowLeft size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+                  title={t('teamExplorerBackToResultsFor', { query: backToResults.query })}
+                  onClick={backToResults.onBack}
+                >
+                  {t('teamExplorerBackToResults')}
+                </Button>
+              )}
             </>
           }
         />
       )}
-      {!trash &&
+      {!trash && inline ? (
+        boxOverPath ? null : searchBox ? (
+          inlineBox
+        ) : searchInRow ? (
+          <IconButton
+            label={t('teamExplorerSearchOpen')}
+            title={`${t('teamExplorerSearchOpen')} · ${shortcut}`}
+            onClick={openBox}
+          >
+            <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        ) : null
+      ) : (
+        !trash &&
         (searching ? (
           searchBox ? (
             <Button variant="secondary" className="team-explorer-search" onClick={onCloseSearch}>
@@ -211,7 +322,7 @@ export function ExplorerToolbar({
           <div className="team-explorer-search" {...{ [EXPLORER_SEARCH_ATTRIBUTE]: '' }}>
             <SearchField
               aria-label={t('teamExplorerSearchOpen')}
-              placeholder={t('teamExplorerSearchPlaceholder', { shortcut })}
+              placeholder={t('teamExplorerSearchPlaceholder')}
               value={draft}
               onChange={setDraft}
               onSubmit={text => {
@@ -219,6 +330,11 @@ export function ExplorerToolbar({
                 onOpenSearch(text.trim());
               }}
             />
+            {draft === '' && (
+              <kbd className="team-explorer-search-key" aria-hidden="true">
+                {shortcut}
+              </kbd>
+            )}
           </div>
         ) : searchInRow ? (
           /* Too narrow for a box: its magnifier, with the box's name and its key. */
@@ -229,7 +345,8 @@ export function ExplorerToolbar({
           >
             <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
           </IconButton>
-        ) : null)}
+        ) : null)
+      )}
       <div className="team-explorer-toolbar-actions">
         {canUpload && !trash && (
           <>
@@ -312,7 +429,12 @@ export function ExplorerToolbar({
               ...collapsedActions({
                 t,
                 history: arrowsInRow ? null : history,
-                search: searchInRow || searching ? null : () => onOpenSearch(''),
+                search:
+                  searchInRow || boxOverPath || (searching && !inline)
+                    ? null
+                    : inline
+                      ? openBox
+                      : () => onOpenSearch(''),
                 view: viewInRow ? null : { value: view, onChange: onViewChange }
               }),
               ...moreActions({
@@ -327,7 +449,6 @@ export function ExplorerToolbar({
           />
         )}
       </div>
-      {children}
     </div>
   );
 }

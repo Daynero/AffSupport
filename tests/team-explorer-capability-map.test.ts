@@ -80,6 +80,7 @@ describe('the explorer capability map', () => {
       'ExplorerToolbar.tsx',
       'ExplorerSelection.tsx',
       'ExplorerResults.tsx',
+      'ExplorerNotices.tsx',
       'useExplorerUploads.ts'
     ]
       .map(file => read(`apps/web/src/team/explorer/${file}`))

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode
+} from 'react';
 import type {
   CatalogMaterialItem,
   CatalogSearchFilters,
@@ -77,9 +85,38 @@ export interface TeamCatalogClient {
   thumbnailUrl?: (session: ThumbnailSession, materialId: string) => string;
 }
 
+/** What a result can be asked to do that opens over the search (the overlays this owns). */
+export interface CatalogOpeners {
+  preview: (material: CatalogMaterialItem) => void;
+  editText: (material: CatalogMaterialItem) => void;
+  process: (material: CatalogMaterialItem) => void;
+  editMetadata: (material: CatalogMaterialItem) => void;
+  provenance: (material: CatalogMaterialItem) => void;
+}
+
+/** The search, handed to whoever draws its results in their own list (070, US3). */
+export interface EmbeddedCatalogView {
+  result: CatalogSearchResponse | null;
+  loading: boolean;
+  error: boolean;
+  /** The words the results on screen answer; '' while nothing is typed. */
+  answeredQuery: string;
+  page: number;
+  setPage: (page: number) => void;
+  /** What to say when nothing matched, with its ways out. */
+  empty: ReactNode;
+  refetch: () => void;
+  openers: CatalogOpeners;
+  canManageMetadata: boolean;
+  storageKind: TeamAnalyticsStorage | null;
+  /** The query was used — a result opened or revealed — and is worth remembering. */
+  commitQuery: () => void;
+}
+
 export function TeamCatalog({
   teamId,
   client,
+  embedded,
   onCreateTask,
   onReveal,
   initialQuery,
@@ -96,6 +133,16 @@ export function TeamCatalog({
 }: {
   teamId: string;
   client: TeamCatalogClient;
+  /**
+   * Inside the explorer (070, US3): the field is the toolbar's and the results are drawn as
+   * the folder's own list, so this keeps the search, the facets and the overlays and draws
+   * neither a heading, a field nor a scope switch of its own.
+   */
+  embedded?: {
+    query: string;
+    onQueryChange: (value: string) => void;
+    renderResults: (view: EmbeddedCatalogView) => ReactNode;
+  };
   onCreateTask?: (asset: { id: string; name: string }) => void;
   onReveal?: (material: CatalogMaterialItem) => void;
   /** Search state restored from the address. */
@@ -149,7 +196,10 @@ export function TeamCatalog({
     initialQuery,
     initialFilters,
     onSearched,
-    scope: searchScope
+    scope: searchScope,
+    controlledQuery: embedded
+      ? { value: embedded.query, onChange: embedded.onQueryChange }
+      : undefined
   });
   const [storageKind, setStorageKind] = useState<TeamAnalyticsStorage | null>(null);
   /* The searches used lately, shared with the palette (search rework, 2026-10). */
@@ -378,6 +428,172 @@ export function TeamCatalog({
     />
   );
 
+  function renderOverlays() {
+    return (
+      <>
+        {overlay?.kind === 'metadata' && (
+          <MaterialMetadataEditor
+            material={overlay.material}
+            vocabulary={catalog.vocabulary}
+            onClose={closeOverlay}
+            onSave={async patch => {
+              await client.updateMaterialMetadata(teamId, overlay.material.id, patch);
+              await catalog.refetch();
+            }}
+          />
+        )}
+        {overlay?.kind === 'preview' && (
+          <MaterialPreview teamId={teamId} material={overlay.material} onClose={closeOverlay} />
+        )}
+        {overlay?.kind === 'text' && (
+          <TeamTextEditor
+            material={overlay.material}
+            initialText={overlay.text}
+            expectedDriveVersion={overlay.sourceVersion}
+            onClose={closeOverlay}
+            onReload={() => {
+              const material = overlay.material;
+              closeOverlay();
+              return openTextEditor(material);
+            }}
+            onCreateVersion={text =>
+              setOverlay({ kind: 'textVersion', material: overlay.material, text })
+            }
+            onSave={async input => {
+              await teamApi.editText({ teamId, materialId: overlay.material.id, ...input });
+              await catalog.refetch();
+            }}
+          />
+        )}
+        {overlay?.kind === 'process' && (
+          <ProcessMaterialDialog
+            teamId={teamId}
+            material={overlay.material}
+            destinationFolderId={overlay.material.parentFolderId ?? null}
+            browseClient={client}
+            agentAvailability={agent?.teamWorkspaceAvailability ?? 'disconnected'}
+            toolContracts={agent?.toolContracts ?? {}}
+            onClose={closeOverlay}
+            onStarted={(result, input) => startLocalProcess(result, input, overlay.material)}
+          />
+        )}
+        {overlay?.kind === 'operation' && (
+          <ActiveOperation
+            teamId={teamId}
+            operationId={overlay.id}
+            workflow={overlay.workflow}
+            localFailureCode={overlay.failureCode ?? null}
+            agentEnabled={agent?.teamWorkspaceAvailable === true}
+            onClose={closeOverlay}
+            onRetry={() => setOverlay({ kind: 'process', material: overlay.source })}
+          />
+        )}
+        {overlay?.kind === 'provenance' && (
+          <ProvenanceDialog
+            entries={overlay.entries}
+            material={overlay.material}
+            onClose={closeOverlay}
+            onNavigate={materialId => {
+              const entry = overlay.entries.find(
+                candidate =>
+                  candidate.sourceMaterialId === materialId ||
+                  candidate.derivativeMaterialId === materialId
+              );
+              const name =
+                entry?.sourceMaterialId === materialId ? entry.sourceName : entry?.derivativeName;
+              if (name) catalog.setQuery(name);
+              closeOverlay();
+            }}
+          />
+        )}
+        {overlay?.kind === 'textVersion' && (
+          <TextVersionDialog
+            teamId={teamId}
+            draft={overlay}
+            browseClient={client}
+            onClose={closeOverlay}
+            onSaved={async () => {
+              closeOverlay();
+              await catalog.refetch();
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  const openers: CatalogOpeners = {
+    preview: material => {
+      commitQuery();
+      setOverlay({ kind: 'preview', material });
+    },
+    editText: material => void openTextEditor(material),
+    process: material => setOverlay({ kind: 'process', material }),
+    editMetadata: material => setOverlay({ kind: 'metadata', material }),
+    provenance: material => {
+      void teamApi
+        .getMaterialProvenance(teamId, material.id)
+        .then(entries => setOverlay({ kind: 'provenance', material, entries }))
+        // A failed read used to open nothing at all: the button looked
+        // broken rather than the request looking failed (finding S2).
+        .catch((cause: unknown) => {
+          push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+        });
+    }
+  };
+  const facets = (
+    <CatalogFilters
+      filters={catalog.filters}
+      vocabulary={catalog.vocabulary}
+      facets={catalog.result?.facets}
+      hasContent={(catalog.result?.total ?? 0) > 0}
+      onSet={catalog.setFacet}
+      onRemove={catalog.removeFilter}
+      onClear={catalog.clearFilters}
+    />
+  );
+  const layoutSwap = catalog.layoutSwap && (
+    <p className="team-catalog-layout-swap" role="status">
+      <span>{t('searchLayoutShown', { query: catalog.layoutSwap.shown })}</span>
+      <Button
+        type="button"
+        variant="link"
+        size="xs"
+        onClick={() => catalog.searchAsTyped(catalog.layoutSwap!.original)}
+      >
+        {t('searchLayoutAsTyped', { query: catalog.layoutSwap.original })}
+      </Button>
+    </p>
+  );
+  const overlays = renderOverlays();
+
+  if (embedded) {
+    return (
+      <section className="team-catalog is-embedded" aria-labelledby="team-catalog-title">
+        <h2 id="team-catalog-title" className="sr-only">
+          {t('teamCatalogTitle')}
+        </h2>
+        {facets}
+        {layoutSwap}
+        {embedded.renderResults({
+          result: catalog.result,
+          loading: catalog.loading,
+          error: catalog.error,
+          answeredQuery: typedQuery === '' ? '' : catalog.answeredQuery,
+          page: catalog.page,
+          setPage: catalog.setPage,
+          empty,
+          refetch: () => void catalog.refetch(),
+          openers,
+          canManageMetadata: can('manage_metadata'),
+          storageKind,
+          commitQuery
+        })}
+        {overlays}
+      </section>
+    );
+  }
+
   return (
     <section className="team-catalog" aria-labelledby="team-catalog-title">
       {/* The explorer is the page; this is its search, not a second product
@@ -416,28 +632,8 @@ export function TeamCatalog({
           onChange={place => onScopeChange({ scope: place })}
         />
       )}
-      <CatalogFilters
-        filters={catalog.filters}
-        vocabulary={catalog.vocabulary}
-        facets={catalog.result?.facets}
-        hasContent={(catalog.result?.total ?? 0) > 0}
-        onSet={catalog.setFacet}
-        onRemove={catalog.removeFilter}
-        onClear={catalog.clearFilters}
-      />
-      {catalog.layoutSwap && (
-        <p className="team-catalog-layout-swap" role="status">
-          <span>{t('searchLayoutShown', { query: catalog.layoutSwap.shown })}</span>
-          <Button
-            type="button"
-            variant="link"
-            size="xs"
-            onClick={() => catalog.searchAsTyped(catalog.layoutSwap!.original)}
-          >
-            {t('searchLayoutAsTyped', { query: catalog.layoutSwap.original })}
-          </Button>
-        </p>
-      )}
+      {facets}
+      {layoutSwap}
       <MaterialResults
         query={typedQuery === '' ? '' : catalog.answeredQuery}
         activeIndex={activeIndex}
@@ -457,23 +653,11 @@ export function TeamCatalog({
         canManageMetadata={can('manage_metadata')}
         permissions={permissions!}
         storageKind={storageKind}
-        onEditMetadata={material => setOverlay({ kind: 'metadata', material })}
-        onPreview={material => {
-          commitQuery();
-          setOverlay({ kind: 'preview', material });
-        }}
-        onEditText={material => void openTextEditor(material)}
-        onProcess={material => setOverlay({ kind: 'process', material })}
-        onShowProvenance={material => {
-          void teamApi
-            .getMaterialProvenance(teamId, material.id)
-            .then(entries => setOverlay({ kind: 'provenance', material, entries }))
-            // A failed read used to open nothing at all: the button looked
-            // broken rather than the request looking failed (finding S2).
-            .catch((cause: unknown) => {
-              push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-            });
-        }}
+        onEditMetadata={openers.editMetadata}
+        onPreview={openers.preview}
+        onEditText={openers.editText}
+        onProcess={openers.process}
+        onShowProvenance={openers.provenance}
         onCreateTask={onCreateTask}
         onReveal={
           onReveal
@@ -489,93 +673,7 @@ export function TeamCatalog({
         onPageChange={catalog.setPage}
         pathFor={pathFor}
       />
-      {overlay?.kind === 'metadata' && (
-        <MaterialMetadataEditor
-          material={overlay.material}
-          vocabulary={catalog.vocabulary}
-          onClose={closeOverlay}
-          onSave={async patch => {
-            await client.updateMaterialMetadata(teamId, overlay.material.id, patch);
-            await catalog.refetch();
-          }}
-        />
-      )}
-      {overlay?.kind === 'preview' && (
-        <MaterialPreview teamId={teamId} material={overlay.material} onClose={closeOverlay} />
-      )}
-      {overlay?.kind === 'text' && (
-        <TeamTextEditor
-          material={overlay.material}
-          initialText={overlay.text}
-          expectedDriveVersion={overlay.sourceVersion}
-          onClose={closeOverlay}
-          onReload={() => {
-            const material = overlay.material;
-            closeOverlay();
-            return openTextEditor(material);
-          }}
-          onCreateVersion={text =>
-            setOverlay({ kind: 'textVersion', material: overlay.material, text })
-          }
-          onSave={async input => {
-            await teamApi.editText({ teamId, materialId: overlay.material.id, ...input });
-            await catalog.refetch();
-          }}
-        />
-      )}
-      {overlay?.kind === 'process' && (
-        <ProcessMaterialDialog
-          teamId={teamId}
-          material={overlay.material}
-          destinationFolderId={overlay.material.parentFolderId ?? null}
-          browseClient={client}
-          agentAvailability={agent?.teamWorkspaceAvailability ?? 'disconnected'}
-          toolContracts={agent?.toolContracts ?? {}}
-          onClose={closeOverlay}
-          onStarted={(result, input) => startLocalProcess(result, input, overlay.material)}
-        />
-      )}
-      {overlay?.kind === 'operation' && (
-        <ActiveOperation
-          teamId={teamId}
-          operationId={overlay.id}
-          workflow={overlay.workflow}
-          localFailureCode={overlay.failureCode ?? null}
-          agentEnabled={agent?.teamWorkspaceAvailable === true}
-          onClose={closeOverlay}
-          onRetry={() => setOverlay({ kind: 'process', material: overlay.source })}
-        />
-      )}
-      {overlay?.kind === 'provenance' && (
-        <ProvenanceDialog
-          entries={overlay.entries}
-          material={overlay.material}
-          onClose={closeOverlay}
-          onNavigate={materialId => {
-            const entry = overlay.entries.find(
-              candidate =>
-                candidate.sourceMaterialId === materialId ||
-                candidate.derivativeMaterialId === materialId
-            );
-            const name =
-              entry?.sourceMaterialId === materialId ? entry.sourceName : entry?.derivativeName;
-            if (name) catalog.setQuery(name);
-            closeOverlay();
-          }}
-        />
-      )}
-      {overlay?.kind === 'textVersion' && (
-        <TextVersionDialog
-          teamId={teamId}
-          draft={overlay}
-          browseClient={client}
-          onClose={closeOverlay}
-          onSaved={async () => {
-            closeOverlay();
-            await catalog.refetch();
-          }}
-        />
-      )}
+      {overlays}
     </section>
   );
 }

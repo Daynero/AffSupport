@@ -110,7 +110,7 @@ describe('explorer keyboard', () => {
     await waitFor(() => expect(selectedName()).toContain('file-2.png'));
     fireEvent.keyDown(area, { key: ' ' });
     // The bar's own name is static; the count is the text inside it.
-    const bar = await screen.findByRole('region', { name: 'What to do with the selection' });
+    const bar = await screen.findByRole('toolbar', { name: 'What to do with the selection' });
     expect(bar.textContent).toContain('Selected: 1');
     fireEvent.keyDown(area, { key: 'Enter' });
     await waitFor(() =>
@@ -120,7 +120,7 @@ describe('explorer keyboard', () => {
     await waitFor(() =>
       expect(document.querySelector('.team-explorer-row.is-selected')).toBeNull()
     );
-    expect(screen.queryByRole('region', { name: 'What to do with the selection' })).toBeNull();
+    expect(screen.queryByRole('toolbar', { name: 'What to do with the selection' })).toBeNull();
   });
 
   it('leaves Cmd+C to the browser while text is selected, and copies the file otherwise', async () => {
@@ -353,7 +353,7 @@ describe('explorer keyboard, second pass', () => {
     );
     expect(onPreview).not.toHaveBeenCalled();
     // Space in the new name toggled nothing.
-    expect(screen.queryByRole('region', { name: 'What to do with the selection' })).toBeNull();
+    expect(screen.queryByRole('toolbar', { name: 'What to do with the selection' })).toBeNull();
   }, 20_000);
 
   it('puts the caret in the toolbar search box on `/` (070, T012)', async () => {
@@ -519,7 +519,7 @@ describe('the batch entry points', () => {
       '.team-explorer-row input[type="checkbox"]'
     );
     await user.click(boxes[0]!);
-    const bar = await screen.findByRole('region', { name: 'What to do with the selection' });
+    const bar = await screen.findByRole('toolbar', { name: 'What to do with the selection' });
     // "Everything is already up to date" over an image reads as done; the
     // honest answer is not to offer the action. (The toolbar's own scope menu
     // is a different button and stays.)
@@ -607,16 +607,16 @@ describe('the batch entry points', () => {
     );
     await screen.findByText('file-1.png');
     await user.click(document.querySelector('.team-explorer-row input[type="checkbox"]')!);
-    let bar = await screen.findByRole('region', { name: 'What to do with the selection' });
+    let bar = await screen.findByRole('toolbar', { name: 'What to do with the selection' });
     // On screen, so nothing is elsewhere — including at the root, where the
     // folder id is null and every row still carries the drive's real one.
     expect(bar.textContent).toContain('Selected: 1');
-    expect(bar.textContent).not.toContain('from other folders');
+    expect(bar.textContent).not.toContain('in other folders');
 
     // Two presses to open, one to select: the list's own grammar (011).
     await user.dblClick(screen.getByText('nested'));
     await screen.findByText('inside.png');
-    bar = await screen.findByRole('region', { name: 'What to do with the selection' });
-    expect(bar.textContent).toContain('1 from other folders');
+    bar = await screen.findByRole('toolbar', { name: 'What to do with the selection' });
+    expect(bar.textContent).toContain('1 of them in other folders');
   });
 });

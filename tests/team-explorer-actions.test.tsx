@@ -142,11 +142,8 @@ describe('the selection bar', () => {
     fireEvent.click(rows[0] as HTMLElement);
     fireEvent.click(rows[1] as HTMLElement);
 
-    const bar = await screen.findByRole('region', { name: 'What to do with the selection' });
-    const named = (name: string) =>
-      Array.from(bar.querySelectorAll<HTMLElement>('button')).some(
-        button => button.getAttribute('aria-label') === name
-      );
+    const bar = await screen.findByRole('toolbar', { name: 'What to do with the selection' });
+    const named = (name: string) => within(bar).queryAllByRole('button', { name }).length > 0;
     expect(named('Move to trash')).toBe(true);
     // The count is on the button now, so the label is not a fixed string: the
     // press that clears a selection says how much it is about to clear.

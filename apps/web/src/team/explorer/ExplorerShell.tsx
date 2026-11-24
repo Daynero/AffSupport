@@ -35,7 +35,7 @@ import {
   sortRows,
   type ExplorerSort
 } from './sort';
-import { PreviewPane } from './PreviewPane';
+import { ExplorerFolderPane } from './ExplorerFolderPane';
 import { useAgentQueue } from './useAgentQueue';
 import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
 import { useOptionalAddToTask } from '../tasks/AddToTask';
@@ -65,13 +65,13 @@ import { useExplorerKeyboard } from './useExplorerKeyboard';
 import { useExplorerMeasure } from './useExplorerMeasure';
 import { explorerRowActions } from './explorerRowActions';
 import { ExplorerResults } from './ExplorerResults';
+import { RESULT_LIST_ATTRIBUTE } from './ResultList';
+import { useExplorerSearch } from './useExplorerSearch';
 import { ExplorerToolbar } from './ExplorerToolbar';
-import { KindFilterMenu } from './KindFilterMenu';
 import { KIND_LABEL } from './rowKinds';
-import { SortMenu } from './SortMenu';
-import { ExplorerSelection } from './ExplorerSelection';
+import { ExplorerSelection, type SelectedMaterial, type SelectionActs } from './ExplorerSelection';
 import { ExplorerDropZone } from './ExplorerDropZone';
-import { ExplorerNotices } from './ExplorerNotices';
+import { ExplorerListArrangement, ExplorerListStrip, ExplorerNotices } from './ExplorerNotices';
 import { useExplorerTreePane } from './ExplorerTreePane';
 import { ExplorerProcessStack } from './ExplorerProcessStack';
 import { ExplorerDialogs, type ExplorerFolderScope } from './ExplorerDialogs';
@@ -214,19 +214,7 @@ function ExplorerBody({
   } = explorer;
   const [processing, setProcessing] = useState<{ row: TeamMaterialRow } | null>(null);
   const [catalogFor, setCatalogFor] = useState<TeamMaterialRow | null>(null);
-  /*
-   * The card's live transcription progress used to have a second source: a
-   * `tool` on this state that nothing ever set, so the branch that read it, the
-   * state it wrote and its setter were all unreachable. The queue below is the
-   * one source now — it is what actually runs a transcription here.
-   */
-  // One transcription queue for the whole explorer (owner, 2026-08-30): the
-  // card's Transcribe enqueues, the folder batch enqueues, and everything runs
-  // in the background one after another — a corner panel shows the progress,
-  // nothing blocks the screen.
   const agentCtx = useOptionalAgent();
-  /* A row from the list or the folder that is open — the batch needs a name
-     and a drive id, and both kinds of thing carry those. */
   /* Reading a folder's subtree, and what the answer is for. All three of the
      folder-wide commands need the same walk, so they share one window. */
   const [folderScope, setFolderScope] = useState<ExplorerFolderScope | null>(null);
@@ -253,7 +241,13 @@ function ExplorerBody({
    * outright; this is what keeps the dot from looking pressable to them.
    */
   const canTag = !readOnly && activeTeam?.role === 'owner' && Boolean(client.setMaterialTag);
-  const searching = query.q.length > 0 || query.scope !== 'folder';
+  const search = useExplorerSearch({ query, onQueryChange, onSearched });
+  const searching = search.searching;
+  /* Where the results draw outside the list (070, US3): the strip above it and the pane. */
+  const [stripHost, setStripHost] = useState<HTMLDivElement | null>(null);
+  const [paneHost, setPaneHost] = useState<HTMLDivElement | null>(null);
+  const [resultPane, setResultPane] = useState(false);
+  const openSearchBox = useRef<(() => void) | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const explorerSurfaceRef = useRef<HTMLDivElement>(null);
   const explorerHeaderRef = useRef<HTMLDivElement>(null);
@@ -320,7 +314,7 @@ function ExplorerBody({
     resetKey: `${teamId}|${currentFolderId ?? ''}|${view}|${query.kinds.join(',')}`
   });
 
-  const { revealMaterial, pathFor } = useExplorerReveal({
+  const { revealMaterial, openFolderResult, pathFor } = useExplorerReveal({
     query,
     searching,
     explorer,
@@ -441,7 +435,7 @@ function ExplorerBody({
   const selectedRows = useMemo(() => Array.from(selectedRowsMap.values()), [selectedRowsMap]);
   const focused = page.rows.find(row => row.id === selectedId) ?? null;
   const mainRef = useRef<HTMLDivElement | null>(null);
-  const paneShown = usePaneArrival(!query.trash && !searching && focused !== null);
+  const paneShown = usePaneArrival(!query.trash && (searching ? resultPane : focused !== null));
   // The pane narrows the list by a third, and the read-only note above it wraps to a second
   // line: every tile and row is somewhere else in the next frame. They travel there (058) —
   // the list used to dissolve and come back lower, and the eye lost the file it was on.
@@ -451,6 +445,18 @@ function ExplorerBody({
   }, [paneShown]);
 
   const runCompressPlan = (plan: CompressPlan) => queue.enqueue(compressJobs(plan));
+  /* What a selection can be handed to, the same in the folder and in the results (T024). */
+  const selectionActs: SelectionActs<SelectedMaterial> = {
+    permissions,
+    onCreateTask: onCreateTaskFromSelection,
+    addToTask,
+    onProcess: onProcessSelection,
+    onCompress: setCompressing,
+    onDownloadRestitched: rows => void deliverRestitched(rows),
+    onTrash: rows => void trashRows(rows),
+    currentFolderId
+  };
+  const shownIds = useMemo(() => new Set(page.rows.map(row => row.id)), [page.rows]);
 
   const trash = query.trash;
   /*
@@ -487,6 +493,8 @@ function ExplorerBody({
     permissions,
     trashRows,
     searching,
+    inlineSearch: search.inline,
+    openSearchBox,
     trash,
     readOnly,
     onQueryChange,
@@ -505,16 +513,8 @@ function ExplorerBody({
       /* A rectangle starts anywhere in the panel's empty space — the gutters around the tiles
          and below them are where people start one, not the few pixels between two tiles. */
       onPointerDown={marquee.onPointerDown}
-      /*
-       * The selected-file pane belongs to a folder listing. In a search or the
-       * trash nothing feeds it, so it stood there saying "Оберіть файл, щоб
-       * побачити його тут." and took three hundred and forty pixels of the one
-       * column that needed them — the search results were folding their actions
-       * under every hit for want of that width.
-       */
-      /* The detail pane arrives with a selection (024, FR-091). At rest it was a
-         third of the width saying "choose a file to see it here", and the list
-         cut its own last column to make room for that sentence. */
+      /* The detail pane arrives with a selection (024, FR-091) — a folder row's, or a search
+         result's (070, T023); at rest it is not there to say "choose a file". */
       className={`team-panel team-explorer${paneShown ? ' has-pane' : ''}${
         treePane.asDrawer ? ' has-tree-drawer' : ''
       }`}
@@ -572,26 +572,25 @@ function ExplorerBody({
           onOpenTrash={() => onQueryChange({ trash: true })}
           view={view}
           onViewChange={setView}
-        >
-          {!trash && (
-            <ExplorerSelection
-              selectedRows={selectedRows}
-              selectedIds={selectedRowsMap}
-              rows={page.rows}
-              sortedRows={sortedRows}
-              currentFolderId={currentFolderId}
-              permissions={permissions}
-              onClear={clearSelection}
-              onSelectAll={() => explorer.selectRows(sortedRows)}
-              onCreateTaskFromSelection={onCreateTaskFromSelection}
-              onProcessSelection={onProcessSelection}
-              trashRows={trashRows}
-              addToTask={addToTask}
-              onCompress={setCompressing}
-              deliverRestitched={deliverRestitched}
-            />
-          )}
-        </ExplorerToolbar>
+          inlineSearch={
+            search.inline
+              ? {
+                  value: search.draft,
+                  onChange: search.setDraft,
+                  openRef: openSearchBox,
+                  onToResults: () =>
+                    explorerSurfaceRef.current
+                      ?.querySelector<HTMLElement>(`[${RESULT_LIST_ATTRIBUTE}]`)
+                      ?.focus()
+                }
+              : null
+          }
+          backToResults={
+            search.returnTo && !searching
+              ? { query: search.returnTo.q, onBack: search.backToResults }
+              : null
+          }
+        />
         {folderResync.status && (
           <SyncStatusPanel
             status={folderResync.status}
@@ -625,20 +624,34 @@ function ExplorerBody({
             setAddMenuOpen(true);
           }}
           onCloseRetry={onRetryComplete}
-        />
-        {/* What arranges the list sits on the list (070, FR-002), as Drive's filter chips do:
-            in the toolbar they were two more controls on a row that already wrapped. */}
-        {!trash && !searching && (
-          <div className="team-explorer-list-controls">
-            <KindFilterMenu kinds={query.kinds} onChange={kinds => onQueryChange({ kinds })} />
-            {/* Re-sorting is one move, not a reshuffle in a single frame (058). */}
-            {/* The grid has no headers, so its order is the menu's; the list's headers sort it,
-                and the menu stays there only for an order no column shows (tag, rank). */}
-            {(view === 'grid' || sort.key === 'tag' || sort.key === 'rank') && (
-              <SortMenu sort={sort} onChange={changeSort} />
-            )}
-          </div>
-        )}
+        >
+          {/* The strip on the list (070): what arranges it, or — with something checked — what
+              to do with that, in the same place and the same height, so nothing moves (T024).
+              The results draw theirs into it. */}
+          {!trash && (
+            <ExplorerListStrip hostRef={setStripHost}>
+              {searching ? null : selectedRows.length > 0 ? (
+                <ExplorerSelection
+                  items={selectedRows}
+                  shownIds={shownIds}
+                  selectable={sortedRows}
+                  elsewhereKey="teamExplorerSelectedElsewhere"
+                  onClear={clearSelection}
+                  onSelectAll={() => explorer.selectRows(sortedRows)}
+                  acts={selectionActs}
+                />
+              ) : (
+                <ExplorerListArrangement
+                  kinds={query.kinds}
+                  onKinds={kinds => onQueryChange({ kinds })}
+                  sortMenu={view === 'grid' || sort.key === 'tag' || sort.key === 'rank'}
+                  sort={sort}
+                  onSort={changeSort}
+                />
+              )}
+            </ExplorerListStrip>
+          )}
+        </ExplorerNotices>
         {trash ? (
           <TrashView key={`trash:${teamId}`} teamId={teamId} />
         ) : searching ? (
@@ -648,6 +661,12 @@ function ExplorerBody({
             client={client}
             query={query}
             currentFolderId={currentFolderId}
+            search={search}
+            hosts={{ strip: stripHost, pane: paneShown ? paneHost : null }}
+            onPaneShown={setResultPane}
+            acts={selectionActs}
+            revision={revision}
+            onOpenFolder={openFolderResult}
             onCreateTask={onCreateTask}
             onReveal={revealMaterial}
             onSearched={onSearched}
@@ -701,42 +720,24 @@ function ExplorerBody({
           </div>
         )}
       </ExplorerDropZone>
-      {paneShown && focused && (
-        <PreviewPane
+      {paneShown && focused && !searching && (
+        <ExplorerFolderPane
           row={focused}
           client={client}
-          browseClient={client}
-          onChanged={changed}
           revision={revision}
-          onOpen={onPreview}
-          onDownload={permissions?.download ? row => void downloadOriginal(row) : undefined}
-          onDownloadRestitched={
-            permissions?.download && focused?.kind === 'video'
-              ? row => void deliverRestitched([row])
-              : undefined
-          }
-          onDelete={permissions?.delete ? row => void trashRows([row]) : undefined}
-          onTranscribe={
-            permissions?.process
-              ? (row, options) =>
-                  queue.enqueueTranscriptions([
-                    {
-                      id: row.id,
-                      name: row.name,
-                      folderId: row.parentFolderId ?? currentFolderId ?? null,
-                      ...(options?.fresh ? { fresh: true } : {})
-                    }
-                  ])
-              : undefined
-          }
-          transcribing={
-            queue.active?.tool === 'transcription'
-              ? { videoId: queue.active.id, progress: queue.activeProgress }
-              : null
-          }
+          permissions={permissions}
+          currentFolderId={currentFolderId}
+          queue={queue}
+          onChanged={changed}
+          onPreview={onPreview}
           onCreateTask={onCreateTask}
+          onDownload={row => void downloadOriginal(row)}
+          onDeliverRestitched={rows => void deliverRestitched(rows)}
+          onTrash={rows => void trashRows(rows)}
         />
       )}
+      {/* The search's details pane lands here (070, T023); it takes the same column. */}
+      <div ref={setPaneHost} className="team-explorer-pane-host" />
       {/* One corner, one stack: both panels are reachable from the same
           selection, and pinned to the same pixel the second hid the first. */}
       <ExplorerProcessStack

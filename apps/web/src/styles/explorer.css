@@ -1124,7 +1124,11 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  /* One height whatever it holds — the list's controls, the search's scope, the selection —
+     so swapping one for another moves no row of the list (070, T024). */
+  min-height: var(--control-height-md);
+  min-width: 0;
 }
 .team-explorer-filter,
 .team-explorer-sort {
@@ -1152,120 +1156,46 @@
   border-color: var(--color-accent);
   color: var(--color-text);
 }
-/* What to do with a selection: the count, then the actions as icons, then the way out at the
-   far end. It was five buttons of prose that wrapped onto three lines at the content column's
-   width and pushed the files down the page — a bar meant to help, being the widest thing on
-   the screen. One line now, and it holds one whether the selection has one file or fifty. */
-.team-explorer-selection-bar {
-  /* One line, at every width. The bar itself used to wrap, so the scrolling row
-     of actions took the full width and pushed the dismissal onto a second line
-     — a hundred and thirty-six pixels of chrome above the files. */
+/* What to do with a selection (070, T024): the inventory's SelectionBar, in the strip on the
+   list where the list's own controls are — the same place and the same height, so a ticked box
+   moves nothing and covers nothing. It used to lie over the toolbar row, and the path, the
+   search and «Завантажити» went away for as long as anything was checked. */
+.team-explorer-list-controls > .team-explorer-selection-bar {
+  flex: 1 1 auto;
   flex-wrap: nowrap;
-  /* Sticky, because the thing it acts on is the thing being scrolled. Check a
-     file at the bottom of a two-hundred-item folder and the bar was left at the
-     top of the page: the multi-select the batch depends on was hidden again,
-     one level down from where it started. */
-  position: sticky;
-  /* Below the fixed top bar, not under it: at `top: 0` the bar stuck exactly
-     where the header already sits and disappeared behind it. */
-  top: calc(var(--topbar-h, 62px) + var(--space-1));
-  z-index: calc(var(--layer-header) + 1);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
   min-width: 0;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-sm);
-  /* Opaque, and raised: over scrolling tiles a translucent fill smears whatever
-     passes under it, and on the dark theme the plain surface is the same colour
-     as the panel it floats over. The accent tint is mixed into the raised one. */
-  background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface-raised));
-  box-shadow: var(--shadow-sm);
+  min-height: var(--control-height-md);
+  padding-block: 0;
+  padding-inline: var(--space-2);
   container-type: inline-size;
 }
-.team-explorer-selection-count {
+.team-explorer-selection-bar .ui-selection-count {
+  flex: none;
+  font-size: var(--text-label);
+  white-space: nowrap;
+}
+.team-explorer-selection-bar .ui-selection-actions {
+  flex-wrap: nowrap;
+  min-width: 0;
+  gap: var(--space-1);
+}
+.team-explorer-selection-bar > .ui-button {
   flex: none;
   white-space: nowrap;
-  font-weight: 600;
 }
-.team-explorer-selection-action.is-icon {
-  flex: none;
-  width: 40px;
-  padding: 0;
-}
-/* Quieter than the count it follows: the number is the subject, where those
-   files are is the caveat. */
+/* Quieter than the count it follows: the number is the subject, where those files are is the
+   caveat. */
 .team-explorer-selection-elsewhere {
   color: var(--color-text-muted);
-  font-weight: 400;
+  font-weight: var(--weight-body);
 }
-/* One row, and it scrolls if it must.
- *
- * Dropping the words gave five unlabelled icons and a bin; keeping them gave a
- * hundred and eighty pixels of wrapped buttons pushing the files down the page.
- * Neither is the trade — the bar stays one line tall at every width, and a
- * sixth action is a scroll rather than a second row. */
-.team-explorer-selection-actions {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--space-1);
-  min-width: 0;
-  margin-right: auto;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scroll-snap-type: x proximity;
-}
-/* The group takes the slack, so the dismissal lands at the right edge rather than beside the
-   last action, where it reads as one more thing to do. */
-.team-explorer-selection-actions > * {
-  flex: none;
-  scroll-snap-align: start;
-}
-/* Named, and big enough to hit: the bar had five 32px icons and no words,
-   including the one that throws things away. */
-.team-explorer-selection-action {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 12px 0 10px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 650;
-  white-space: nowrap;
-}
-.team-explorer-selection-action.is-destructive {
-  color: var(--color-error);
-}
-.team-explorer-selection-action:hover {
-  color: var(--color-text);
-  border-color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
-}
-.team-explorer-selection-action:focus-visible {
-  outline: 3px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-/* No label ever drops.
- *
- * The words went at one width and the row scrolled at another — two mechanisms
- * for the same problem, and between them four of six actions rendered as bare
- * icons on a 1100px desktop, which is exactly what restoring the words was for.
- * The scroller handles every width on its own. */
-
-.team-explorer-selection-action.is-destructive:hover {
-  color: var(--color-error);
-  border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
-  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+/* The acts keep their words while there is room; on a narrow bar the word goes (CSS only — the
+   name stays for a reader and the tooltip), and the count's caveat with it. */
+@container (max-width: 560px) {
+  .team-explorer-selection-act-label,
+  .team-explorer-selection-elsewhere {
+    display: none;
+  }
 }
 /* Files held over the folder (070, FR-008): a layer over the list that names where they will
    land. It takes no pointer events, so moving across the rows under it does not flicker it, and
@@ -1717,15 +1647,6 @@
 .team-explorer-toolbar {
   position: relative;
 }
-.team-explorer-toolbar > .team-explorer-selection-bar {
-  /* Over the toolbar, the way Drive swaps its toolbar for the selection: the bar used to
-     open above the files and push the whole list down by its height — the list jumped on
-     the first check and back on the last, and a rubber band in progress suddenly lay over
-     different files. Laid over the toolbar it moves nothing; the toolbar returns with ✕. */
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-}
 .team-explorer .team-explorer-rows .ui-table-header {
   top: calc(
     var(--topbar-h, 62px) + var(--explorer-header-height, 0px) +
@@ -1739,4 +1660,167 @@
     grid-column: 1;
     grid-row: auto;
   }
+}
+
+/* ── 070 US3 — one search ─────────────────────────────────────────────────────────────── */
+
+/* The search's details pane lands in a host that is not a box of its own: the pane takes the
+   explorer's third column exactly as the folder's pane does. */
+.team-explorer-pane-host {
+  display: contents;
+}
+.team-explorer > .team-explorer-pane-host > .team-explorer-pane {
+  grid-column: 3;
+  grid-row: 2;
+}
+@media (max-width: 1024px) {
+  .team-explorer > .team-explorer-pane-host > .team-explorer-pane {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* The key that puts the caret in the box, as a keycap at the box's end — not words in the
+   placeholder. */
+.team-explorer-search {
+  position: relative;
+}
+.team-explorer-search-key {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--space-3);
+  display: flex;
+  align-items: center;
+  margin-block: auto;
+  height: 1.5em;
+  padding-inline: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--text-caption);
+  line-height: 1;
+  pointer-events: none;
+}
+/* On a short row the open box stands where the path was, and takes its room. */
+.team-explorer-search.is-over-path {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.team-explorer-back-to-results {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* The search's own strip: where it looks, and how much it found. */
+.team-explorer-results-strip .team-explorer-search-scope {
+  box-sizing: border-box;
+  flex: none;
+  height: var(--control-height-md);
+}
+.team-explorer-results-strip .team-explorer-search-scope button {
+  min-height: 0;
+  height: 100%;
+}
+.team-explorer-results-strip {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.team-explorer-results-count {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The results are the folder's table, without the rank's column: a result's rank is in its
+   pane, and an empty 1fr track there was a hole in the middle of every row. */
+.team-explorer-rows.team-explorer-results {
+  --ui-table-columns: auto minmax(0, 1fr) 0 auto auto auto auto;
+}
+.team-explorer-result-name {
+  gap: var(--space-2);
+  font-weight: var(--weight-body);
+}
+.team-explorer-result-check {
+  display: grid;
+  place-items: center;
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+}
+.team-explorer-result-glyph {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+}
+.team-explorer-result-glyph img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.team-explorer-result-glyph .team-kind-icon {
+  width: var(--space-4);
+  height: var(--space-4);
+  margin: 0;
+}
+.team-explorer-result-text {
+  display: grid;
+  min-width: 0;
+}
+.team-explorer-result-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-explorer-result-label {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--weight-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Where it lives, or what of it matched — the line that tells two files of one name apart. */
+.team-explorer-result-where {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-explorer-result-matched {
+  margin-inline-end: var(--space-1);
+  font-weight: var(--weight-label);
+}
+.team-explorer-result-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.team-explorer-result-facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-explorer-result-facts li {
+  border-radius: var(--radius-full);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-micro);
+}
+/* Embedded, the catalogue draws no frame of its own: its facets and its note sit on the list. */
+.team-catalog.is-embedded {
+  gap: var(--space-3);
 }

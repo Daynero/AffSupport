@@ -100,6 +100,23 @@ export function useExplorerReveal({
     [nodeOf, onQueryChange]
   );
 
+  /** A folder found by the search, gone into — when the tree knows it (070, US3). */
+  const openFolderResult = useCallback(
+    (material: { id: string }) => {
+      const node = explorer.nodes?.find(candidate => candidate.id === material.id);
+      if (!node) return false;
+      onQueryChange({
+        q: '',
+        scope: 'folder',
+        filters: undefined,
+        folderId: node.driveFileId,
+        itemId: null
+      });
+      return true;
+    },
+    [explorer.nodes, onQueryChange]
+  );
+
   /** Root-relative path for a search result, from the cached tree. */
   const pathFor = useCallback(
     (item: CatalogMaterialItem) => {
@@ -110,5 +127,5 @@ export function useExplorerReveal({
     [nodeOf, pathTo, t]
   );
 
-  return { revealMaterial, pathFor };
+  return { revealMaterial, openFolderResult, pathFor };
 }

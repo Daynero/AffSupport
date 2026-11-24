@@ -92,6 +92,11 @@ export function useCatalogSearch(input: {
   onSearched?: (state: { query: string; filters: CatalogSearchFilters }) => void;
   /** 011: narrow to the open folder and/or to explorer row kinds. */
   scope?: CatalogSearchScope;
+  /**
+   * The words, held by someone else (070, US3): the explorer's toolbar field. Given, the hook
+   * reads them from here and hands every change of them back through `onQueryChange`.
+   */
+  controlledQuery?: { value: string; onChange: (value: string) => void };
 }) {
   const {
     teamId,
@@ -101,13 +106,20 @@ export function useCatalogSearch(input: {
     initialQuery = '',
     initialFilters,
     onSearched,
-    scope
+    scope,
+    controlledQuery
   } = input;
   const scopeKey = `${scope?.parentFolderId ?? ''}|${(scope?.kinds ?? []).join(',')}|${scope?.recursive ? 'r' : ''}`;
   const { revision, accessRevision, permissions } = useTeam();
   const auth = useOptionalAuth();
   const accessScope = JSON.stringify([teamId, auth?.user?.id ?? null, permissions, accessRevision]);
-  const [query, setQuery] = useState(initialQuery);
+  const [ownQuery, setOwnQuery] = useState(initialQuery);
+  const query = controlledQuery ? controlledQuery.value : ownQuery;
+  const controlledChange = controlledQuery?.onChange;
+  const setQuery = useCallback(
+    (value: string) => (controlledChange ? controlledChange(value) : setOwnQuery(value)),
+    [controlledChange]
+  );
   const [filters, setFilters] = useState<CatalogSearchFilters>(initialFilters ?? EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<CatalogSearchResponse | null>(null);
@@ -139,6 +151,13 @@ export function useCatalogSearch(input: {
   const onSearchedRef = useRef(onSearched);
   onSearchedRef.current = onSearched;
   const findFlow = useRef<TeamFindFlow | null>(null);
+
+  /* Words typed elsewhere start from the first page, as words typed here do. */
+  const pagedQuery = useRef(query);
+  if (pagedQuery.current !== query) {
+    pagedQuery.current = query;
+    if (page !== 1) setPage(1);
+  }
 
   const searchedTeam = useRef(teamId);
   useEffect(() => {

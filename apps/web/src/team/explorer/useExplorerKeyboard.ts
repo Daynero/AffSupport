@@ -28,6 +28,8 @@ export function useExplorerKeyboard({
   permissions,
   trashRows,
   searching,
+  inlineSearch = false,
+  openSearchBox,
   trash,
   readOnly,
   onQueryChange,
@@ -47,6 +49,10 @@ export function useExplorerKeyboard({
   permissions: TeamPermissions | null;
   trashRows: (rows: TeamMaterialRow[]) => Promise<void>;
   searching: boolean;
+  /** The toolbar's box is the search (070, US3): `/` goes to it from the results too. */
+  inlineSearch?: boolean;
+  /** Opens the box where the row is too short to show it (070). */
+  openSearchBox?: RefObject<(() => void) | null>;
   trash: boolean;
   readOnly: boolean;
   onQueryChange: (patch: Partial<TeamRouteQuery>) => void;
@@ -123,7 +129,7 @@ export function useExplorerKeyboard({
   // search bar binds the same key once it is mounted; before that there was
   // nothing listening, so the shortcut only worked when it was not needed.
   useEffect(() => {
-    if (searching || trash) return;
+    if ((searching && !inlineSearch) || trash) return;
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
       if (!onScreen()) return;
@@ -134,11 +140,13 @@ export function useExplorerKeyboard({
         `[${EXPLORER_SEARCH_ATTRIBUTE}] input`
       );
       if (box) box.focus();
+      // A short row opens the box in the path's place.
+      else if (inlineSearch) openSearchBox?.current?.();
       else onQueryChange({ scope: 'space' });
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onQueryChange, searching, surfaceRef, trash]);
+  }, [inlineSearch, onQueryChange, openSearchBox, searching, surfaceRef, trash]);
 
   // Cmd/Ctrl+C copies, +X cuts, +V pastes into the open folder — from anywhere
   // on the folder screen, because focus rarely sits inside the list. The batch
