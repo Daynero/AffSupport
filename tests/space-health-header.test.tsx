@@ -158,7 +158,7 @@ describe('the space health in the header', () => {
     );
     const chips = [...view.container.querySelectorAll('.team-space-health .ui-chip')];
     expect(chips.map(chip => chip.textContent)).toEqual([
-      expect.stringContaining('reconnect'),
+      'View only · Drive disconnected',
       'Connect Soty',
       '2 more'
     ]);

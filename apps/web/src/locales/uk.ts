@@ -3998,7 +3998,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamStorageChipIndexingOpen: 'Індексуємо · файлів поки що: {files} · папок прочитано: {folders}',
   teamStorageChipPreparing: 'Готуємо превʼю · {ready} з {total}',
   teamStorageChipWaiting: 'Чекаємо на Google Drive…',
-  teamStorageChipNeedsReauth: 'Лише перегляд · сховище треба перепідключити',
+  teamStorageChipNeedsReauth: 'Лише перегляд · Drive від’єднався',
   teamStorageChipRootMissing: 'Лише перегляд · підключену папку видалено',
   teamStorageChipPermissionLost: 'Soty втратив доступ до папки',
   teamStorageChipQuota: 'Квоту Google Drive вичерпано',

@@ -4016,7 +4016,7 @@ export const en = {
   teamStorageChipIndexingOpen: 'Indexing · {files} files so far · {folders} folders listed',
   teamStorageChipPreparing: 'Preparing previews · {ready} of {total}',
   teamStorageChipWaiting: 'Waiting for Google Drive…',
-  teamStorageChipNeedsReauth: 'View only · storage needs reconnecting',
+  teamStorageChipNeedsReauth: 'View only · Drive disconnected',
   teamStorageChipRootMissing: 'View only · the connected folder was deleted',
   teamStorageChipPermissionLost: 'Soty lost access to the folder',
   teamStorageChipQuota: 'Google Drive quota is exhausted',

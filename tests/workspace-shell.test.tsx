@@ -92,7 +92,7 @@ describe('content-first workspace shell', () => {
     expect(await screen.findByText('summer-lp.zip')).toBeTruthy();
     // Said once, in the header, with the effect and the cause in one chip (070, US5).
     expect(
-      await screen.findByRole('button', { name: 'View only · storage needs reconnecting' })
+      await screen.findByRole('button', { name: 'View only · Drive disconnected' })
     ).toBeTruthy();
     expect(
       screen.queryByText('Read-only until storage is reconnected — nothing here is lost.')
