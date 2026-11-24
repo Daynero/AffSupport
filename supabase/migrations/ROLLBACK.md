@@ -3554,3 +3554,9 @@ on `public.team_materials` (a product catalog moved to the trash or removed from
 unfinished sets: 'cancel_requested' or 'canceled'), and stops once the unfinished sets of catalogs
 already in the trash. Undo by dropping the trigger and both functions' additions; sets already
 cancelled stay cancelled (restoring a catalog from the trash never resumed its videos).
+
+## 20261224140000 — catalog intents found by their catalog without reading the checkpoint
+
+Additive: two expression indexes on `private.catalog_generation_intents` (created concurrently on
+production during the 1.6.3 release, so the heal of 20261224130000 fit the statement timeout).
+Dropping them is safe; finding a removed catalog's unfinished videos becomes slow again.
