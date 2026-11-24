@@ -147,7 +147,10 @@ body {
   min-width: 320px;
   min-height: 100vh;
   color: var(--color-text);
-  font-size: var(--text-3xl);
+  /* The body step, as base.css says (070 T069). It was the section step, so any text without
+     a step of its own read as a heading; a before/after pass over 37 screens at 1440 and 390
+     moved only dialog sentences and hidden labels, all toward their intended size. */
+  font-size: var(--text-body);
   line-height: 1.45;
 }
 
