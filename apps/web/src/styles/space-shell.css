@@ -378,6 +378,18 @@
   .team-space-tabs-frame.has-more .team-space-tabs {
     mask-image: linear-gradient(to left, transparent, var(--color-text) var(--space-6));
   }
+  .team-space-tabs-frame.has-before .team-space-tabs {
+    mask-image: linear-gradient(to right, transparent, var(--color-text) var(--space-6));
+  }
+  .team-space-tabs-frame.has-before.has-more .team-space-tabs {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      var(--color-text) var(--space-6),
+      var(--color-text) calc(100% - var(--space-6)),
+      transparent
+    );
+  }
 }
 .team-space-shell-chrome {
   display: grid;

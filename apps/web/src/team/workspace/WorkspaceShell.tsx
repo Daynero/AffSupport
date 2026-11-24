@@ -836,11 +836,16 @@ export function WorkspaceShell({
   const chromeObserver = useRef<ResizeObserver | null>(null);
   const sectionTabsRef = useRef<HTMLDivElement>(null);
   const [moreSections, setMoreSections] = useState(false);
+  /* Sections scrolled past on the left (070, T078): the strip fades there too, so a tab cut at
+     the start reads as "more this way", not as a broken word. */
+  const [earlierSections, setEarlierSections] = useState(false);
   useEffect(() => {
     const tabs = sectionTabsRef.current?.querySelector<HTMLElement>('.team-space-tabs');
     if (!tabs) return;
-    const measure = () =>
+    const measure = () => {
       setMoreSections(tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 2);
+      setEarlierSections(tabs.scrollLeft > 2);
+    };
     measure();
     tabs.addEventListener('scroll', measure, { passive: true });
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
@@ -983,7 +988,7 @@ export function WorkspaceShell({
           exactly this. */}
                   <div
                     ref={sectionTabsRef}
-                    className={`team-space-tabs-frame${moreSections ? ' has-more' : ''}`}
+                    className={`team-space-tabs-frame${moreSections ? ' has-more' : ''}${earlierSections ? ' has-before' : ''}`}
                   >
                     <Tabs
                       className="team-space-tabs"

@@ -310,7 +310,9 @@ function HealthPanel({
         ) : undefined
     },
     updater: {
-      status: updater ? updater.status : t('spaceHealthUpdaterIdle'),
+      status: updater
+        ? [updater.scheduled, updater.status].filter(Boolean).join(' · ')
+        : t('spaceHealthUpdaterIdle'),
       action: (
         <a
           className={smallButton}
