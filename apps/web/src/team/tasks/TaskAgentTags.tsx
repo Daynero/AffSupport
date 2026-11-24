@@ -32,6 +32,9 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { agentCountKey } from '../accounts/plural';
 import { teamErrorMessageFor } from '../errors';
 import { TaskAccountPicker, type TaskAccountPickerClient } from './TaskAccountPicker';
+import { useOptionalTeam } from '../TeamContext';
+import { buildTeamRoute } from '../routes';
+import { internalLink } from '../../lib/navigation';
 
 export interface TaskAgentTagsClient extends TaskAccountPickerClient {
   attachTaskAgent(input: {
@@ -82,6 +85,11 @@ function chipTooltip(
   return lines.join('\n');
 }
 
+/** Where an agent lives in Accounts: its row, opened and marked (070, T048). */
+function accountsAgentHref(teamId: string, agentRowId: string): string {
+  return buildTeamRoute({ spaceId: teamId, section: 'accounts', query: { agentId: agentRowId } });
+}
+
 /** A tag as a chip. With `onSelect` it is the button that opens the panel. */
 function TagChip({
   tag,
@@ -98,7 +106,28 @@ function TagChip({
   const label = teamTaskAgentTagLabel(tag);
   const title = chipTooltip(tag, t);
   const className = `team-task-agent-chip${free ? ' is-free' : ''}${selected ? ' is-selected' : ''}`;
+  const teamId = useOptionalTeam()?.activeTeamId ?? null;
   if (!onSelect) {
+    /* On a card the chip is the way to the agent (070, T048): its row in Accounts,
+       brought into view and marked, the way "N tasks" there leads back here. */
+    if (teamId) {
+      const href = accountsAgentHref(teamId, tag.agentRowId);
+      return (
+        <a
+          className={`${className} is-link`}
+          href={href}
+          title={title}
+          aria-label={t('teamTaskAgentOpenInAccounts', { tag: label })}
+          onClick={event => {
+            event.stopPropagation();
+            internalLink(event, href);
+          }}
+        >
+          <span className="team-task-agent-chip-dot" aria-hidden="true" />
+          {label}
+        </a>
+      );
+    }
     return (
       <span className={className} title={title}>
         <span className="team-task-agent-chip-dot" aria-hidden="true" />
@@ -380,6 +409,17 @@ export function TaskAgentTagsEditor({
                     ? t('launchesAssignmentCount', { count: openTag.availability!.assignmentCount })
                     : t('teamTaskAgentRuns')}
             </span>
+            {teamId && (
+              <a
+                className="team-task-agent-open"
+                href={accountsAgentHref(teamId, openTag.agentRowId)}
+                onClick={event =>
+                  internalLink(event, accountsAgentHref(teamId, openTag.agentRowId))
+                }
+              >
+                {t('teamTaskAgentOpenShort')}
+              </a>
+            )}
             <IconButton
               type="button"
               label={t('teamTaskAccountRemove')}

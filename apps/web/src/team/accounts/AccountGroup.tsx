@@ -141,6 +141,7 @@ export function AccountGroup({
   onFilterOccupancy,
   onFilterTag,
   activeTag = null,
+  focusedAgentId = null,
   rowFinance,
   rowLaunches,
   colorOf,
@@ -188,6 +189,8 @@ export function AccountGroup({
   onFilterTag?: (labelId: string | null) => void;
   /** The tag the list is narrowed to, so its count says it is the one pressed. */
   activeTag?: string | null;
+  /** The agent a task's chip led to, marked for a moment (070, T048). */
+  focusedAgentId?: string | null;
   colorOf?: (agent: TeamAccountAgentSummary) => TeamAccountNameColor;
   onCycleColor?: (agent: TeamAccountAgentSummary) => void;
   onArchive?: (agent?: TeamAccountAgentSummary) => void;
@@ -763,6 +766,7 @@ export function AccountGroup({
                         key={agent.id}
                         agent={agent}
                         index={visibleAgents.findIndex(item => item.id === agent.id)}
+                        focused={agent.id === focusedAgentId}
                         reorderEnabled={reorderEnabled}
                         finance={rowFinance?.(agent)}
                         onHistory={onHistory ? () => onHistory(agent) : undefined}

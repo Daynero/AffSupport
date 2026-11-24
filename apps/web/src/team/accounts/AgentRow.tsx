@@ -137,6 +137,7 @@ export type RunEditing = { runId: string | null } | null;
 export function AgentRow({
   agent,
   index = 0,
+  focused = false,
   finance,
   linkedLaunches,
   nameColor = 0,
@@ -169,6 +170,8 @@ export function AgentRow({
 }: {
   agent: TeamAccountAgentSummary;
   index?: number;
+  /** Where a task's chip led (070, T048): drawn as the selected row for a moment. */
+  focused?: boolean;
   finance?: ReactNode;
   linkedLaunches?: ReactNode;
   nameColor?: TeamAccountNameColor;
@@ -356,6 +359,7 @@ export function AgentRow({
       data-agent-row-id={agent.id}
       data-free={free ? 'true' : 'false'}
       busy={pending}
+      selected={focused}
       onKeyDown={event => {
         if (
           event.target instanceof Element &&

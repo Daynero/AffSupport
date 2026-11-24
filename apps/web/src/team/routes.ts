@@ -430,6 +430,8 @@ export function buildTeamRoute(input: TeamRouteInput): string {
     if (query.launchTab) params.set('launchTab', query.launchTab);
     if (query.revisionId) params.set('revision', query.revisionId);
   }
+  // The agent a task's chip points at (070, T048): the accounts open on its row.
+  if (section === 'accounts' && query.agentId) params.set('agent', query.agentId);
   if (section === 'tasks') {
     if (query.taskId) params.set('task', query.taskId);
     // One scope at a time: an agent is narrower than its account, so it wins.

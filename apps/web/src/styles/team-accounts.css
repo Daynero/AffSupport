@@ -1487,7 +1487,12 @@ button.team-task-agent-chip {
     background-color var(--dur-control) var(--ease-standard);
 }
 
+a.team-task-agent-chip {
+  text-decoration: none;
+}
+
 button.team-task-agent-chip:hover,
+a.team-task-agent-chip:hover,
 button.team-task-agent-chip.is-selected {
   border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
   background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-muted));
@@ -1583,6 +1588,18 @@ button.team-task-agent-chip.is-selected {
 
 .team-task-agent-panel-head .team-task-agent-remove {
   margin-left: auto;
+}
+/* The way from the open chip to the agent's row in Accounts (070, T048). */
+.team-task-agent-panel-head .team-task-agent-open {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentcolor 40%, transparent);
+  text-underline-offset: 3px;
+}
+.team-task-agent-panel-head .team-task-agent-open + .team-task-agent-remove {
+  margin-left: 0;
 }
 
 .team-task-agent-panel-state {
@@ -2949,4 +2966,11 @@ button.team-task-agent-chip.is-selected {
 .team-account-meta .team-account-tag-count.is-selected {
   border-color: var(--task-tag-color);
   background: color-mix(in srgb, var(--task-tag-color) 30%, var(--color-surface));
+}
+
+/* The row a task's chip led to (070, T048), marked for a moment on top of the
+   row's own wash. */
+.team-accounts-table .team-agent-row.is-selected {
+  background: var(--color-secondary-softer);
+  box-shadow: inset 0 0 0 1px var(--color-secondary-solid);
 }

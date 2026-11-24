@@ -4521,6 +4521,8 @@ export const en = {
     'Launching links this task to the advertising account and moves the task to In progress. “Tag only” links them without a launch.',
   teamTaskRunsWritten: 'Run written onto {agents}',
   teamTaskAccountRemove: 'Remove from the task',
+  teamTaskAgentOpenInAccounts: '{tag} — open in Accounts',
+  teamTaskAgentOpenShort: 'In Accounts',
   teamTaskAccountRemoved: '{tag} removed from the task',
   teamTaskAgentIsFree: 'This ad account is free.',
   teamTaskAgentRuns: 'Runs:',

@@ -4497,6 +4497,8 @@ export const uk: Record<keyof typeof en, string> = {
     'Запуск пов’язує завдання з рекламним кабінетом і переводить завдання в «У роботі». «Лише позначити» пов’язує їх без запуску.',
   teamTaskRunsWritten: 'Запуск записано на {agents}',
   teamTaskAccountRemove: 'Прибрати з завдання',
+  teamTaskAgentOpenInAccounts: '{tag} — відкрити в Акаунтах',
+  teamTaskAgentOpenShort: 'В Акаунтах',
   teamTaskAccountRemoved: '{tag} прибрано з завдання',
   teamTaskAgentIsFree: 'Цей РК вільний.',
   teamTaskAgentRuns: 'Запуски:',

@@ -97,7 +97,16 @@ type AppliedProof =
     }
   | { action: 'reorder'; flowId: string; request: ReorderRequest; version: string; view: string };
 
-export function AccountSpace({ teamId, client }: { teamId: string; client?: AccountSpaceClient }) {
+export function AccountSpace({
+  teamId,
+  client,
+  focusAgentId = null
+}: {
+  teamId: string;
+  client?: AccountSpaceClient;
+  /** An agent to bring into view and mark — where a task's chip leads (070, T048). */
+  focusAgentId?: string | null;
+}) {
   const { can, accountsRevision, revision: generalRevision } = useTeam();
   const revision = accountsRevision ?? generalRevision;
   const auth = useOptionalAuth();
@@ -110,12 +119,20 @@ export function AccountSpace({ teamId, client }: { teamId: string; client?: Acco
       canEdit={can('edit')}
       revision={revision}
     >
-      <AccountSpaceContent teamId={teamId} client={client} />
+      <AccountSpaceContent teamId={teamId} client={client} focusAgentId={focusAgentId} />
     </UnifiedFinanceProvider>
   );
 }
 
-function AccountSpaceContent({ teamId, client }: { teamId: string; client?: AccountSpaceClient }) {
+function AccountSpaceContent({
+  teamId,
+  client,
+  focusAgentId
+}: {
+  teamId: string;
+  client?: AccountSpaceClient;
+  focusAgentId: string | null;
+}) {
   const { t } = useI18n();
   const { push } = useToasts();
   const { can, accountsRevision, revision: generalRevision } = useTeam();
@@ -678,6 +695,52 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
   useEffect(() => {
     preferences.confirmPresentation(panel.current);
   });
+
+  /*
+   * The agent a task's chip led here (070, T048): its account unfolds, a filter that
+   * would hide it lets go, and the row is brought to the middle of the view and marked
+   * for a moment — the place the person came to look at, not the top of the list.
+   */
+  const [focusedAgent, setFocusedAgent] = useState<string | null>(null);
+  const focusHandled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusAgentId || focusHandled.current === focusAgentId) return;
+    const owner = accounts.accounts.find(account =>
+      account.agents.some(agent => agent.id === focusAgentId)
+    );
+    if (!owner) return;
+    focusHandled.current = focusAgentId;
+    if (!visible.some(account => account.agents.some(agent => agent.id === focusAgentId))) {
+      setSearch('');
+      setOccupancy('all');
+      setMarker('all');
+      setTagFilter('');
+    }
+    setAccountCollapsed(owner.id, false);
+    setFocusedAgent(focusAgentId);
+  }, [
+    focusAgentId,
+    accounts.accounts,
+    visible,
+    setSearch,
+    setOccupancy,
+    setMarker,
+    setTagFilter,
+    setAccountCollapsed
+  ]);
+  useEffect(() => {
+    if (!focusedAgent) return;
+    const frame = requestAnimationFrame(() => {
+      panel.current
+        ?.querySelector<HTMLElement>(`[data-agent-row-id="${CSS.escape(focusedAgent)}"]`)
+        ?.scrollIntoView({ block: 'center' });
+    });
+    const timer = window.setTimeout(() => setFocusedAgent(null), 2400);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [focusedAgent]);
   useEffect(() => {
     if (!pendingProofs.length || accounts.loading || accounts.error || !panel.current) return;
     const settled = new Set<AppliedProof>();
@@ -1397,6 +1460,7 @@ function AccountSpaceContent({ teamId, client }: { teamId: string; client?: Acco
                     onFilterOccupancy={setOccupancy}
                     onFilterTag={next => setTagFilter(next ?? '')}
                     activeTag={tag}
+                    focusedAgentId={focusedAgent}
                     reorderEnabled={!client && !archiveBusy}
                     colorOf={preferences.color}
                     onCycleColor={client ? undefined : preferences.cycle}

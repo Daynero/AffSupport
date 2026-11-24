@@ -281,6 +281,9 @@ describe('a card', () => {
     expect(row.textContent).toBe('v31-401v31-434');
     // Natural order: …401 before …434; the free one is marked, the busy one names its run.
     const chips = row.querySelectorAll('.team-task-agent-chip');
+    // Each chip is the way to its agent's row in Accounts (070, T048).
+    expect(chips[0]?.tagName).toBe('A');
+    expect(chips[0]?.getAttribute('href')).toMatch(/\/accounts\?agent=/u);
     expect(chips[0]?.classList.contains('is-free')).toBe(true);
     expect(chips[1]?.classList.contains('is-free')).toBe(false);
     // The tooltip spells out what the chip abbreviates: account, full id, runs.

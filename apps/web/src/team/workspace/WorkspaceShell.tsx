@@ -761,6 +761,8 @@ export function WorkspaceShell({
   // While tasks is the visible section the address is the truth; while it is
   // hidden the address describes somewhere else, so the remembered query is.
   const taskQuery = section === 'tasks' ? query : tasksQuery;
+  /** The agent a task's chip opened the accounts on (070, T048). */
+  const accountsFocus = section === 'accounts' ? (query?.agentId ?? null) : null;
   const taskScope: TaskAccountScope = taskQuery?.agentId
     ? { kind: 'agent', agentRowId: taskQuery.agentId }
     : taskQuery?.accountId
@@ -1118,8 +1120,12 @@ export function WorkspaceShell({
                         data-section-panel="accounts"
                       >
                         <Suspense fallback={<RouteSkeleton variant="list" label={t('loading')} />}>
-                          <Keep deps={[teamId]}>
-                            <AccountSpace key={`accounts:${teamId}`} teamId={teamId} />
+                          <Keep deps={[teamId, accountsFocus]}>
+                            <AccountSpace
+                              key={`accounts:${teamId}`}
+                              teamId={teamId}
+                              focusAgentId={accountsFocus}
+                            />
                           </Keep>
                         </Suspense>
                       </div>

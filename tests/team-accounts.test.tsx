@@ -15,6 +15,7 @@ import { DEFAULT_ROLE_PERMISSIONS, type TeamAccountSummary } from '@video-compre
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '../apps/web/src/components/toast';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
+import { persistedViewKey } from '../apps/web/src/team/persistedView';
 import { AccountSpace, type AccountSpaceClient } from '../apps/web/src/team/accounts';
 import { EditField, runAgeLabel } from '../apps/web/src/team/accounts/AgentRow';
 
@@ -208,7 +209,11 @@ function client(accounts: TeamAccountSummary[] = fixture()): AccountSpaceClient 
   };
 }
 
-function render(api: AccountSpaceClient, role: 'editor' | 'viewer' = 'editor') {
+function render(
+  api: AccountSpaceClient,
+  role: 'editor' | 'viewer' = 'editor',
+  focusAgentId: string | null = null
+) {
   localStorage.setItem('wishly.active-team.v1', TEAM_ID);
   const team = {
     id: TEAM_ID,
@@ -220,7 +225,7 @@ function render(api: AccountSpaceClient, role: 'editor' | 'viewer' = 'editor') {
   return renderRaw(
     <ToastProvider>
       <TeamProvider initialTeams={[team]} realtime={false}>
-        <AccountSpace teamId={TEAM_ID} client={api} />
+        <AccountSpace teamId={TEAM_ID} client={api} focusAgentId={focusAgentId} />
       </TeamProvider>
     </ToastProvider>
   );
@@ -1270,5 +1275,22 @@ describe('tags and counts as filters', () => {
     await user.click(within(v31).getByRole('button', { name: /^1 free/ }));
     expect(chip('Show ad accounts', /^Free/).getAttribute('aria-checked')).toBe('true');
     expect(rows().every(row => row.getAttribute('data-free') === 'true')).toBe(true);
+  });
+});
+
+describe('arriving from a task’s chip', () => {
+  it('lets go of a filter that hides the agent, unfolds its account and marks its row', async () => {
+    const accounts = fixture();
+    const target = accounts[0]!.agents[0]!;
+    localStorage.setItem(persistedViewKey(TEAM_ID, 'accounts.occupancy'), JSON.stringify('free'));
+    render(client(accounts), 'editor', target.id);
+    await waitFor(() =>
+      expect(
+        rows()
+          .find(row => row.getAttribute('data-agent-row-id') === target.id)
+          ?.getAttribute('aria-selected')
+      ).toBe('true')
+    );
+    expect(chip('Show ad accounts', /^All/).getAttribute('aria-checked')).toBe('true');
   });
 });

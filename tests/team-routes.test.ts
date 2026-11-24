@@ -191,6 +191,14 @@ describe('buildTeamRoute', () => {
     expect(buildTeamRoute({ spaceId: 'space-1', query: { agentId: 'agent-4' } })).toBe(
       '/team/space-1'
     );
+    // Accounts open on the agent a task's chip points at (070, T048).
+    expect(
+      buildTeamRoute({ spaceId: 'space-1', section: 'accounts', query: { agentId: 'agent-4' } })
+    ).toBe('/team/space-1/accounts?agent=agent-4');
+    expect(parseTeamRoute('/team/space-1/accounts?agent=agent-4')).toMatchObject({
+      section: 'accounts',
+      query: { agentId: 'agent-4' }
+    });
   });
 
   it('drops query state the section cannot act on', () => {
