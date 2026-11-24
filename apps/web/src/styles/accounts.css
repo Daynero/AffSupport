@@ -2905,10 +2905,9 @@ button.team-task-agent-chip.is-selected {
 /*
  * The inventory's table underneath (070, T041): `Table`, `TableHeader`,
  * `TableRow` and `TableCell` give the list its roles — headers, rows, cells —
- * and this sheet keeps giving it its grid. Two of the inventory's defaults are
- * for a table of short facts and are taken back here: a cell that hides what
- * overflows it (a focus ring, a run's marker, a menu's trigger would be cut),
- * and the size step's type, which the cells already set for themselves.
+ * and this sheet keeps giving it its grid. The size step's type is taken back
+ * here — the cells already set their own. (A cell no longer cuts a focus ring
+ * at its edge: that is fixed in the inventory itself, 070 phase 8.)
  */
 .team-accounts-table {
   /* The table is a grid of one column; a short list sits at its top rather than
@@ -2918,10 +2917,6 @@ button.team-task-agent-chip.is-selected {
 .team-accounts-table .ui-table-row {
   min-height: 0;
   font-size: inherit;
-}
-.team-accounts-table .team-agent-row > .ui-table-cell {
-  overflow: visible;
-  text-overflow: clip;
 }
 
 /* The full id, in the "…" menu's copy item (070, T045): set as an id is set

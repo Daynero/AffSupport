@@ -3330,10 +3330,24 @@
 .ui-table-row.is-selected {
   background: var(--color-secondary-softer);
 }
+/*
+ * A cell still ends its text with "…", but no longer cuts what is drawn just
+ * outside it (070, phase 8): `hidden` took the focus ring of every button and
+ * menu trigger sitting flush against the cell's edge. `clip` with a margin the
+ * size of the ring (2px wide, 2px off) keeps the ellipsis and lets the ring
+ * through; an engine without `overflow-clip-margin` stops clipping while
+ * something inside has keyboard focus.
+ */
 .ui-table-cell {
   min-width: 0;
-  overflow: hidden;
+  overflow: clip;
+  overflow-clip-margin: var(--space-1);
   text-overflow: ellipsis;
+}
+@supports not (overflow-clip-margin: 1px) {
+  .ui-table-cell:has(:focus-visible) {
+    overflow: visible;
+  }
 }
 
 .ui-accordion {
