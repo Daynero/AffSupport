@@ -18,8 +18,8 @@ import {
   type ImageEmbeddingSettingsPatch,
   type ImageSlot
 } from '@video-compressor/shared';
-import type { TranslationKey } from '../i18n';
-import { Checkbox, Collapse, IconButton, Select, Spinner, Tooltip, type Translate } from './ui';
+import type { TranslationKey, Translate } from '../i18n';
+import { Checkbox, Collapse, IconButton, Select, Spinner, Tooltip } from './ui';
 import { imageContentPath } from '../api/subresource-paths';
 import {
   Crop,

@@ -5,9 +5,8 @@ import {
   TRANSCRIPTION_LANGUAGE_CODES,
   type TranscriptionJob
 } from '@video-compressor/shared';
-import type { Translate } from '../components/ui';
 import { Popover } from '../components/ui/index';
-import type { Language } from '../i18n';
+import type { Language, Translate } from '../i18n';
 import { languageDisplayName } from './language';
 
 /** Keep in sync with the panel's width in transcription.css; see `useAnchoredLayer`. */

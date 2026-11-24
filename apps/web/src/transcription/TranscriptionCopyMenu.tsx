@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { ChevronDown, ClipboardCopy } from 'lucide-react';
-import { Button, type Translate } from '../components/ui';
+import type { Translate } from '../i18n';
+import { Button } from '../components/ui/index';
 import { Popover, RadioGroup } from '../components/ui/index';
 import type { TranscriptionCopyContent, TranscriptionCopyScope } from './copy';
 

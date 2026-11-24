@@ -6,8 +6,8 @@ import {
   type TranscriptionSettings
 } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
-import { Tooltip, type Translate } from '../components/ui';
-import type { Language } from '../i18n';
+import { Tooltip } from '../components/ui';
+import type { Language, Translate } from '../i18n';
 import { LanguageCombobox } from './LanguageCombobox';
 import { languageDisplayName } from './language';
 import { RadioGroup } from '../components/ui/index';

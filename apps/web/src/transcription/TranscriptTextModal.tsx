@@ -10,10 +10,9 @@ import type {
   TranscriptWord
 } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
-import { type Translate } from '../components/ui';
 import { transcriptionMediaPath } from '../api/client';
 import { isRtlLanguage, languageDisplayName } from './language';
-import type { Language } from '../i18n';
+import type { Language, Translate } from '../i18n';
 import { type CharRange } from './text-ranges';
 import {
   selectedPart,

@@ -38,7 +38,7 @@ import type {
 } from '@video-compressor/shared';
 import { imageSelectionSupported } from '@video-compressor/shared';
 import { useAgent } from '../AgentContext';
-import { useI18n, type Language } from '../i18n';
+import { useI18n, type Language, type Translate } from '../i18n';
 import { analytics } from '../analytics/service';
 import { observeStitchInput, recordStitchInputFailure } from './input-diagnostics';
 import { analyticsRunId, toolJobActivityEvents } from '../analytics/tools';
@@ -46,7 +46,7 @@ import { stitchFailureError } from '../analytics/errors';
 import { compactPath, formatCodec, formatDuration, formatFps, formatSize } from '../format';
 import { DropZone } from '../components/DropZone';
 import { ImageEmbeddingSection } from '../components/ImageEmbeddingSection';
-import { Button, Checkbox, StatusBadge, Tooltip, type Translate } from '../components/ui';
+import { Button, Checkbox, StatusBadge, Tooltip } from '../components/ui';
 import { ReconnectAction } from '../components/ReconnectAction';
 import { toggleSelection } from '../queue-ui';
 import { useCompactToolbar } from '../components/useCompactToolbar';

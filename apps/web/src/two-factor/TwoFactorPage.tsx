@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Clipboard, Plus, Search, Shield, Trash2 } from 'lucide-react';
 import { analytics } from '../analytics/service';
-import { Button, IconButton } from '../components/ui';
+import { Button, IconButton } from '../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { ToastProvider, useToasts } from '../components/toast';
 import { useI18n, type TranslationKey } from '../i18n';

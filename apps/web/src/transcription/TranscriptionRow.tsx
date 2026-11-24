@@ -19,10 +19,10 @@ import {
   type TranscriptionJob,
   type TranscriptionQualityMode
 } from '@video-compressor/shared';
-import { StatusBadge, type Translate } from '../components/ui';
+import { StatusBadge } from '../components/StatusBadge';
 import { Button, Checkbox, Progress } from '../components/ui/index';
 import { formatDuration } from '../format';
-import type { Language } from '../i18n';
+import type { Language, Translate } from '../i18n';
 import type { TranscriptExportContent, TranscriptExportFormat } from './export';
 import { ExportMenu } from './ExportMenu';
 import { LanguageCombobox } from './LanguageCombobox';

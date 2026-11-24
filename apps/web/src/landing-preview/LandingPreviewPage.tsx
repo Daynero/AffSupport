@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useOptionalAgent } from '../AgentContext';
-import { Button } from '../components/ui';
+import { Button } from '../components/ui/index';
 import { useI18n } from '../i18n';
 import { analytics, trackTeamLandingRender } from '../analytics/service';
 import { trackToolError } from '../analytics/errors';

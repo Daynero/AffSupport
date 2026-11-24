@@ -21,7 +21,7 @@ import { openNativeAppUpdate } from '../updates/openNativeAppUpdate';
 import { Modal } from './Modal';
 import { ReconnectAction } from './ReconnectAction';
 import { SotyMark } from './SotyLogo';
-import { Button } from './ui';
+import { Button } from './ui/index';
 import { ErrorState } from './ui/index';
 
 export default function LocalAppDialog({
@@ -141,7 +141,14 @@ export default function LocalAppDialog({
       {t('macIntel')}
     </a>
   ) : (
-    <Button disabled title={t('installerUnavailable')}>
+    <Button
+      variant="outline"
+      color="neutral"
+      size="lg"
+      className="platform-download-unavailable"
+      disabled
+      title={t('installerUnavailable')}
+    >
       {t('macIntel')}
     </Button>
   );

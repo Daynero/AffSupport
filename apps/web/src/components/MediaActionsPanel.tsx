@@ -4,8 +4,8 @@ import {
   type MediaActionState,
   type MediaActionStatus
 } from '@video-compressor/shared';
-import type { TranslationKey } from '../i18n';
-import { Button, type Translate } from './ui';
+import type { TranslationKey, Translate } from '../i18n';
+import { Button } from './ui/index';
 
 const LABELS: Record<MediaActionStatus, TranslationKey> = {
   queued: 'mediaActionQueued',

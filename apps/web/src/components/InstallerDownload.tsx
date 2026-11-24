@@ -10,7 +10,7 @@ import { markAgentInstallStarted } from '../api/client';
 import { analytics } from '../analytics/service';
 import type { AnalyticsProperties } from '../analytics/events';
 import { currentBrowserPlatform, platformFromAgentCapabilities } from '../lib/platform';
-import { Button, uiClasses } from './ui';
+import { Button, uiClasses } from './ui/index';
 
 /** Shared manual installer handoff. Unknown Macs choose a processor explicitly. */
 export function InstallerDownload({

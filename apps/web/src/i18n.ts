@@ -7,6 +7,9 @@ import { pluralRules } from './lib/plural-rules';
 export type Language = 'en' | 'uk';
 
 export type TranslationKey = keyof typeof en;
+
+/** The shape of `t`, for a component handed one rather than calling `useI18n` (moved here from the shim, 070). */
+export type Translate = (key: TranslationKey, values?: Record<string, string | number>) => string;
 const dictionaries = { en, uk };
 export const translationKeys = Object.keys(en) as TranslationKey[];
 

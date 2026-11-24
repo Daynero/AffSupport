@@ -11,9 +11,8 @@ import {
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { LandingAsset } from '@video-compressor/shared';
 import { formatSize } from '../format';
-import type { Language } from '../i18n';
+import type { Language, Translate } from '../i18n';
 import { Modal } from '../components/Modal';
-import type { Translate } from '../components/ui';
 import { Badge, ErrorState, IconButton, Spinner } from '../components/ui/index';
 import { landingPreviewPath } from '../api/client';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';

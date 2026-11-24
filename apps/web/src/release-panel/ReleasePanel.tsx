@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import type { ReleasePanelSnapshot } from '../../../../packages/shared/src/release-automation';
-import { Card, Badge, Progress, Alert, Timeline, Button, ConfirmDialog } from '../components/ui';
+import {
+  Card,
+  Badge,
+  Progress,
+  Alert,
+  Timeline,
+  Button,
+  ConfirmDialog
+} from '../components/ui/index';
 import { messages as m } from './messages';
 import { panelJson } from './client';
 

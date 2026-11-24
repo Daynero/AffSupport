@@ -98,10 +98,8 @@ import {
   type ReactNode
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { JobStatus } from '@video-compressor/shared';
-import type { TranslationKey } from '../i18n';
 
-export type Translate = (key: TranslationKey, values?: Record<string, string | number>) => string;
+export type { Translate } from '../i18n';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
 /**
@@ -294,149 +292,8 @@ export function Spinner({ small = false }: { small?: boolean }) {
   return <span className={`soty-spinner ${small ? 'spinner-small' : ''}`} aria-hidden="true" />;
 }
 
-/** Soty conversion loader: three ribbons calmly compress into one.
- * Pure SVG + CSS transforms, sized for the status area. */
-export function SotyLoader({ size = 18 }: { size?: number }) {
-  return (
-    <svg
-      className="soty-loader"
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <rect
-        className="ribbon-top"
-        x="3"
-        y="4"
-        width="14"
-        height="2.6"
-        rx="1.3"
-        fill="currentColor"
-      />
-      <rect
-        className="ribbon-center"
-        x="3"
-        y="8.7"
-        width="14"
-        height="2.6"
-        rx="1.3"
-        fill="currentColor"
-      />
-      <rect
-        className="ribbon-bottom"
-        x="3"
-        y="13.4"
-        width="14"
-        height="2.6"
-        rx="1.3"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-/** Compact speech waveform for active transcription states. */
-export function TranscriptionLoader({ size = 14 }: { size?: number }) {
-  return (
-    <svg
-      className="transcription-loader"
-      width={size}
-      height={size}
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <rect className="wave-bar" x="1" y="5" width="2" height="6" rx="1" fill="currentColor" />
-      <rect className="wave-bar" x="5" y="2" width="2" height="12" rx="1" fill="currentColor" />
-      <rect className="wave-bar" x="9" y="4" width="2" height="8" rx="1" fill="currentColor" />
-      <rect className="wave-bar" x="13" y="6" width="2" height="4" rx="1" fill="currentColor" />
-    </svg>
-  );
-}
-
-/** Calm staggered dots for the estimation state — intentionally lighter
- * than the conversion loader. */
-export function SotyDots() {
-  return (
-    <span className="soty-dots" aria-hidden="true">
-      <i />
-      <i />
-      <i />
-    </span>
-  );
-}
-
-export function StatusBadge({
-  status,
-  t,
-  context = 'compression'
-}: {
-  status: JobStatus;
-  t: Translate;
-  context?: 'compression' | 'transcription' | 'stitch';
-}) {
-  const keys: Record<JobStatus, TranslationKey> = {
-    analyzing: 'statusAnalyzing',
-    ready: 'statusReady',
-    queued: 'statusQueued',
-    processing:
-      context === 'transcription'
-        ? 'transcriptionProcessing'
-        : context === 'stitch'
-          ? 'stitcherProcessing'
-          : 'statusProcessing',
-    completed: 'statusCompleted',
-    failed: 'statusFailed',
-    cancelled: 'statusCancelled',
-    interrupted: 'statusInterrupted'
-  };
-  /* Each status carries a role, so the same state is the same colour wherever
-     it appears — a failed job, a failed upload and a failed render agree. */
-  const color: Record<JobStatus, 'neutral' | 'info' | 'success' | 'error' | 'warning'> = {
-    analyzing: 'info',
-    ready: 'neutral',
-    queued: 'neutral',
-    processing: 'info',
-    completed: 'success',
-    failed: 'error',
-    cancelled: 'neutral',
-    interrupted: 'warning'
-  };
-  return (
-    <span className={`status-badge status-${status} ui-color-${color[status]}`}>
-      {status === 'processing' ? (
-        context === 'transcription' ? (
-          <TranscriptionLoader size={13} />
-        ) : (
-          <SotyLoader size={13} />
-        )
-      ) : status === 'completed' ? (
-        <svg
-          className="status-check"
-          width="11"
-          height="11"
-          viewBox="0 0 12 12"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path
-            d="M2.5 6.5 5 9 9.5 3.5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      ) : (
-        <i aria-hidden="true" />
-      )}
-      {t(keys[status])}
-    </span>
-  );
-}
+export { SotyDots, SotyLoader, TranscriptionLoader } from './SotyLoader';
+export { StatusBadge } from './StatusBadge';
 
 export function Tooltip({ label, children }: { label: string; children: ReactNode }) {
   const id = useId();

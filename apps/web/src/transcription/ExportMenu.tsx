@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown, Download } from 'lucide-react';
-import { Button, type Translate } from '../components/ui';
+import type { Translate } from '../i18n';
+import { Button } from '../components/ui/index';
 import { Popover } from '../components/ui/index';
 import type { TranscriptExportContent, TranscriptExportFormat } from './export';
 

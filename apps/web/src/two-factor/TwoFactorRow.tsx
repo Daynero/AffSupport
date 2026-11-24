@@ -20,7 +20,7 @@ import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Trash2, X } from 'lucide-react';
 import { parseTwoFactorSeed, type TwoFactorSeedError } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
-import { Button, IconButton } from '../components/ui';
+import { Button, IconButton } from '../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useToasts } from '../components/toast';
 import { useI18n, type TranslationKey } from '../i18n';

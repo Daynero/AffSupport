@@ -2,7 +2,7 @@ import { useId } from 'react';
 import { useI18n } from '../i18n';
 import { unlockFeature, type FeatureId } from '../lib/feature-flags';
 import { Modal } from './Modal';
-import { Button } from './ui';
+import { Button } from './ui/index';
 
 /**
  * The "still under construction" warning shown when a user tries to open a

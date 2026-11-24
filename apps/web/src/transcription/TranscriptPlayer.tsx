@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { Maximize2, Pause, Play, Volume2 } from 'lucide-react';
 import { SotyMark } from '../components/SotyLogo';
-import type { Translate } from '../components/ui';
+import type { Translate } from '../i18n';
 import { IconButton, Select, Slider } from '../components/ui/index';
 
 export function formatMediaTime(seconds: number): string {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { FileArchive, Folder, TriangleAlert } from 'lucide-react';
 import type { LandingPreviewItem } from '@video-compressor/shared';
 import { ICON_STROKE } from '../components/icons';
-import { Spinner } from '../components/ui';
+import { Spinner } from '../components/ui/index';
 import { useI18n } from '../i18n';
 import type { LandingViewerSource } from './types';
 import { FadeImage } from '../components/ui/index';
@@ -46,7 +46,7 @@ export function LandingGalleryGrid({
                 </span>
               ) : (
                 <span className="lv-tile-state">
-                  <Spinner small />
+                  <Spinner />
                   {item.status === 'rendering'
                     ? t('landingGalleryStatusRendering')
                     : t('landingGalleryStatusQueued')}

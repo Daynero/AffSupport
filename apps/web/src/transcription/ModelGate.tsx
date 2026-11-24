@@ -2,9 +2,9 @@ import { useId } from 'react';
 import { Download, X } from 'lucide-react';
 import type { TranscriptionModelInfo } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
-import { Button, ProgressBar, type Translate } from '../components/ui';
+import { Button, ProgressBar } from '../components/ui';
 import { formatSize } from '../format';
-import type { Language } from '../i18n';
+import type { Language, Translate } from '../i18n';
 import { Alert } from '../components/ui/index';
 
 /** The band above the queue while the speech model of the chosen mode is missing. */

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { type Translate } from '../components/ui';
 import {
   Alert,
   Badge,
@@ -29,7 +28,7 @@ import { AiBudgetPanel } from './admin/AiBudgetPanel';
 import { ImagePoolPanel } from './admin/ImagePoolPanel';
 import { TariffsSkeleton } from './admin/TariffsSkeleton';
 import { formatSize } from '../format';
-import { useI18n, type TranslationKey } from '../i18n';
+import { useI18n, type TranslationKey, type Translate } from '../i18n';
 import type { AdminUserRow, Json, MarketingExportRow, SupportGoalRow } from '../lib/database.types';
 import { usePageEntrance } from '../lib/navigation';
 import { requireSupabaseClient } from '../lib/supabase';

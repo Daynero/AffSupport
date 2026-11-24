@@ -1,5 +1,4 @@
-import type { TranslationKey } from '../i18n';
-import type { Translate } from '../components/ui';
+import type { TranslationKey, Translate } from '../i18n';
 
 const ERROR_MESSAGES: Record<string, TranslationKey> = {
   MODEL_REQUIRED: 'transcriptionModelTitle',

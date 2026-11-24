@@ -8,19 +8,12 @@ import {
 import { landingPreviewPath } from '../api/client';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 import { formatSize } from '../format';
-import type { Language, TranslationKey } from '../i18n';
+import type { Language, TranslationKey, Translate } from '../i18n';
 import { Card } from '../components/Card';
 /* The compressor's own set, at the compressor's own size: every action on a card wears
    the icon that action wears everywhere else in Soty. */
 import { Ban, ExternalLink, FolderOpen, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
-import {
-  Button,
-  Checkbox,
-  Collapse,
-  ProgressBar,
-  SotyLoader,
-  type Translate
-} from '../components/ui';
+import { Button, Checkbox, Collapse, ProgressBar, SotyLoader } from '../components/ui';
 import { ImageCompareModal } from './ImageCompareModal';
 import { Alert } from '../components/ui/index';
 

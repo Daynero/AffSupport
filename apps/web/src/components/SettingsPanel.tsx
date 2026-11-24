@@ -29,7 +29,8 @@ import {
 } from '@video-compressor/shared';
 import { compactPath } from '../format';
 import { isValidIntegerInput } from '../queue-ui';
-import { Checkbox, Collapse, Tooltip, type Translate } from './ui';
+import type { Translate } from '../i18n';
+import { Checkbox, Collapse, Tooltip } from './ui';
 import { RadioGroup } from './ui/index';
 import { ImageEmbeddingSection } from './ImageEmbeddingSection';
 

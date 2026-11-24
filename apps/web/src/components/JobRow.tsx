@@ -21,9 +21,9 @@ import {
   formatFps,
   formatSize
 } from '../format';
-import type { Language } from '../i18n';
+import type { Language, Translate } from '../i18n';
 import { elapsedMilliseconds, stoppable, timerState } from '../queue-ui';
-import { Button, Checkbox, ProgressBar, Spinner, StatusBadge, type Translate } from './ui';
+import { Button, Checkbox, ProgressBar, Spinner, StatusBadge } from './ui';
 import { fillRatio } from './ui/index';
 
 /** Keep in sync with --dur-complete in styles.css: the estimate → result

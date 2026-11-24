@@ -24,7 +24,7 @@ import {
 import { InstallerDownload } from './components/InstallerDownload';
 import { type ConnectionState } from './connection';
 import { formatSize } from './format';
-import { fileCountKey, type TranslationKey, useI18n } from './i18n';
+import { fileCountKey, type TranslationKey, useI18n, type Translate } from './i18n';
 import { mergeSettingsPatches } from './settings-patch';
 import {
   batchMetrics,
@@ -40,7 +40,6 @@ import { DropZone } from './components/DropZone';
 import { JobRow } from './components/JobRow';
 import { MediaActionsPanel } from './components/MediaActionsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
-import { type Translate } from './components/ui';
 import { SotyLogo, SotyMark } from './components/SotyLogo';
 import { EnvironmentBadge } from './components/EnvironmentBadge';
 import { NARROW_SM_QUERY, useMediaQuery } from './lib/useMediaQuery';

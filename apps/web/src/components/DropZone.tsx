@@ -1,5 +1,6 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
-import { Spinner, type Translate } from './ui';
+import type { Translate } from '../i18n';
+import { Spinner } from './ui/index';
 import { Check, Upload, X } from 'lucide-react';
 import { ICON_STROKE } from './icons';
 
@@ -104,7 +105,7 @@ export function DropZone({
         ) : outcome === 'fail' ? (
           <X size={44} strokeWidth={ICON_STROKE} />
         ) : importing ? (
-          <Spinner />
+          <Spinner size="md" />
         ) : (
           <Upload size={44} strokeWidth={ICON_STROKE} />
         )}
