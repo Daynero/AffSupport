@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type {
   TeamAnalyticsStorage,
   TeamMaterialRow,
@@ -6,11 +6,7 @@ import type {
   TeamPermissions
 } from '@video-compressor/shared';
 import type { DriveCatalogResyncResult, TeamMaterialSummary } from '../../api/team';
-import { Eye, RotateCcw } from 'lucide-react';
-import { Alert, Button, Drawer, Splitter } from '../../components/ui/index';
-import { NARROW_LG_QUERY, useMediaQuery } from '../../lib/useMediaQuery';
-import { boundedNumber, persistedViewKey, usePersistedState } from '../persistedView';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { Button } from '../../components/ui/index';
 import { usePaneArrival } from './usePaneArrival';
 import { crossfadePart } from '../../lib/auto-crossfade';
 import { BeforeChange } from '../../lib/before-change';
@@ -31,8 +27,14 @@ import { useCreativeRanks, type CreativeRanksClient } from '../ranks/useCreative
 import { carriesRank } from '../ranks/creativeRanks';
 import { ContentList } from './ContentList';
 import { ExplorerProvider, useExplorer, type ExplorerClient } from './ExplorerProvider';
-import { FolderTree } from './FolderTree';
-import { sortRows, readRememberedSort, rememberSort, type ExplorerSort } from './sort';
+import {
+  readRememberedSort,
+  readRememberedView,
+  rememberSort,
+  rememberView,
+  sortRows,
+  type ExplorerSort
+} from './sort';
 import { PreviewPane } from './PreviewPane';
 import { useAgentQueue } from './useAgentQueue';
 import { useOptionalSpaceAgentQueue } from '../processing/AgentQueueProvider';
@@ -69,6 +71,8 @@ import { KIND_LABEL } from './rowKinds';
 import { SortMenu } from './SortMenu';
 import { ExplorerSelection } from './ExplorerSelection';
 import { ExplorerDropZone } from './ExplorerDropZone';
+import { ExplorerNotices } from './ExplorerNotices';
+import { useExplorerTreePane } from './ExplorerTreePane';
 import { ExplorerProcessStack } from './ExplorerProcessStack';
 import { ExplorerDialogs, type ExplorerFolderScope } from './ExplorerDialogs';
 
@@ -208,18 +212,6 @@ function ExplorerBody({
     pathTo,
     nodeOf
   } = explorer;
-  const [treeOpen, setTreeOpen] = useState(false);
-  /* Up to 1024 px the tree is a drawer opened from the toolbar (070, FR-007); wider, a column
-     whose edge moves (FR-006), its width kept per space in this browser. */
-  const treeAsDrawer = useMediaQuery(NARROW_LG_QUERY);
-  const [storedTreeWidth, setStoredTreeWidth] = usePersistedState(
-    persistedViewKey(teamId, 'explorer.treeWidth'),
-    TREE_WIDTH.initial,
-    boundedNumber(TREE_WIDTH.min, TREE_WIDTH.max)
-  );
-  /* While the edge is held the width follows the pointer and is stored once, when it is let go. */
-  const [draggedTreeWidth, setDraggedTreeWidth] = useState<number | null>(null);
-  const treeWidth = draggedTreeWidth ?? storedTreeWidth;
   const [processing, setProcessing] = useState<{ row: TeamMaterialRow } | null>(null);
   const [catalogFor, setCatalogFor] = useState<TeamMaterialRow | null>(null);
   /*
@@ -349,18 +341,6 @@ function ExplorerBody({
 
   const storageKind = useStorageKind(client, teamId);
 
-  /* A folder chosen in the drawer is where the reader wanted to go: the drawer has done its
-     job (FR-007). And a window that grows past the drawer's width leaves nothing open. */
-  const lastFolder = useRef(currentFolderId);
-  useEffect(() => {
-    if (lastFolder.current === currentFolderId) return;
-    lastFolder.current = currentFolderId;
-    setTreeOpen(false);
-  }, [currentFolderId]);
-  useEffect(() => {
-    if (!treeAsDrawer) setTreeOpen(false);
-  }, [treeAsDrawer]);
-
   const changed = useCallback(() => {
     onChanged?.();
     void page.reload();
@@ -394,6 +374,14 @@ function ExplorerBody({
     pathTo,
     client,
     canTag
+  });
+
+  const treePane = useExplorerTreePane({
+    teamId,
+    currentFolderId,
+    elsewhere: query.trash || searching,
+    onDropMaterials: dropMaterials,
+    onReset
   });
 
   /* Copy, cut and paste, in their own file for the same reason (024). */
@@ -528,53 +516,18 @@ function ExplorerBody({
          third of the width saying "choose a file to see it here", and the list
          cut its own last column to make room for that sentence. */
       className={`team-panel team-explorer${paneShown ? ' has-pane' : ''}${
-        treeAsDrawer ? ' has-tree-drawer' : ''
+        treePane.asDrawer ? ' has-tree-drawer' : ''
       }`}
-      style={treeAsDrawer ? undefined : ({ '--explorer-tree-width': `${treeWidth}px` } as never)}
+      style={treePane.surfaceStyle}
     >
-      {treeAsDrawer ? (
-        <Drawer
-          open={treeOpen}
-          side="left"
-          size="sm"
-          title={t('teamExplorerTreeLabel')}
-          className="team-explorer-tree-drawer"
-          onClose={() => setTreeOpen(false)}
-        >
-          <FolderTree
-            elsewhere={trash || searching}
-            onDropMaterials={dropMaterials}
-            onReset={onReset}
-          />
-        </Drawer>
-      ) : (
-        <>
-          <FolderTree
-            elsewhere={trash || searching}
-            onDropMaterials={dropMaterials}
-            onReset={onReset}
-          />
-          <Splitter
-            className="team-explorer-tree-splitter"
-            label={t('teamExplorerTreeWidth')}
-            value={treeWidth}
-            min={TREE_WIDTH.min}
-            max={TREE_WIDTH.max}
-            onChange={setDraggedTreeWidth}
-            onChangeEnd={width => {
-              setStoredTreeWidth(width);
-              setDraggedTreeWidth(null);
-            }}
-          />
-        </>
-      )}
+      {treePane.tree}
       <BeforeChange of={paneShown} run={rememberListPlaces} />
       <div ref={explorerHeaderRef} className="team-explorer-header">
         <ExplorerToolbar
           teamId={teamId}
-          treeAsDrawer={treeAsDrawer}
-          treeOpen={treeOpen}
-          onToggleTree={() => setTreeOpen(open => !open)}
+          treeAsDrawer={treePane.asDrawer}
+          treeOpen={treePane.open}
+          onToggleTree={treePane.toggle}
           trash={trash}
           trashReturnLabel={trashReturnLabel}
           onLeaveTrash={() => onQueryChange({ trash: false })}
@@ -661,51 +614,18 @@ function ExplorerBody({
             : t('teamExplorerRootLabel')
         }
       >
-        {/* What is true about this folder right now, said as the inventory says it, over the
-            list (070, FR-009): «Лише перегляд» was a paragraph in an empty header row, and the
-            retry notice a bare `role="status"` with a Close beside it. */}
-        <div ref={explorerListHeaderRef} className="team-explorer-list-header">
-          {readOnly && (
-            <Alert
-              color="warning"
-              icon={<Eye size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
-              title={t('teamExplorerReadOnlyTitle')}
-            >
-              {t('teamStorageReadOnly')}
-            </Alert>
-          )}
-          {retryGroupId && (
-            <Alert
-              color="info"
-              icon={<RotateCcw size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
-              title={t('teamExplorerRetryTitle')}
-              action={
-                <div className="team-explorer-alert-actions">
-                  {/* The door the notice asks for: the same choice of files or a folder. */}
-                  {permissions?.upload && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      aria-haspopup="menu"
-                      aria-expanded={addMenuOpen}
-                      onClick={event => {
-                        addMenuAnchor.current = event.currentTarget;
-                        setAddMenuOpen(true);
-                      }}
-                    >
-                      {t('teamExplorerRetryChoose')}
-                    </Button>
-                  )}
-                  <Button size="sm" variant="ghost" onClick={onRetryComplete}>
-                    {t('teamOperationClose')}
-                  </Button>
-                </div>
-              }
-            >
-              {t('teamWorkspaceReselect')}
-            </Alert>
-          )}
-        </div>
+        <ExplorerNotices
+          headerRef={explorerListHeaderRef}
+          readOnly={readOnly}
+          retrying={Boolean(retryGroupId)}
+          canUpload={Boolean(permissions?.upload)}
+          chooseOpen={addMenuOpen}
+          onChooseAgain={anchor => {
+            addMenuAnchor.current = anchor;
+            setAddMenuOpen(true);
+          }}
+          onCloseRetry={onRetryComplete}
+        />
         {/* What arranges the list sits on the list (070, FR-002), as Drive's filter chips do:
             in the toolbar they were two more controls on a row that already wrapped. */}
         {!trash && !searching && (
@@ -860,10 +780,6 @@ function ExplorerBody({
   );
 }
 
-const VIEW_KEY = 'soty.team.explorer.view';
-/** The folder tree's width (070, FR-006): what it was (280, the old column's widest), and the
- *  bounds the edge moves between. */
-const TREE_WIDTH = { initial: 280, min: 200, max: 480 } as const;
 /**
  * What in the list a change of its width or of the note above it moves (058): the block of
  * files as a whole, each tile within it, and each cell of a row — a row keeps its place and
@@ -871,22 +787,6 @@ const TREE_WIDTH = { initial: 280, min: 200, max: 480 } as const;
  */
 const LIST_MOVERS =
   '.team-explorer-content, .team-explorer-tile, .team-explorer-rows :is(.ui-table-cell, .ui-table-header-cell)';
-
-function readRememberedView(): ExplorerView {
-  try {
-    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
-  } catch {
-    return 'grid';
-  }
-}
-
-function rememberView(view: ExplorerView): void {
-  try {
-    localStorage.setItem(VIEW_KEY, view);
-  } catch {
-    // A browser that refuses storage still gets the address.
-  }
-}
 
 // Keeps the unused-permissions typing honest for callers that pass a partial set.
 export type ExplorerPermissions = TeamPermissions;

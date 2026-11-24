@@ -132,3 +132,23 @@ export function rememberSort(sort: ExplorerSort): void {
     // A browser that refuses storage keeps the default next time.
   }
 }
+
+const VIEW_KEY = 'soty.team.explorer.view';
+
+/** List or grid, as this browser last left it — remembered beside the order (070, moved here
+ *  from `ExplorerShell` to keep that file under its 800 lines). */
+export function readRememberedView(): 'list' | 'grid' {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
+  } catch {
+    return 'grid';
+  }
+}
+
+export function rememberView(view: 'list' | 'grid'): void {
+  try {
+    localStorage.setItem(VIEW_KEY, view);
+  } catch {
+    // A browser that refuses storage still gets the address.
+  }
+}
