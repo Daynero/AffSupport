@@ -1,34 +1,49 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import {
-  Button,
-  ProgressBar,
-  SegmentedControl,
-  StatusBadge,
-  SotyLoader
-} from '../apps/web/src/components/ui';
+import { Button, Progress, SegmentedControl } from '../apps/web/src/components/ui/index';
+import { StatusBadge } from '../apps/web/src/components/StatusBadge';
+import { SotyLoader } from '../apps/web/src/components/SotyLoader';
 import { SotyLogo, SotyMark } from '../apps/web/src/components/SotyLogo';
 import { translate } from '../apps/web/src/i18n';
 import type { TranslationKey } from '../apps/web/src/i18n';
 
+/**
+ * The product's own components, read through the inventory's marker grammar
+ * (070, T040; was 024 T038).
+ *
+ * This file used to assert the pre-021 shim's literal classes —
+ * `button-spinner`, `no-indicator`, a `ProgressBar` with `active`. The shim's
+ * originals are gone from every screen outside the space, so the assertions
+ * name what the inventory marks: `ui-<component>` for the part, `ui-<component>--<variant>`
+ * and `ui-color-<role>` for its look, `is-<state>` for what it is doing.
+ */
+
 const t = (key: TranslationKey, values?: Record<string, string | number>) =>
   translate('en', key, values);
 
+function classes(markup: string, marker: string): string[] {
+  const match = new RegExp(`class="([^"]*\\b${marker}\\b[^"]*)"`, 'u').exec(markup);
+  return match ? match[1]!.split(/\s+/u) : [];
+}
+
 describe('Soty UI components', () => {
-  it('keeps button width stable while loading (overlay spinner, label kept)', () => {
+  it('keeps a loading button its label and its width: a spinner over it, the press off', () => {
     const markup = renderToStaticMarkup(
-      <Button variant="primary" loading>
+      <Button color="primary" loading>
         Compress selected
       </Button>
     );
-    expect(markup).toContain('is-loading');
+    const button = classes(markup, 'ui-button');
+    expect(button).toContain('ui-button--solid');
+    expect(button).toContain('ui-color-primary');
+    expect(button).toContain('is-loading');
     expect(markup).toContain('Compress selected');
-    expect(markup).toContain('button-spinner');
-    expect(markup).toContain('disabled');
+    expect(markup).toContain('ui-button-spinner');
+    expect(markup).toMatch(/disabled/u);
   });
 
-  it('renders the segmented control as an accessible radiogroup', () => {
+  it('renders the segmented control as an accessible radiogroup with one chosen', () => {
     const markup = renderToStaticMarkup(
       <SegmentedControl
         label="Mode"
@@ -40,19 +55,19 @@ describe('Soty UI components', () => {
         onChange={() => {}}
       />
     );
+    expect(classes(markup, 'ui-segmented').length).toBeGreaterThan(0);
     expect(markup).toContain('role="radiogroup"');
-    expect(markup).toContain('aria-checked="true"');
-    // Static render has no measured indicator yet; the fallback style keeps
-    // the active option visible.
-    expect(markup).toContain('no-indicator');
+    expect(markup.match(/aria-checked="true"/gu)).toHaveLength(1);
   });
 
-  it('marks completed status with an animated check and processing with the Soty loader', () => {
+  it('marks completed status with a check and processing with the Soty loader', () => {
     const completed = renderToStaticMarkup(<StatusBadge status="completed" t={t} />);
+    expect(classes(completed, 'status-badge')).toContain('ui-color-success');
     expect(completed).toContain('status-check');
     expect(completed).toContain('Completed');
 
     const processing = renderToStaticMarkup(<StatusBadge status="processing" t={t} />);
+    expect(classes(processing, 'status-badge')).toContain('ui-color-info');
     expect(processing).toContain('soty-loader');
   });
 
@@ -66,17 +81,17 @@ describe('Soty UI components', () => {
     expect(processing).not.toContain('Compressing');
   });
 
-  it('lets the progress gradient flow only while actively processing', () => {
-    expect(renderToStaticMarkup(<ProgressBar value={40} label="p" active />)).toContain(
-      'is-flowing'
-    );
-    expect(renderToStaticMarkup(<ProgressBar value={40} label="p" />)).not.toContain('is-flowing');
-    expect(renderToStaticMarkup(<ProgressBar value={100} label="p" active />)).not.toContain(
-      'is-flowing'
-    );
-    expect(renderToStaticMarkup(<ProgressBar value={null} label="p" />)).toContain(
-      'is-indeterminate'
-    );
+  it('lets the progress gradient flow only while work is really running', () => {
+    const flowing = (node: React.ReactElement) =>
+      classes(renderToStaticMarkup(node), 'ui-progress');
+    expect(flowing(<Progress value={40} label="p" flowing />)).toContain('is-flowing');
+    expect(flowing(<Progress value={40} label="p" />)).not.toContain('is-flowing');
+    // A full bar describes work that has ended.
+    expect(flowing(<Progress value={100} label="p" flowing />)).not.toContain('is-flowing');
+    // A bar with no number slides instead; it does not also flow.
+    const unknown = flowing(<Progress label="p" flowing />);
+    expect(unknown).toContain('is-indeterminate');
+    expect(unknown).not.toContain('is-flowing');
   });
 
   it('exposes the Soty mark and wordmark for the header and drop zones', () => {

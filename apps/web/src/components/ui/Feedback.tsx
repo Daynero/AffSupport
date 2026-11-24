@@ -283,7 +283,8 @@ export interface ProgressProps {
   /**
    * Work is happening right now: the brand gradient drifts along the fill
    * (the compressor's row, 070 T036). Off, the bar holds still at its value —
-   * which is what a bar must do when nobody can confirm the work is moving.
+   * which is what a bar must do when nobody can confirm the work is moving. A
+   * full bar does not flow: the work it describes has ended.
    */
   flowing?: boolean;
   className?: string;
@@ -307,7 +308,7 @@ export function Progress({
       className={uiClasses(circular ? 'progress-ring' : 'progress', {
         color,
         size,
-        states: { indeterminate, flowing: flowing && !indeterminate },
+        states: { indeterminate, flowing: flowing && !indeterminate && clamped < 100 },
         className
       })}
       role={decorative ? undefined : 'progressbar'}
