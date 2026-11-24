@@ -55,6 +55,9 @@
 .team-space-lobby-subtitle {
   margin: var(--space-1) 0 0;
   color: var(--color-text-muted);
+  /* The body step (070 T069): it inherited the old sheet's section-sized body and stood
+     almost as large as the title above it — five lines on a phone. */
+  font-size: var(--text-body);
 }
 .team-space-lobby-empty {
   min-height: 40vh;
