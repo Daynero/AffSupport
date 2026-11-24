@@ -4169,7 +4169,12 @@ body:has(.public-home) {
 
 .admin-page {
   display: grid;
+  /* One column no wider than the page: a wide child scrolls in itself (070 T069). */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
+}
+.admin-page .ui-card {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .admin-page > .page-heading {
@@ -4428,6 +4433,10 @@ body:has(.public-home) {
 /* The dashboard's three listings are the inventory's Table; what belongs to
    this screen is the frame around them and the row padding a report wants. */
 .admin-table {
+  /* The containing block of what is absolutely placed in a cell — a visually hidden column
+     name — so the frame that scrolls clips it too (070 T069: the hidden "actions" caption
+     escaped and widened the whole admin page to 902 px on a phone). */
+  position: relative;
   overflow: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);

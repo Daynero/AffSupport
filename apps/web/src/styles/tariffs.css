@@ -91,6 +91,12 @@
   justify-content: space-between;
   gap: var(--space-3);
 }
+/* The status filters scroll within the toolbar on a phone instead of widening the whole admin
+   page to their one line (070 T069: 856 px on a 390 px screen). */
+.admin-tariff-toolbar > .ui-segmented {
+  max-width: 100%;
+  overflow-x: auto;
+}
 
 .admin-tariff-search {
   width: min(100%, 280px);
