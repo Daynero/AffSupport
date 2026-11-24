@@ -605,11 +605,7 @@ export function TaskSpace({
           ) : undefined
         }
       />
-      {error && (
-        <p className="team-inline-error" role="alert">
-          {t('teamTaskCreateFailed')}
-        </p>
-      )}
+      {error && <ErrorState className="team-inline-error" message={t('teamTaskCreateFailed')} />}
       {tasks.error && (
         <ErrorState className="team-inline-error" message={t('teamTasksLoadFailed')} />
       )}

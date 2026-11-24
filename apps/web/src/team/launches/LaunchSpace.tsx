@@ -26,7 +26,10 @@ import {
   Button,
   Checkbox,
   DropdownMenu,
+  EmptyState,
+  ErrorState,
   Modal,
+  PermissionState,
   SearchField,
   SelectionBar,
   LoadingState,
@@ -91,7 +94,7 @@ export function LaunchSpace({
   const actorId = useOptionalAuth()?.user?.id ?? null;
   const { can } = useTeam();
   const { t } = useI18n();
-  if (!can('view')) return <p role="alert">{t('teamErrorPermissionDenied')}</p>;
+  if (!can('view')) return <PermissionState message={t('teamErrorPermissionDenied')} />;
   return (
     <LaunchSpaceContent
       key={`${teamId}:${actorId ?? 'preview'}`}
@@ -754,12 +757,16 @@ function LaunchSpaceContent({
           </Button>
         )}
       </div>
+      {/* The error pattern (070, T080): the sentence, and — when the list could not even be set
+          up — the retry inside it rather than a loose button under it. */}
       {error && (
-        <p role="alert" className="text-error-text">
-          {error}
-        </p>
+        <ErrorState
+          className="team-inline-error"
+          message={error}
+          onRetry={!ready ? () => setSetupRetry(n => n + 1) : undefined}
+          retryLabel={t('retry')}
+        />
       )}
-      {!ready && error && <Button onClick={() => setSetupRetry(n => n + 1)}>{t('retry')}</Button>}
       {pending && !open && <p role="status">{t('launchesBusy')}</p>}
       <Reveal
         busy={busy}
@@ -1062,25 +1069,29 @@ function LaunchSpaceContent({
         {/* Not under an error: "no launches yet" below "the server answered unexpectedly"
             said the list was read and empty when it had not been read at all. */}
         {ready && !items.length && !listFailed && (
-          <div className="flex flex-wrap items-center gap-2">
-            <p>{t(filtersActive ? 'launchesFilterEmpty' : 'launchesEmpty')}</p>
-            {filtersActive && (
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  changeFilters(() => {
-                    setSearch('');
-                    setAccountFilter('');
-                    setAssigneeFilter('');
-                    setOfferFilter('');
-                    setDates({ kind: 'all' });
-                  })
-                }
-              >
-                {t('launchesFiltersClearAll')}
-              </Button>
-            )}
-          </div>
+          /* The empty pattern (070, T080): one sentence, and the way out of it as the action. */
+          <EmptyState
+            size="sm"
+            title={t(filtersActive ? 'launchesFilterEmpty' : 'launchesEmpty')}
+            action={
+              filtersActive && (
+                <Button
+                  variant="ghost"
+                  onClick={() =>
+                    changeFilters(() => {
+                      setSearch('');
+                      setAccountFilter('');
+                      setAssigneeFilter('');
+                      setOfferFilter('');
+                      setDates({ kind: 'all' });
+                    })
+                  }
+                >
+                  {t('launchesFiltersClearAll')}
+                </Button>
+              )
+            }
+          />
         )}
         {cursor && (
           <Button
