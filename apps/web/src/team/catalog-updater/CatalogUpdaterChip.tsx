@@ -90,12 +90,14 @@ export function CatalogUpdaterChip({
   if (!summary) {
     return (
       <a
-        className="team-space-shell-utility-link inline-flex items-center gap-1"
+        className="team-space-shell-utility-link team-updater-entry inline-flex items-center gap-1"
         href={href}
+        aria-label={t('catalogUpdaterEntry')}
         onClick={onNavigate}
       >
         <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        {t('catalogUpdaterEntry')}
+        {/* On a phone the header keeps one row: the word goes, the name stays. */}
+        <span className="team-updater-entry-label">{t('catalogUpdaterEntry')}</span>
       </a>
     );
   }
@@ -117,7 +119,9 @@ export function CatalogUpdaterChip({
         )}
         <span className="catalog-chip-copy">
           <span className="catalog-chip-title">
-            {t(oneOff ? 'catalogChipOneOffTitle' : 'catalogChipTitle')}
+            <span className="catalog-chip-name">
+              {t(oneOff ? 'catalogChipOneOffTitle' : 'catalogChipTitle')}
+            </span>
             {typeof titleCount === 'number' && (
               <span className="catalog-chip-count">{titleCount}</span>
             )}

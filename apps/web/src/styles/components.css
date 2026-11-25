@@ -4818,6 +4818,38 @@
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--space-1);
+/* The four cadences are four tiles, as the owner drew them: the inventory's segmented control
+   drew them as a cramped strip at a quarter of the panel (070, phase 9д). */
+.catalog-schedule-preset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--control-height-lg) + var(--space-3));
+  padding: var(--space-3) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-label);
+  cursor: pointer;
+}
+.catalog-schedule-preset:hover,
+.catalog-schedule-weekday:hover {
+  border-color: var(--color-border-strong);
+}
+.catalog-schedule-preset.is-selected {
+  border-color: var(--color-secondary-solid);
+  background: color-mix(in srgb, var(--color-secondary-solid) 60%, var(--color-surface-subtle));
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-secondary-solid);
+}
+.catalog-schedule-preset:focus-visible,
+.catalog-schedule-weekday:focus-visible {
+  outline: 2px solid var(--color-secondary-solid);
+  outline-offset: 2px;
+}
 }
 .catalog-schedule-fields.is-weekly {
   grid-template-columns: minmax(0, 1fr) 123px;
@@ -4833,6 +4865,23 @@
 }
 .catalog-schedule-fields.is-weekly .catalog-schedule-time {
   padding-inline-start: var(--space-3);
+.catalog-schedule-weekday {
+  min-height: var(--control-height-lg);
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-label);
+  cursor: pointer;
+}
+.catalog-schedule-weekday.is-selected {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-solid);
+  color: var(--color-secondary-on-solid);
+}
   border-inline-start: 1px solid var(--color-border);
 }
 .catalog-schedule-time .ui-input.is-narrow {

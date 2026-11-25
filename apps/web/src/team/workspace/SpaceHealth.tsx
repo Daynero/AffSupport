@@ -8,7 +8,7 @@ import { ReconnectAction } from '../../components/ReconnectAction';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Button, Popover, Spinner, uiClasses } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { CatalogUpdaterChip, useUpdaterSummary } from '../catalog-updater/CatalogUpdaterChip';
+import { useUpdaterSummary } from '../catalog-updater/CatalogUpdaterChip';
 import { useOptionalBackgroundRender } from '../explorer/BackgroundRenderProvider';
 import { useOptionalLibraryProcessing } from '../library/LibraryProcessingProvider';
 import { ago, chipCopy, StorageChip, type StorageChipClient } from '../storage/StorageChip';
@@ -93,13 +93,13 @@ export function SpaceHealth(props: SpaceHealthProps) {
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLSpanElement>(null);
 
+  // The catalog updater has its own chip beside «Перейти до…» (070, phase 9д): here it is a
+  // row of the panel only, so the header never says it twice.
+  const attention = health.attention.filter(source => source !== 'updater');
+  const busy = health.busy.filter(source => source !== 'updater');
   const entries: Shown[] = [
-    ...health.attention.map(source => ({ source })),
-    ...(health.busy.length === 1
-      ? [{ source: health.busy[0]! }]
-      : health.busy.length > 1
-        ? [{ group: health.busy }]
-        : [])
+    ...attention.map(source => ({ source })),
+    ...(busy.length === 1 ? [{ source: busy[0]! }] : busy.length > 1 ? [{ group: busy }] : [])
   ];
   const shown = entries.slice(0, MAX_CHIPS);
   const hidden = entries
@@ -111,14 +111,8 @@ export function SpaceHealth(props: SpaceHealthProps) {
   const chips: Record<Exclude<HealthSource, 'storage'>, ReactNode> = {
     agent: <AgentLinkChip />,
     realtime: <RealtimeChip graceElapsed={health.realtimeGraceElapsed} />,
-    updater: (
-      <CatalogUpdaterChip
-        state={props.updater}
-        offsetMs={props.updaterOffsetMs}
-        href={props.updaterHref}
-        onNavigate={props.onUpdaterNavigate}
-      />
-    ),
+    /* Never one of `shown` (it is filtered out above); the header draws it. */
+    updater: null,
     work: <BackgroundWorkChip onOpen={props.onOpenProcess} />
   };
 

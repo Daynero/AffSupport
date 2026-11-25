@@ -190,6 +190,35 @@
   align-items: center;
   gap: var(--space-1);
 }
+/* The catalog manager's own door (070, phase 9д): its chip or its link, beside «Перейти до…». */
+.team-space-shell-updater {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+/* Its own height, not its tooltip anchor's: the touch floor makes the anchor 44 px. */
+.team-space-shell-updater .ui-tooltip-anchor {
+  align-items: center;
+}
+/* The three doors on the right are one set of equal pills (the owner's header): the manager's
+   link, «Перейти до…» and «Простір». */
+.team-space-shell-header .team-space-shell-pill.ui-button,
+.team-space-shell-updater .team-updater-entry {
+  border-color: var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-muted);
+}
+.team-space-shell-header .team-space-shell-pill.ui-button:hover:not(:disabled),
+.team-space-shell-updater .team-updater-entry:hover {
+  border-color: var(--color-border-strong);
+}
+.team-space-shell-updater .team-updater-entry {
+  box-sizing: border-box;
+  min-height: var(--control-height-sm);
+  padding: var(--control-padding-sm);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+}
 .team-space-shell-find kbd {
   font-family: inherit;
   font-size: var(--text-caption);
@@ -318,6 +347,22 @@
   .team-space-health[data-state='chips'] .team-space-health-chip,
   .team-space-health[data-state='chips'] .team-agent-link {
     max-width: 100%;
+  }
+  /* The catalog manager's door keeps its icon and its count; the words stay in its name. */
+  /* Only the icon on a phone (the count too took the space's name down to «Креати…»); the chip
+     keeps its tone and its spinner, and says the rest in its name. */
+  .team-space-shell-updater .team-updater-chip {
+    min-height: var(--control-height-sm);
+    padding: var(--space-1) var(--space-2);
+  }
+  .team-space-shell-updater .team-updater-entry-label,
+  .team-space-shell-updater .catalog-chip-copy {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .team-space-health-indicator .ui-button-label {
     position: absolute;

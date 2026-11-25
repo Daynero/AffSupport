@@ -15197,6 +15197,12 @@ a.history-subject {
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-left: auto;
+  /* A drawer this narrow takes the plates at a tile's size: at a row's 44 px they read as the
+     row's main thing and pushed it wider than the screen. */
+  .catalog-compact-table .catalog-icon-toolbar .ui-picto-toggle {
+    width: var(--icon-plate-tile);
+    height: var(--icon-plate-tile);
+  }
 }
 .team-sync-panel-reason {
   margin: 0;
@@ -15447,7 +15453,10 @@ a.history-subject {
 .catalog-recent-list small {
   color: var(--color-text-muted);
 }
-@media (max-width: 1280px) {
+/* The manager's rows are one line down to a tablet (070, phase 9д): the owner's table folded
+   below 1099px, and the move to the five widths had taken it up to 1280, where a laptop's rows
+   became two lines with the middle empty. 1024 is the nearest of the five to where it was. */
+@media (max-width: 1024px) {
   .catalog-compact-table,
   .catalog-compact-table tbody {
     display: block;
@@ -15468,7 +15477,9 @@ a.history-subject {
     border-bottom: 1px solid var(--color-border);
     padding-block: var(--space-2);
   }
-  .catalog-compact-table td {
+  /* `tbody td`: the table's own 56 px row height comes later in this sheet and held the cell at
+     one line, so a second line — «Помилка оновлення · відкрийте деталі» — ran over the icons. */
+  .catalog-compact-table tbody td {
     display: block;
     height: auto;
     border: 0;

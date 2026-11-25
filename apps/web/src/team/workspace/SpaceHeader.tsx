@@ -15,6 +15,7 @@ import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Button, DropdownMenu, IconButton, type MenuEntry } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { NARROW_SM_QUERY, useMediaQuery } from '../../lib/useMediaQuery';
+import { CatalogUpdaterChip } from '../catalog-updater/CatalogUpdaterChip';
 import { formatShortcut, shortcutOf } from '../palette/shortcuts';
 import { SpaceHealth, type SpaceHealthProps } from './SpaceHealth';
 import { SpaceSwitcher } from './SpaceSwitcher';
@@ -40,9 +41,12 @@ export interface SpaceHeaderMenu {
  * and two identical magnifiers one row apart read as one thing twice. On a phone both shrink to
  * their icons and the row stays one row (T078): the name gives way, never the menu.
  *
- * The catalog manager used to sit here as a link of its own, «За розкладом» when it had
- * something scheduled; it says what it is doing in the health panel now, and its door is a row
- * of the space's menu.
+ * The catalog manager keeps its own door here, always on screen (070, phase 9д): «Менеджер
+ * каталогів» while nothing is scheduled, «За розкладом N · Наступне через …» when something is.
+ * Phase 5 folded it into the health panel and the space's menu, and the owner, who opens it
+ * several times a day, could no longer find it. The health indicator no longer repeats it.
+ * The manager's link, «Перейти до…» and «Простір» are one set of equal pills, the manager first,
+ * as in the owner's header; «Простір» had lost its frame and read as loose text.
  */
 export function SpaceHeader({
   activeTeam,
@@ -123,6 +127,16 @@ export function SpaceHeader({
       </div>
       {health && <SpaceHealth {...health} />}
       <div className="team-space-shell-utilities">
+        {health && (
+          <span className="team-space-shell-updater">
+            <CatalogUpdaterChip
+              state={health.updater}
+              offsetMs={health.updaterOffsetMs}
+              href={health.updaterHref}
+              onNavigate={health.onUpdaterNavigate}
+            />
+          </span>
+        )}
         {/* One way in, said on screen (024, FR-094): the palette had only a chord. */}
         {narrow ? (
           <IconButton
@@ -139,7 +153,7 @@ export function SpaceHeader({
             size="sm"
             variant="outline"
             color="neutral"
-            className="team-space-shell-find"
+            className="team-space-shell-find team-space-shell-pill"
             aria-label={`${t('teamSpaceFind')} (${chord})`}
             leading={<Compass size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
             trailing={<kbd>{chord}</kbd>}
@@ -166,9 +180,9 @@ export function SpaceHeader({
           <Button
             ref={menuTrigger}
             size="sm"
-            variant="ghost"
+            variant="outline"
             color="neutral"
-            className="team-space-shell-menu"
+            className="team-space-shell-menu team-space-shell-pill"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             trailing={<ChevronDown size={14} strokeWidth={ICON_STROKE} />}

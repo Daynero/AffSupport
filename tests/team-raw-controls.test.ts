@@ -31,6 +31,13 @@ const ALLOWED: Record<string, { count: number; reason: string }> = {
   'apps/web/src/team/explorer/TagDot.tsx': {
     count: 3,
     reason: 'press-drag-release colour gesture (070 findings, phase 8b)'
+  },
+  // The schedule picker's cadence tiles, its custom tile, the weekday keys and the time
+  // field's clock, as the owner drew them: `SegmentedControl` drew the tiles as a cramped
+  // strip, and the owner asked for the tiles back (070, phase 9д).
+  'apps/web/src/team/catalog-updater/UpdaterIntervalPicker.tsx': {
+    count: 4,
+    reason: "the owner's schedule tiles and weekday keys (070 findings, phase 9д)"
   }
 };
 

@@ -6,9 +6,14 @@ import type { StorageHealth } from '@video-compressor/shared';
 import { AgentContextOverride, type AgentContextValue } from '../apps/web/src/AgentContext';
 import type { CatalogUpdaterState } from '../apps/web/src/api/team';
 import { ToastProvider } from '../apps/web/src/components/toast';
+import {
+  LibraryProcessingContextOverride,
+  type LibraryProcessingValue
+} from '../apps/web/src/team/library/LibraryProcessingProvider';
 import { TeamContextOverride, type TeamContextValue } from '../apps/web/src/team/TeamContext';
 import type { TeamRealtimeState } from '../apps/web/src/team/useTeamRealtime';
 import { SpaceHealth, type SpaceHealthProps } from '../apps/web/src/team/workspace/SpaceHealth';
+import { SpaceHeader } from '../apps/web/src/team/workspace/SpaceHeader';
 import { fakeAgentValue } from './support/fake-agent';
 
 /**
@@ -81,18 +86,40 @@ function props(overrides: Partial<SpaceHealthProps> = {}): SpaceHealthProps {
   };
 }
 
+/** A processing batch under way, as much of it as the header reads. */
+const runningBatch = {
+  phase: 'running',
+  done: 1,
+  skipped: 0,
+  failed: 0,
+  total: 4,
+  activeKind: null
+} as unknown as LibraryProcessingValue;
+
 function renderHealth(
   overrides: Partial<SpaceHealthProps> = {},
   {
     agent = fakeAgentValue(),
-    realtime = 'connected' as TeamRealtimeState
-  }: { agent?: AgentContextValue; realtime?: TeamRealtimeState } = {}
+    realtime = 'connected' as TeamRealtimeState,
+    batch
+  }: {
+    agent?: AgentContextValue;
+    realtime?: TeamRealtimeState;
+    batch?: LibraryProcessingValue;
+  } = {}
 ) {
+  const health = <SpaceHealth {...props(overrides)} />;
   return render(
     <ToastProvider>
       <AgentContextOverride value={agent}>
         <TeamContextOverride value={teamContext(realtime)}>
-          <SpaceHealth {...props(overrides)} />
+          {batch ? (
+            <LibraryProcessingContextOverride value={batch}>
+              {health}
+            </LibraryProcessingContextOverride>
+          ) : (
+            health
+          )}
         </TeamContextOverride>
       </AgentContextOverride>
     </ToastProvider>
@@ -159,12 +186,13 @@ describe('the space health in the header', () => {
       { agent: lostAgent(), realtime: 'disabled' }
     );
     const chips = [...view.container.querySelectorAll('.team-space-health .ui-chip')];
+    // The updater's trouble is on its own chip in the header (070, phase 9д), not one of these.
     expect(chips.map(chip => chip.textContent)).toEqual([
       'View only · Drive disconnected',
       'Connect Soty',
-      '2 more'
+      '1 more'
     ]);
-    fireEvent.click(screen.getByRole('button', { name: /2 more need attention/u }));
+    fireEvent.click(screen.getByRole('button', { name: /1 more need attention/u }));
     const panel = screen.getByRole('dialog', { name: 'Space status' });
     const tones = within(panel)
       .getAllByRole('listitem')
@@ -174,12 +202,23 @@ describe('the space health in the header', () => {
   });
 
   it('says several jobs once: one chip with the count', () => {
-    renderHealth({
-      storage: { kind: 'indexing', indexedFolders: 1, totalFolders: 4, files: 10 },
-      updater: updater({ activeCount: 2 })
-    });
+    renderHealth(
+      { storage: { kind: 'indexing', indexedFolders: 1, totalFolders: 4, files: 10 } },
+      { batch: runningBatch }
+    );
     expect(screen.getByText('Background work · 2')).toBeTruthy();
     expect(screen.queryByText(/Indexing/u)).toBeNull();
+  });
+
+  it('leaves the catalog updater to its own chip in the header (070, phase 9д)', () => {
+    const view = renderHealth({
+      storage: { kind: 'indexing', indexedFolders: 1, totalFolders: 4, files: 10 },
+      updater: updater({ activeCount: 2, failingCount: 1 })
+    });
+    // One job, the storage's: the updater's run is not folded into «Background work».
+    expect(screen.getByText(/Indexing/u)).toBeTruthy();
+    expect(screen.queryByText(/Background work/u)).toBeNull();
+    expect(view.container.querySelector('.team-updater-chip')).toBeNull();
   });
 
   it('lets one job speak for itself', () => {
@@ -214,5 +253,47 @@ describe('the header’s analytics after the move (T031)', () => {
     const panel = screen.getByRole('dialog', { name: 'Space status' });
     fireEvent.click(within(panel).getByRole('button', { name: 'Reconnect' }));
     expect(reconnect).toHaveBeenCalledWith('team_shell');
+  });
+});
+
+describe('the catalog manager in the header (070, phase 9д)', () => {
+  function renderHeader(overrides: Partial<SpaceHealthProps> = {}) {
+    return render(
+      <ToastProvider>
+        <AgentContextOverride value={fakeAgentValue()}>
+          <TeamContextOverride value={teamContext()}>
+            <SpaceHeader
+              activeTeam={null}
+              teams={[]}
+              health={props(overrides)}
+              onFind={vi.fn()}
+              menu={{
+                onSettings: vi.fn(),
+                onUpdater: vi.fn(),
+                onTrash: vi.fn(),
+                onShortcuts: vi.fn()
+              }}
+            />
+          </TeamContextOverride>
+        </AgentContextOverride>
+      </ToastProvider>
+    );
+  }
+
+  it('is a door on screen while nothing is scheduled', () => {
+    renderHeader({ updater: null });
+    const door = screen.getByRole('link', { name: 'Catalog Manager' });
+    expect(door.getAttribute('href')).toBe('/updater');
+  });
+
+  it('says what is scheduled while something is, and is still the door', () => {
+    const onUpdaterNavigate = vi.fn((event: React.MouseEvent) => event.preventDefault());
+    renderHeader({ onUpdaterNavigate });
+    const chip = screen.getByRole('link', { name: /^Open the catalog manager: /u });
+    expect(chip.textContent).toContain('Scheduled');
+    fireEvent.click(chip);
+    expect(onUpdaterNavigate).toHaveBeenCalledTimes(1);
+    // Said once: the health indicator does not repeat it.
+    expect(document.querySelectorAll('.team-updater-chip')).toHaveLength(1);
   });
 });
