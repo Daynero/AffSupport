@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { openNativeAppUpdate } from './updates/openNativeAppUpdate';
-import { Ban, Broom, Pause, Play, Trash2 } from 'lucide-react';
+import { AlertTriangle, Ban, Broom, Check, Files, Loader, Pause, Play, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
   imageSelectionSupported,
@@ -66,6 +66,7 @@ import {
   Button,
   Checkbox,
   EmptyState,
+  IconButton,
   Progress,
   Spinner,
   uiClasses,
@@ -692,6 +693,11 @@ export default function CompressorPage() {
                     className="batch-chip"
                     title={t('chipFilesMany', { count: state.jobs.length })}
                   >
+                    {/* The word folds away on a narrow bar; the icon stays, so a count is never a
+                        bare digit told apart by colour alone (070, the tools pass). */}
+                    <span className="chip-icon">
+                      <Files size={12} strokeWidth={2} aria-hidden="true" />
+                    </span>
                     <b>{state.jobs.length}</b>
                     <span className="chip-word">
                       {' '}
@@ -705,6 +711,9 @@ export default function CompressorPage() {
                     className="batch-chip is-processing"
                     title={t('chipProcessing', { count: counts.processing })}
                   >
+                    <span className="chip-icon">
+                      <Loader size={12} strokeWidth={2} aria-hidden="true" />
+                    </span>
                     <b>{counts.processing}</b>
                     <span className="chip-word">
                       {' '}
@@ -717,6 +726,9 @@ export default function CompressorPage() {
                     className="batch-chip is-done"
                     title={t('chipCompleted', { count: counts.completed })}
                   >
+                    <span className="chip-icon">
+                      <Check size={12} strokeWidth={2} aria-hidden="true" />
+                    </span>
                     <b>{counts.completed}</b>
                     <span className="chip-word">
                       {' '}
@@ -729,6 +741,9 @@ export default function CompressorPage() {
                     className="batch-chip is-failed"
                     title={t('chipFailed', { count: counts.failed })}
                   >
+                    <span className="chip-icon">
+                      <AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />
+                    </span>
                     <b>{counts.failed}</b>
                     <span className="chip-word">
                       {' '}
@@ -789,31 +804,33 @@ export default function CompressorPage() {
                       <span className="action-label">{t('stopAll')}</span>
                     </Button>
                   )}
-                  <Button
+                  {/* The two housekeeping actions are icons beside the one primary (070, the
+                      tools pass): two more worded buttons made the bar fold all three to
+                      icons, and the run itself lost its name. */}
+                  <IconButton
                     color="error"
-                    variant="soft"
+                    label={t('removeSelected')}
                     disabled={!connected || selectedRemovable.length === 0}
-                    title={t('removeSelected')}
                     onClick={() => void removeSelected()}
                   >
                     <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
-                    <span className="action-label">{t('removeSelected')}</span>
-                  </Button>
+                  </IconButton>
                   {state.jobs.some(job => isSettled(COMPRESSION_LIFECYCLE, job.status)) && (
-                    <Button
-                      color="neutral"
-                      variant="ghost"
+                    <IconButton
+                      label={t('clearFinished')}
                       disabled={!connected}
-                      title={t('clearFinished')}
                       onClick={() => void action('/api/jobs/completed', 'DELETE')}
                     >
                       <Broom size={18} strokeWidth={1.75} aria-hidden="true" />
-                      <span className="action-label">{t('clearFinished')}</span>
-                    </Button>
+                    </IconButton>
                   )}
                 </div>
               </div>
-              {state.batch && <BatchProgress metrics={metrics} t={t} />}
+              {/* Only while something runs: a bar at 0% under an idle queue was a promise of
+                  progress with nothing behind it (070, the tools pass). */}
+              {state.batch && (state.running || metrics.processing > 0) && (
+                <BatchProgress metrics={metrics} t={t} />
+              )}
             </section>
           </>
         )}

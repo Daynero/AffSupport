@@ -170,15 +170,29 @@ export function SettingsPanel({
             chooseOutputFolder={chooseOutputFolder}
             t={t}
           />
-          <div className="field-group metadata-settings">
-            <Switch
-              className="feature-switch"
-              checked={settings.stripMetadata}
-              disabled={disabled}
-              onChange={next => updateSettings({ stripMetadata: next })}
-              label={<strong>{t('stripMetadata')}</strong>}
-            />
-            <HelpTip label={t('stripMetadataTooltip')}>{t('stripMetadataTooltip')}</HelpTip>
+          {/* The two yes-or-no choices share one cell (070, the tools pass): "embed images"
+              was a row of its own under the panel, one switch alone on a full-width line. */}
+          <div className="field-group settings-switches">
+            <div className="metadata-settings">
+              <Switch
+                className="feature-switch"
+                checked={settings.stripMetadata}
+                disabled={disabled}
+                onChange={next => updateSettings({ stripMetadata: next })}
+                label={<strong>{t('stripMetadata')}</strong>}
+              />
+              <HelpTip label={t('stripMetadataTooltip')}>{t('stripMetadataTooltip')}</HelpTip>
+            </div>
+            <div className="metadata-settings image-embedding-toggle">
+              <Switch
+                className="feature-switch"
+                checked={settings.imageEmbedding.enabled}
+                disabled={disabled}
+                onChange={next => updateSettings({ imageEmbedding: { enabled: next } })}
+                label={<strong>{t('embedImages')}</strong>}
+              />
+              <HelpTip label={t('embedImagesTooltip')}>{t('embedImagesTooltip')}</HelpTip>
+            </div>
           </div>
         </div>
         <div className="mode-detail">
@@ -192,6 +206,7 @@ export function SettingsPanel({
           </Collapse>
         </div>
         <ImageEmbeddingSection
+          toggleElsewhere
           explicitChoiceAllowed={explicitImageChoice}
           settings={settings.imageEmbedding}
           disabled={disabled}

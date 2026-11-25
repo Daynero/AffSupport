@@ -158,3 +158,6 @@
 /* The task editor, refined over the legacy sheet and the board's (070, 9и). */
 @import './task-editor.css' layer(soty);
 @import './skin.css' layer(soty);
+/* The tool pages, redrawn as one family over the legacy sheet (070, the tools pass); last, so
+   their dense layout is the one that holds. */
+@import './tools.css' layer(soty);

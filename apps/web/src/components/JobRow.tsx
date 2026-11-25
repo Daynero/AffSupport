@@ -24,7 +24,7 @@ import {
 import type { Language, Translate } from '../i18n';
 import { elapsedMilliseconds, stoppable, timerState } from '../queue-ui';
 import { StatusBadge } from './StatusBadge';
-import { Button, Checkbox, Progress, Spinner, fillRatio } from './ui/index';
+import { Button, Checkbox, IconButton, Progress, Spinner, fillRatio } from './ui/index';
 
 /** Keep in sync with --dur-complete in styles.css: the estimate → result
  * morph (row-track transition + size count-up) runs on this clock. */
@@ -65,7 +65,7 @@ export function JobRow({
   const analysisBlocked = job.status === 'analyzing' && job.error === 'MEDIA_TOOLS_UNAVAILABLE_JOB';
   return (
     <article
-      className={`job-row ${selected ? 'is-selected' : ''} ${
+      className={`job-row compressor-job ${selected ? 'is-selected' : ''} ${
         job.status === 'processing' ? 'is-processing' : ''
       } ${fresh ? 'is-fresh' : ''}`.trim()}
       data-state={job.status}
@@ -99,12 +99,13 @@ export function JobRow({
             <div className="job-title-line">
               <h3 title={job.fileName}>{job.fileName}</h3>
               <StatusBadge status={analysisBlocked ? 'failed' : job.status} t={t} />
+              <JobTimer job={job} t={t} showRunning={false} live={connected} />
             </div>
-            <JobTimer job={job} t={t} showRunning={false} live={connected} />
+            {/* The source in one line under its name (070, the tools pass): six labelled cells
+                in a grid read as a form; the values say what they are. */}
+            <OriginalPanel job={job} language={language} t={t} />
           </div>
         </div>
-
-        <OriginalPanel job={job} language={language} t={t} />
       </div>
 
       <div className="job-side">
@@ -351,14 +352,8 @@ function EstimatePanel({
           {t(job.growthRisk === 'codec' ? 'growthRiskCodec' : 'growthRiskBitrate')}
         </p>
       ) : null}
-      <div className="panel-title-with-help">
-        <h4>{t('expectedResult')}</h4>
-        {/* The badge carries the explanation itself — no separate question
-            mark beside it. */}
-        <span className="estimate-tag" title={t('estimateTooltip')}>
-          ≈ {t('estimateLabel')}
-        </span>
-      </div>
+      {/* The heading is for a reader; the eye has the "≈" and the tag (070, the tools pass). */}
+      <h4 className="sr-only">{t('expectedResult')}</h4>
       {estimated ? (
         <>
           <div className="estimate-size">
@@ -366,6 +361,11 @@ function EstimatePanel({
             {saving !== null && saving >= 0 && (
               <span>{t('estimatedSaving', { value: saving })}</span>
             )}
+            {/* The badge carries the explanation itself — no separate question
+                mark beside it. */}
+            <span className="estimate-tag" title={t('estimateTooltip')}>
+              {t('estimateLabel')}
+            </span>
           </div>
           {saving !== null && saving < 0 && (
             <p className="inline-warning ui-color-warning">{t('largerEstimate')}</p>
@@ -373,6 +373,9 @@ function EstimatePanel({
         </>
       ) : (
         <div className="estimate-state">
+          <span className="estimate-tag" title={t('estimateTooltip')}>
+            {t('estimateLabel')}
+          </span>
           <span>{status}</span>
           {job.estimateProgress && (
             <>
@@ -440,7 +443,7 @@ function ResultPanel({
       : Math.round((1 - job.finalSize / job.originalSize) * 100);
   return (
     <section className="media-panel result-panel" aria-label={t('finalVideoInfo')}>
-      <h4>{t('readyFile')}</h4>
+      <h4 className="sr-only">{t('readyFile')}</h4>
       <div className="result-size">
         <strong>{formatSize(displayedSize, language)}</strong>
         {/* A result that came back bigger is reported as such rather than
@@ -496,10 +499,12 @@ function MediaGrid({
 }) {
   return (
     <dl className="media-grid">
+      {/* Values in a line; each label stays in the list for a reader and names the value
+          under the pointer (070, the tools pass). */}
       {items.map(([label, value, hint]) => (
-        <div key={label}>
+        <div key={label} title={hint ?? label}>
           <dt>{label}</dt>
-          <dd title={hint ?? undefined}>{value}</dd>
+          <dd>{value}</dd>
         </div>
       ))}
     </dl>
@@ -520,14 +525,19 @@ function JobActions({
   t: Translate;
 }) {
   const priority = estimatePriorityAction(job, compressionRunning);
-  // One order on every card: run first, then folder, open, delete — so the
-  // same action is always in the same place whatever state the file is in.
+  const settled =
+    job.status !== 'analyzing' && job.status !== 'processing' && job.status !== 'queued';
+  // One order on every card: the row's own verb first, then folder, open, delete — so the
+  // same action is always in the same place whatever state the file is in. Only the verb
+  // carries a word (070, the tools pass): four full-width buttons stacked down the card
+  // were its tallest part, and the three that are always the same are known by their icon.
   return (
     <div className="job-actions" aria-label={t('fileActions', { name: job.fileName })}>
       {job.status === 'processing' && (
         <>
-          <Button
-            variant="secondary"
+          <IconButton
+            variant="outline"
+            label={t(job.paused ? 'jobResume' : 'jobPause')}
             disabled={disabled}
             onClick={() => action(`/api/jobs/${job.id}/pause`, 'POST', { paused: !job.paused })}
           >
@@ -536,16 +546,15 @@ function JobActions({
             ) : (
               <Pause size={16} strokeWidth={1.75} aria-hidden="true" />
             )}
-            {t(job.paused ? 'jobResume' : 'jobPause')}
-          </Button>
-          <Button
-            variant="danger"
+          </IconButton>
+          <IconButton
+            color="error"
+            label={t('cancel')}
             disabled={disabled}
             onClick={() => action(`/api/jobs/${job.id}/cancel`)}
           >
             <Ban size={16} strokeWidth={1.75} aria-hidden="true" />
-            {t('cancel')}
-          </Button>
+          </IconButton>
         </>
       )}
       {/* Secondary, not primary: the surface here is the page, and its one
@@ -553,60 +562,45 @@ function JobActions({
           its own filled button leaves nothing leading anywhere (FR-022). */}
       {job.status === 'ready' && (
         <Button
-          variant="secondary"
+          color="neutral"
+          variant="outline"
+          size="sm"
           disabled={disabled || compressionRunning}
+          leading={<Play size={16} strokeWidth={1.75} aria-hidden="true" />}
           onClick={() => action('/api/queue/start', 'POST', { ids: [job.id] })}
         >
-          <Play size={16} strokeWidth={1.75} aria-hidden="true" />
           {t('compressOne')}
         </Button>
       )}
       {job.status === 'completed' && (
         <Button
-          variant="secondary"
+          color="neutral"
+          variant="outline"
+          size="sm"
           disabled={disabled || compressionRunning}
+          leading={<RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />}
           onClick={() => action(`/api/jobs/${job.id}/repeat`)}
         >
-          <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
           {t('repeatCompression')}
         </Button>
       )}
       {isSettled(COMPRESSION_LIFECYCLE, job.status) && job.status !== 'completed' && (
         <Button
-          variant="secondary"
+          color="neutral"
+          variant="outline"
+          size="sm"
           disabled={disabled || compressionRunning}
+          leading={<RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />}
           onClick={() => action(`/api/jobs/${job.id}/retry`)}
         >
-          <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
           {t('retry')}
         </Button>
       )}
-      {/* Folder and open work before a run too — they point at the source
-          until there is a result. While the encode runs the panel keeps only
-          pause and cancel, so nothing competes with them. */}
-      {job.status !== 'analyzing' && job.status !== 'processing' && job.status !== 'queued' && (
-        <>
-          <Button
-            variant="success"
-            disabled={disabled}
-            onClick={() => action(`/api/jobs/${job.id}/reveal`)}
-          >
-            <FolderOpen size={16} strokeWidth={1.75} aria-hidden="true" />
-            {t('showInFolder')}
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={disabled}
-            onClick={() => action(`/api/jobs/${job.id}/open`)}
-          >
-            <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
-            {t('openFile')}
-          </Button>
-        </>
-      )}
       {priority && (
         <Button
+          color="neutral"
           variant="ghost"
+          size="sm"
           disabled={disabled}
           title={t(priority === 'cancel' ? 'cancelPriorityEstimateHint' : 'prioritizeEstimateHint')}
           onClick={() =>
@@ -619,16 +613,37 @@ function JobActions({
           {t(priority === 'cancel' ? 'cancelPriorityEstimate' : 'prioritizeEstimate')}
         </Button>
       )}
+      {/* Folder and open work before a run too — they point at the source
+          until there is a result. While the encode runs the row keeps only
+          pause and cancel, so nothing competes with them. */}
+      {settled && (
+        <>
+          <IconButton
+            label={t('showInFolder')}
+            disabled={disabled}
+            onClick={() => action(`/api/jobs/${job.id}/reveal`)}
+          >
+            <FolderOpen size={18} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            label={t('openFile')}
+            disabled={disabled}
+            onClick={() => action(`/api/jobs/${job.id}/open`)}
+          >
+            <ExternalLink size={18} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+        </>
+      )}
       {!stoppable(job) &&
         (job.status !== 'analyzing' || job.error === 'MEDIA_TOOLS_UNAVAILABLE_JOB') && (
-          <Button
-            variant="danger"
+          <IconButton
+            color="error"
+            label={t('remove')}
             disabled={disabled}
             onClick={() => action(`/api/jobs/${job.id}`, 'DELETE')}
           >
-            <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
-            {t('remove')}
-          </Button>
+            <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
         )}
     </div>
   );

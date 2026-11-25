@@ -1,0 +1,473 @@
+/*
+ * The tool pages (070, the tools pass — the owner, 2026-11-25: "sit down and polish properly").
+ *
+ * The compressor, the stitcher, the transcription and the landing optimizer were drawn by
+ * layers of rules in styles.css, each pass adding a slab, a hairline or a 44px circle over the
+ * last. They share one intake, one settings panel, one batch bar and one way of drawing a file,
+ * so this sheet draws those once, dense and calm, and is loaded last so it is the word that
+ * holds. Values are tokens only (docs/DESIGN.md).
+ *
+ * Measured against a 1440×800 window (a MacBook Air at its default scale), 1280×760 and 390.
+ */
+
+/* --- The "?" beside a setting: a footnote, not a control of its own -------------------- */
+
+/* A 44px circle beside a 13px label was the loudest thing in every panel. The mark is the
+   label's size; a touch screen keeps the 44px target around it, unseen. */
+.tooltip-button {
+  position: relative;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  min-width: var(--icon-size);
+  min-height: var(--icon-size);
+  flex: 0 0 var(--icon-size);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  background: transparent;
+  font-size: var(--text-micro);
+  font-weight: 700;
+}
+@media (pointer: coarse) {
+  .tooltip-button::after {
+    content: '';
+    position: absolute;
+    inset: calc((var(--control-height-lg) - var(--icon-size)) / -2);
+  }
+}
+
+/* --- The intake: one line, the drop target and its one way in ---------------------------- */
+
+.workspace > .add-files-section .drop-zone {
+  min-height: 0;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+.workspace > .add-files-section .drop-zone .drop-icon svg {
+  width: var(--control-height-xs);
+  height: var(--control-height-xs);
+}
+.workspace > .add-files-section .drop-zone > div {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-3);
+}
+.workspace > .add-files-section .drop-zone strong {
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.workspace > .add-files-section .drop-zone > div > span {
+  font-size: var(--text-caption);
+}
+
+/* --- The settings panel: one surface, cells in a line ------------------------------------ */
+
+.settings-panel {
+  /* The rows bring their own space above them, so a folded row (custom settings, embedding)
+     leaves no gap of its own at the bottom of the panel. */
+  gap: 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+}
+/* The panel's first row stands a step under the header; an opened row a step under the last. */
+:root .settings-panel .settings-body > :first-child,
+.settings-panel .ui-collapse.is-open > .ui-collapse-body {
+  margin-top: var(--space-3);
+}
+.settings-collapse-heading {
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.settings-panel .settings-summary {
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+/* The rows inside the panel were slabs inside the slab, each with its own border, fill and
+   128px fading hairlines. They are lines of cells now, set apart by one rule above. */
+:root .settings-panel :is(.settings-primary-row, .custom-settings, .embedding-settings-row),
+:root .settings-panel .image-embedding-panel.image-embedding-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3) calc(var(--space-6) * 2);
+  margin-right: 0;
+  margin-bottom: 0;
+  margin-left: 0;
+  grid-column: 1 / -1;
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+:root .settings-panel .image-embedding-panel.image-embedding-panel {
+  display: grid;
+  gap: var(--space-3);
+}
+:root .settings-panel .image-embedding-panel .embedding-settings-row {
+  padding-top: 0;
+  border-top: 0;
+}
+.settings-panel
+  :is(.settings-primary-row, .custom-settings, .embedding-settings-row)
+  > *
+  + *::before {
+  content: none;
+}
+.settings-panel .mode-detail .ui-collapse.is-open > .ui-collapse-body {
+  padding-top: 0;
+}
+.settings-panel .image-embedding-settings {
+  padding-top: 0;
+}
+.settings-panel .field-group {
+  gap: var(--space-1-5);
+  min-width: 0;
+}
+.settings-panel .field-label {
+  min-height: var(--icon-size);
+  gap: var(--space-1-5);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+.settings-panel .optimal-summary,
+.settings-panel .selected-folder,
+.settings-panel .field-hint {
+  font-size: var(--text-caption);
+}
+
+/* A gallery's name is a line's label, not a section title. */
+.settings-panel .image-column-heading h3 {
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: 650;
+}
+
+/* The two yes-or-no switches of the compressor share a cell, one under the other. */
+.settings-switches {
+  display: grid;
+  gap: var(--space-2);
+}
+.settings-panel .metadata-settings {
+  align-self: auto;
+  min-height: var(--control-height-sm);
+}
+.settings-panel .metadata-settings .ui-switch-label strong,
+.settings-panel .feature-switch .ui-switch-label {
+  font-size: var(--text-label);
+  font-weight: 600;
+}
+
+/* --- The batch bar: what is in the queue, and the one thing to do with it ---------------- */
+
+.batch-toolbar {
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+}
+.batch-toolbar .batch-chip {
+  font-size: var(--text-label);
+}
+.batch-toolbar .primary-actions {
+  gap: var(--space-1);
+}
+/* Chips: the word folds, an icon stays, so two counters are never two bare digits — in every
+   tool now, not only the transcription's. */
+.batch-toolbar .batch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.batch-toolbar .batch-chip .chip-icon {
+  display: none;
+  line-height: 0;
+}
+.batch-toolbar-row.is-compact-chips .batch-chip .chip-icon {
+  display: inline-flex;
+}
+/* The bar's housekeeping icons sit a step away from its one primary. */
+.batch-toolbar .primary-actions > .ui-button + .ui-icon-button {
+  margin-left: var(--space-1);
+}
+/* At the last stage the divider before the counts went with their words; it touched the
+   first digit. */
+.batch-toolbar-row.is-compact-chips .batch-chips::before {
+  content: none;
+}
+
+/* --- A file in the compressor: one line for what it is, one for what it becomes --------- */
+
+.job-row.compressor-job {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  contain-intrinsic-size: auto 76px;
+}
+.compressor-job .job-main {
+  display: block;
+  grid-column: 1;
+  min-width: 0;
+}
+.compressor-job .job-header {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+}
+.compressor-job .job-header > .ui-checkbox {
+  margin-top: 2px;
+}
+.compressor-job .job-title-block {
+  gap: var(--space-1);
+}
+.compressor-job .job-title-line {
+  display: flex;
+  width: auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+}
+.compressor-job .job-title-line .status-badge {
+  min-height: var(--control-height-xs);
+  margin-left: 0;
+  font-size: var(--text-caption);
+}
+.compressor-job .job-title-line h3 {
+  flex: 0 1 auto;
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.compressor-job .job-title-line .job-timer {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* The panels lose their boxes: a line of values under a name needs no frame. */
+.compressor-job .media-panel {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.compressor-job .media-grid::before,
+.compressor-job .media-grid::after {
+  content: none;
+}
+.compressor-job .media-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-3);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.compressor-job .media-grid > div {
+  position: relative;
+  display: block;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+.compressor-job .media-grid > div + div::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: calc(var(--space-3) / -2);
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  opacity: 0.45;
+  transform: translate(-50%, -50%);
+}
+.compressor-job .media-grid dt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.compressor-job .media-grid dd {
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* What it becomes, in the middle column: the size first, then the same values. */
+.compressor-job .outcome-slot,
+.compressor-job .job-progress-panel {
+  grid-column: 2;
+  min-width: 0;
+}
+.compressor-job .estimate-size,
+.compressor-job .result-size,
+.compressor-job .estimate-state {
+  display: flex;
+  justify-content: flex-start;
+  min-height: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.compressor-job .estimate-size span,
+.compressor-job .result-size span {
+  font-size: var(--text-caption);
+}
+.compressor-job .estimate-size strong,
+.compressor-job .result-size strong {
+  color: var(--color-text);
+  font-size: var(--text-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.compressor-job .result-size strong {
+  color: var(--color-success-text);
+}
+.compressor-job .estimate-tag {
+  align-self: center;
+  margin-left: 0;
+  padding: 0 var(--space-1-5);
+  font-size: var(--text-micro);
+  font-weight: 600;
+}
+.compressor-job .estimate-state .estimate-bar {
+  align-self: center;
+}
+.compressor-job .output-path {
+  display: flex;
+  min-width: 0;
+  gap: var(--space-1-5);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.compressor-job .output-path strong {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compressor-job .estimate-growth-warning,
+.compressor-job .inline-warning {
+  margin: 0;
+  font-size: var(--text-caption);
+}
+
+/* The verbs, in a line at the end: one with its word, the rest by their icon. */
+.compressor-job .job-actions {
+  display: flex;
+  grid-column: 3;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  width: auto;
+  margin: 0;
+}
+.compressor-job .job-actions > .ui-button {
+  width: auto;
+}
+.compressor-job .job-actions > .ui-button + .ui-icon-button {
+  margin-left: var(--space-1);
+}
+
+/* While it runs: the bar and its numbers in the middle, pause and cancel at the end. */
+.compressor-job .job-progress-panel {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.compressor-job .job-progress-title {
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+.compressor-job .job-progress-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.compressor-job .job-progress-meta .job-actions {
+  margin-left: auto;
+}
+
+/* A narrow window: the outcome goes under the name, the verbs stay on the name's line. */
+@media (max-width: 1024px) {
+  .job-row.compressor-job {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .compressor-job .job-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .compressor-job .job-actions {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+  }
+  .compressor-job .outcome-slot,
+  .compressor-job .job-progress-panel {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding-left: calc(var(--control-height-xs) + var(--space-3));
+  }
+}
+/* A phone: the verbs take their own line under everything else. */
+@media (max-width: 640px) {
+  .job-row.compressor-job {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* The name keeps its line; the status and the time wrap under it rather than cut it. */
+  .compressor-job .job-title-line {
+    flex-wrap: wrap;
+  }
+  .compressor-job .job-title-line h3 {
+    max-width: 100%;
+  }
+  .compressor-job .job-actions {
+    grid-column: 1;
+    grid-row: 3;
+    justify-content: flex-start;
+    padding-left: calc(var(--control-height-xs) + var(--space-3));
+  }
+}
+
+/* --- What the run saved: a quiet surface, not words floating on the honeycomb ------------ */
+
+.workspace > .result-summary {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.workspace > .result-summary h2 {
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.workspace > .result-summary dt {
+  font-size: var(--text-caption);
+}
+.workspace > .result-summary dd {
+  font-size: var(--text-label);
+}

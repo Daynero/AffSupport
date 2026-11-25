@@ -711,20 +711,6 @@
   scroll-margin-top: calc(var(--topbar-h, 62px) + var(--intake-h, 108px) + var(--space-2));
 }
 
-/* Chips: the word folds, an icon stays, so two counters are never two bare digits. */
-.transcription-workspace .batch-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.transcription-workspace .batch-chip .chip-icon {
-  display: none;
-  line-height: 0;
-}
-.transcription-workspace .batch-toolbar-row.is-compact-chips .batch-chip .chip-icon {
-  display: inline-flex;
-}
-
 /* Row meta: a gap between items, no glyph to dangle at a wrap. */
 .transcription-row .transcription-row-meta {
   gap: 2px var(--space-3);

@@ -65,6 +65,7 @@ export function ImageEmbeddingSection({
    * there rather than forked, so there is still one gallery and one set of settings.
    */
   optional = true,
+  toggleElsewhere = false,
   slotContent,
   t
 }: {
@@ -76,6 +77,8 @@ export function ImageEmbeddingSection({
   onValidityChange: (valid: boolean) => void;
   explicitChoiceAllowed?: boolean;
   optional?: boolean;
+  /** The on/off switch is drawn by the caller, beside its other switches (the compressor). */
+  toggleElsewhere?: boolean;
   /**
    * What a slot shows in place of its gallery (030). A space's settings draw from Drive
    * pools, not from this machine's library, so the slot keeps its switch, its duration and
@@ -119,7 +122,7 @@ export function ImageEmbeddingSection({
 
   return (
     <div className="image-embedding-settings">
-      {optional && (
+      {optional && !toggleElsewhere && (
         <div className="image-embedding-toggle">
           <Switch
             className="feature-switch"

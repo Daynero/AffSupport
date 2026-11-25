@@ -1465,6 +1465,10 @@
   background: var(--ui-hover);
   color: var(--ui-on-solid);
 }
+/* An outlined plate (070, the tools pass): asked for and drawn as a ghost until now. */
+.ui-icon-button--outline {
+  border-color: var(--ui-border);
+}
 
 /* ============================================================
    Badge and Chip
