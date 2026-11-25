@@ -191,9 +191,16 @@ describe('the phase 8 files', () => {
 
   it('write no raw control — the catalog icon toggles are the inventory PictoToggle (8б)', () => {
     const RAW = /<(button|input|select|textarea)(?=[\s/>])/gu;
+    // The same exception, with the same count, as `team-raw-controls`: the owner's schedule tiles
+    // and weekday keys, put back as the owner drew them (070, phase 9д).
+    const ALLOWED: Record<string, number> = {
+      'apps/web/src/team/catalog-updater/UpdaterIntervalPicker.tsx': 4
+    };
     const found = files.flatMap(file => {
       const source = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//gu, '');
-      return [...source.matchAll(RAW)].map(() => path.relative(ROOT, file));
+      const name = path.relative(ROOT, file);
+      const count = [...source.matchAll(RAW)].length;
+      return count > (ALLOWED[name] ?? 0) ? [`${name}: ${count}`] : [];
     });
     expect(found).toEqual([]);
   });
