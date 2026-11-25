@@ -55,10 +55,11 @@
 
 - [ ] T027 [P] [US7] Події AD-001…AD-003, AD-005 у web, агенті й storage-ops (без назв файлів)
 - [ ] T028 [US7] Команда `npm run analytics -- storage` з формулою вартості research R14; події сховища в `investigate` і `journey` (AD-007); документ у docs/ANALYTICS_CLI.md і таблиця в AGENTS.md
-- [ ] T029 [P] [US7] UI «зайнято X з Y ГБ» і найбільші матеріали в налаштуваннях простору; попередження 80/95; override квоти в адмінці тарифів (034)
+- [ ] T029 [P] [US7] Екран «Сховище»: товста сегментована смуга за категоріями FR-028a (кольори з tokens.css, компонент з components/ui або новий у design system з контрактом), легенда, пояснення без слова «кеш», список каталогів з «звільниться N ГБ» і видаленням, найбільші матеріали з позначкою uses, «Очистити кошик»; попередження 80/95; override квоти в адмінці тарифів (034)
 
 ## Phase 6: US2 — Агент на R2 (P1, етап C)
 
+- [ ] T029a [US7] `usage_category` на фіналізації, `bytes_by_category` у тригерах `team_storage_usage`, view `team_storage_catalog_footprint`; pgTAP: сума сегментів = `ready_bytes`, `exclusive_bytes` не рахує спільних версій
 - [ ] T030 [US2] Типи `AgentStorageInput`, `UploadPurpose.process_output|overwrite` і підняття версії протоколу в packages/shared/src/team/transport.ts
 - [ ] T031 [US2] Агент: вхід через URL з поновленням і `Range`-продовженням у apps/agent/src/team-bridge/storage.ts; підключити в process.ts, restitch*.ts, landing-gallery.ts, source-cache.ts
 - [ ] T032 [US2] Агент: вихід multipart з локальним журналом, постер як похідний об'єкт (poster.ts)

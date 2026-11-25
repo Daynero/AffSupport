@@ -57,7 +57,8 @@
 | `object_key` | `text not null unique` | за FR-003: `v/`, `i/`, `t/`, `f/` у `media`, `p/` у `private`, далі 32 hex з CSPRNG; `check` на формат і відповідність `bucket` |
 | `public_url` | `text null` | для `media`: `<media origin>/<object_key>`; незмінний; `null` для `private` |
 | `class` | `text not null` | `'original' \| 'derived'` |
-| `role` | `text null` | для `derived`: `'thumbnail' \| 'poster' \| 'landing_render' \| 'restitch_screen'` |
+| `role` | `text null` | для `derived`: `'thumbnail' \| 'poster' \| 'landing_render' \| 'restitch_screen' \| 'restitch_copy' \| 'catalog_image'` |
+| `usage_category` | `text not null` | категорія смуги FR-028a: `'video' \| 'catalog_versions' \| 'images' \| 'files' \| 'system'`; виводиться на фіналізації з `bucket`, `class`, `role` і типу; кошик рахується за `lifecycle` матеріалу, а не цим полем |
 | `parent_object_id` | `uuid null references team_storage_objects` | для похідних |
 | `size_bytes` | `bigint not null check (size_bytes >= 0)` | після фіналізації |
 | `content_type` | `text not null` | визначений за вмістом |
@@ -72,7 +73,7 @@
 
 ### `public.team_storage_usage`
 
-`team_id pk`, `ready_bytes bigint`, `reserved_bytes bigint`, `object_count integer`, `updated_at`. Оновлюється тригерами на `team_storage_objects` і `team_storage_upload_sessions`. Нічні звірки перераховують з нуля й пишуть розбіжність в аналітику.
+`team_id pk`, `ready_bytes bigint`, `reserved_bytes bigint`, `object_count integer`, `bytes_by_category jsonb` (`{video, catalog_versions, images, files, trash, system}`, сума = `ready_bytes`), `updated_at`. Оновлюється тригерами на `team_storage_objects` і `team_storage_upload_sessions`. Нічні звірки перераховують з нуля й пишуть розбіжність в аналітику.
 
 ### `public.team_storage_upload_sessions`
 
@@ -107,6 +108,10 @@
 ### `public.team_storage_object_uses`
 
 Хто тримає медіаоб'єкт живим (FR-019a). `object_id`, `team_id`, `holder_kind` (`'catalog_feed'`), `holder_id` (каталог), `created_at`; `primary key (object_id, holder_kind, holder_id)`. Запис фіда в одній транзакції замінює набір uses каталогу на набір URL, що реально є у фіді. Tombstone на об'єкт ставиться тільки коли (матеріал видалено назавжди) і (uses порожній). Перманентне видалення каталогу видаляє його uses і ставить tombstone на фід.
+
+### `public.team_storage_catalog_footprint` (view)
+
+На каталог: `catalog_id`, `versions_count`, `held_bytes` (усі об'єкти з uses каталогу), `exclusive_bytes` (тільки цей каталог тримає, і об'єкт не є матеріалом бібліотеки; FR-028b), `last_published_at`. Читається екраном «Сховище» з RLS простору.
 
 ### `public.team_share_links`
 
