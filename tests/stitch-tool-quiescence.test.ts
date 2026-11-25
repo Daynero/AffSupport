@@ -100,7 +100,8 @@ it('scales the default termination deadline under the shared power limit', async
   hooks.governor.mockReturnValue({ scaleTimeout });
   const process = child(),
     controller = new AbortController();
-  const pending = runTool('fixture-tool', [], { signal: controller.signal });
+  // The stall watchdog (072) scales its own budget; this test is about the kill deadline alone.
+  const pending = runTool('fixture-tool', [], { signal: controller.signal, stallMs: null });
   controller.abort();
   await vi.advanceTimersByTimeAsync(4000);
   const killedTooEarly = process.kill.mock.calls.some(call => call[0] === 'SIGKILL');
@@ -132,7 +133,11 @@ it('does not scale an explicitly provided termination deadline a second time', a
   hooks.governor.mockReturnValue({ scaleTimeout });
   const process = child(),
     controller = new AbortController();
-  const pending = runTool('fixture-tool', [], { signal: controller.signal, killAfterMs: 6000 });
+  const pending = runTool('fixture-tool', [], {
+    signal: controller.signal,
+    killAfterMs: 6000,
+    stallMs: null
+  });
   controller.abort();
   await vi.advanceTimersByTimeAsync(5999);
   const early = process.kill.mock.calls.some(call => call[0] === 'SIGKILL');
