@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
@@ -172,29 +172,30 @@ describe('leaving a space', () => {
 });
 
 describe('discarding an unfinished space', () => {
+  // 2026-11-25: the draft dialog became the one way out every space has (a833c3a1) — the card's
+  // menu, the list of what goes, and a five-second hold.
+  const spaces = (draft: ReturnType<typeof makeTeam>) => [
+    draft,
+    makeTeam({ id: 'other', name: 'Archive' }),
+    makeTeam({ id: 'third', name: 'Vault' })
+  ];
+  const draftCard = async () =>
+    (await screen.findByText('Media buyers')).closest('.team-space-card-shell') as HTMLElement;
+
   it('is offered to its owner, and names what it removes', async () => {
-    const draft = makeTeam({ connectionState: 'none' });
-    const deleteDraftTeam = vi.fn().mockResolvedValue(true);
     const client = makeClient({
       // Two ready spaces, so the lobby is shown rather than one being entered.
-      listTeams: vi
-        .fn()
-        .mockResolvedValue([
-          draft,
-          makeTeam({ id: 'other', name: 'Archive' }),
-          makeTeam({ id: 'third', name: 'Vault' })
-        ]),
-      deleteDraftTeam
+      listTeams: vi.fn().mockResolvedValue(spaces(makeTeam({ connectionState: 'none' })))
     });
     const user = userEvent.setup();
     renderSpace(client);
 
-    await user.click(await screen.findByRole('button', { name: 'Discard this draft' }));
-    expect(await screen.findByRole('heading', { name: 'Discard “Media buyers”?' })).toBeTruthy();
-
-    await user.click(screen.getAllByRole('button', { name: 'Discard this draft' })[1]!);
-    await waitFor(() => expect(deleteDraftTeam).toHaveBeenCalledWith(SPACE_ID));
-    expect(await screen.findByText('Draft space discarded')).toBeTruthy();
+    await user.click(within(await draftCard()).getByRole('button', { name: 'Space actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete space…' }));
+    expect(await screen.findByRole('dialog', { name: 'Delete “Media buyers”?' })).toBeTruthy();
+    // A click is not a decision: the hold is.
+    await user.click(screen.getByRole('button', { name: 'Delete space' }));
+    expect(client.deleteSpace).not.toHaveBeenCalled();
   });
 
   it('is not offered to a member who does not own it', async () => {
@@ -203,19 +204,13 @@ describe('discarding an unfinished space', () => {
       role: 'editor',
       permissions: DEFAULT_ROLE_PERMISSIONS.editor
     });
-    const client = makeClient({
-      listTeams: vi
-        .fn()
-        .mockResolvedValue([
-          draft,
-          makeTeam({ id: 'other', name: 'Archive' }),
-          makeTeam({ id: 'third', name: 'Vault' })
-        ])
-    });
+    const client = makeClient({ listTeams: vi.fn().mockResolvedValue(spaces(draft)) });
+    const user = userEvent.setup();
     renderSpace(client);
 
-    await screen.findByRole('heading', { name: 'Your spaces' });
-    expect(screen.queryByRole('button', { name: 'Discard this draft' })).toBeNull();
+    await user.click(within(await draftCard()).getByRole('button', { name: 'Space actions' }));
+    expect(await screen.findByRole('menuitem', { name: 'Leave space…' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Delete space…' })).toBeNull();
   });
 });
 

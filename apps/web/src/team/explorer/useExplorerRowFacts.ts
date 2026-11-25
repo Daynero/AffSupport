@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { usablePrep } from '@video-compressor/shared';
-import type { TeamAnalyticsStorage, TeamMaterialRow } from '@video-compressor/shared';
+import type {
+  TeamAnalyticsStorage,
+  TeamFolderNode,
+  TeamMaterialRow
+} from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import type { ExplorerShellClient } from './ExplorerShell';
 
@@ -72,3 +76,16 @@ export function useStorageKind(
   }, [client, teamId]);
   return storageKind;
 }
+
+/** What the tree counts in the folder being opened, so its placeholder is that size (owner, 25.11). */
+export function expectedFolderCount(node: TeamFolderNode | null): number | null {
+  return node && node.indexedAt !== null ? node.childFolderCount + node.childFileCount : null;
+}
+
+/**
+ * What in the list a change of its width or of the note above it moves (058): the block of
+ * files as a whole, each tile within it, and each cell of a row — a row keeps its place and
+ * its columns close up.
+ */
+export const LIST_MOVERS =
+  '.team-explorer-content, .team-explorer-tile, .team-explorer-rows :is(.ui-table-cell, .ui-table-header-cell)';

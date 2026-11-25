@@ -61,7 +61,11 @@ const SLEEP_IS_THE_POINT: Record<string, string> = {
     'a delay before asserting one letter started no search, and typing at a person’s pace',
   'transcription-media.manual.test.ts': 'a manual test that drives a real recording',
   'release-runner-resource-integration.test.ts':
-    'a delay before asserting an unadmitted gate has not run — absence cannot be polled for'
+    'a delay before asserting an unadmitted gate has not run — absence cannot be polled for',
+  'team-accounts-order.test.tsx':
+    'a delay before asserting no late focus reveal ran the list away from where it was let go',
+  'launch-creative-images.test.ts':
+    'a zero-delay macrotask yield before asserting how many publishes the bounded pool admitted'
 };
 
 /**

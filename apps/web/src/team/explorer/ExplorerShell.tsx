@@ -57,7 +57,12 @@ import { useOptionalWorkspaceOperations } from './WorkspaceOperationsProvider';
 import { useExplorerRestitch } from './useExplorerRestitch';
 import { useExplorerResync } from './useExplorerResync';
 import { useExplorerReveal } from './useExplorerReveal';
-import { usePreparedIds, useStorageKind } from './useExplorerRowFacts';
+import {
+  expectedFolderCount,
+  LIST_MOVERS,
+  usePreparedIds,
+  useStorageKind
+} from './useExplorerRowFacts';
 import { useExplorerFileOps } from './useExplorerFileOps';
 import { useExplorerUploads } from './useExplorerUploads';
 import { useExplorerKeyboard } from './useExplorerKeyboard';
@@ -270,12 +275,7 @@ function ExplorerBody({
     }
   });
   const unindexedFolder = Boolean(currentFolderId && nodeOf(currentFolderId)?.indexedAt === null);
-  // What the tree counts in the folder being opened, so its placeholder is that size (owner, 25.11).
-  const currentNode = currentFolderId ? nodeOf(currentFolderId) : null;
-  const expectedCount =
-    currentNode && currentNode.indexedAt !== null
-      ? currentNode.childFolderCount + currentNode.childFileCount
-      : null;
+  const expectedCount = expectedFolderCount(currentFolderId ? nodeOf(currentFolderId) : null);
   const contentsPending = folderResync.running || uploadingThisFolder || unindexedFolder;
   const emptyState = uploadingThisFolder
     ? 'uploading'
@@ -795,14 +795,6 @@ function ExplorerBody({
     </div>
   );
 }
-
-/**
- * What in the list a change of its width or of the note above it moves (058): the block of
- * files as a whole, each tile within it, and each cell of a row — a row keeps its place and
- * its columns close up.
- */
-const LIST_MOVERS =
-  '.team-explorer-content, .team-explorer-tile, .team-explorer-rows :is(.ui-table-cell, .ui-table-header-cell)';
 
 // Keeps the unused-permissions typing honest for callers that pass a partial set.
 export type ExplorerPermissions = TeamPermissions;

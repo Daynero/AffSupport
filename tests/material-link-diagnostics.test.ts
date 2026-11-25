@@ -54,6 +54,24 @@ afterAll(async () => {
   setQueryExecutor(null);
   await db?.close();
 });
+/**
+ * 073: a browser download fetches the signed range and saves a same-origin blob (Safari opened
+ * another origin's file in a tab). The signed address here goes nowhere, so the bytes are given.
+ */
+function browserBlobDownload() {
+  const fetchMock = vi
+    .spyOn(globalThis, 'fetch')
+    .mockImplementation(() => Promise.resolve(new Response(Uint8Array.from([0x50, 0x4b, 3, 4]))));
+  const original = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
+  Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:local'), revokeObjectURL: vi.fn() });
+  return {
+    restore() {
+      fetchMock.mockRestore();
+      Object.assign(URL, { createObjectURL: original.create, revokeObjectURL: original.revoke });
+    }
+  };
+}
+
 it('keeps real clipboard child failures separate from the successful URL through ingestion and SELECT-only inspect', async () => {
   const ingested: Array<{ accepted: boolean; reason: string }> = [];
   const service = new ProductAnalytics(async events => {
@@ -333,6 +351,7 @@ it.each([
       .spyOn(analytics, 'journalContext')
       .mockImplementation(service.journalContext.bind(service));
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const blob = browserBlobDownload();
     setPrivateCacheScope(OWNER, 'owner');
     const requestDownload = vi.fn<MaterialActionsClient['requestDownload']>();
     if (failure)
@@ -413,6 +432,7 @@ it.each([
       track.mockRestore();
       actor.mockRestore();
       click.mockRestore();
+      blob.restore();
     }
   }
 );
@@ -421,6 +441,7 @@ it('delivers the real download even when its telemetry producer throws', async (
     throw Error('TELEMETRY_UNAVAILABLE');
   });
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  const blob = browserBlobDownload();
   const client: MaterialActionsClient = {
     requestDownload: vi.fn().mockResolvedValue({
       kind: 'browser',
@@ -455,5 +476,6 @@ it('delivers the real download even when its telemetry producer throws', async (
     cleanup();
     track.mockRestore();
     click.mockRestore();
+    blob.restore();
   }
 });
