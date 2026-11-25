@@ -130,7 +130,9 @@ describe('the token layer', () => {
       '--motion-spin-reduced',
       '--motion-sheen',
       '--motion-progress',
-      '--motion-catalog-success'
+      '--motion-catalog-success',
+      // The load meter's bars breathing between readings: a loop for as long as the machine works.
+      '--motion-meter-breath'
     ]);
     // This is the deliberate long-press activation threshold, not a visual
     // transition. Feedback waits 200ms, then fills within the 300ms ceiling.
