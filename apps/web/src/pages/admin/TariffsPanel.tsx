@@ -387,7 +387,7 @@ export function TariffsPanel({ client = defaultClient }: { client?: AdminTariffC
           <Table
             size="sm"
             className="admin-table admin-tariff-table"
-            columns="minmax(0, 1.8fr) minmax(0, 1.2fr) minmax(0, 0.7fr) minmax(0, 0.6fr) minmax(0, 0.7fr) minmax(4.5rem, 0.8fr) minmax(7rem, 1.2fr) minmax(5rem, 0.8fr) minmax(5.5rem, 0.8fr) minmax(0, 1fr) minmax(10rem, 1.6fr)"
+            columns="minmax(0, 2.2fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 0.6fr) minmax(0, 0.6fr) minmax(4.5rem, 0.7fr) minmax(7rem, 1fr) minmax(5rem, 0.8fr) minmax(5.5rem, 0.7fr) minmax(0, 0.9fr) minmax(10rem, 1.3fr)"
             label={t('adminTabTariffs')}
           >
             <TableHeader>

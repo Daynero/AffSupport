@@ -22,6 +22,7 @@ import { Alert, Empty } from '../components/ui/index';
 import { SotyLogo, SotyMark } from '../components/SotyLogo';
 import { LanguageSwitch } from '../components/LanguageSwitch';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { EnvironmentBadge } from '../components/EnvironmentBadge';
 import { analytics } from '../analytics/service';
 
 export function AuthLoadingScreen({ callback = false }: { callback?: boolean }) {
@@ -96,7 +97,12 @@ export function LoginPage() {
       <div className="login-accent accent-one" aria-hidden="true" />
       <div className="login-accent accent-two" aria-hidden="true" />
       <header className="login-topbar">
-        <SotyLogo name="Soty" />
+        {/* The build's badge beside the mark it qualifies, as the app's bar has it (070, 9k):
+            the floating copy stood alone at the top centre of a wide window. */}
+        <div className="login-brand">
+          <SotyLogo name="Soty" />
+          <EnvironmentBadge placement="bar" />
+        </div>
         <div className="topbar-cluster">
           <ThemeToggle />
           <LanguageSwitch />
@@ -132,7 +138,7 @@ export function LoginPage() {
           )}
         </button>
         {beta && (
-          <div className="flex flex-col gap-2">
+          <div className="login-fixtures">
             {(['owner', 'member', 'visitor'] as const).map(fixture => (
               <Button
                 key={fixture}

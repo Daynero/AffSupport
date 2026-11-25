@@ -37,7 +37,54 @@
 .account-skeleton,
 .account-loaded {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
+}
+
+/* ---- The sections on the stage (070, phase 9k) ---------------------------
+
+   The stage made each section a card inside a card, and each wore the
+   compressor's violet slab: a violet outline on a violet ground inside a grey
+   frame, five times, under titles a step louder than the page's own. On the
+   stage a section is the raised step, as a tile is on the home stage, and its
+   title is the size of a row heading — the page has one title and it is the
+   one at the top. */
+.account-page .account-loaded > .settings-section.team-panel {
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-color: var(--color-neutral-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-neutral-surface-raised);
+  box-shadow: none;
+}
+
+.account-page .settings-section .ui-card-heading {
+  gap: var(--space-2);
+}
+
+.account-page .settings-section .ui-card-title {
+  font-size: var(--text-body);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-heading);
+}
+
+.account-page .settings-section .ui-card-icon svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.account-page .settings-section .ui-card-aside {
+  font-size: var(--text-caption);
+}
+
+.account-page .settings-section .ui-card-description {
+  margin-top: calc(var(--space-2) * -1);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+
+/* The invitations' heading is the lobby's, drawn at the sections' title size. */
+.account-page .account-invitations .team-invitation-inbox > h3 {
+  font-size: var(--text-body);
 }
 
 /* A word used more than once on this page: something said quietly, under or
@@ -63,6 +110,14 @@
   align-items: flex-start;
   gap: var(--space-4);
   min-width: 0;
+}
+
+/* The face is who this is at a glance, not the loudest thing in the card: at
+   76 px with a 28 px monogram it outweighed the page's title. */
+.account-identity .avatar-large {
+  width: calc(var(--control-height-xl) + var(--space-1));
+  height: calc(var(--control-height-xl) + var(--space-1));
+  font-size: var(--text-section);
 }
 
 .account-identity-fields {
@@ -264,6 +319,28 @@
   justify-content: space-between;
   gap: var(--space-3);
   min-width: 0;
+}
+
+/* ---- Session -------------------------------------------------------------- */
+
+/* One sentence and one button: a settings row, the button at the end of it,
+   rather than a button alone on a line of its own under the words. */
+@media (width > 480px) {
+  .account-page .account-session {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-5);
+  }
+
+  .account-session > .ui-card-heading,
+  .account-session > .ui-card-description {
+    grid-column: 1;
+  }
+
+  .account-session > .settings-section-actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
 }
 
 /* ---- A phone -------------------------------------------------------------- */

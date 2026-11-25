@@ -22,7 +22,9 @@ vi.mock('../apps/web/src/lib/config', () => ({
   configuredSiteUrl: () => 'http://127.0.0.1:5173',
   configuredAgentOrigin: () => 'http://127.0.0.1:43120',
   servedByAgent: (origin: string = location.origin) => origin === 'http://127.0.0.1:43120',
-  configuredEnvironment: () => 'production'
+  configuredEnvironment: () => 'production',
+  // The sign-in bar carries the build's badge (070, 9k); production draws none.
+  builtForEnvironment: () => 'production'
 }));
 
 import { AuthContextOverride, type AuthContextValue } from '../apps/web/src/auth/AuthContext';

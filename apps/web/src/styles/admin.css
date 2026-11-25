@@ -1,0 +1,121 @@
+/*
+ * The admin pages, refined (070, phase 9k).
+ *
+ * Their first rules live in the legacy sheet (`styles.css`, "Authentication,
+ * accounts and admin surfaces") and in `tariffs.css`; this file is loaded
+ * after both and says only what changed.
+ *
+ * What was wrong:
+ *
+ * - The title, its subtitle and the tabs stood straight on the honeycomb —
+ *   the unreadable grey on lit cells the account page was cured of (T083).
+ * - The page was the narrow reading column, so the tariff ledger's eleven
+ *   columns cut every owner's email and space name to «visitor@soty.lo…»
+ *   while the window had 300 px to spare on either side.
+ * - An empty list held a 240 px block of nothing under one muted sentence:
+ *   «Поки що лише адміністратори.» was the tallest thing on the analytics tab.
+ * - Every card's title was a step louder than the page's own.
+ *
+ * Now the page is one opaque stage on the header's axis, as home is; the
+ * cards on it are the raised step; an empty list is a line; and the card
+ * titles are row headings under the one page title.
+ */
+
+.admin-page.page-container {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  width: min(calc(100% - 2 * var(--app-header-padding-inline)), var(--shell-width));
+  margin: var(--space-6) auto calc(var(--space-6) * 2);
+  padding: var(--space-6);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-neutral-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-page > .page-heading h2 {
+  font-size: var(--text-display);
+}
+
+.admin-page > .page-heading p {
+  margin: 0;
+  font-size: var(--text-label);
+}
+
+.admin-page > .admin-tabs {
+  margin-bottom: 0;
+}
+
+/* The panels' own stacks keep the stage's rhythm. */
+.admin-page [role='tabpanel'] > .admin-tariffs,
+.admin-page .admin-loaded,
+.admin-page .admin-skeleton {
+  gap: var(--space-4);
+}
+
+/* ---- Cards on the stage --------------------------------------------------- */
+
+.admin-page .admin-card.ui-card,
+.admin-page .metric-card.ui-card {
+  border-color: var(--color-neutral-border);
+  background: var(--color-neutral-surface-raised);
+  box-shadow: none;
+}
+
+.admin-page .admin-card.ui-card {
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+}
+
+.admin-page .admin-card-heading h3 {
+  margin: 0;
+  font-size: var(--text-section);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-heading);
+}
+
+.admin-page .admin-card-heading p {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-label);
+}
+
+/* An empty list is a line where the rows would be, not a block the height of
+   five of them. The forbidden page keeps its centred block. */
+.admin-page .admin-card .admin-empty {
+  min-height: 0;
+  padding: var(--space-4) var(--space-3);
+  border: 1px dashed var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-label);
+}
+
+/* ---- A phone -------------------------------------------------------------- */
+
+/* A notice whose action no longer fits beside its words puts the action under them, at the
+   words' start. On a phone the tariff notice drew its «Налаштування» half outside its own box,
+   over the filters below. */
+@media (max-width: 640px) {
+  .admin-page .ui-alert {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .admin-page .ui-alert > .ui-alert-action {
+    justify-self: start;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-page.page-container {
+    margin-top: var(--space-3);
+    padding: var(--space-4) var(--space-3) var(--space-5);
+  }
+
+  .admin-page .admin-card.ui-card {
+    padding: var(--space-4) var(--space-3);
+  }
+}

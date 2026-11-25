@@ -612,7 +612,10 @@ export default function HomePage({ navigate }: { navigate: (path: string) => voi
       <main className={entering ? 'home page-enter' : 'home'}>
         {/* A `div`, not a `header`: the shell has the page's one header, and a
             second landmark of the same kind would need a name to be told apart. */}
-        <div className="home-head" hidden={connection === 'connected'}>
+        {/* Hidden while the panel below is shown, too (070, 9k): the panel says the same fact and
+            carries the way out, and the header already has the chip — three statements of one fact
+            stacked in the top 200 px of the page. */}
+        <div className="home-head" hidden={connection === 'connected' || showPanel}>
           {/* Only when there is something to say. The header above already
               carries "connected" on every page; repeating it four lines lower
               put the same green chip on the screen twice. What the header does

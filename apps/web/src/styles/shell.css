@@ -45,6 +45,11 @@
   padding: 0 var(--space-3);
   font-size: var(--text-caption);
 }
+/* The way back beside the chip reads at the chip's size (070, 9k): at the small button's
+   micro step «Перепідключити» was the one squinted-at word in the bar. */
+.topbar .reconnect-action > .ui-button {
+  font-size: var(--text-caption);
+}
 
 /* On a phone and a tablet the chip is its dot: the colour is the state, and the words stay
    in the page (and the tooltip) for a reader that asks for them. At 768 the words were cut to

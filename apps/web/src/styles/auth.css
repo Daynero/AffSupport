@@ -1,0 +1,119 @@
+/*
+ * The sign-in screen, refined (070, phase 9k).
+ *
+ * Its first rules live in the legacy sheet (`styles.css`, "Authentication");
+ * this file is loaded after it, as the shell's own screens are, and says only
+ * what changed.
+ *
+ * What was wrong:
+ *
+ * - An 800 px card around a 400 px column: half of the card was empty glass on
+ *   a laptop, and the column inside it did not line up with anything.
+ * - Three widths of button in one column — Google's at 402 px and 50 px tall,
+ *   the beta sign-ins at their words' width — so the eye read three shapes for
+ *   one kind of action.
+ * - On a phone the widest beta sign-in was wider than the card and ran out of
+ *   its right edge.
+ * - The build's badge floated at the top centre of the window, away from the
+ *   mark it qualifies; the app's own bar puts it beside the logo.
+ *
+ * Now the card is the column: one reading width, every action the full width
+ * of it at one height, the words above them and the legal line under them.
+ */
+
+.login-card {
+  justify-items: stretch;
+  gap: var(--space-5);
+  width: min(calc(100vw - 2 * var(--space-4)), calc(var(--space-6) * 18));
+  min-height: 0;
+  padding: calc(var(--space-6) + var(--space-2)) var(--space-6) var(--space-6);
+}
+
+.login-copy {
+  gap: var(--space-1-5);
+}
+
+.login-copy h1 {
+  font-size: var(--text-title);
+  line-height: var(--leading-heading);
+}
+
+.login-copy p {
+  margin: 0;
+  font-size: var(--text-label);
+}
+
+.login-pitch {
+  justify-self: center;
+  text-wrap: balance;
+  max-width: none;
+  font-size: var(--text-label);
+  line-height: var(--leading-caption);
+}
+
+/* Every way in is one shape: the column's width, the large control's height. */
+.login-card .google-sign-in {
+  width: 100%;
+  min-height: var(--control-height-lg);
+  font-size: var(--text-body);
+}
+
+.login-fixtures {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.login-fixtures .ui-button {
+  min-width: 0;
+}
+
+.login-legal {
+  justify-self: center;
+  text-wrap: balance;
+  max-width: none;
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+}
+
+/* ---- The bar ---------------------------------------------------------------- */
+
+.login-topbar .login-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+:root:has(.login-topbar .environment-badge.is-bar) .environment-badge.is-floating {
+  display: none;
+}
+
+/* The two controls are one height, as they are in the app's bar. */
+.login-topbar .topbar-cluster {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.login-topbar .language-switch {
+  height: var(--control-height-lg);
+  min-height: var(--control-height-lg);
+  box-sizing: border-box;
+}
+
+.login-topbar .topbar-cluster > .theme-toggle {
+  flex-basis: var(--control-height-lg);
+  inline-size: var(--control-height-lg);
+  block-size: var(--control-height-lg);
+  min-inline-size: var(--control-height-lg);
+  min-block-size: var(--control-height-lg);
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    gap: var(--space-4);
+    padding: var(--space-6) var(--space-4) var(--space-5);
+  }
+}

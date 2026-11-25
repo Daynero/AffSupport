@@ -1,0 +1,165 @@
+/*
+ * The ⌘K palette, drawn the way Raycast and Linear draw theirs (070, phase 9k).
+ *
+ * The board's sheet (`tasks.css`) still carries the palette's first rules —
+ * the row, the group heading, the shortcut sheet. This file refines them into
+ * one surface, and is loaded after it for that reason.
+ *
+ * What was wrong with the dialog it replaces:
+ *
+ * - It was 640 px tall whatever it held. With nothing typed it was a field, a
+ *   bold sentence and half a screen of empty dialog above a footer.
+ * - The field was a bordered box inside a padded box, stopped short of the
+ *   close button beside it: two frames and a gap where a palette has a line.
+ * - It stood in the middle of the window, so it could not grow without the
+ *   field moving under the caret.
+ *
+ * Now the field is the dialog's first row, edge to edge, under nothing but a
+ * hairline; the list hugs what it found; the footer is the last row; and the
+ * dialog hangs from a fixed point near the top, so it grows downwards only and
+ * the field never moves while the answers arrive.
+ */
+
+/* Hung from the top, not centred: a palette that grows must grow away from the caret. */
+.modal-backdrop:has(> .modal-search > .workspace-palette) {
+  align-items: start;
+  padding-top: clamp(var(--space-4), 12vh, calc(var(--space-6) * 5));
+}
+
+.modal.modal-search:has(> .workspace-palette) {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  block-size: auto;
+  max-block-size: min(
+    var(--search-dialog-height),
+    calc(100dvh - clamp(var(--space-4), 12vh, calc(var(--space-6) * 5)) - var(--space-6))
+  );
+  padding: 0;
+  overflow: hidden;
+}
+
+.modal-search > .workspace-palette {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 0;
+  block-size: auto;
+  min-block-size: 0;
+}
+
+/* The close button sits in the field's row, centred on it. */
+.modal-search:has(> .workspace-palette) > .modal-close {
+  top: var(--space-1-5);
+  right: var(--space-1-5);
+  z-index: 1;
+}
+
+/* ---- The field: the dialog's first row ------------------------------------ */
+
+.workspace-palette > .workspace-palette-field.ui-input {
+  flex: none;
+  width: 100%;
+  min-height: calc(var(--control-height-xl) + var(--space-1));
+  padding-inline: var(--space-4) calc(var(--control-height-lg) + var(--space-2));
+  border: 0;
+  border-bottom: 1px solid var(--color-neutral-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-neutral-text-muted);
+}
+
+/* The caret is the focus: the dialog holds one field, and a ring around the
+   dialog's whole top edge said nothing the caret did not. */
+.workspace-palette > .workspace-palette-field.ui-input:focus-within {
+  border-color: var(--color-neutral-border);
+  box-shadow: none;
+}
+
+.workspace-palette > .workspace-palette-field input {
+  color: var(--color-neutral-text);
+  font-size: var(--text-body);
+}
+
+/* ---- The list ------------------------------------------------------------- */
+
+.modal-search .workspace-palette > .workspace-palette-list {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-block-size: 0;
+  max-height: none;
+  padding: var(--space-2);
+  overflow-y: auto;
+}
+
+/* Nothing typed and nothing remembered: a quiet line, not a heading. */
+.workspace-palette-list > .ui-empty {
+  justify-items: start;
+  padding: var(--space-3) var(--space-2);
+  text-align: left;
+}
+
+.workspace-palette-list > .ui-empty .ui-empty-title {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-body);
+}
+
+/* A list still on its way says nothing yet: the spinner in the field is the word. */
+.workspace-palette-list:empty {
+  display: none;
+}
+
+.workspace-palette-group {
+  display: grid;
+  gap: var(--space-px);
+}
+
+.workspace-palette-heading {
+  padding: var(--space-1) var(--space-2);
+  font-weight: var(--weight-label);
+}
+
+.workspace-palette-option {
+  gap: var(--space-3);
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.workspace-palette-option > svg {
+  flex: none;
+  color: var(--color-neutral-text-muted);
+}
+
+.workspace-palette-option[data-active='true'] {
+  background: var(--color-neutral-surface-subtle);
+}
+
+.workspace-palette-option[data-active='true'] > svg {
+  color: var(--color-secondary-solid);
+}
+
+/* ---- The footer: the last row --------------------------------------------- */
+
+.workspace-palette > .workspace-palette-footer.ui-button {
+  flex: none;
+  min-height: var(--control-height-md);
+  padding-inline: var(--space-4);
+  border-top: 1px solid var(--color-neutral-border);
+  background: var(--color-neutral-surface-subtle);
+}
+
+.workspace-palette-footer kbd {
+  font-family: inherit;
+  font-size: var(--text-caption);
+}
+
+@media (max-width: 480px) {
+  .modal-backdrop:has(> .modal-search > .workspace-palette) {
+    padding-top: var(--space-3);
+  }
+}

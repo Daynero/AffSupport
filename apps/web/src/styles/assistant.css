@@ -133,10 +133,15 @@ body:has(.next-channel-badge) .assistant-dock {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* What the person said, in a bubble of the second colour (070, 9k): on the window's own raised
+   ground the bubble was the window's colour, so a question and its answer were told apart only by
+   which edge they leant on. */
 .assistant-message.is-user .assistant-text {
+  max-width: 85%;
   padding: var(--space-1-5) var(--space-3);
   border-radius: var(--radius-lg);
-  background: var(--color-surface-raised);
+  border-bottom-right-radius: var(--radius-sm);
+  background: var(--color-secondary-softer);
   color: var(--color-text);
 }
 .assistant-card {
@@ -252,6 +257,24 @@ body:has(.next-channel-badge) .assistant-dock {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+}
+/* Something to try, not four commands: the words at the body weight in the muted colour, the
+   outline only a hairline — four bold pills were the loudest thing in an empty window. */
+.assistant-examples .ui-button {
+  height: auto;
+  min-height: var(--control-height-xs);
+  padding-block: var(--space-1);
+  border-color: var(--color-neutral-border);
+  color: var(--color-neutral-text-muted);
+  font-weight: var(--weight-body);
+  text-align: left;
+  white-space: normal;
+}
+@media (hover: hover) {
+  .assistant-examples .ui-button:hover {
+    border-color: var(--color-secondary-border);
+    color: var(--color-neutral-text);
+  }
 }
 .assistant-bar {
   display: flex;

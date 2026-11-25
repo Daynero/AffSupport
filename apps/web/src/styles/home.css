@@ -95,6 +95,25 @@
   margin-top: 0;
 }
 
+/* On the stage the panel is the raised step, the width of the rows under it
+   (070, phase 9k). Bare on the stage it was a column of loose lines at the left
+   of an empty half-page, and the spaces row below looked like part of it. Its
+   words keep a reading measure inside the wider card. */
+.home-panel .onboarding-panel {
+  width: 100%;
+  max-width: none;
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-neutral-surface-raised);
+}
+
+/* The rows inside keep the column they were drawn for: stretched to the card, the
+   install choices, the "not available" reason and the check ran into one line. */
+.home-panel .onboarding-panel > * {
+  max-width: var(--dialog-sm);
+}
+
 /* The notice that asks for something has a way onward, not a side button: its
    actions always take the line under the words, starting where the words do. */
 .home-panel .blocking-message .ui-alert-action {
@@ -178,7 +197,9 @@
   }
 }
 
-@media (width > 1280px) {
+/* Three columns from a laptop up, as the integration build had them (from 1100 px): at 1280
+   two columns left the third group, 2FA, alone under the fold beside an empty half-row. */
+@media (width > 1024px) {
   .home-tools {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -512,9 +533,25 @@
     padding: var(--space-3);
   }
 
+  /* On a phone the laptop's 85 px plate took a quarter of the row and pushed
+     every caption onto two lines; the glyph still carries recognition at 32. */
+  .home .home-tile {
+    min-height: 0;
+  }
+
+  .home-tile-icon {
+    width: calc(var(--control-height-xl) + var(--space-1));
+    height: calc(var(--control-height-xl) + var(--space-1));
+    border-radius: var(--radius-md);
+  }
+
+  .home-tile-icon svg {
+    width: calc(var(--space-6) + var(--space-2));
+  }
+
   .home-panel .onboarding-panel {
     gap: var(--space-3);
-    padding: var(--space-5);
+    padding: var(--space-4);
   }
 
   .home-panel .onboarding-panel > .inline-actions {
