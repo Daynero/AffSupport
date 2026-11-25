@@ -10,6 +10,7 @@ import {
   handleRecovery,
   type RecoveryHandlerDeps
 } from '../supabase/functions/team-recovery/handler';
+import { parseCatalogVariantRecoveryInput } from '../supabase/functions/team-recovery/catalog-video-handler';
 const ID = '11111111-1111-4111-8111-111111111111';
 const SECRET = 'a'.repeat(43);
 function deps(): RecoveryHandlerDeps {
@@ -431,5 +432,43 @@ describe('native recovery protocol', () => {
       handleRecovery(request({ action: 'probe', padding: 'x'.repeat(262145) }), d)
     ).rejects.toThrow();
     expect(d.rpc).not.toHaveBeenCalled();
+  });
+  // 072: a full disk or a Drive refusal closes the variant with its own code.
+  it.each(['DISK_FULL', 'NEEDS_REAUTH', 'DRIVE_STORAGE_FULL'])(
+    'accepts %s as a variant closure code',
+    code => {
+      expect(
+        parseCatalogVariantRecoveryInput('variant_complete', {
+          variantProtocolVersion: 1,
+          nativeInstanceId: ID,
+          setId: ID,
+          index: 0,
+          requestId: ID,
+          operationId: ID,
+          outcome: 'failed',
+          failureCode: code
+        })
+      ).toMatchObject({ outcome: 'failed', failureCode: code });
+    }
+  );
+  // 072: the desktop says why its background work stopped; an older one says nothing.
+  it.each([
+    [undefined, {}],
+    [
+      { stage: 'blocked', reason: 'retry_exhausted', code: 'DRIVE_STORAGE_FULL' },
+      { localState: { stage: 'blocked', reason: 'retry_exhausted', code: 'DRIVE_STORAGE_FULL' } }
+    ],
+    [{ stage: 'clear', reason: 'ignored' }, { localState: { stage: 'clear' } }],
+    [{ stage: 'blocked', reason: 'retry_exhausted', code: 'a token' }, {}],
+    [{ stage: 'blocked', reason: 'Retry', code: 'NEEDS_REAUTH' }, {}],
+    [{ stage: 'running' }, {}],
+    ['blocked', {}]
+  ])('passes a probe local state %j on only in its closed shape', async (state, expected) => {
+    const d = deps();
+    await handleRecovery(
+      request({ action: 'probe', ...(state === undefined ? {} : { localState: state }) }),
+      d
+    );
+    expect(d.rpc).toHaveBeenCalledWith('probe', 'hashed', expected);
   });
 });

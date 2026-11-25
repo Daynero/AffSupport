@@ -12,7 +12,6 @@ import { diagnostics } from '../server/diagnostics-log.js';
 import path from 'node:path';
 import { applicationSupportRoot } from '../files/support-dir.js';
 import { NativeRestitchVaultFile } from './native-restitch-vault.js';
-import { currentPlatform } from '../platform/platform.js';
 import {
   NativeRestitchExecutor,
   type NativeRestitchCheckpoint,
@@ -110,8 +109,9 @@ export interface NativeRestitchControllerOptions {
    * start and a file an antivirus may hold. One failed read on first use, or one failed
    * write, used to refuse every protected restitch until the agent restarted. On Windows a
    * failed read is simply read again on the next call (reading never mints anything), and a
-   * write fault is cleared by the next full journal write that succeeds. macOS keeps both
-   * faults until restart. Defaults to Windows.
+   * write fault is cleared by the next full journal write that succeeds. 072: macOS did keep
+   * both faults until restart (a Keychain read refused once after sleep had the same effect);
+   * healing is now the default everywhere, and `false` keeps the old behaviour for tests.
    */
   healVaultFaults?: boolean;
   journal: {
@@ -291,7 +291,7 @@ export class NativeRestitchController {
     return this.#native;
   }
   get #heals() {
-    return this.options.healVaultFaults ?? currentPlatform() === 'win32';
+    return this.options.healVaultFaults ?? true;
   }
   async #initialize() {
     this.#ready ??= (async () => {
@@ -470,7 +470,13 @@ export class NativeRestitchController {
       await this.#mutate(() => {
         current();
         if (this.#records.length >= 64) {
-          const index = this.#records.findIndex(r => r.closed);
+          // Closed records go first, then the oldest that never ran (072): a variant that was
+          // prepared and then stopped, refused or abandoned kept its record for good, and 64 of
+          // them refused every further restitch with RATE_LIMITED. Records are kept in
+          // creation order; one whose claim may still be open anywhere, or that is in flight
+          // here, is never let go.
+          let index = this.#records.findIndex(r => r.closed);
+          if (index < 0) index = this.#records.findIndex(r => this.#idle(r));
           if (index < 0) throw new ScreenCacheError('RATE_LIMITED');
           this.#records.splice(index, 1);
         }
@@ -488,6 +494,15 @@ export class NativeRestitchController {
         .update('soty:restitch-enrollment-proof:v1:' + record.proofSecret)
         .digest('hex')
     });
+  }
+  /** Nothing here or on the server can still use this record's claim. */
+  #idle(record: Credential) {
+    return (
+      !this.#executor.holds(record.rootOperationId) &&
+      !this.#preparing.has(record.rootOperationId) &&
+      !this.#redeeming.has(record.enrollmentId) &&
+      ![...this.#active.values()].some(run => run.root === record.rootOperationId)
+    );
   }
   /** A transport or capacity failure of a call the server can replay exactly.
    * The native vault failing is not transient: nothing it guards may continue. */
@@ -1186,10 +1201,15 @@ export class NativeRestitchController {
     return this.#active.size > 0 || this.#redeeming.size > 0 || this.#preparing.size > 0;
   }
   async flushForUpdate() {
-    await this.#ready;
+    await this.#ready?.catch(() => undefined);
     await this.#writes;
-    if (this.#vaultFailed || this.busy()) throw new Error('APP_UPDATE_BUSY');
-    await this.#vault.flushForUpdate?.();
+    if (this.busy()) throw new Error('APP_UPDATE_BUSY');
+    if (this.#vaultFault === 'write') await this.#healWrite();
+    // A vault that still cannot be read or written does not hold the update (072). Nothing is
+    // in flight, the last committed journal stays on disk, and a restart is exactly what this
+    // fault waited for: refusing it kept a Mac on the faulted build, with every catalog
+    // restitch refused, until someone quit the app by hand.
+    if (!this.#vaultFailed) await this.#vault.flushForUpdate?.();
     await this.options.journal.flushForUpdate?.();
   }
   async shutdown() {

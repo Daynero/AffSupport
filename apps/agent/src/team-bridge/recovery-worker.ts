@@ -185,6 +185,22 @@ export interface RecoveryWorkerOptions {
 /** One persisted claim per delegation; all media runs through the existing bridge/governor. */
 /** How long a credential the server refused waits before the worker asks the server again. */
 export const REJECTED_REASK_MS = 3_600_000;
+/**
+ * The server answers one probe a minute per delegation (RATE_LIMITED otherwise). A report of
+ * this computer's state never takes the turn of the probe that resumes the work.
+ */
+export const PROBE_GAP_MS = 61_000;
+/**
+ * Drive refused this video's output for a reason no retry of the same work changes: the storage
+ * is full, the connection needs renewing (072). The variant was already closed with that code;
+ * the worker stops asking for more work for a while instead of rebuilding videos Drive will
+ * refuse again, says so to the server, and offers «Спробувати ще раз» as for any pause.
+ */
+const DRIVE_TERMINAL_PAUSE_MS: Readonly<Record<string, number>> = {
+  NEEDS_REAUTH: RECOVERY_BUDGET.episodeBackoffMaxMs,
+  DRIVE_STORAGE_FULL: REJECTED_REASK_MS
+};
+type LocalState = { stage: 'blocked'; reason: string; code: string } | { stage: 'clear' };
 
 export class TeamRecoveryWorker {
   #variantControllers = new Map<string, AbortController>();
@@ -219,6 +235,10 @@ export class TeamRecoveryWorker {
   #installation: string = randomUUID();
   #emptyClaimRecordedAt = new Map<string, number>();
   #failures = new Map<string, { count: number; since: number }>();
+  /** 072: when this process last probed each delegation (the server allows one a minute). */
+  #lastProbeAt = new Map<string, number>();
+  /** 072: the blocked code the server holds for each delegation, as this computer reported it. */
+  #reportedBlocks = new Map<string, string>();
   readonly #secrets: RecoverySecretStore;
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
@@ -268,6 +288,8 @@ export class TeamRecoveryWorker {
         this.#retryNotBefore.set(checkpoint.delegationId, checkpoint.retryNotBefore);
       if (checkpoint.serverRetryNotBefore !== undefined)
         this.#serverRetryNotBefore.set(checkpoint.delegationId, checkpoint.serverRetryNotBefore);
+      if (checkpoint.reportedBlock)
+        this.#reportedBlocks.set(checkpoint.delegationId, checkpoint.reportedBlock);
     }
     for (const metadata of saved.enrollments ?? []) {
       const endpoint = recoveryEndpoint(metadata.endpoint, this.options.environment);
@@ -761,6 +783,8 @@ export class TeamRecoveryWorker {
       this.#retryNotBefore.delete(r.delegationId);
       this.#serverRetryNotBefore.delete(r.delegationId);
       this.#failures.delete(r.delegationId);
+      this.#lastProbeAt.delete(r.delegationId);
+      this.#reportedBlocks.delete(r.delegationId);
       this.#paused.delete(r.delegationId);
       this.#identityWaits.delete(r.delegationId);
       this.#checkpoints = this.#checkpoints.filter(c => c.delegationId !== r.delegationId);
@@ -864,7 +888,9 @@ export class TeamRecoveryWorker {
       delete value.serverRetryNotBefore;
       delete value.retryAttempt;
       delete value.retrySince;
+      delete value.reportedBlock;
       const failure = this.#failures.get(checkpoint.delegationId);
+      const reported = this.#reportedBlocks.get(checkpoint.delegationId);
       return {
         ...value,
         ...(this.#episodes.has(checkpoint.delegationId)
@@ -876,7 +902,8 @@ export class TeamRecoveryWorker {
         ...(this.#serverRetryNotBefore.has(checkpoint.delegationId)
           ? { serverRetryNotBefore: this.#serverRetryNotBefore.get(checkpoint.delegationId) }
           : {}),
-        ...(failure ? { retryAttempt: failure.count, retrySince: failure.since } : {})
+        ...(failure ? { retryAttempt: failure.count, retrySince: failure.since } : {}),
+        ...(reported ? { reportedBlock: reported } : {})
       };
     });
     return this.options.journal.save({
@@ -926,9 +953,16 @@ export class TeamRecoveryWorker {
         : {}),
       ...(this.#serverRetryNotBefore.has(r.delegationId)
         ? { serverRetryNotBefore: this.#serverRetryNotBefore.get(r.delegationId) }
+        : {}),
+      ...(stage === 'blocked' && errorCode && /^[A-Z][A-Z0-9_]{1,63}$/u.test(errorCode)
+        ? { blockCode: errorCode }
         : {})
     });
     await this.#save();
+    // 072: once the server holds a blocked state from this computer, the first settled
+    // checkpoint after it tells the server that the work goes on.
+    if (stage === 'settled' && this.#reportedBlocks.has(r.delegationId))
+      await this.#report(r, { stage: 'clear' });
     if (stage === 'settled' && !operationId && !reason) {
       const last = this.#emptyClaimRecordedAt.get(r.delegationId);
       if (last === undefined || this.#now() - last >= 300_000) {
@@ -951,6 +985,64 @@ export class TeamRecoveryWorker {
         delegation_id: r.delegationId,
         ...(operationId ? { operation_id: operationId } : {})
       });
+    }
+  }
+  /** The local state a probe carries: the code that parked this delegation, if any. */
+  #probeBody(r: RecoveryRegistration): { localState?: LocalState } {
+    const checkpoint = this.#checkpoints.find(c => c.delegationId === r.delegationId);
+    return checkpoint?.stage === 'blocked' && checkpoint.reason && checkpoint.blockCode
+      ? {
+          localState: { stage: 'blocked', reason: checkpoint.reason, code: checkpoint.blockCode }
+        }
+      : {};
+  }
+  /** Every probe of this process goes through here, so reports keep the server's spacing. */
+  async #probe(r: RecoveryRegistration, refresh: string, body: { localState?: LocalState }) {
+    this.#lastProbeAt.set(r.delegationId, this.#now());
+    const value = await this.#call(r.endpoint, 'probe', refresh, body);
+    const state = body.localState;
+    if (state?.stage === 'blocked') this.#reportedBlocks.set(r.delegationId, state.code);
+    else if (state?.stage === 'clear') this.#reportedBlocks.delete(r.delegationId);
+    return value;
+  }
+  /**
+   * 072: tells the server why this computer's background work stopped (or that it works again).
+   * It used to say nothing: the worker parked itself and asked once an hour, and the round read
+   * «Чекає на комп'ютерний агент…» for a day. Never fails the caller, and never spends the probe
+   * the server would allow the next resume: within a minute of the last one it waits for that
+   * probe, which carries the same state.
+   */
+  /**
+   * Reports the block just recorded, when nobody would hear of it soon otherwise: the probe
+   * that resumes a parked delegation carries its state anyway, so a resume within two minutes
+   * says it itself (and a report would only take that probe's turn).
+   */
+  async #reportBlock(r: RecoveryRegistration, resumeInMs: number | null) {
+    const checkpoint = this.#checkpoints.find(c => c.delegationId === r.delegationId);
+    if (
+      checkpoint?.stage !== 'blocked' ||
+      !checkpoint.reason ||
+      !checkpoint.blockCode ||
+      (resumeInMs !== null && resumeInMs < 2 * PROBE_GAP_MS)
+    )
+      return;
+    await this.#report(r, {
+      stage: 'blocked',
+      reason: checkpoint.reason,
+      code: checkpoint.blockCode
+    });
+  }
+  async #report(r: RecoveryRegistration, state: LocalState) {
+    if (this.#closed || !this.#isCurrent(r)) return;
+    const last = this.#lastProbeAt.get(r.delegationId);
+    if (last !== undefined && this.#now() - last < PROBE_GAP_MS) return;
+    try {
+      const secrets = await this.#readHandle(r.account);
+      if (!secrets || !this.#isCurrent(r)) return;
+      await this.#probe(r, secrets.refresh, { localState: state });
+      await this.#save();
+    } catch {
+      /* Best effort: the next probe carries the state again. */
     }
   }
   #schedule(r: RecoveryRegistration, ms: number) {
@@ -1084,7 +1176,7 @@ export class TeamRecoveryWorker {
       if (this.#paused.has(r.delegationId)) {
         this.#retryNotBefore.set(r.delegationId, this.#now() + RECOVERY_BUDGET.probeMs);
         await this.#save();
-        const probe = await this.#call(r.endpoint, 'probe', secrets.refresh, {});
+        const probe = await this.#probe(r, secrets.refresh, {});
         if (!(await this.#checkIdentity(r))) return;
         if (probe.allowed !== true) {
           this.#schedule(r, RECOVERY_BUDGET.probeMs);
@@ -1133,9 +1225,16 @@ export class TeamRecoveryWorker {
           this.#schedule(r, Math.max(remaining, RECOVERY_BUDGET.probeMs));
           return;
         }
+        // A report of this block may have spent the server's probe of this minute.
+        const lastProbe = this.#lastProbeAt.get(r.delegationId);
+        const gap = lastProbe === undefined ? 0 : lastProbe + PROBE_GAP_MS - this.#now();
+        if (gap > 0) {
+          this.#schedule(r, gap);
+          return;
+        }
         this.#retryNotBefore.set(r.delegationId, this.#now() + RECOVERY_BUDGET.probeMs);
         await this.#save();
-        const probe = await this.#call(r.endpoint, 'probe', secrets.refresh, {});
+        const probe = await this.#probe(r, secrets.refresh, this.#probeBody(r));
         if (!(await this.#checkIdentity(r))) return;
         if (probe.allowed !== true) {
           this.#schedule(r, RECOVERY_BUDGET.probeMs);
@@ -1463,8 +1562,25 @@ export class TeamRecoveryWorker {
         this.#schedule(r, RECOVERY_BUDGET.probeMs);
         return;
       }
-      // A refusal Drive gave one video's work is not this computer's permission: it takes the
-      // bounded retry path below (self-resuming), with its code in the journal.
+      // A refusal Drive gave one video's work is not this computer's permission. A full storage
+      // or a connection to renew is not a blip either (072): the variant is already closed with
+      // that code, so the worker pauses with it, reports it, and resumes later or on «Спробувати
+      // ще раз». A held legacy claim (stage 'running') still settles on the next tick first.
+      const drivePause = DRIVE_TERMINAL_PAUSE_MS[code];
+      const held = this.#checkpoints.find(c => c.delegationId === r.delegationId);
+      if (error instanceof DriveRefusedProcess && drivePause && held?.stage !== 'running') {
+        this.#failures.delete(r.delegationId);
+        this.#retryNotBefore.set(
+          r.delegationId,
+          Math.max(this.#retryNotBefore.get(r.delegationId) ?? 0, this.#now() + drivePause)
+        );
+        await this.#checkpoint(r, requestId, null, 'blocked', 'retry_exhausted', code);
+        await this.#reportBlock(r, drivePause);
+        this.#schedule(r, drivePause);
+        return;
+      }
+      // Any other Drive refusal takes the bounded retry path below (self-resuming), with its
+      // code in the journal.
       const permanentCode = (
         error instanceof DriveRefusedProcess
           ? []
@@ -1491,6 +1607,11 @@ export class TeamRecoveryWorker {
           permanentCode === 'PERMISSION_DENIED' ? 'permission_revoked' : 'needs_agent_setup',
           permanentCode
         );
+        // A revoked permission and a refused credential are the server's own verdicts (and a
+        // refused credential cannot probe). INVALID_INPUT and AGENT_UPDATE_REQUIRED park this
+        // computer until a person or a restart: the server hears why (072).
+        if (permanentCode === 'INVALID_INPUT' || permanentCode === 'AGENT_UPDATE_REQUIRED')
+          await this.#reportBlock(r, null);
         if (permanentCode === 'AUTH_REQUIRED') this.#schedule(r, REJECTED_REASK_MS);
         return;
       }
@@ -1508,10 +1629,12 @@ export class TeamRecoveryWorker {
             'retry_exhausted',
             diagnosticCode(error)
           );
-          this.#schedule(
-            r,
-            Math.max(RECOVERY_BUDGET.probeMs, Math.min(...history) + 3_600_000 - this.#now())
+          const resumeIn = Math.max(
+            RECOVERY_BUDGET.probeMs,
+            Math.min(...history) + 3_600_000 - this.#now()
           );
+          await this.#reportBlock(r, resumeIn);
+          this.#schedule(r, resumeIn);
           return;
         }
         this.#episodes.set(r.delegationId, [...history, this.#now()]);
@@ -1551,16 +1674,17 @@ export class TeamRecoveryWorker {
         const history = (this.#episodes.get(r.delegationId) ?? []).filter(
           time => time > this.#now() - 3_600_000
         );
-        this.#schedule(
-          r,
-          Math.max(
-            RECOVERY_BUDGET.probeMs,
-            retryAfter,
-            history.length >= RECOVERY_BUDGET.episodesPerHour
-              ? Math.min(...history) + 3_600_000 - this.#now()
-              : 0
-          )
+        const resumeIn = Math.max(
+          RECOVERY_BUDGET.probeMs,
+          retryAfter,
+          history.length >= RECOVERY_BUDGET.episodesPerHour
+            ? Math.min(...history) + 3_600_000 - this.#now()
+            : 0
         );
+        // A server that asked for a pause (Retry-After) is not probed before it ends: the
+        // probe that resumes the work then carries the state.
+        await this.#reportBlock(r, retryAfter > 0 ? 0 : resumeIn);
+        this.#schedule(r, resumeIn);
         return;
       }
       this.#retryNotBefore.set(r.delegationId, this.#now() + delay);

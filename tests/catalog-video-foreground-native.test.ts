@@ -406,7 +406,8 @@ it.each(['ready', 'unused'] as const)(
           .digest('hex')
       },
       state: index === 0 ? terminal : 'unknown',
-      createdAt: 1,
+      // Live authority (created now): only the proven entry may go.
+      createdAt: Date.now(),
       readyAt: index === 0 ? 2 : undefined
     }));
     let saved: unknown = null;
@@ -741,7 +742,7 @@ it('Windows: one failed journal write costs one attempt, not every restitch unti
     await f.controller.prepare({ ...binding, requestKey: 'product-catalog:' + id(33) })
   ).toBeTruthy();
 });
-it('macOS keeps a write fault until restart, exactly as before', async () => {
+it('with healing turned off, a write fault is kept until restart', async () => {
   const f = faultingFixture(false);
   f.failWrites(1);
   await expect(f.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
@@ -783,7 +784,7 @@ it('Windows: a journal read that failed at startup is read again, never minted o
   );
   await controller.shutdown();
 });
-it('macOS keeps a startup read fault until restart', async () => {
+it('with healing turned off, a startup read fault is kept until restart', async () => {
   const controller = new CatalogVideoForegroundController({
     nativeInstanceId: id(5),
     currentActorId: () => id(4),
@@ -1081,4 +1082,86 @@ it('a run still in flight holds the app update', async () => {
   await flushing;
   resume();
   await controller.shutdown();
+});
+
+// 072: an unknown or never-bound entry older than the server's 24-hour authority can do nothing,
+// and 128 of them refused every catalog creation for good.
+it('admits new work by letting go of the oldest entry whose authority has expired', async () => {
+  const { createHash } = await import('node:crypto');
+  const secret = 's'.repeat(43);
+  const day = 24 * 60 * 60 * 1000;
+  const rows = Array.from({ length: 128 }, (_, index) => ({
+    binding: { ...binding, requestKey: id(index + 100) },
+    actorId: id(4),
+    secret,
+    receipt: {
+      protocolVersion: 1,
+      enrollmentId: id(index + 300),
+      nativeInstanceId: id(5),
+      proofDigest: createHash('sha256')
+        .update('soty:catalog-video-foreground-proof:v1:' + secret)
+        .digest('hex')
+    },
+    state: index % 2 ? 'prepared' : 'unknown',
+    createdAt: index < 2 ? Date.now() - day - 1000 * (index + 1) : Date.now()
+  }));
+  let saved: Array<{ receipt: { enrollmentId: string } }> = [];
+  const controller = new CatalogVideoForegroundController({
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: {
+      read: async () => rows,
+      write: async value => {
+        saved = value as typeof saved;
+      }
+    },
+    redeem: vi.fn(),
+    run: vi.fn()
+  });
+  await controller.load();
+  await controller.prepare(binding);
+  expect(saved).toHaveLength(128);
+  // The older of the two expired entries goes first.
+  expect(saved.map(e => e.receipt.enrollmentId)).not.toContain(id(301));
+  await controller.prepare({ ...binding, requestKey: id(998) });
+  expect(saved.map(e => e.receipt.enrollmentId)).not.toContain(id(300));
+  await expect(controller.prepare({ ...binding, requestKey: id(999) })).rejects.toThrow(
+    'PROCESS_RESULT_UNCERTAIN'
+  );
+  await controller.shutdown();
+});
+it('heals a failed journal write by default and lets the app update through a lasting fault', async () => {
+  let failWrites = 1;
+  let saved: unknown = null;
+  const options = {
+    nativeInstanceId: id(5),
+    currentActorId: () => id(4),
+    allowed: () => true,
+    vault: {
+      read: async () => saved,
+      write: async (value: unknown) => {
+        if (failWrites > 0) {
+          failWrites -= 1;
+          throw new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN');
+        }
+        saved = structuredClone(value);
+      }
+    },
+    redeem: vi.fn(),
+    run: vi.fn(async () => {})
+  };
+  const healed = new CatalogVideoForegroundController(options);
+  await expect(healed.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  await expect(healed.prepare(second)).resolves.toHaveProperty('proofDigest');
+  // A fault that does not heal no longer refuses the update that is its restart.
+  failWrites = Infinity;
+  await expect(
+    healed.prepare({ ...binding, requestKey: 'product-catalog:' + id(40) })
+  ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  await expect(healed.flushForUpdate()).resolves.toBeUndefined();
+  const stuck = faultingFixture(false);
+  stuck.failWrites(1);
+  await expect(stuck.controller.prepare(binding)).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  await expect(stuck.controller.flushForUpdate()).resolves.toBeUndefined();
 });

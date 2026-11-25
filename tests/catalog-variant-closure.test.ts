@@ -157,3 +157,65 @@ it('registered output wins late cancellation while started-upload uncertainty st
     })
   ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
 });
+// 072: a full disk or a Drive refusal closes the variant with its own code, even once its upload
+// began (the server answers 'unknown' where an output may exist), instead of PROCESS_FAILED or
+// silence while the round waited.
+it.each(['DISK_FULL', 'NEEDS_REAUTH', 'DRIVE_STORAGE_FULL'])(
+  'reports %s with its own code',
+  async code => {
+    const complete = vi.fn(async () => ({
+      kind: 'terminal',
+      operationId: operation,
+      state: 'failed'
+    }));
+    await expect(
+      settleCatalogVariantProcess({
+        operationId: operation,
+        signal: new AbortController().signal,
+        run: async () => {
+          throw Object.assign(new Error(code), { uploadStarted: true });
+        },
+        complete
+      })
+    ).rejects.toThrow(code);
+    expect(complete.mock.calls).toEqual([['failed', code]]);
+  }
+);
+it('falls back to PROCESS_FAILED where an older server does not know the code yet', async () => {
+  const complete = vi
+    .fn<(outcome: 'canceled' | 'failed', code: string) => Promise<Record<string, unknown>>>()
+    .mockRejectedValueOnce(new Error('INVALID_INPUT'))
+    .mockResolvedValue({ kind: 'terminal', operationId: operation, state: 'failed' });
+  await expect(
+    settleCatalogVariantProcess({
+      operationId: operation,
+      signal: new AbortController().signal,
+      run: async () => {
+        throw Error('DRIVE_STORAGE_FULL');
+      },
+      complete,
+      reportDelaysMs: []
+    })
+  ).rejects.toThrow('DRIVE_STORAGE_FULL');
+  expect(complete.mock.calls).toEqual([
+    ['failed', 'DRIVE_STORAGE_FULL'],
+    ['failed', 'PROCESS_FAILED']
+  ]);
+});
+it('never repeats a code the server refused as input when it is not one of the new ones', async () => {
+  const complete = vi.fn(async () => {
+    throw new Error('INVALID_INPUT');
+  });
+  await expect(
+    settleCatalogVariantProcess({
+      operationId: operation,
+      signal: new AbortController().signal,
+      run: async () => {
+        throw Error('STITCH_TOOL_FAILED');
+      },
+      complete,
+      reportDelaysMs: []
+    })
+  ).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  expect(complete).toHaveBeenCalledOnce();
+});

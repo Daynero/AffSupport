@@ -19,7 +19,12 @@ export interface RecoveryCheckpoint {
   serverRetryNotBefore?: number;
   retryAttempt?: number;
   retrySince?: number;
+  /** 072: the code that parked this delegation, while `stage` is 'blocked'. */
+  blockCode?: string;
+  /** 072: the blocked code the server last accepted from this computer; absent: it holds none. */
+  reportedBlock?: string;
 }
+const BLOCK_CODE = /^[A-Z][A-Z0-9_]{1,63}$/u;
 export interface RecoveryRegistration {
   actorId?: string;
   revoking?: boolean;
@@ -77,6 +82,17 @@ export function parseRecoveryCheckpoint(value: unknown): RecoveryCheckpoint | nu
     !Number.isFinite(Date.parse(value.updatedAt))
   )
     return null;
+  // Advisory only (a report to the server): a malformed one is dropped, never refused.
+  const blockCode =
+    value.stage === 'blocked' &&
+    typeof value.blockCode === 'string' &&
+    BLOCK_CODE.test(value.blockCode)
+      ? value.blockCode
+      : undefined;
+  const reportedBlock =
+    typeof value.reportedBlock === 'string' && BLOCK_CODE.test(value.reportedBlock)
+      ? value.reportedBlock
+      : undefined;
   return {
     delegationId: value.delegationId,
     requestId: value.requestId,
@@ -92,7 +108,9 @@ export function parseRecoveryCheckpoint(value: unknown): RecoveryCheckpoint | nu
     ...(typeof value.retryNotBefore === 'number' ? { retryNotBefore: value.retryNotBefore } : {}),
     ...(typeof value.serverRetryNotBefore === 'number'
       ? { serverRetryNotBefore: value.serverRetryNotBefore }
-      : {})
+      : {}),
+    ...(blockCode ? { blockCode } : {}),
+    ...(reportedBlock ? { reportedBlock } : {})
   };
 }
 /** Atomic, environment-scoped metadata only. Secrets live in platform storage. */

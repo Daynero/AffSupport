@@ -9,9 +9,30 @@
 
 import type { ChildProcess } from 'node:child_process';
 import { activeGovernorOrNull, spawnTracked } from '../power/spawn.js';
+import { processCpuSeconds, processMetricsSupported } from '../platform/platform.js';
 
 /** Enough stderr to diagnose a failure, never enough to grow without bound. */
 const STDERR_TAIL_BYTES = 4_000;
+
+/**
+ * 072: how long a child may go without writing anything and without using any CPU before it is
+ * taken for stuck rather than slow. A stuck FFmpeg used to be stopped only by the six-hour
+ * watchdog of the whole run, while its heartbeat kept the round looking alive. Scaled by the
+ * power limit like every other wall-clock budget. Real work always moves one of the two: a
+ * progress line, a log line, or CPU time.
+ */
+export const TOOL_STALL_MS = 10 * 60_000;
+const STALL_CHECK_MS = 60_000;
+
+/** CPU seconds the child has used so far; null when this host cannot say (never "stuck"). */
+async function childCpuSeconds(pid: number): Promise<number | null> {
+  if (!processMetricsSupported()) return null;
+  try {
+    return (await processCpuSeconds([pid])).get(pid) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export interface ToolResult {
   code: number | null;
@@ -20,6 +41,8 @@ export interface ToolResult {
   /** Set when the binary could not be started at all (ENOENT and friends). */
   spawnErrorCode: string | null;
   cancelled: boolean;
+  /** 072: stopped because it wrote nothing and used no CPU for `TOOL_STALL_MS`. */
+  stalled?: boolean;
 }
 
 export interface RunOptions {
@@ -40,6 +63,11 @@ export interface RunOptions {
    * unaffected by anyone watching it live.
    */
   onLine?: (line: string) => void;
+  /** 072: already-scaled stall budget; `null` turns the check off. Test seam. */
+  stallMs?: number | null;
+  /** Test seams for the stall check: how often it looks, and how it reads CPU time. */
+  stallCheckMs?: number;
+  cpuSeconds?: (pid: number) => Promise<number | null>;
 }
 
 export function runTool(
@@ -54,7 +82,9 @@ export function runTool(
     let settled = false;
     let cancelled = false;
     let terminationRequested = false;
+    let stalled = false;
     let spawnErrorCode: string | null = null;
+    let lastActivity = Date.now();
 
     const child = spawnTracked(command, args, {
       toolId: 'stitcher',
@@ -65,7 +95,7 @@ export function runTool(
       if (settled) return;
       settled = true;
       cleanUp();
-      resolve(result);
+      resolve(stalled ? { ...result, stalled: true } : result);
     };
 
     let killTimer: ReturnType<typeof setTimeout> | null = null;
@@ -86,13 +116,55 @@ export function runTool(
       terminate();
     };
 
+    const stallMs =
+      options.stallMs === undefined
+        ? (activeGovernorOrNull()?.scaleTimeout(TOOL_STALL_MS) ?? TOOL_STALL_MS)
+        : options.stallMs;
+    const cpuSeconds = options.cpuSeconds ?? childCpuSeconds;
+    let lastCpu: number | null = null;
+    let sampling = false;
+    const watch =
+      stallMs === null
+        ? null
+        : setInterval(() => {
+            if (settled || terminationRequested || sampling) return;
+            const checkMs = options.stallCheckMs ?? STALL_CHECK_MS;
+            if (Date.now() - lastActivity < checkMs) return;
+            // A child the power limit or a person's pause holds is not stuck.
+            const governor = activeGovernorOrNull() as {
+              isSuspended?: (child: ChildProcess) => boolean;
+            } | null;
+            if (governor?.isSuspended?.(child)) {
+              lastActivity = Date.now();
+              return;
+            }
+            const pid = child.pid;
+            if (typeof pid !== 'number' || pid < 1) return;
+            sampling = true;
+            void cpuSeconds(pid)
+              .catch(() => null)
+              .then(cpu => {
+                sampling = false;
+                if (settled || terminationRequested) return;
+                if (cpu === null || lastCpu === null || cpu > lastCpu) lastActivity = Date.now();
+                if (cpu !== null) lastCpu = cpu;
+                if (Date.now() - lastActivity >= stallMs) {
+                  stalled = true;
+                  terminate();
+                }
+              });
+          }, options.stallCheckMs ?? STALL_CHECK_MS);
+    watch?.unref();
+
     const cleanUp = () => {
       if (killTimer) clearTimeout(killTimer);
+      if (watch) clearInterval(watch);
       options.signal?.removeEventListener('abort', stop);
     };
 
     let pending = '';
     child.stdout?.on('data', chunk => {
+      lastActivity = Date.now();
       if (options.captureStdout !== false) stdout += chunk;
       if (!options.onLine) return;
       pending += chunk;
@@ -108,6 +180,7 @@ export function runTool(
       }
     });
     child.stderr?.on('data', chunk => {
+      lastActivity = Date.now();
       stderr = (stderr + chunk).slice(-STDERR_TAIL_BYTES);
     });
     child.on('error', (error: NodeJS.ErrnoException) => {

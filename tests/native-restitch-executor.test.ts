@@ -519,3 +519,38 @@ it.each(['interrupted', 'activity_unconfirmed', 'claim_unconfirmed'] as const)(
     expect(f.claim).not.toHaveBeenCalled();
   }
 );
+// 072: a claim interrupted in an earlier process stays 'blocked' for good; 64 of them refused
+// every further restitch. Past twice the server's 24-hour control, nothing can use it any more.
+it('lets go of a blocked claim only once its server control can no longer exist', async () => {
+  const stale = (hoursAgo: number, n: number): NativeRestitchCheckpoint => ({
+    identity: {
+      rootOperationId: id(n),
+      teamId: id(2),
+      actorId: id(3),
+      claimId: id(n + 100),
+      nativeInstanceId: id(5),
+      installedContract: 1
+    },
+    receipt: { executorId: id(6), epoch: 1 },
+    quiescenceId: null,
+    phase: 'owned',
+    reason: null,
+    outcome: null,
+    touchedAt: new Date(Date.now() - hoursAgo * 3_600_000).toISOString()
+  });
+  const recent = fixture([stale(47, 20)]),
+    young = recent.create(1);
+  await young.initialize();
+  expect(young.holds(id(20))).toBe(true);
+  await expect(
+    young.execute({ ...identity(), rootOperationId: id(10) }, async () => 1)
+  ).rejects.toMatchObject({ message: 'RATE_LIMITED' });
+  const old = fixture([stale(49, 21)]),
+    owner = old.create(1);
+  await owner.initialize();
+  expect(owner.holds(id(21))).toBe(false);
+  await expect(
+    owner.execute({ ...identity(), rootOperationId: id(10) }, async () => 1)
+  ).resolves.toBe(1);
+  expect(owner.snapshot(id(21))).toBeNull();
+});

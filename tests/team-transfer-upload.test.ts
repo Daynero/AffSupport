@@ -158,3 +158,26 @@ it.each(['different-provider-file', '../unsafe', 42])(
     if (providerFileId !== 'different-provider-file') expect(f.lengths).toEqual([]);
   }
 );
+
+// 072: Google answers a chunk PUT with its own error body (numeric code, reason in errors[]).
+// A full storage used to read as PERMISSION_DENIED and the round was told the wrong thing.
+it.each([
+  { status: 403, reason: 'storageQuotaExceeded', code: 'DRIVE_STORAGE_FULL' },
+  { status: 403, reason: 'teamDriveFileLimitExceeded', code: 'DRIVE_STORAGE_FULL' },
+  { status: 403, reason: 'insufficientFilePermissions', code: 'PERMISSION_DENIED' },
+  { status: 500, reason: 'backendError', code: 'DRIVE_UNAVAILABLE' }
+])('reads Google $status $reason on a chunk as $code', async ({ status, reason, code }) => {
+  const f = await fixture(1024);
+  const original = f.fetchImpl.getMockImplementation()!;
+  f.fetchImpl.mockImplementation(async (url, init) => {
+    if (init?.method !== 'PUT') return original(url, init);
+    return Response.json(
+      { error: { code: status, message: 'refused', errors: [{ domain: 'global', reason }] } },
+      { status }
+    );
+  });
+  await expect(f.run()).rejects.toThrow(code);
+  expect(f.fetchImpl.mock.calls.filter(([url]) => String(url).endsWith('/finalize'))).toHaveLength(
+    0
+  );
+});

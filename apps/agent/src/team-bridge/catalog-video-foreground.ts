@@ -9,7 +9,6 @@ import {
   type CatalogVideoForegroundExecutor
 } from '@video-compressor/shared';
 import type { NativeRestitchVaultFile } from './native-restitch-vault.js';
-import { currentPlatform } from '../platform/platform.js';
 /** When an interrupted creation is tried again without its dialog. The server
  * hands a restarted agent its predecessor's variant after 75 seconds of silence
  * (2 minutes for anyone else), so the early attempts are dense and a refused one
@@ -17,6 +16,8 @@ import { currentPlatform } from '../platform/platform.js';
 export const FOREGROUND_RESUME_DELAYS_MS: readonly number[] = [
   30_000, 30_000, 30_000, 30_000, 60_000, 120_000, 240_000, 480_000, 900_000, 1_800_000
 ];
+/** The server's authority over a creation lives at most 24 hours; older entries only expire. */
+const AUTHORITY_MS = 24 * 60 * 60 * 1000;
 /** Answers that no later attempt can change. */
 const RESUME_FINAL = new Set([
   'PERMISSION_DENIED',
@@ -87,8 +88,9 @@ export class CatalogVideoForegroundController {
        * refused (409) until the agent restarted, for hours. A write fault is cleared by the
        * next full journal write that succeeds; the in-memory journal is the complete state, so
        * that write commits everything the failed one missed. A journal that could not be read
-       * at startup is read again; a damaged one keeps failing. Defaults to Windows; macOS keeps
-       * every behaviour.
+       * at startup is read again; a damaged one keeps failing. 072: macOS kept the fault until
+       * restart, and the restart it waited for (the app update) was refused because of it.
+       * Healing is the default everywhere; `false` keeps the old behaviour for tests.
        */
       healWriteFaults?: boolean;
       run: (
@@ -116,12 +118,7 @@ export class CatalogVideoForegroundController {
    * really damaged fails the same way and stays faulted. A failed write is committed again.
    */
   async #heal() {
-    if (
-      !this.#faulted ||
-      this.#stopping ||
-      !(this.options.healWriteFaults ?? currentPlatform() === 'win32')
-    )
-      return;
+    if (!this.#faulted || this.#stopping || !(this.options.healWriteFaults ?? true)) return;
     try {
       if (this.#loadFaulted) {
         this.#entries.clear();
@@ -213,16 +210,26 @@ export class CatalogVideoForegroundController {
         return { ...prior.receipt };
       }
       if (this.#entries.size >= 128) {
-        // Only a fully read-back registered set may leave the bounded secret vault.
-        // Never evict unknown, accepted or active original authority.
-        const ready = [...this.#entries.values()]
-          .filter(
-            e =>
-              ['ready', 'unused', 'canceled'].includes(e.state) &&
-              !this.#running.has(e.receipt.enrollmentId) &&
-              !this.#waiting.has(e.receipt.enrollmentId)
-          )
-          .sort((a, b) => (a.readyAt ?? 0) - (b.readyAt ?? 0))[0];
+        // Only a fully read-back registered set may leave the bounded secret vault, or (072)
+        // one whose server authority has expired: an unknown or never-bound entry older than
+        // 24 hours can do nothing any more, and 128 of them refused every catalog creation
+        // with PROCESS_RESULT_UNCERTAIN for good. Never evict live authority.
+        const idle = [...this.#entries.values()].filter(
+          e =>
+            !this.#running.has(e.receipt.enrollmentId) && !this.#waiting.has(e.receipt.enrollmentId)
+        );
+        const ready =
+          idle
+            .filter(e => ['ready', 'unused', 'canceled'].includes(e.state))
+            .sort((a, b) => (a.readyAt ?? 0) - (b.readyAt ?? 0))[0] ??
+          idle
+            .filter(
+              e =>
+                e.state !== 'running' &&
+                e.createdAt !== undefined &&
+                Date.now() - e.createdAt > AUTHORITY_MS
+            )
+            .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0];
         if (!ready) throw new Error('PROCESS_RESULT_UNCERTAIN');
         this.#entries.delete(ready.receipt.enrollmentId);
         await this.#persist();
@@ -446,7 +453,7 @@ export class CatalogVideoForegroundController {
       !entry.setId ||
       entry.state !== 'unknown' ||
       // The server authority lives at most 24 hours; older entries only expire.
-      (entry.createdAt !== undefined && Date.now() - entry.createdAt > 24 * 60 * 60 * 1000) ||
+      (entry.createdAt !== undefined && Date.now() - entry.createdAt > AUTHORITY_MS) ||
       this.#stopping ||
       this.#waiting.has(id) ||
       this.#running.has(id)
@@ -592,20 +599,25 @@ export class CatalogVideoForegroundController {
     };
   }
   async flushForUpdate() {
-    if (this.#faulted) throw new Error('APP_UPDATE_BUSY');
     // Prepares no longer queue behind network attaches. Drain both before replacement.
     await this.#prepareSerial;
     await this.#serial;
     await Promise.all([...this.#waitingTasks, ...[...this.#running.values()].map(run => run.task)]);
-    if (this.#faulted) throw new Error('APP_UPDATE_BUSY');
     // An unknown entry at rest is not work in flight: it is durable in the vault and
     // the next process reconciles it exactly as after the restart that made it unknown,
     // which is what replacing the app is. Refusing it held every app update for a day,
     // and past the 24-hour authority an unknown entry never resolves at all, so one
     // interrupted catalog update refused every update for good (next QA, 2026-11-17).
     // Only a run that has not settled holds the update.
-    if (this.#running.size || [...this.#entries.values()].some(entry => entry.state === 'running'))
-      throw new Error('APP_UPDATE_BUSY');
+    // An entry marked 'running' with no run behind it (its start was never committed: the
+    // journal write failed) is at rest too; the next process reads it as unknown.
+    if (this.#running.size) throw new Error('APP_UPDATE_BUSY');
+    // A journal that cannot be written (or read) does not hold the update either (072): one
+    // more write is tried, and if it still fails the last committed journal stays on disk for
+    // the next process, which reconciles as after any restart — the restart this fault was
+    // waiting for. Refusing it kept the faulted build, with every catalog restitch refused.
+    await this.#heal();
+    if (this.#faulted) return;
     if (this.#entries.size) await this.#persist();
     await this.options.vault.flushForUpdate?.();
   }

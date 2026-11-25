@@ -62,6 +62,24 @@ function object(value: unknown): Record<string, unknown> {
   if (!isRecord(value)) throw new TeamFunctionError('INVALID_RESPONSE');
   return value;
 }
+/**
+ * 072: why this computer's background work stopped, as the desktop reports it with its probe.
+ * Passed on only in its closed shape; anything else is dropped, never refused, so a probe keeps
+ * answering whatever a desktop sends. An older desktop sends nothing.
+ */
+function localState(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return {};
+  if (value.stage === 'clear') return { localState: { stage: 'clear' } };
+  if (
+    value.stage === 'blocked' &&
+    typeof value.reason === 'string' &&
+    /^[a-z_]{1,48}$/u.test(value.reason) &&
+    typeof value.code === 'string' &&
+    /^[A-Z][A-Z0-9_]{1,63}$/u.test(value.code)
+  )
+    return { localState: { stage: 'blocked', reason: value.reason, code: value.code } };
+  return {};
+}
 export async function handleRecovery(
   request: Request,
   deps: RecoveryHandlerDeps
@@ -140,7 +158,7 @@ export async function handleRecovery(
     if (value.error === 'AUTH_REQUIRED') throw new TeamFunctionError('AUTH_REQUIRED');
     return value;
   }
-  if (action === 'probe') return deps.rpc('probe', hash, {});
+  if (action === 'probe') return deps.rpc('probe', hash, localState(body.localState));
   if (action === 'claim') {
     const installedVersion =
       body.restitchContractVersion === undefined ? 1 : body.restitchContractVersion;

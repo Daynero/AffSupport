@@ -799,7 +799,7 @@ it('still fails when authorization stays unreachable for the whole budget', asyn
   expect(authorizeCalls).toBe(10);
   await controller.shutdown();
 });
-function healing(healVaultFaults: boolean) {
+function healing(healVaultFaults?: boolean) {
   const f = setup();
   const controller = new NativeRestitchController({
     endpoint,
@@ -833,7 +833,7 @@ it('Windows: one failed journal write is committed by the next call instead of r
   expect(prepared.proofDigest).toMatch(/^[a-f0-9]{64}$/u);
   await controller.shutdown();
 });
-it('macOS keeps a failed journal read or write until restart, exactly as before', async () => {
+it('with healing turned off, a failed journal read or write is kept until restart', async () => {
   const read = healing(false);
   read.f.store.read.mockRejectedValueOnce(new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'));
   await expect(read.controller.prepare({ rootOperationId: root, teamId: team })).rejects.toThrow();
@@ -847,4 +847,40 @@ it('macOS keeps a failed journal read or write until restart, exactly as before'
     write.controller.prepare({ rootOperationId: otherRoot, teamId: team })
   ).rejects.toThrow();
   await write.controller.shutdown();
+});
+
+// 072: macOS kept both faults until restart, and refused the app update that is that restart.
+it('heals a failed journal write by default, on every platform', async () => {
+  const { f, controller } = healing();
+  f.store.write.mockRejectedValueOnce(new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'));
+  await expect(controller.prepare({ rootOperationId: root, teamId: team })).rejects.toThrow();
+  const prepared = await controller.prepare({ rootOperationId: otherRoot, teamId: team });
+  expect(prepared.proofDigest).toMatch(/^[a-f0-9]{64}$/u);
+  await controller.shutdown();
+});
+it('lets the app update through a vault that still cannot be written', async () => {
+  const { f, controller } = healing(false);
+  f.store.write.mockRejectedValue(new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'));
+  await expect(controller.prepare({ rootOperationId: root, teamId: team })).rejects.toThrow();
+  await expect(controller.flushForUpdate()).resolves.toBeUndefined();
+  const read = healing(false);
+  read.f.store.read.mockRejectedValue(new Error('RESTITCH_SCREEN_ACCOUNTING_UNCERTAIN'));
+  await expect(read.controller.prepare({ rootOperationId: root, teamId: team })).rejects.toThrow();
+  await expect(read.controller.flushForUpdate()).resolves.toBeUndefined();
+});
+it('makes room for new work by letting go of the oldest record that never ran', async () => {
+  const { f, controller } = healing();
+  const roots = Array.from({ length: 64 }, (_, n) => id(1000 + n));
+  for (const each of roots) await controller.prepare({ rootOperationId: each, teamId: team });
+  // 64 records that were prepared and never ran used to refuse every restitch for good.
+  await expect(
+    controller.prepare({ rootOperationId: id(2000), teamId: team })
+  ).resolves.toMatchObject({ rootOperationId: id(2000) });
+  const saved = f.store.write.mock.calls.at(-1)![0] as {
+    records: Array<{ rootOperationId: string }>;
+  };
+  expect(saved.records).toHaveLength(64);
+  expect(saved.records.map(r => r.rootOperationId)).not.toContain(roots[0]);
+  expect(saved.records.map(r => r.rootOperationId)).toContain(roots[1]);
+  await controller.shutdown();
 });

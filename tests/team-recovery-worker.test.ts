@@ -523,7 +523,12 @@ describe('background recovery worker', () => {
     });
     await vi.advanceTimersByTimeAsync(3599999);
     await f.worker.idle();
-    expect(f.fetcher).toHaveBeenCalledOnce();
+    // 072: the failed claim, then one report of the hour-long pause to the server.
+    expect(f.fetcher).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String(f.fetcher.mock.calls[1]![1]?.body))).toMatchObject({
+      action: 'probe',
+      localState: { stage: 'blocked', reason: 'retry_exhausted', code: 'DRIVE_UNAVAILABLE' }
+    });
     await vi.advanceTimersByTimeAsync(1);
     await f.worker.idle();
     expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled', reason: null });
@@ -622,6 +627,99 @@ describe('background recovery worker', () => {
     await f.worker.idle();
     expect(completionHeaders).toEqual(['c'.repeat(43)]);
     expect(f.process.process).not.toHaveBeenCalled();
+  });
+
+  // 072: a full Drive or a connection to renew is no blip. The variant is closed with its own
+  // code, the worker pauses (no rebuild of videos Drive will refuse again), tells the server
+  // why, and tells it again when the work goes on.
+  it.each([
+    ['DRIVE_STORAGE_FULL', 3_600_000],
+    ['NEEDS_REAUTH', 15 * 60_000]
+  ])('pauses on %s, reports it and clears it once work goes on', async (code, pause) => {
+    const protectedProcess = vi.fn<
+      NonNullable<NonNullable<RecoveryWorkerOptions['catalogVariants']>['protectedProcess']>
+    >(async (_request, _enroll, _signal, _authorize, complete) => {
+      await complete('failed', code);
+      throw Error(code);
+    });
+    const f = await fixture('claiming', {
+      catalogVariants: { nativeInstanceId: INSTALL, protectedProcess }
+    });
+    let snapshot = {
+      setId: JOB,
+      revision: 0,
+      children: [
+        {
+          index: 0,
+          requestId: REQUEST,
+          operationId: null as string | null,
+          state: 'queued',
+          outputId: null
+        }
+      ]
+    };
+    let sets = 0;
+    const bodies: Array<Record<string, unknown>> = [];
+    f.fetcher.mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      bodies.push(body);
+      let value: unknown;
+      if (body.action === 'variant_claim') value = { setId: sets++ === 0 ? JOB : null };
+      else if (body.action === 'variant_load') value = snapshot;
+      else if (body.action === 'variant_save') {
+        snapshot = body.snapshot;
+        value = { saved: true };
+      } else if (body.action === 'variant_reconcile') value = { kind: 'absent' };
+      else if (body.action === 'variant_admit') value = { operationId: OP };
+      else if (body.action === 'variant_dispatch') value = { executionAllowed: true };
+      else if (body.action === 'variant_process')
+        value = {
+          state: 'running',
+          agentContractVersion: 1,
+          ...brokerClaim().job,
+          transferUrl: 'http://127.0.0.1:54321/functions/v1/drive-transfer/range',
+          cloudBaseUrl: 'http://127.0.0.1:54321/functions/v1/drive-ops'
+        };
+      else if (body.action === 'variant_complete')
+        value = { kind: 'terminal', operationId: OP, state: 'failed' };
+      else if (body.action === 'probe') value = { allowed: true };
+      else if (body.action === 'rotate')
+        value = {
+          refresh: 'r'.repeat(43),
+          claim: 'c'.repeat(43),
+          claimExpiresAt: new Date(Date.now() + 3_600_000).toISOString()
+        };
+      else if (body.action === 'claim') value = { job: null };
+      else throw Error('unexpected private test action ' + body.action);
+      return new Response(JSON.stringify({ ok: true, value }));
+    });
+    await f.worker.load();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.waitFor(() => expect(protectedProcess).toHaveBeenCalledOnce());
+    await f.worker.idle();
+    expect(f.worker.status(TEAM)).toMatchObject({ state: 'blocked', reason: 'retry_exhausted' });
+    const probes = () => bodies.filter(body => body.action === 'probe');
+    expect(probes()).toEqual([
+      expect.objectContaining({
+        localState: { stage: 'blocked', reason: 'retry_exhausted', code }
+      })
+    ]);
+    const checkpoint = (await f.journal.load()).checkpoints[0];
+    expect(checkpoint).toMatchObject({ blockCode: code, reportedBlock: code });
+    // No new work, no rebuild, before the pause ends.
+    const claimsBefore = bodies.filter(body => body.action === 'variant_claim').length;
+    await vi.advanceTimersByTimeAsync(pause - 1_000);
+    await f.worker.idle();
+    expect(bodies.filter(body => body.action === 'variant_claim')).toHaveLength(claimsBefore);
+    expect(protectedProcess).toHaveBeenCalledOnce();
+    // The pause ends: the resume probe carries the state, work goes on, the server is told.
+    for (let step = 0; step < 10; step++) {
+      await vi.advanceTimersByTimeAsync(30_000);
+      await f.worker.idle();
+    }
+    expect(f.worker.status(TEAM).state).toBe('settled');
+    expect(probes().at(-1)).toMatchObject({ localState: { stage: 'clear' } });
+    expect((await f.journal.load()).checkpoints[0]?.reportedBlock).toBeUndefined();
   });
 
   it('a user stop confirmed by the server settles the set and claims next work without parking', async () => {
@@ -1479,7 +1577,9 @@ describe('background recovery worker', () => {
       );
       await vi.advanceTimersByTimeAsync(3_600_000);
       await f.worker.idle();
-      expect(f.fetcher).toHaveBeenCalledTimes(code === 'AUTH_REQUIRED' ? 2 : 1);
+      // 072: a verdict only a person or a restart lifts is reported to the server once.
+      const reported = code === 'INVALID_INPUT' || code === 'AGENT_UPDATE_REQUIRED';
+      expect(f.fetcher).toHaveBeenCalledTimes(code === 'AUTH_REQUIRED' || reported ? 2 : 1);
       await f.worker.shutdown();
       const restarted = new TeamRecoveryWorker(f.worker.options);
       workers.push(restarted);
@@ -1491,8 +1591,13 @@ describe('background recovery worker', () => {
       // A revoked permission stays revoked; a "needs setup" verdict from an earlier run
       // is asked once by the restarted agent and recorded again when it still holds.
       expect(f.fetcher).toHaveBeenCalledTimes(
-        code === 'PERMISSION_DENIED' ? 1 : code === 'AUTH_REQUIRED' ? 3 : 2
+        code === 'PERMISSION_DENIED' ? 1 : code === 'AUTH_REQUIRED' || reported ? 3 : 2
       );
+      if (reported)
+        expect(JSON.parse(String(f.fetcher.mock.calls[1]![1]?.body))).toMatchObject({
+          action: 'probe',
+          localState: { stage: 'blocked', reason: 'needs_agent_setup', code }
+        });
       expect(f.process.process).not.toHaveBeenCalled();
     }
   );

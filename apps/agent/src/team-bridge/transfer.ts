@@ -402,7 +402,7 @@ export class TeamTransferClient {
           continue;
         }
         if (response.status !== 200 && response.status !== 201) {
-          throw new Error(await edgeError(response));
+          throw new Error(await googleUploadError(response));
         }
         const payload: unknown = await response.json().catch(() => null);
         driveFileId = isRecord(payload) && typeof payload.id === 'string' ? payload.id : null;
@@ -625,8 +625,34 @@ function edgePayloadError(payload: unknown, status: number) {
   return status === 403 ? 'PERMISSION_DENIED' : 'DRIVE_UNAVAILABLE';
 }
 
-async function edgeError(response: Response) {
-  return edgePayloadError(await response.json().catch(() => null), response.status);
+/** Drive's 403 reasons for a full storage, as the server reads them (`_shared/drive.ts`). */
+const DRIVE_STORAGE_FULL_REASONS: ReadonlySet<string> = new Set([
+  'storageQuotaExceeded',
+  'teamDriveFileLimitExceeded'
+]);
+
+/**
+ * A chunk PUT is answered by Google itself, not by our edge: its error body carries a numeric
+ * `code` and the reason in `errors[].reason`. A full storage answered 403 storageQuotaExceeded
+ * and read as PERMISSION_DENIED («У вас немає дозволу»), so a round that could never finish was
+ * told the wrong thing. A full storage is its own answer; everything else is classified as before.
+ */
+async function googleUploadError(response: Response) {
+  const payload: unknown = await response.json().catch(() => null);
+  if (
+    response.status === 403 &&
+    isRecord(payload) &&
+    isRecord(payload.error) &&
+    Array.isArray(payload.error.errors) &&
+    payload.error.errors.some(
+      entry =>
+        isRecord(entry) &&
+        typeof entry.reason === 'string' &&
+        DRIVE_STORAGE_FULL_REASONS.has(entry.reason)
+    )
+  )
+    return 'DRIVE_STORAGE_FULL';
+  return edgePayloadError(payload, response.status);
 }
 
 function throwIfAborted(signal: AbortSignal) {

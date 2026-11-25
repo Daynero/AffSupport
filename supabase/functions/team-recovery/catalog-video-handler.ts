@@ -97,7 +97,11 @@ export function parseCatalogVariantRecoveryInput(
         'RESTITCH_SOURCE_FORBIDDEN',
         'UNSUPPORTED_MEDIA',
         'PROCESS_FAILED',
-        'TOO_LARGE'
+        'TOO_LARGE',
+        // 072: the desktop reports these instead of PROCESS_FAILED (20261224190000).
+        'DISK_FULL',
+        'NEEDS_REAUTH',
+        'DRIVE_STORAGE_FULL'
       ].includes(body.failureCode)
     )
       throw new TeamFunctionError('INVALID_INPUT');

@@ -3593,3 +3593,16 @@ both resume functions (a request admitted with empty settings and no video set t
 since, or ends the same way) and `public.service_read_catalog_updater_variants_before_foreground`
 (a failed request-less round reads 'canceled'). No table or column. Undo by restoring the bodies
 from 20261224110000 / 20261221180000 and dropping both helpers; rounds already ended stay ended.
+
+## 20261224190000 — the desktop says why its background work stopped (072, agent package)
+
+Adds `agent_block_reason`, `agent_block_code`, `agent_block_at` to `private.team_recovery_delegations`
+(text and timestamptz only: no jsonb, no foreign key, so the recovery tables stay outside the
+cleanup-fence inventory) and `private.record_recovery_agent_state`; patches (through
+`pg_get_functiondef`, failing if the replaced text is missing) `public.service_team_recovery` (a probe
+carrying `localState` records it after the probe itself was authorized),
+`public.service_complete_catalog_video_variant` and `private.catalog_video_failure_code` (DISK_FULL,
+NEEDS_REAUTH, DRIVE_STORAGE_FULL are closure codes). Undo by restoring the three bodies from
+20261224100000 / 20261207180000 / 20261207168000 and dropping the helper and the columns. Desktops
+that send the field keep working (an unpatched probe ignores it; a refused closure code falls back to
+PROCESS_FAILED on the desktop).

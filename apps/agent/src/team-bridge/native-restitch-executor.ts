@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { isRecord, type TeamErrorCode } from '@video-compressor/shared';
 export const MAX_NATIVE_RESTITCH_RECORDS = 64;
+/**
+ * 072: a claim interrupted in an earlier process stays 'blocked' for good (nothing local can
+ * prove its end), and 64 of them refused every further restitch with RATE_LIMITED, for ever.
+ * The server's control of such a claim lives at most 24 hours; twice that, nothing anywhere
+ * can still use it, and its checkpoint makes room for new work.
+ */
+export const STALE_BLOCKED_CLAIM_MS = 48 * 60 * 60 * 1000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const uncertain = (cause?: unknown) =>
@@ -326,9 +333,19 @@ export class NativeRestitchExecutor {
       throw new NativeRestitchExecutorError('WRONG_STATE');
     if (previous && !['quiescent', 'not_claimed'].includes(previous.phase)) throw uncertain();
     if (!previous && this.#records.size >= this.#limit) {
-      const settled = [...this.#records].find(([, value]) =>
-        ['quiescent', 'not_claimed'].includes(value.phase)
-      );
+      const settled =
+        [...this.#records].find(([, value]) =>
+          ['quiescent', 'not_claimed'].includes(value.phase)
+        ) ??
+        [...this.#records]
+          .filter(
+            ([key, value]) =>
+              value.phase === 'blocked' &&
+              !this.#active.has(key) &&
+              !this.#reconciling.has(key) &&
+              Date.now() - Date.parse(value.touchedAt) > STALE_BLOCKED_CLAIM_MS
+          )
+          .sort(([, a], [, b]) => Date.parse(a.touchedAt) - Date.parse(b.touchedAt))[0];
       if (!settled) throw new NativeRestitchExecutorError('RATE_LIMITED');
       this.#records.delete(settled[0]);
       this.#stopped.delete(settled[1]);
@@ -576,6 +593,21 @@ export class NativeRestitchExecutor {
   }
   busy(): boolean {
     return this.#active.size > 0 || this.#reconciling.size > 0;
+  }
+  /** 072: whether a claim of this root may still be open anywhere, whoever's it was. */
+  holds(rootOperationId: string): boolean {
+    const key = rootOperationId.toLowerCase();
+    const value = this.#records.get(key);
+    return (
+      this.#active.has(key) ||
+      this.#reconciling.has(key) ||
+      (value !== undefined &&
+        !['quiescent', 'not_claimed'].includes(value.phase) &&
+        !(
+          value.phase === 'blocked' &&
+          Date.now() - Date.parse(value.touchedAt) > STALE_BLOCKED_CLAIM_MS
+        ))
+    );
   }
   snapshot(rootOperationId: string): NativeRestitchCheckpoint | null {
     const value = this.#records.get(rootOperationId.toLowerCase());

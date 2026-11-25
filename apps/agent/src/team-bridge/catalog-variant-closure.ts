@@ -3,6 +3,15 @@ import {
   STITCH_ERROR_CODES,
   type TeamFileOperationResult
 } from '@video-compressor/shared';
+/**
+ * Failures that no retry of the same variant can fix: this computer's disk is full, or Drive
+ * refused the output (its storage is full, its connection needs renewing). They used to fall
+ * outside the reported set and reached the server as PROCESS_FAILED (or not at all), so the
+ * round said nothing useful while it waited (audit 072, case 10). A server whose closure predates
+ * them refuses them as INVALID_INPUT; the report then falls back to PROCESS_FAILED.
+ */
+const DRIVE_AND_DISK_REFUSALS = ['DISK_FULL', 'NEEDS_REAUTH', 'DRIVE_STORAGE_FULL'] as const;
+const LATER_CODES = new Set<string>(DRIVE_AND_DISK_REFUSALS);
 const preupload = new Set<string>([
   ...RECOVERY_PREUPLOAD_FAILURE_CODES,
   ...STITCH_ERROR_CODES,
@@ -14,7 +23,8 @@ const preupload = new Set<string>([
   'RESTITCH_SOURCE_FORBIDDEN',
   'UNSUPPORTED_MEDIA',
   'PROCESS_FAILED',
-  'TOO_LARGE'
+  'TOO_LARGE',
+  ...DRIVE_AND_DISK_REFUSALS
 ]);
 /** False only when the bridge proved the run stopped before its upload began
  * (`uploadStarted: false` on its failure): then no output can exist anywhere. */
@@ -124,11 +134,18 @@ async function report(
   code: string
 ) {
   const delays = input.reportDelaysMs ?? TERMINAL_REPORT_RETRY_DELAYS_MS;
+  let sent = code;
   for (let attempt = 0; ; attempt += 1) {
     try {
-      return await input.complete(outcome, code);
+      return await input.complete(outcome, sent);
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
+      // An older server does not know this code yet: it still learns that the run failed.
+      if (message === 'INVALID_INPUT' && LATER_CODES.has(sent)) {
+        sent = 'PROCESS_FAILED';
+        attempt -= 1;
+        continue;
+      }
       if (TERMINAL_REPORT_FINAL.has(message) || attempt >= delays.length) throw error;
       await new Promise<void>(resolve => {
         const timer = setTimeout(resolve, delays[attempt]);
