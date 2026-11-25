@@ -3023,6 +3023,24 @@ function catalogWriterEnabled(): boolean {
   });
 }
 
+/** One promise per key while it holds; a refusal is forgotten so the next caller retries. */
+function memoizedByKey<T>(create: (key: string) => Promise<T>) {
+  const known = new Map<string, Promise<T>>();
+  return {
+    get(key: string): Promise<T> {
+      let value = known.get(key);
+      if (!value) {
+        value = create(key);
+        known.set(key, value);
+        value.catch(() => {
+          if (known.get(key) === value) known.delete(key);
+        });
+      }
+      return value;
+    }
+  };
+}
+
 function productCatalogDeps(request: Request, caller: RpcClient, service: RpcClient) {
   const contexts = new Map<string, MaterialOperationContext>();
   let destinationClient: GoogleDriveClient | null = null;
@@ -3031,6 +3049,12 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
   );
   const imageRpc = (name: string, params: Record<string, unknown>) =>
     rpcValue(service, name, params);
+  const creativeImageTokens = memoizedByKey(credential =>
+    driveAccessToken(service, credential, request)
+  );
+  const creativeImageDrives = memoizedByKey(credential =>
+    driveClient(service, credential, request)
+  );
   const deps: ProductCatalogDeps = {
     nativeSpreadsheet: betaNativeCatalogSheets({
       enabled: Deno.env.get('CATALOG_NATIVE_SHEETS_BETA'),
@@ -3094,8 +3118,10 @@ function productCatalogDeps(request: Request, caller: RpcClient, service: RpcCli
           });
           return catalogImageObject(Array.isArray(raw) ? raw[0] : raw);
         },
-        token: credential => driveAccessToken(service, credential, request),
-        drive: credential => driveClient(service, credential, request)
+        // One token and one client per credential for this pass, not three per image: the
+        // images of a Launch share one space's credential and now run side by side.
+        token: credential => creativeImageTokens.get(credential),
+        drive: credential => creativeImageDrives.get(credential)
       }).readMaterial
     }),
     confirmCreativeImageUses: async (catalog, images) => {

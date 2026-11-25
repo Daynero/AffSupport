@@ -12,6 +12,12 @@ import {
 import { catalogTimings, timeCatalogMethods } from '../_shared/catalog-timings.ts';
 import { parseCatalogDrawnImage, type CatalogDrawnImage } from '../_shared/catalog-image-rows.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
+import {
+  CatalogStepYield,
+  CREATIVE_IMAGE_INVOCATION_BYTES,
+  publishCreativeImagesBounded,
+  workerShutdownAnnounced
+} from './creative-image-pool.ts';
 import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
 import {
   launchCreativeAnalytics,
@@ -107,6 +113,8 @@ export interface CatalogIntent {
   operationId: string | null;
 }
 export interface CatalogIntentStore {
+  /** A Launch's store: its step may stop between images and continue in a fresh invocation. */
+  yieldable?: boolean;
   imageRequestVersion?: () => Promise<1 | 2 | 3 | null>;
   resources?: (intent: CatalogIntent, owner: string) => Promise<Record<string, unknown>>;
   completed?: (intent: CatalogIntent) => Promise<CreateProductCatalogResult | null>;
@@ -166,6 +174,7 @@ export function catalogIntentStore(
     p_fence: intent.fence
   });
   return {
+    ...(launch ? { yieldable: true } : {}),
     async resources(intent, owner) {
       const value = await call('service_plan_catalog_resources', common(intent, owner));
       if (!isRecord(value)) throw new TeamFunctionError('INVALID_RESPONSE');
@@ -455,13 +464,9 @@ export async function createDurableProductCatalog(
     creativeDiagnostics = change(creativeDiagnostics);
     await store.checkpoint(intent, owner, state, { creativeDiagnostics }).catch(() => undefined);
   };
-  const imageStage = (
-    ordinal: number,
-    stage: CreativeImageStage,
-    attemptId: string | null,
-    code?: string
-  ) =>
-    recordCreativeDiagnostics(current => ({
+  const imageStageChange =
+    (ordinal: number, stage: CreativeImageStage, attemptId: string | null, code?: string) =>
+    (current: CatalogCreativeDiagnostics): CatalogCreativeDiagnostics => ({
       ...current,
       images: [
         ...current.images.filter(image => image.creativeOrdinal !== ordinal),
@@ -472,7 +477,19 @@ export async function createDurableProductCatalog(
           ...(code !== undefined ? { code: safeLaunchAnalyticsCode(code) } : {})
         }
       ].sort((a, b) => a.creativeOrdinal - b.creativeOrdinal)
-    }));
+    });
+  /** A stage seen in flight is only remembered; it reaches the intent with the image's own
+   * checkpoint (or its failure), not as a write of its own. */
+  const noteImageStage = (ordinal: number, stage: CreativeImageStage, attemptId: string | null) => {
+    if (creativeDiagnostics)
+      creativeDiagnostics = imageStageChange(ordinal, stage, attemptId)(creativeDiagnostics);
+  };
+  const imageStage = (
+    ordinal: number,
+    stage: CreativeImageStage,
+    attemptId: string | null,
+    code?: string
+  ) => recordCreativeDiagnostics(imageStageChange(ordinal, stage, attemptId, code));
   if (intent.state === 'registered') {
     await deps.finalizeImageUses?.(request.teamId, intent.id, true);
     const result = existingResult(intent.result);
@@ -687,56 +704,94 @@ export async function createDurableProductCatalog(
       ...deps,
       nativeSpreadsheet,
       // 062: one checkpoint per published image, so a resumed creation never publishes twice.
+      // A few images at a time (each is mostly Drive and R2 round trips), within one
+      // invocation's CPU: past its budget the step yields and the generation continues at once
+      // in a fresh invocation from the images already checkpointed.
       ...(publishCreativeImages
         ? {
             async publishCreativeImages(input) {
-              const links: CatalogCreativeImageLink[] = [];
-              for (const image of input.images) {
-                const key = `creativeImage_${image.ordinal}`;
-                const known = intent.checkpoint[key];
-                if (known !== undefined) {
-                  const parsed = parseCreativeImageCheckpoint(known, image.ordinal);
-                  if (!parsed) throw new TeamFunctionError('INVALID_RESPONSE');
-                  links.push(parsed);
+              const links: (CatalogCreativeImageLink | undefined)[] = [];
+              const pending: (typeof input.images)[number][] = [];
+              for (const [index, image] of input.images.entries()) {
+                const known = intent.checkpoint[`creativeImage_${image.ordinal}`];
+                if (known === undefined) {
+                  pending.push(image);
                   continue;
                 }
+                const parsed = parseCreativeImageCheckpoint(known, image.ordinal);
+                if (!parsed) throw new TeamFunctionError('INVALID_RESPONSE');
+                links[index] = parsed;
+              }
+              if (pending.length > 0) {
+                // The lease is proven once before the first provider side effect; every image's
+                // own checkpoint proves it again before the next one is admitted.
                 await check();
-                let published: CatalogCreativeImageLink | undefined;
-                let attemptId: string | null = null;
-                try {
-                  [published] = await publishCreativeImages({
-                    ...input,
-                    images: [image],
-                    observe: async event => {
-                      attemptId = event.attemptId;
-                      await imageStage(event.ordinal, event.stage, event.attemptId);
+                // Checkpoints leave one at a time, so the diagnostics written whole never go back.
+                let writes: Promise<void> = Promise.resolve();
+                const serial = (write: () => Promise<void>) => {
+                  const next = writes.then(write);
+                  writes = next.catch(() => undefined);
+                  return next;
+                };
+                const indexOf = new Map(input.images.map((image, index) => [image.ordinal, index]));
+                await publishCreativeImagesBounded(pending, {
+                  // Only an R2 copy reads and rewrites bytes; a Drive link costs no CPU.
+                  budget:
+                    store.yieldable && input.copyToR2
+                      ? {
+                          bytes: CREATIVE_IMAGE_INVOCATION_BYTES,
+                          stopping: workerShutdownAnnounced
+                        }
+                      : null,
+                  publish: async image => {
+                    let attemptId: string | null = null;
+                    let published: CatalogCreativeImageLink | undefined;
+                    try {
+                      [published] = await publishCreativeImages({
+                        ...input,
+                        images: [image],
+                        observe: async event => {
+                          attemptId = event.attemptId;
+                          noteImageStage(event.ordinal, event.stage, event.attemptId);
+                        }
+                      });
+                    } catch (error) {
+                      await serial(async () => {
+                        await imageStage(
+                          image.ordinal,
+                          'creative_image.failed',
+                          attemptId,
+                          launchFailure(error).code
+                        );
+                        // Diagnosis names which image stopped the catalog (a number, never a name).
+                        await store
+                          .checkpoint(intent, owner, workingState(), {
+                            creativeOrdinal: image.ordinal
+                          })
+                          .catch(() => undefined);
+                      });
+                      throw error;
                     }
-                  });
-                } catch (error) {
-                  await imageStage(
-                    image.ordinal,
-                    'creative_image.failed',
-                    attemptId,
-                    launchFailure(error).code
-                  );
-                  // Diagnosis names which image stopped the catalog (a number, never a name).
-                  await store
-                    .checkpoint(intent, owner, workingState(), { creativeOrdinal: image.ordinal })
-                    .catch(() => undefined);
-                  throw error;
-                }
-                if (!published || published.ordinal !== image.ordinal)
-                  throw new TeamFunctionError('INVALID_RESPONSE');
-                await store.checkpoint(intent, owner, workingState(), {
-                  [key]: {
-                    id: published.imageId ?? null,
-                    url: published.link,
-                    linkKind: published.linkKind
+                    if (!published || published.ordinal !== image.ordinal)
+                      throw new TeamFunctionError('INVALID_RESPONSE');
+                    const link = published;
+                    await serial(() =>
+                      store.checkpoint(intent, owner, workingState(), {
+                        [`creativeImage_${image.ordinal}`]: {
+                          id: link.imageId ?? null,
+                          url: link.link,
+                          linkKind: link.linkKind
+                        },
+                        ...(creativeDiagnostics ? { creativeDiagnostics } : {})
+                      })
+                    );
+                    links[indexOf.get(image.ordinal)!] = link;
                   }
                 });
-                links.push(published);
               }
-              return links;
+              if (links.length !== input.images.length || links.some(link => !link))
+                throw new TeamFunctionError('INVALID_RESPONSE');
+              return links as CatalogCreativeImageLink[];
             }
           }
         : {}),
@@ -1135,6 +1190,9 @@ export async function createDurableProductCatalog(
     await store.checkpoint(intent, owner, 'registered', {}, undefined, result);
     return result;
   } catch (error) {
+    // A yield is not an interruption: the intent keeps its state and its lease is handed on
+    // by the Launch (service_yield_launch_generation) to the invocation that continues it.
+    if (error instanceof CatalogStepYield) throw error;
     const failure = launchFailure(error);
     await deps
       .finalizeImageUses?.(

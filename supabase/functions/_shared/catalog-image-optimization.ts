@@ -19,6 +19,13 @@ const crcTable = Uint32Array.from({ length: 256 }, (_, value) => {
   return crc >>> 0;
 });
 
+/**
+ * `always` is the white pool's canonical form (its bytes are its identity). `when-too-large`
+ * is for a Launch's image creative, keyed by its Drive version: a PNG that already fits the
+ * public limit keeps its compressed raster, only its text metadata goes.
+ */
+export type CatalogImageRecompression = 'always' | 'when-too-large';
+
 export interface OptimizedCatalogImage {
   bytes: Uint8Array;
   image: ValidatedCatalogImage & {
@@ -363,7 +370,37 @@ function pngScanlines(
   });
 }
 
-async function optimizePng(bytes: Uint8Array, signal?: AbortSignal): Promise<Uint8Array> {
+/** Every inflated row is checked as in `recompressPng`, but nothing is deflated again. */
+async function validatePngRaster(
+  source: ReadableStream<BufferSource>,
+  header: Uint8Array,
+  paletteEntries: number,
+  signal?: AbortSignal
+): Promise<void> {
+  const reader = source
+    .pipeThrough(new DecompressionStream('deflate'))
+    .pipeThrough(pngScanlines(header, paletteEntries))
+    .getReader();
+  try {
+    while (true) {
+      signal?.throwIfAborted();
+      const next = await reader.read();
+      if (next.done) break;
+      releaseNativeChunk(next.value as ArrayBufferView);
+    }
+  } catch (error) {
+    await reader.cancel(error).catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function optimizePng(
+  bytes: Uint8Array,
+  signal?: AbortSignal,
+  recompress: CatalogImageRecompression = 'always'
+): Promise<Uint8Array> {
   const parts = pngParts(bytes);
   const ids = parts.map((part, i) => (part.type === 'IDAT' ? i : -1)).filter(i => i >= 0);
   if (!ids.length || ids.at(-1)! - ids[0]! + 1 !== ids.length) fail('IMAGE_CONTENT_INVALID');
@@ -409,6 +446,27 @@ async function optimizePng(bytes: Uint8Array, signal?: AbortSignal): Promise<Uin
   // Textual/time metadata goes here; EXIF and unknown ancillary chunks go in the 073 pass
   // after it. ICC, gamma, chromaticities, bit depth and alpha remain byte-identical.
   const retained = parts.filter(part => !['tEXt', 'zTXt', 'iTXt', 'tIME'].includes(part.type));
+  const originalSize = 8 + retained.reduce((sum, part) => sum + part.full.length, 0);
+  // A creative that already fits keeps its own IDAT: the raster is still inflated and every
+  // row checked, but deflating it again cost ~60% of the CPU of a picture and almost never
+  // won (prod 2026-11-25: 20 PNG creatives, every rewrite discarded as not smaller).
+  if (recompress === 'when-too-large' && originalSize <= CATALOG_IMAGE_PUBLIC_MAX_BYTES) {
+    try {
+      await validatePngRaster(
+        streamParts(
+          ids.map(i => parts[i]!.data),
+          signal
+        ),
+        parts[0]!.data,
+        palette >= 0 ? parts[palette]!.data.length / 3 : 0,
+        signal
+      );
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      fail('IMAGE_CONTENT_INVALID');
+    }
+    return join([PNG_SIGNATURE, ...retained.map(part => part.full)]);
+  }
   let compressed: Uint8Array | null;
   try {
     compressed = await recompressPng(
@@ -424,7 +482,6 @@ async function optimizePng(bytes: Uint8Array, signal?: AbortSignal): Promise<Uin
     if (signal?.aborted) throw error;
     fail('IMAGE_CONTENT_INVALID');
   }
-  const originalSize = 8 + retained.reduce((sum, part) => sum + part.full.length, 0);
   const replacementSize = compressed
     ? originalSize - ids.reduce((sum, i) => sum + parts[i]!.full.length, 0) + compressed.length + 12
     : Infinity;
@@ -589,7 +646,8 @@ async function webpPng(
 export async function optimizeCatalogImage(
   bytes: Uint8Array,
   declaredMime?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: { recompress?: CatalogImageRecompression } = {}
 ): Promise<OptimizedCatalogImage> {
   signal?.throwIfAborted();
   boundStructure(bytes);
@@ -607,7 +665,7 @@ export async function optimizeCatalogImage(
       source.mime === 'image/jpeg'
         ? optimizeJpeg(bytes)
         : source.mime === 'image/png'
-          ? await optimizePng(bytes, signal)
+          ? await optimizePng(bytes, signal, options.recompress)
           : await webpPng(bytes, source, signal);
     // 073: a picture that reaches a public catalog says nothing about the camera, the place or
     // the author. The steps above already left only what renders; this removes the EXIF, XMP,

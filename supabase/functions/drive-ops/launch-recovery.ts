@@ -520,6 +520,9 @@ export async function runLaunchCatalogRecovery(
       const outcome = await execute(item.teamId, item.generationId, item.actorId);
       if (isRecord(outcome) && outcome.state === 'succeeded') result.completed++;
       else result.pending++;
+      // A generation that yielded spent this invocation's CPU; the hand-off already woke a
+      // fresh pass for it and for the rest of the list.
+      if (isRecord(outcome) && outcome.yielded === true) break;
     } catch {
       result.pending++;
     }

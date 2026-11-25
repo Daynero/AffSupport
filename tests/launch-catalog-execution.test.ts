@@ -5,6 +5,7 @@ import {
 } from '../supabase/functions/drive-ops/launch-catalog';
 import { launchConfig, launchSources } from './fixtures/launches';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors';
+import { CatalogStepYield } from '../supabase/functions/drive-ops/creative-image-pool';
 
 it.each([1, 2])(
   'keeps the server-accepted image contract %i when creating the child',
@@ -423,5 +424,30 @@ it('keeps the generation lease alive while a slow step runs and stops beating af
     expect(touches()).toBe(settled);
   } finally {
     vi.useRealTimers();
+  }
+});
+
+it('hands a generation whose image step yielded straight on instead of stopping it (2026-11-25)', async () => {
+  const durable = await import('../supabase/functions/drive-ops/catalog-durable');
+  const create = vi
+    .spyOn(durable, 'createDurableProductCatalog')
+    .mockRejectedValueOnce(new CatalogStepYield());
+  const rpc = vi.fn(async (name: string) => ({
+    error: null,
+    data: name === 'service_restore_registered_launch_catalog' ? false : claimedCatalog(name)
+  }));
+  try {
+    await expect(
+      executeLaunchCatalog(executionDeps(rpc), 'team', 'generation', 'actor')
+    ).resolves.toEqual({ id: 'generation', state: 'running', yielded: true });
+    expect(rpc).toHaveBeenCalledWith(
+      'service_yield_launch_generation',
+      expect.objectContaining({ p_generation: 'generation', p_fence: '2' })
+    );
+    const names = rpc.mock.calls.map(([name]) => name);
+    expect(names).not.toContain('service_interrupt_launch_generation');
+    expect(names).not.toContain('service_interrupt_launch_generation_with_backoff');
+  } finally {
+    create.mockRestore();
   }
 });

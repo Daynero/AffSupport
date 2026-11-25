@@ -410,6 +410,20 @@ it('keeps recovering later hosted launches when the first launch fails provider 
   expect(execute.mock.calls.map(call => call[1])).toEqual([id(1), id(2), id(3)]);
 });
 
+it('stops the pass after a generation that yielded its invocation (2026-11-25)', async () => {
+  const id = (n: number) => `72000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const rpc = vi.fn(async (name: string) => ({
+    error: null,
+    data:
+      name === 'service_settle_launch_authority_losses'
+        ? 0
+        : [1, 2, 3].map(n => ({ teamId: id(10), generationId: id(n), actorId: id(11) }))
+  }));
+  const execute = vi.fn().mockResolvedValue({ state: 'running', yielded: true });
+  expect(await runLaunchCatalogRecovery({ rpc }, execute)).toEqual({ completed: 0, pending: 1 });
+  expect(execute).toHaveBeenCalledTimes(1);
+});
+
 it.each(['complete', 'retained', 'unknown'] as const)(
   'recovers a lost native acknowledgment using provider completion: %s',
   async proof => {

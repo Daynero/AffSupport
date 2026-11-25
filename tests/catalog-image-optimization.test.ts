@@ -297,3 +297,78 @@ describe('lossless canonical catalog images', () => {
     ).rejects.toMatchObject({ code: 'IMAGE_CONTENT_INVALID' });
   });
 });
+
+describe('a Launch image creative keeps its own compressed raster (2026-11-25)', () => {
+  const creative = { recompress: 'when-too-large' as const };
+  it('drops text metadata but keeps every IDAT byte when the original already fits', async () => {
+    const source = makeCatalogPng({ level: 0, text: 'Camera owner'.repeat(50) });
+    const result = await optimizeCatalogImage(source, 'image/png', undefined, creative);
+    const idat = (b: Uint8Array) =>
+      Buffer.concat(
+        parts(b)
+          .filter(p => p.type === 'IDAT')
+          .map(p => Buffer.from(p.data))
+      );
+    // An uncompressed (level 0) raster stays as it was: nothing deflated it again.
+    expect(hash(idat(result.bytes))).toBe(hash(idat(source)));
+    expect(parts(result.bytes).some(p => p.type === 'tEXt')).toBe(false);
+    expect(hash(PNG.sync.read(Buffer.from(result.bytes)).data)).toBe(
+      hash(PNG.sync.read(source).data)
+    );
+    // The white pool's canonical form is unchanged: it still re-deflates.
+    const pool = await optimizeCatalogImage(source, 'image/png');
+    expect(pool.bytes.length).toBeLessThan(result.bytes.length);
+  });
+  it('still inflates and checks every row, refusing a corrupt or bombed raster', async () => {
+    const source = makeCatalogPng();
+    const p = parts(source);
+    const id = p.find(x => x.type === 'IDAT')!;
+    const broken = Uint8Array.from(id.data);
+    broken[broken.length - 1] ^= 1;
+    const corrupt = Buffer.concat([
+      source.subarray(0, 33),
+      testPngChunk('IDAT', broken),
+      testPngChunk('IEND', Buffer.alloc(0))
+    ]);
+    await expect(
+      optimizeCatalogImage(corrupt, 'image/png', undefined, creative)
+    ).rejects.toMatchObject({ code: 'IMAGE_CONTENT_INVALID' });
+    const bomb = makeCatalogPng({ width: 1024, height: 1024 });
+    const header = Uint8Array.from(parts(bomb)[0]!.data);
+    new DataView(header.buffer).setUint32(0, 500);
+    new DataView(header.buffer).setUint32(4, 500);
+    await expect(
+      optimizeCatalogImage(
+        Buffer.concat([
+          bomb.subarray(0, 8),
+          testPngChunk('IHDR', header),
+          ...parts(bomb)
+            .slice(1)
+            .map(v => testPngChunk(v.type, v.data))
+        ]),
+        'image/png',
+        undefined,
+        creative
+      )
+    ).rejects.toMatchObject({ code: 'IMAGE_CONTENT_INVALID' });
+    for (const depth of [1, 2, 4, 8])
+      await expect(
+        optimizeCatalogImage(
+          makeIndexedCatalogPng(depth, 4, false, true),
+          'image/png',
+          undefined,
+          creative
+        )
+      ).rejects.toMatchObject({ code: 'IMAGE_CONTENT_INVALID' });
+  });
+  it('re-deflates only a PNG above the public limit', async () => {
+    // 1600×1600 RGBA stored uncompressed is ~10 MB, above the 8 MB public limit.
+    const source = makeCatalogPng({ width: 1600, height: 1600, level: 0 });
+    expect(source.length).toBeGreaterThan(8_000_000);
+    const result = await optimizeCatalogImage(source, 'image/png', undefined, creative);
+    expect(result.bytes.length).toBeLessThan(8_000_000);
+    expect(hash(PNG.sync.read(Buffer.from(result.bytes)).data)).toBe(
+      hash(PNG.sync.read(source).data)
+    );
+  });
+});

@@ -189,7 +189,9 @@ export function createCreativeImagePublisher(
         },
         signal
       );
-      optimized = await optimize(bytes, live.mimeType, signal);
+      // A creative is keyed by its Drive version, not by its bytes: a PNG that already fits
+      // keeps its compressed raster (checked row by row), only its metadata goes (073).
+      optimized = await optimize(bytes, live.mimeType, signal, { recompress: 'when-too-large' });
     } catch (error) {
       const refused = creativeImageFailure(error);
       if (refused) {

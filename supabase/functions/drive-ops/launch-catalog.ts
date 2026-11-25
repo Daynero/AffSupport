@@ -27,6 +27,7 @@ import {
   type DurableCatalogDrive
 } from './catalog-durable.ts';
 import type { ProductCatalogDeps } from './product-catalog.ts';
+import { CatalogStepYield } from './creative-image-pool.ts';
 import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
 export interface LaunchCatalogExecutionDeps {
   service: ServiceRpcClient;
@@ -535,6 +536,13 @@ export async function executeLaunchCatalog(
       p_fence: fence
     });
   } catch (error) {
+    if (error instanceof CatalogStepYield) {
+      // The step stopped between images within this invocation's CPU. Hand the lease on at
+      // once and wake the recovery pass: the next invocation resumes from the checkpoints
+      // instead of waiting out a 180 s lease. A lost hand-off falls back to the lease.
+      await call(deps.service, 'service_yield_launch_generation', authority).catch(() => undefined);
+      return { id: generationId, state: 'running', yielded: true };
+    }
     const failure = launchFailure(error);
     // A lost lease means another executor owns this generation now: stopping it
     // here would stamp the winner's generation with a stale LEASE_MISMATCH and

@@ -3723,3 +3723,13 @@ closes its global-pool identities. No table or column. Undo by dropping the two 
 lobby then answers `NOT_FOUND`/unknown RPC on delete. An archived space comes back with
 `update public.teams set status = 'active'` (R2 copies are re-made on demand by the reconcile;
 a tariff already rebound elsewhere stays there).
+
+## 20261224350000 — a Launch's image step hands itself on (2026-11-25)
+
+Adds `public.service_yield_launch_generation(uuid, uuid, uuid, text, text)` (service_role only):
+the executor that holds a running catalog generation's lease releases it and its catalog
+intent's lease, makes the generation due now and wakes `/drive-ops/launches/recover` through
+pg_net, so twenty image creatives continue in fresh invocations instead of waiting out a 180 s
+lease after each CPU-limited one. No table or column. Undo by dropping the function: drive-ops
+ignores the failed call and the generation is resumed by the per-minute pass once its lease
+expires, as before.

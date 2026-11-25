@@ -9,6 +9,10 @@ import {
 } from '../supabase/functions/drive-ops/creative-images.js';
 import { sweepCreativeImages } from '../supabase/functions/catalog-images/worker.js';
 import { createDurableProductCatalog } from '../supabase/functions/drive-ops/catalog-durable.js';
+import {
+  CatalogStepYield,
+  publishCreativeImagesBounded
+} from '../supabase/functions/drive-ops/creative-image-pool.js';
 
 /**
  * 062 (R7, R29, R33, T049/T054/T087): a Launch's image creative reaches H only through a link
@@ -121,6 +125,10 @@ describe('the R2 path', () => {
       },
       expect.anything()
     );
+    // A creative keeps its own compressed raster unless it is above the public limit.
+    expect(f.optimize).toHaveBeenCalledWith(expect.anything(), 'image/jpeg', expect.anything(), {
+      recompress: 'when-too-large'
+    });
     expect(f.r2.putFinal).toHaveBeenCalledWith(
       KEY,
       optimized.bytes,
@@ -499,6 +507,159 @@ describe('the durable image step', () => {
     });
     await createDurableProductCatalog(h.deps, h.store, async () => h.drive, body, ACTOR);
     expect(h.published).toEqual([1]);
+  });
+
+  it('yields between images past its bytes and resumes from the checkpoints (2026-11-25)', async () => {
+    const three = {
+      ...body,
+      creatives: [
+        { materialId: M(1), alias: 'pic1', copies: 1 },
+        { materialId: M(2), alias: 'pic2', copies: 1 },
+        { materialId: M(3), alias: 'pic3', copies: 1 }
+      ]
+    };
+    const h = harness();
+    h.store.yieldable = true;
+    // Three 15 MB pictures: the invocation's 20 MB lets two start, the third waits for the next.
+    h.deps.proveVideo.mockImplementation(async video =>
+      metadata({ id: video.driveFileId, name: video.name, size: 15_000_000 })
+    );
+    await expect(
+      createDurableProductCatalog(h.deps, h.store, async () => h.drive, three, ACTOR)
+    ).rejects.toBeInstanceOf(CatalogStepYield);
+    expect(h.published).toEqual([0, 1]);
+    expect(h.saved.creativeImage_0).toBeDefined();
+    expect(h.saved.creativeImage_1).toBeDefined();
+    expect(h.saved.creativeImage_2).toBeUndefined();
+    // A yield is not an interruption: nothing is stamped on the intent.
+    expect(h.saved.safeErrorCode).toBeUndefined();
+    expect(h.store.checkpoint.mock.calls.map(call => call[2])).not.toContain('interrupted');
+    const result = await createDurableProductCatalog(
+      h.deps,
+      h.store,
+      async () => h.drive,
+      three,
+      ACTOR
+    );
+    expect(result.outcome).toBe('created');
+    expect(h.published).toEqual([0, 1, 2]);
+  });
+
+  it('writes one checkpoint per image, its diagnostics with it', async () => {
+    const h = harness();
+    await createDurableProductCatalog(h.deps, h.store, async () => h.drive, body, ACTOR);
+    const imageWrites = h.store.checkpoint.mock.calls.filter(call =>
+      Object.keys(call[3]).some(key => key.startsWith('creativeImage_'))
+    );
+    expect(imageWrites).toHaveLength(2);
+    for (const call of imageWrites) expect(call[3]).toHaveProperty('creativeDiagnostics');
+  });
+});
+
+describe('several images at once, within one invocation (2026-11-25)', () => {
+  const deferred = () => {
+    let resolve!: () => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<void>((yes, no) => {
+      resolve = yes;
+      reject = no;
+    });
+    return { promise, resolve, reject };
+  };
+  const images = (sizes: Array<number | null>) =>
+    sizes.map((size, ordinal) => ({ ordinal, live: { size } }));
+  const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+  it('runs three at a time, in order, and admits the next as one finishes', async () => {
+    const gates = Array.from({ length: 5 }, deferred);
+    const started: number[] = [];
+    const run = publishCreativeImagesBounded(images([1, 1, 1, 1, 1]), {
+      budget: null,
+      publish: async image => {
+        started.push(image.ordinal);
+        await gates[image.ordinal]!.promise;
+      }
+    });
+    await tick();
+    expect(started).toEqual([0, 1, 2]);
+    gates[1]!.resolve();
+    await tick();
+    expect(started).toEqual([0, 1, 2, 3]);
+    for (const gate of gates) gate.resolve();
+    await run;
+    expect(started).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it('holds back an image that would exceed the bytes in flight, but never the only one', async () => {
+    const gates = Array.from({ length: 3 }, deferred);
+    const started: number[] = [];
+    const run = publishCreativeImagesBounded(images([15e6, 15e6, 30e6]), {
+      budget: null,
+      publish: async image => {
+        started.push(image.ordinal);
+        await gates[image.ordinal]!.promise;
+      }
+    });
+    await tick();
+    expect(started).toEqual([0]);
+    gates[0]!.resolve();
+    await tick();
+    expect(started).toEqual([0, 1]);
+    gates[1]!.resolve();
+    await tick();
+    expect(started).toEqual([0, 1, 2]);
+    gates[2]!.resolve();
+    await run;
+  });
+
+  it('lets running images settle, then throws the first failure without starting more', async () => {
+    const started: number[] = [];
+    const settled: number[] = [];
+    const gate = deferred();
+    const run = publishCreativeImagesBounded(images([1, 1, 1, 1]), {
+      budget: null,
+      publish: async image => {
+        started.push(image.ordinal);
+        if (image.ordinal === 1) throw new TeamFunctionError('CREATIVE_IMAGE_FORMAT');
+        await gate.promise;
+        settled.push(image.ordinal);
+      }
+    });
+    await tick();
+    gate.resolve();
+    await expect(run).rejects.toMatchObject({ code: 'CREATIVE_IMAGE_FORMAT' });
+    expect(started).toEqual([0, 1, 2]);
+    expect(settled).toEqual([0, 2]);
+  });
+
+  it('yields once its bytes were started or the runtime announces its shutdown', async () => {
+    const started: number[] = [];
+    await expect(
+      publishCreativeImagesBounded(images([8e6, 8e6, 8e6, 8e6]), {
+        budget: { bytes: 16e6, stopping: () => false },
+        publish: async image => {
+          started.push(image.ordinal);
+        }
+      })
+    ).rejects.toBeInstanceOf(CatalogStepYield);
+    expect(started).toEqual([0, 1]);
+    const first: number[] = [];
+    await expect(
+      publishCreativeImagesBounded(images([1, 1]), {
+        budget: { bytes: 1e9, stopping: () => true },
+        publish: async image => {
+          first.push(image.ordinal);
+        }
+      })
+    ).rejects.toBeInstanceOf(CatalogStepYield);
+    // The first image always runs, so an invocation always moves the step forward.
+    expect(first).toEqual([0]);
+    await expect(
+      publishCreativeImagesBounded(images([8e6, 8e6]), {
+        budget: { bytes: 16e6, stopping: () => false },
+        publish: async () => undefined
+      })
+    ).resolves.toBeUndefined();
   });
 });
 

@@ -597,6 +597,35 @@ async function alongside<A, B>(first: Promise<A>, second: Promise<B>): Promise<[
   return [a.value, b.value];
 }
 
+/**
+ * Maps a few at a time and answers in input order; a refusal is the one of the earliest item,
+ * as the one-by-one loop it replaces would have thrown. Only for reads: every item runs.
+ * Twenty image creatives were read and proven one by one in ~8 s of every pass (prod 2026-11-25).
+ */
+async function inOrderBounded<T, R>(
+  items: readonly T[],
+  map: (item: T) => Promise<R>,
+  concurrency = 4
+): Promise<R[]> {
+  const settled: PromiseSettledResult<R>[] = new Array(items.length);
+  let next = 0;
+  const lane = async () => {
+    while (next < items.length) {
+      const index = next++;
+      try {
+        settled[index] = { status: 'fulfilled', value: await map(items[index]!) };
+      } catch (reason) {
+        settled[index] = { status: 'rejected', reason };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, lane));
+  return settled.map(result => {
+    if (result.status === 'rejected') throw result.reason;
+    return result.value;
+  });
+}
+
 /** Use the same MIME/extension rules as indexing, against the proven live file. */
 function assertLiveVideo(file: DriveFileMetadata, kind: CatalogCreativeKind = 'video') {
   const dot = file.name.lastIndexOf('.');
@@ -656,19 +685,20 @@ export async function createProductCatalog(
     throw new TeamFunctionError('CREATIVES_MIXED', { retryable: false });
   }
   // 062: the other creatives are loaded and checked before anything is written.
-  const others: Array<Omit<ProvenCreative, 'drive' | 'live'>> = [];
-  for (const [ordinal, creative] of (request.creatives ?? []).entries()) {
-    if (ordinal === 0) continue;
-    const material = await deps.loadVideo({
-      teamId,
-      videoId: creative.materialId,
-      actorId,
-      permission: 'view'
-    });
-    if (material.category !== kind)
-      throw new TeamFunctionError('CREATIVES_MIXED', { retryable: false });
-    others.push({ ordinal, request: creative, material });
-  }
+  const others: Array<Omit<ProvenCreative, 'drive' | 'live'>> = await inOrderBounded(
+    [...(request.creatives ?? []).entries()].slice(1),
+    async ([ordinal, creative]) => {
+      const material = await deps.loadVideo({
+        teamId,
+        videoId: creative.materialId,
+        actorId,
+        permission: 'view'
+      });
+      if (material.category !== kind)
+        throw new TeamFunctionError('CREATIVES_MIXED', { retryable: false });
+      return { ordinal, request: creative, material };
+    }
+  );
   if (kind === 'image' && !deps.publishCreativeImages)
     throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
   if (request.copyVideoToR2) await deps.assertVideoR2Option?.(teamId, actorId);
@@ -715,13 +745,12 @@ export async function createProductCatalog(
   const liveCopy = restitched && copyDrive ? await deps.proveVideo(restitched, copyDrive) : null;
   if (liveCopy) assertLiveVideo(liveCopy);
 
-  const proven: ProvenCreative[] = [];
-  for (const other of others) {
+  const proven: ProvenCreative[] = await inOrderBounded(others, async other => {
     const otherDrive = await deps.driveFor(other.material.credentialId);
     const live = await deps.proveVideo(other.material, otherDrive);
     assertLiveVideo(live, kind);
-    proven.push({ ...other, drive: otherDrive, live });
-  }
+    return { ...other, drive: otherDrive, live };
+  });
 
   let videoShared = false;
   if (
