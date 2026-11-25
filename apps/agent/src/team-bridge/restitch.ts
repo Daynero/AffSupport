@@ -49,6 +49,12 @@ import type { TeamProcessDelegate, TeamProcessDelegateInput } from './process.js
 import { ffmpegPath } from '../ffmpeg/tools.js';
 import { runTool, toolSucceeded } from '../stitcher/run.js';
 import { diagnostics } from '../server/diagnostics-log.js';
+import {
+  builtinScreenId,
+  builtinSlotsFor,
+  withBuiltinSlots,
+  writeBuiltinScreen
+} from './builtin-screens.js';
 
 /** What the web sends with a re-stitched delivery. */
 export interface RestitchDelegateOptions {
@@ -124,6 +130,26 @@ export function parseRestitchOptions(value: unknown): RestitchDelegateOptions | 
 }
 
 /**
+ * The final screen's length when the space keeps a range of its own (071).
+ *
+ * `random-centered` with `finalDurationRangeSeconds` is any whole second between the two minutes
+ * the person chose, drawn the way the server draws it for a catalog or a launch. Without the
+ * range — every row saved before 071, and a launch — the mode keeps its old meaning (five
+ * minutes either side of the centre) and this answers null so the stitcher's own draw applies.
+ */
+export function drawnFinalDurationSeconds(
+  defaults: Pick<TeamRestitchDefaults, 'finalDurationMode' | 'finalDurationRangeSeconds'>,
+  random: () => number = Math.random
+): number | null {
+  const range = defaults.finalDurationRangeSeconds;
+  if (defaults.finalDurationMode !== 'random-centered' || !range) return null;
+  const [minimum, maximum] = range[0] <= range[1] ? range : [range[1], range[0]];
+  return (
+    minimum + Math.floor(Math.min(0.999999999, Math.max(0, random())) * (maximum - minimum + 1))
+  );
+}
+
+/**
  * The screens this space draws, from the images this machine actually has.
  *
  * The space records which ids may be drawn; the pictures live in the compressor's library. An
@@ -155,7 +181,7 @@ export function spaceScreens(
       finalDurationMode: defaults.finalDurationMode,
       customFinalDurationSeconds: defaults.customFinalDurationSeconds
     },
-    {},
+    { endDurationSeconds: drawnFinalDurationSeconds(defaults, random) },
     random
   );
 }
@@ -199,7 +225,7 @@ export function screensFromResolved(
       finalDurationMode: defaults.finalDurationMode,
       customFinalDurationSeconds: defaults.customFinalDurationSeconds
     },
-    {},
+    { endDurationSeconds: drawnFinalDurationSeconds(defaults, random) },
     random
   );
 }
@@ -240,6 +266,10 @@ export function createRestitchDelegate(
     discovery = null;
     const options = parseRestitchOptions(input.options);
     if (!options) throw new Error('INVALID_INPUT');
+    // 071: Soty's standard pictures stand in for the slots `builtin` names. The server's
+    // compatibility fields for older agents are undone here, exactly (see builtin-screens.ts).
+    const builtin = builtinSlotsFor(options.defaults);
+    const defaults = withBuiltinSlots(options.defaults);
 
     // A delivery has no child to hold between its steps, so it says so rather than reporting
     // a pause it did not perform.
@@ -297,8 +327,11 @@ export function createRestitchDelegate(
         input.signal.throwIfAborted();
         if (recovery) {
           resolved = await resolveScreensWithRecovery(
+            // A standard picture is never drawn from the space's pools: there is nothing there.
             (['start', 'end'] as const).filter(
-              slot => options.defaults[slot === 'start' ? 'startEnabled' : 'endEnabled'] !== false
+              slot =>
+                !builtin[slot] &&
+                defaults[slot === 'start' ? 'startEnabled' : 'endEnabled'] !== false
             ),
             recovery,
             input.signal
@@ -323,7 +356,7 @@ export function createRestitchDelegate(
     }
     const automaticFrameId = 'launch-source-end-frame';
     let automaticFramePath: string | null = null;
-    if (options.defaults.automaticEndFrame === true) {
+    if (defaults.automaticEndFrame === true) {
       diagnostics.record('stitcher', 'automatic_frame_started', { runId: input.operationId });
       automaticFramePath = path.join(input.workspace, 'launch-end-frame.png');
       // A sparse end screen may have no packet near EOF. Its known boundary
@@ -373,20 +406,31 @@ export function createRestitchDelegate(
       }
       diagnostics.record('stitcher', 'automatic_frame_completed', { runId: input.operationId });
     }
-    const screens = automaticFramePath
+    const drawn = automaticFramePath
       ? screensFromResolved(
           [{ slot: 'end', id: automaticFrameId, path: automaticFramePath }],
-          options.defaults
+          defaults
         )
       : resolved
-        ? screensFromResolved(resolved, options.defaults)
-        : spaceScreens(deps.embedding(), options.defaults);
-    const planned = planStitch(
-      looked.profile,
-      looked.detected,
-      screens,
-      options.defaults.operation
-    );
+        ? screensFromResolved(resolved, defaults)
+        : spaceScreens(deps.embedding(), defaults);
+    // The standard pictures take their slots last, whichever path drew the other one.
+    const builtinPaths = new Map<string, string>();
+    for (const slot of ['start', 'end'] as const) {
+      if (!builtin[slot]) continue;
+      input.signal.throwIfAborted();
+      try {
+        builtinPaths.set(builtinScreenId(slot), await writeBuiltinScreen(input.workspace, slot));
+      } catch (error) {
+        throw new Error('RESTITCH_SCREEN_UNAVAILABLE', { cause: error });
+      }
+    }
+    const screens = {
+      ...drawn,
+      ...(builtin.start ? { startImageId: builtinScreenId('start') } : {}),
+      ...(builtin.end ? { endImageId: builtinScreenId('end') } : {})
+    };
+    const planned = planStitch(looked.profile, looked.detected, screens, defaults.operation);
     if (!planned.ok) {
       // Each refusal keeps its own name, so the row can say the true sentence rather than a
       // generic one: "no photo chosen" and "nothing to remove" are different problems with
@@ -445,7 +489,8 @@ export function createRestitchDelegate(
       imagePathFor: async id =>
         id === automaticFrameId && automaticFramePath
           ? automaticFramePath
-          : (resolved?.find(screen => screen.id === id)?.path ??
+          : (builtinPaths.get(id) ??
+            resolved?.find(screen => screen.id === id)?.path ??
             deps.screenCache?.pathFor(id) ??
             (await deps.imagePathFor(id))),
       bodies

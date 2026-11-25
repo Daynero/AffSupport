@@ -37,6 +37,7 @@ import {
   normalizeToolContracts,
   parseTeamAgentPreviewResult,
   parseTeamFileOperationResult,
+  restitchPrepareBackgroundSupported,
   restitchSourcesSupported,
   type RestitchScreen,
   teamPosterFrameSupported,
@@ -751,6 +752,8 @@ export async function prepareTeamRestitchMaterials(input: {
     transferGrant: TeamTransferGrant;
   }[];
   audio?: { sampleRate: number; channels: number } | null;
+  /** 071: the space preparing itself — low priority, gives way to any other work. */
+  background?: boolean;
 }): Promise<{ accepted: true }> {
   const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
   const contracts = health.toolContracts ?? {};
@@ -765,19 +768,52 @@ export async function prepareTeamRestitchMaterials(input: {
     teamId: input.teamId,
     transferUrl: input.transferUrl,
     materials: input.materials,
-    ...(input.audio ? { audio: input.audio } : {})
+    ...(input.audio ? { audio: input.audio } : {}),
+    ...(input.background ? { background: true } : {})
   });
   if (value.accepted !== true) throw new Error('INVALID_RESPONSE');
   return { accepted: true };
 }
 
+/**
+ * 071: whether this computer's Soty may prepare the space in the background right now — an app
+ * that can, with nothing else to do and a machine that is not loaded. Any doubt answers no: an
+ * older app, an app that cannot be reached, a refused read.
+ */
+export async function teamRestitchBackgroundAllowed(): Promise<boolean> {
+  try {
+    const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+    const contracts = health.toolContracts ?? {};
+    if (
+      !toolContractCompatible('teamWorkspace', contracts) ||
+      !toolContractCompatible('stitcher', contracts) ||
+      !restitchPrepareBackgroundSupported(contracts)
+    )
+      return false;
+    const value = await request<{ allowed?: unknown }>(
+      '/api/team/restitch/prepare/background',
+      'GET'
+    );
+    return value.allowed === true;
+  } catch {
+    return false;
+  }
+}
+
+export type TeamRestitchPreparationPhase =
+  'downloading' | 'inspecting' | 'converting' | 'verifying';
+
 export interface TeamRestitchPreparationReport {
-  state: 'running' | 'finished' | 'canceled';
+  /** `yielded`: a background run gave way to other work; the file in hand was not recorded. */
+  state: 'running' | 'finished' | 'canceled' | 'yielded';
   done: number;
   total: number;
   current: string | null;
-  phase?: 'inspecting' | 'converting' | 'verifying' | null;
+  phase?: TeamRestitchPreparationPhase | null;
   currentProgress?: number;
+  /** 071: how much of the file in hand has arrived (an older app reports none). */
+  currentBytes?: number;
+  currentBytesTotal?: number | null;
   findings: {
     materialId: string;
     state: 'inspecting' | 'prepared' | 'unsupported' | 'failed';
@@ -803,7 +839,7 @@ export async function readTeamRestitchPreparation(
   }
   const state = value.state;
   if (
-    (state !== 'running' && state !== 'finished' && state !== 'canceled') ||
+    (state !== 'running' && state !== 'finished' && state !== 'canceled' && state !== 'yielded') ||
     typeof value.done !== 'number' ||
     typeof value.total !== 'number' ||
     !Array.isArray(value.findings)
@@ -840,13 +876,28 @@ export async function readTeamRestitchPreparation(
     total: value.total,
     current: typeof value.current === 'string' ? value.current : null,
     phase:
-      value.phase === 'converting' || value.phase === 'verifying' || value.phase === 'inspecting'
+      value.phase === 'converting' ||
+      value.phase === 'verifying' ||
+      value.phase === 'inspecting' ||
+      value.phase === 'downloading'
         ? value.phase
         : null,
     currentProgress:
       typeof value.currentProgress === 'number' && Number.isFinite(value.currentProgress)
         ? Math.max(0, Math.min(1, value.currentProgress))
         : 0,
+    currentBytes:
+      typeof value.currentBytes === 'number' &&
+      Number.isFinite(value.currentBytes) &&
+      value.currentBytes >= 0
+        ? value.currentBytes
+        : 0,
+    currentBytesTotal:
+      typeof value.currentBytesTotal === 'number' &&
+      Number.isFinite(value.currentBytesTotal) &&
+      value.currentBytesTotal > 0
+        ? value.currentBytesTotal
+        : null,
     findings
   };
 }

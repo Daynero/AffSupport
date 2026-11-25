@@ -3320,6 +3320,13 @@ export const uk: Record<keyof typeof en, string> = {
   teamRestitchBoostEmpty: 'У просторі ще немає відео.',
   teamRestitchBoostFailed: 'Не вдалося: {count}',
   teamRestitchBoostIncludesManual: 'Враховано й відео, вже перезашиті вручну.',
+  teamRestitchBoostDownloading: 'Завантажуємо «{name}»',
+  teamRestitchBoostBytes: '{done} з {total}',
+  teamRestitchBoostInBackground: 'У фоні · {detail}',
+  teamRestitchBoostBackgroundWaiting: 'Решту підготуємо у фоні, щойно Soty звільниться.',
+  teamRestitchBoostAuto: 'Готувати автоматично',
+  teamRestitchBoostAutoHint:
+    'Коли Soty на цьому комп’ютері вільний, відео готуються самі й стають на паузу, щойно з’являється інша задача.',
   teamSpaceSettingsBack: 'Назад до простору',
   teamSpaceLoadFailed: 'Не вдалося завантажити ваші простори. Спробуйте ще раз.',
   teamCreateSpaceTitle: 'Створити простір',

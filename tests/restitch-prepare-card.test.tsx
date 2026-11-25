@@ -117,4 +117,69 @@ describe('the preparation card', () => {
     ).toBe(true);
     expect(screen.getByText('This needs the Soty app running on this computer.')).toBeTruthy();
   });
+
+  it('shows the download of the video in hand by the byte (071)', () => {
+    renderCard({
+      state: {
+        ...idle,
+        phase: 'running',
+        done: 1,
+        ready: 1,
+        total: 256,
+        current: { name: 'BG 12.mp4', since: Date.now() },
+        mediaPhase: 'downloading',
+        mediaProgress: 0.2,
+        mediaBytes: 400 * 1024 * 1024,
+        mediaBytesTotal: 1024 * 1024 * 1024
+      }
+    });
+    expect(screen.getByRole('status').textContent).toBe('Downloading “BG 12.mp4” · 400 MB of 1 GB');
+  });
+
+  it('shows the space preparing itself, and lets it be switched off (071)', () => {
+    const onAutoChange = vi.fn();
+    renderCard({
+      readiness: { total: 256, ready: 10, lastPreparedAt: null },
+      auto: true,
+      onAutoChange,
+      background: {
+        teamId: 'team',
+        status: 'running',
+        current: { name: 'BG 13.mp4', since: Date.now() },
+        phase: 'downloading',
+        progress: 0.1,
+        bytes: 0,
+        bytesTotal: null,
+        prepared: 0
+      }
+    });
+    expect(screen.getByRole('status').textContent).toBe(
+      'In the background · Downloading “BG 13.mp4”'
+    );
+    const toggle = screen.getByRole('switch', { name: 'Prepare automatically' });
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(toggle);
+    expect(onAutoChange).toHaveBeenCalledWith(false);
+  });
+
+  it('says the rest waits for a free Soty while background preparation is on (071)', () => {
+    renderCard({
+      readiness: { total: 256, ready: 10, lastPreparedAt: null },
+      auto: true,
+      onAutoChange: () => {},
+      background: {
+        teamId: 'team',
+        status: 'waiting',
+        current: null,
+        phase: null,
+        progress: 0,
+        bytes: 0,
+        bytesTotal: null,
+        prepared: 0
+      }
+    });
+    expect(screen.getByRole('status').textContent).toBe(
+      'The rest will be prepared in the background as soon as Soty is free.'
+    );
+  });
 });

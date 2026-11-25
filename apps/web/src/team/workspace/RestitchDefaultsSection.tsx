@@ -63,6 +63,11 @@ import {
 import { RestitchSlotPanel } from './restitch/RestitchSlotPanel';
 import { RestitchFitPicker } from './restitch/RestitchFitPicker';
 import { RestitchPrepareCard } from './restitch/RestitchPrepareCard';
+import {
+  useAutoPrepare,
+  useRestitchBackground,
+  writeAutoPrepare
+} from '../restitch/restitch-background';
 import { useRestitchReadiness } from './restitch/useRestitchReadiness';
 
 export interface RestitchDefaultsClient {
@@ -140,6 +145,9 @@ export function RestitchDefaultsSection({
   const [useOwner, setUseOwner] = useState(true);
   const [switching, setSwitching] = useState(false);
   const preparation = useRestitchPreparation(teamId);
+  // 071: the space prepares itself while Soty is free (mounted in the application shell).
+  const background = useRestitchBackground();
+  const autoPrepare = useAutoPrepare(teamId);
   // Preparation touches the space's drive; without one there is nothing to prepare, and the
   // way forward is the connection panel one section down rather than a button that would fail.
   const driveConnected = activeTeam?.connectionState === 'connected';
@@ -149,7 +157,7 @@ export function RestitchDefaultsSection({
     driveConnected && editable && can('process'),
     preparation.state.phase === 'running'
       ? 'running'
-      : `${preparation.state.phase}:${preparation.state.done}`
+      : `${preparation.state.phase}:${preparation.state.done}:${background.teamId === teamId ? background.prepared : 0}`
   );
   const scope: 'owner' | 'self' = isOwner || useOwner ? 'owner' : 'self';
   const poolsEditable = editable && (isOwner || !useOwner) && !saving;
@@ -616,6 +624,9 @@ export function RestitchDefaultsSection({
           off={off}
           onStart={() => void preparation.prepare()}
           onPause={() => void preparation.cancel()}
+          background={background.teamId === teamId ? background : null}
+          auto={autoPrepare}
+          onAutoChange={enabled => writeAutoPrepare(teamId, enabled)}
         />
       )}
     </SettingsSection>

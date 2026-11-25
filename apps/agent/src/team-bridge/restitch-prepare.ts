@@ -20,8 +20,22 @@
  * The shared silence is built first, before any material. It costs eleven to nineteen seconds
  * once per machine, and paying it here rather than inside the first delivery is most of what
  * separates a prepared space from an unprepared one.
+ *
+ * 071 adds two things:
+ *
+ * - **Progress inside a file.** Every video is read in full from the drive before it can be
+ *   looked at, and a long one sat as «1 of 256» for minutes. The report now says which step the
+ *   current file is on (`downloading` → `converting`/`verifying` → `inspecting`) and how many of
+ *   its bytes have arrived. Numbers only: the event channel still carries a stage and a
+ *   percentage, and the bytes ride on the report beside the findings.
+ * - **Background runs.** A run started with `background: true` is the space preparing itself
+ *   while Soty has nothing else to do. It is not counted as busy (an update or a person's own
+ *   task never waits for it), its conversions use one thread, and it gives way: the moment other
+ *   work starts or the machine is loaded (`yieldTo`), the current file is abandoned — not
+ *   recorded — and the run ends as `yielded`, so the page asks again later with a fresh grant.
  */
 
+import os from 'node:os';
 import {
   RESTITCH_DETECTOR_VERSION,
   hevcRestitchSource,
@@ -38,6 +52,11 @@ import { HevcCompatibility } from '../stitcher/hevc-normalize.js';
 
 /** How many finished runs stay readable, so a reload can still collect the tail. */
 const REMEMBERED_RUNS = 4;
+/**
+ * The share of a file's progress its download takes. Reading the file from the drive is most of
+ * the wait for an ordinary video; a HEVC conversion, when there is one, fills the rest.
+ */
+const DOWNLOAD_SHARE = 0.5;
 
 export interface RestitchPrepareMaterial {
   materialId: string;
@@ -52,6 +71,8 @@ export interface RestitchPrepareRequest {
   transferUrl: string;
   materials: RestitchPrepareMaterial[];
   audio?: { sampleRate: number; channels: number } | null;
+  /** 071: the space preparing itself while Soty is free — low priority, gives way to anything. */
+  background?: boolean;
 }
 
 export type RestitchPrepareState = 'inspecting' | 'prepared' | 'unsupported' | 'failed';
@@ -63,15 +84,22 @@ export interface RestitchPrepareFinding {
   reason: string | null;
 }
 
+export type RestitchPreparePhase = 'downloading' | 'inspecting' | 'converting' | 'verifying';
+
 export interface RestitchPrepareReport {
   operationId: string;
-  state: 'running' | 'finished' | 'canceled';
+  /** `yielded`: a background run gave way to other work; nothing about the file in hand is kept. */
+  state: 'running' | 'finished' | 'canceled' | 'yielded';
   done: number;
   total: number;
   /** What is being looked at right now, so a row can say so rather than a page-wide spinner. */
   current: string | null;
-  phase: 'inspecting' | 'converting' | 'verifying' | null;
+  phase: RestitchPreparePhase | null;
   currentProgress: number;
+  /** 071: how much of the current file has arrived, and of how much (null until the drive says). */
+  currentBytes: number;
+  currentBytesTotal: number | null;
+  background: boolean;
   findings: RestitchPrepareFinding[];
 }
 
@@ -87,6 +115,12 @@ export interface RestitchPrepareBridgeOptions {
   /** The same coarse progress every other team operation publishes. */
   events?: Pick<TeamOperationEvents, 'update'>;
   compatibility?: Pick<HevcCompatibility, 'prepare'>;
+  /**
+   * 071: whether a background run must give way now — other work in Soty, or a machine already
+   * loaded. Asked before every file and every `yieldPollMs` during one. Absent: never.
+   */
+  yieldTo?: () => boolean;
+  yieldPollMs?: number;
 }
 
 interface PrepareRun {
@@ -100,6 +134,11 @@ interface PrepareRun {
   findings: Map<string, RestitchPrepareFinding>;
   currentProgress: number;
   phase: RestitchPrepareReport['phase'];
+  currentBytes: number;
+  currentBytesTotal: number | null;
+  background: boolean;
+  /** The last percentage and stage put on the event channel, so a chunk does not re-send them. */
+  published: string | null;
 }
 
 export class RestitchPrepareBridge {
@@ -108,11 +147,26 @@ export class RestitchPrepareBridge {
   readonly #runs = new Map<string, PrepareRun>();
   #closing = false;
   readonly #compatibility: Pick<HevcCompatibility, 'prepare'>;
+  readonly #yieldTo: () => boolean;
+  readonly #yieldPollMs: number;
 
   constructor(options: RestitchPrepareBridgeOptions) {
     this.#transfer = options.transfer;
     this.#events = options.events;
     this.#compatibility = options.compatibility ?? new HevcCompatibility();
+    this.#yieldTo = options.yieldTo ?? (() => false);
+    this.#yieldPollMs = options.yieldPollMs ?? 1_000;
+  }
+
+  /** 071: whether a background run could start now (the page asks before it starts one). */
+  backgroundAllowed(): boolean {
+    if (this.#closing) return false;
+    for (const run of this.#runs.values()) if (run.active) return false;
+    try {
+      return !this.#yieldTo();
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -134,7 +188,11 @@ export class RestitchPrepareBridge {
       state: 'running',
       findings: new Map(),
       currentProgress: 0,
-      phase: null
+      phase: null,
+      currentBytes: 0,
+      currentBytesTotal: null,
+      background: request.background === true,
+      published: null
     };
     this.#remember(request.operationId, run);
     // Own completion before publishing or starting I/O. Abort requests and UI
@@ -147,6 +205,8 @@ export class RestitchPrepareBridge {
         run.current = null;
         run.phase = null;
         run.currentProgress = 0;
+        run.currentBytes = 0;
+        run.currentBytesTotal = null;
         this.#publish(request.operationId, run);
         this.#prune();
       });
@@ -159,12 +219,15 @@ export class RestitchPrepareBridge {
     if (!run) return null;
     return {
       operationId,
-      state: run.active && run.state === 'canceled' ? 'running' : run.state,
+      state: run.active && run.state !== 'running' ? 'running' : run.state,
       done: run.done,
       total: run.total,
       current: run.current,
       phase: run.phase,
       currentProgress: run.currentProgress,
+      currentBytes: run.currentBytes,
+      currentBytesTotal: run.currentBytesTotal,
+      background: run.background,
       findings: [...run.findings.values()]
     };
   }
@@ -177,9 +240,10 @@ export class RestitchPrepareBridge {
     return true;
   }
 
+  /** A background run is not busy: it gives way to everything, an update included. */
   busy(): boolean {
     for (const run of this.#runs.values()) {
-      if (run.active) return true;
+      if (run.active && !run.background) return true;
     }
     return false;
   }
@@ -213,13 +277,26 @@ export class RestitchPrepareBridge {
   #publish(operationId: string, run: PrepareRun): void {
     // Deliberately only the shape of progress: how far along, and whether it is still going.
     // What was found stays here, where a broadcast cannot reach it.
+    const state = run.active
+      ? 'running'
+      : run.state === 'canceled' || run.state === 'yielded'
+        ? 'canceled'
+        : 'succeeded';
+    const stage = run.active
+      ? run.phase === 'downloading'
+        ? 'downloading'
+        : 'processing'
+      : state === 'canceled'
+        ? 'canceled'
+        : 'completed';
+    const progress =
+      run.total > 0 ? Math.round(((run.done + run.currentProgress) / run.total) * 100) : 100;
+    // A file arrives in hundreds of chunks; the channel hears only what changes its numbers.
+    const key = `${state}:${stage}:${progress}`;
+    if (key === run.published) return;
+    run.published = key;
     try {
-      this.#events?.update(operationId, {
-        state: run.active ? 'running' : run.state === 'canceled' ? 'canceled' : 'succeeded',
-        stage: run.active ? 'processing' : run.state === 'canceled' ? 'canceled' : 'completed',
-        progress:
-          run.total > 0 ? Math.round(((run.done + run.currentProgress) / run.total) * 100) : 100
-      });
+      this.#events?.update(operationId, { state, stage, progress });
     } catch {
       // A diagnostic sink failure cannot strand work or prevent quiescence.
     }
@@ -242,9 +319,15 @@ export class RestitchPrepareBridge {
 
     for (const material of request.materials) {
       if (signal.aborted) return;
+      if (run.background && this.#mustYield()) {
+        run.state = 'yielded';
+        return;
+      }
       run.current = material.materialId;
       run.currentProgress = 0;
-      run.phase = 'inspecting';
+      run.currentBytes = 0;
+      run.currentBytesTotal = null;
+      run.phase = 'downloading';
       run.findings.set(material.materialId, {
         materialId: material.materialId,
         state: 'inspecting',
@@ -253,21 +336,58 @@ export class RestitchPrepareBridge {
       });
       this.#publish(request.operationId, run);
 
-      const finding = await this.#inspect(
-        request,
-        material,
-        signal,
-        fraction => {
-          run.currentProgress = Math.max(run.currentProgress, Math.min(0.95, fraction));
-          this.#publish(request.operationId, run);
-        },
-        phase => {
-          run.phase = phase;
-          this.#publish(request.operationId, run);
-        }
-      );
+      // A background file has its own stop: giving way abandons this file, not the run's record.
+      const local = new AbortController();
+      const stop = () => local.abort();
+      signal.addEventListener('abort', stop, { once: true });
+      let yielded = false;
+      const watch = run.background
+        ? setInterval(() => {
+            if (!yielded && this.#mustYield()) {
+              yielded = true;
+              local.abort();
+            }
+          }, this.#yieldPollMs)
+        : null;
+      watch?.unref?.();
+      let finding: RestitchPrepareFinding;
+      try {
+        finding = await this.#inspect(
+          request,
+          material,
+          local.signal,
+          fraction => {
+            run.currentProgress = Math.max(run.currentProgress, Math.min(0.95, fraction));
+            this.#publish(request.operationId, run);
+          },
+          phase => {
+            run.phase = phase;
+            this.#publish(request.operationId, run);
+          },
+          (bytes, total) => {
+            run.currentBytes = bytes;
+            run.currentBytesTotal = total;
+            if (total && total > 0)
+              run.currentProgress = Math.max(run.currentProgress, (bytes / total) * DOWNLOAD_SHARE);
+            this.#publish(request.operationId, run);
+          },
+          run.background
+        );
+      } finally {
+        if (watch) clearInterval(watch);
+        signal.removeEventListener('abort', stop);
+      }
+      if (yielded && !signal.aborted) {
+        // Nothing about a file read halfway is true; the page asks for it again later.
+        run.findings.delete(material.materialId);
+        run.currentProgress = 0;
+        run.state = 'yielded';
+        return;
+      }
       run.done += 1;
       run.currentProgress = 0;
+      run.currentBytes = 0;
+      run.currentBytesTotal = null;
       run.findings.set(material.materialId, finding);
       // Whatever finished stays found: a stop keeps what it has rather than discarding a run's
       // worth of work because the last material was interrupted.
@@ -276,12 +396,23 @@ export class RestitchPrepareBridge {
     }
   }
 
+  #mustYield(): boolean {
+    try {
+      return this.#yieldTo();
+    } catch {
+      // Unable to tell whether the machine is free is not free.
+      return true;
+    }
+  }
+
   async #inspect(
     request: RestitchPrepareRequest,
     material: RestitchPrepareMaterial,
     signal: AbortSignal,
     progress: (fraction: number) => void,
-    phase: (value: RestitchPrepareReport['phase']) => void
+    phase: (value: RestitchPrepareReport['phase']) => void,
+    bytes: (written: number, total: number | null) => void,
+    background: boolean
   ): Promise<RestitchPrepareFinding> {
     let source: DownloadedTeamSource | null = null;
     try {
@@ -289,10 +420,18 @@ export class RestitchPrepareBridge {
         {
           operationId: `${request.operationId}:${material.materialId}`,
           transferUrl: request.transferUrl,
-          grant: material.transferGrant
+          grant: material.transferGrant,
+          onProgress: (written, total) => {
+            try {
+              bytes(written, total);
+            } catch {
+              // Progress is a courtesy; it never stops the transfer.
+            }
+          }
         },
         signal
       );
+      phase('inspecting');
       const probed = await probeSource(source.file, { signal });
       if (!probed.ok) return unsupported(material, 'unreadable');
       const hevc = hevcRestitchSource(probed.value);
@@ -310,7 +449,9 @@ export class RestitchPrepareBridge {
               : null,
             signal,
             runId: request.operationId,
-            onProgress: fraction => progress(fraction * 0.85),
+            // A background conversion takes one thread: it must not be what makes the fans spin.
+            ...(background ? { threads: 1 } : {}),
+            onProgress: fraction => progress(DOWNLOAD_SHARE + fraction * (0.95 - DOWNLOAD_SHARE)),
             onStage: phase
           })
         : null;
@@ -348,6 +489,22 @@ export class RestitchPrepareBridge {
       await source?.cleanup().catch(() => undefined);
     }
   }
+}
+
+/**
+ * 071: whether something other than Soty already keeps this computer busy.
+ *
+ * The one-minute load average per logical processor, above which a background preparation does
+ * not start (or gives way). Windows reports no load average (zeros), so there only Soty's own
+ * work decides; the power governor still caps whatever does run.
+ */
+export function machineLoaded(
+  loadAverage: () => number[] = os.loadavg,
+  processors: () => number = os.availableParallelism
+): boolean {
+  const [oneMinute] = loadAverage();
+  const count = Math.max(1, processors());
+  return typeof oneMinute === 'number' && Number.isFinite(oneMinute) && oneMinute / count > 0.7;
 }
 
 function unsupported(material: RestitchPrepareMaterial, reason: string): RestitchPrepareFinding {

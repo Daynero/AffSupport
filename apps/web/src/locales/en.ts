@@ -3338,6 +3338,14 @@ export const en = {
   teamRestitchBoostEmpty: 'The space has no videos yet.',
   teamRestitchBoostFailed: 'Failed: {count}',
   teamRestitchBoostIncludesManual: 'Videos already re-stitched by hand count too.',
+  teamRestitchBoostDownloading: 'Downloading “{name}”',
+  teamRestitchBoostBytes: '{done} of {total}',
+  teamRestitchBoostInBackground: 'In the background · {detail}',
+  teamRestitchBoostBackgroundWaiting:
+    'The rest will be prepared in the background as soon as Soty is free.',
+  teamRestitchBoostAuto: 'Prepare automatically',
+  teamRestitchBoostAutoHint:
+    'While Soty on this computer is free, videos are prepared on their own and pause as soon as another task starts.',
   teamSpaceSettingsBack: 'Back to space',
   teamSpaceLoadFailed: 'We could not load your spaces. Please try again.',
   teamCreateSpaceTitle: 'Create a space',

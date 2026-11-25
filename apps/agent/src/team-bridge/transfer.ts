@@ -42,6 +42,48 @@ export interface TeamSourceDownloadRequest {
   onProgress?: (bytesWritten: number, totalBytes: number | null) => void;
 }
 
+/** 071: the preparation a re-stitch found, keyed to the Drive version of the bytes it read. */
+export interface TeamRestitchPrepReport {
+  driveVersion: string;
+  detectorVersion: number;
+  detectedStartSeconds: number;
+  detectedEndSeconds: number;
+  profile: Record<string, unknown>;
+}
+
+/**
+ * The discovery a re-stitch delegate hands back, narrowed to what the finalize may carry.
+ * Anything malformed is dropped: storing it is an optimisation, never a reason to fail a file.
+ */
+export function restitchPrepReport(
+  discovered: unknown,
+  driveVersion: string | null
+): TeamRestitchPrepReport | undefined {
+  if (!driveVersion || driveVersion.length > 1024 || !isRecord(discovered)) return undefined;
+  const { detectorVersion, detectedStartSeconds, detectedEndSeconds, profile } = discovered;
+  if (
+    !Number.isSafeInteger(detectorVersion) ||
+    (detectorVersion as number) < 1 ||
+    typeof detectedStartSeconds !== 'number' ||
+    !Number.isFinite(detectedStartSeconds) ||
+    detectedStartSeconds < 0 ||
+    typeof detectedEndSeconds !== 'number' ||
+    !Number.isFinite(detectedEndSeconds) ||
+    detectedEndSeconds < 0 ||
+    !isRecord(profile)
+  )
+    return undefined;
+  // The profile travels whole, as a manual delivery stores it: its `path` is this machine's copy
+  // and is replaced by whoever uses the record, but the shared parser requires one.
+  return {
+    driveVersion,
+    detectorVersion: detectorVersion as number,
+    detectedStartSeconds,
+    detectedEndSeconds,
+    profile
+  };
+}
+
 export interface DownloadedTeamSource {
   workspace: string;
   file: string;
@@ -60,6 +102,12 @@ export interface TeamResultUploadRequest {
   sizeBytes: number;
   /** 012 (T004): the source's decoded-audio fingerprint, reported with the finalize. */
   audioFingerprint?: string;
+  /**
+   * 071: what a re-stitch had to find out about its source (edges and profile), with the Drive
+   * version of the bytes it read. The server stores it as the material's preparation record, so
+   * the next re-stitch of the same video skips the reading. Numbers and a profile only.
+   */
+  restitchPrep?: TeamRestitchPrepReport;
   onProgress?: (completed: number, total: number) => void;
 }
 
@@ -426,7 +474,9 @@ export class TeamTransferClient {
         // A server that predates it ignores the field; one that knows it records it.
         ...(request.audioFingerprint && /^[a-f0-9]{64}$/u.test(request.audioFingerprint)
           ? { audioFingerprint: request.audioFingerprint }
-          : {})
+          : {}),
+        // Same rule: a server that predates 071 ignores it and the video is simply read again.
+        ...(request.restitchPrep ? { restitchPrep: request.restitchPrep } : {})
       },
       signal
     );

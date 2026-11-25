@@ -65,6 +65,8 @@ export {
   releaseManifestSigningPayload,
   releaseArtifactName,
   historicalReleasePlatforms,
+  restitchBuiltinScreensSupported,
+  restitchPrepareBackgroundSupported,
   restitchSourcesSupported,
   teamPosterFrameSupported,
   teamProcessPauseSupported,

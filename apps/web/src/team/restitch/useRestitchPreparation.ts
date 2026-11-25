@@ -20,10 +20,12 @@ import {
   agentCanRestitch,
   cancelTeamRestitchPreparation,
   prepareTeamRestitchMaterials,
-  readTeamRestitchPreparation
+  readTeamRestitchPreparation,
+  type TeamRestitchPreparationPhase
 } from '../../api/client';
 import { teamApi } from '../../api/team';
 import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service';
+import { setManualPreparation } from './restitch-background';
 
 /** Issue each grant just before its work: a long HEVC conversion must not age the next grant. */
 const BATCH = 1;
@@ -48,8 +50,11 @@ export interface RestitchPreparationState {
    * tells a member nothing they can act on.
    */
   errorCode: string | null;
-  mediaPhase?: 'inspecting' | 'converting' | 'verifying' | null;
+  mediaPhase?: TeamRestitchPreparationPhase | null;
   mediaProgress?: number;
+  /** 071: how much of the video in hand has arrived from the drive, when the app says. */
+  mediaBytes?: number;
+  mediaBytesTotal?: number | null;
   /**
    * What the run is on (071): how many were ready before it started, when it started, and the
    * video in hand with when it was taken. A run reads every video in full from the drive, and a
@@ -125,6 +130,8 @@ export function useRestitchPreparation(teamId: string) {
     running.current = controller;
     const signal = controller.signal;
     setState({ ...IDLE, phase: 'folder' });
+    // The background preparation (071) stands aside while the person's own run goes.
+    setManualPreparation(teamId, true);
     // How long preparing a space actually takes, and how it ends. Cold by definition: it is
     // the run that makes everything after it warm.
     const flow = startTeamWorkflow({ category: 'video', cacheState: 'cold', stage: 'processing' });
@@ -179,7 +186,9 @@ export function useRestitchPreparation(teamId: string) {
           ...current,
           current: { name: batch[0]!.name, since: Date.now() },
           mediaPhase: null,
-          mediaProgress: 0
+          mediaProgress: 0,
+          mediaBytes: 0,
+          mediaBytesTotal: null
         }));
         const materials = [];
         let transferUrl = '';
@@ -224,6 +233,7 @@ export function useRestitchPreparation(teamId: string) {
       }));
     } finally {
       operation.current = null;
+      if (running.current === controller) setManualPreparation(teamId, false);
     }
   }, [teamId]);
 
@@ -251,7 +261,9 @@ async function follow(
     setState(current => ({
       ...current,
       mediaPhase: report.phase,
-      mediaProgress: report.currentProgress
+      mediaProgress: report.currentProgress,
+      mediaBytes: report.currentBytes ?? 0,
+      mediaBytesTotal: report.currentBytesTotal ?? null
     }));
 
     for (const finding of report.findings) {

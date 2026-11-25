@@ -2484,7 +2484,7 @@ async function handleProcessOutputFinalize(
     typeof body.audioFingerprint === 'string' && /^[a-f0-9]{64}$/u.test(body.audioFingerprint)
       ? body.audioFingerprint
       : undefined;
-  return finalizeProcessOutput(
+  const finalized = await finalizeProcessOutput(
     () =>
       handleUploadFinalize(
         request,
@@ -2507,6 +2507,17 @@ async function handleProcessOutputFinalize(
         retryable: false
       })
   );
+  // 071: a re-stitch that had to read its source (a catalog round, a launch) reports what it
+  // found, as a manual delivery stores it from the page. The database keeps it only for the
+  // operation's own source at the Drive version the agent read; anything else is ignored.
+  // Storing it is an optimisation for the next re-stitch, never a reason to fail this one.
+  if (isRecord(body.restitchPrep) && isRecord(finalized) && finalized.state === 'succeeded') {
+    await rpcValue(service, 'service_record_material_restitch_prep', {
+      p_operation: operationId,
+      p_prep: body.restitchPrep
+    }).catch(() => undefined);
+  }
+  return finalized;
 }
 
 function parseRelayRange(value: string | null, expectedTotal: number) {

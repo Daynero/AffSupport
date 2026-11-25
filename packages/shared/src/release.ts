@@ -153,6 +153,14 @@ export const AGENT_TOOL_CONTRACTS = {
   // older agent saves the original, so the web refuses to send it a clean download of a
   // picture or video and asks for an update instead.
   teamCleanDelivery: 1,
+  // 071: the agent carries Soty's standard re-stitch pictures (RESTITCH_BUILTIN_SCREENS v1) and
+  // renders them for the slots the effective settings mark `builtin`, in place of the
+  // compatibility fields the server writes for older agents (no start, the video's own last
+  // frame as the end). A capability read from the contract, like the ones above.
+  teamRestitchBuiltinScreens: 1,
+  // 071: a space prepares itself while Soty is free (`background: true` on a preparation run,
+  // GET /api/team/restitch/prepare/background), and a run reports progress inside a file.
+  teamRestitchPrepareBackground: 1,
   // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
   // that map is the set of user-facing *tool pages*, and it is byte-compared
   // against the signed, published stable.json by verify-release.mjs. The power
@@ -362,6 +370,21 @@ export function teamPosterFrameSupported(contracts: ToolContracts | null): boole
  */
 export function restitchSourcesSupported(contracts: ToolContracts | null): boolean {
   return (contracts?.teamRestitchSources ?? 0) >= AGENT_TOOL_CONTRACTS.teamRestitchSources;
+}
+
+/** Whether this agent renders Soty's standard re-stitch pictures for `builtin` slots (071). */
+export function restitchBuiltinScreensSupported(contracts: ToolContracts | null): boolean {
+  return (
+    (contracts?.teamRestitchBuiltinScreens ?? 0) >= AGENT_TOOL_CONTRACTS.teamRestitchBuiltinScreens
+  );
+}
+
+/** Whether this agent can prepare a space in the background, giving way to other work (071). */
+export function restitchPrepareBackgroundSupported(contracts: ToolContracts | null): boolean {
+  return (
+    (contracts?.teamRestitchPrepareBackground ?? 0) >=
+    AGENT_TOOL_CONTRACTS.teamRestitchPrepareBackground
+  );
 }
 
 /** Whether this agent removes metadata from what it saves for a team download (073). */

@@ -3691,3 +3691,12 @@ timestamptz)` (the lease holder hands a round back for at most ten minutes and t
 returned). Both service_role only. Undo by dropping the two functions and the table; the worker
 then treats the budget as granted (logged «Sheets budget unavailable») and a deferral that fails
 falls back to the ordinary retry, as before.
+
+## 20261224300000 — a background re-stitch keeps what it read (071)
+
+Adds `public.service_record_material_restitch_prep(uuid, jsonb)` (service_role only): drive-ops
+calls it after an agent's successful process finalize that carries `restitchPrep`, and it upserts
+`team_material_restitch_prep` for the operation's own source only when the Drive version the agent
+read is the material's current one, the actor may still `process`, and the record is not older than
+the existing one. No table or column. Undo by dropping the function; drive-ops ignores the failed
+call (best effort) and background re-stitches simply read their source again, as before.

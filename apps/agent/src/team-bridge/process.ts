@@ -27,7 +27,7 @@ import type { TranscriptionQueue } from '../queue/transcription-queue.js';
 import { stripMetadataInPlace } from '../files/strip-metadata.js';
 import { audioFingerprint } from './audio-fingerprint.js';
 import type { TeamOperationEvents } from './events.js';
-import { TeamSourceIntegrityError } from './transfer.js';
+import { TeamSourceIntegrityError, restitchPrepReport } from './transfer.js';
 import type {
   DownloadedTeamSource,
   TeamResultUploadRequest,
@@ -417,6 +417,10 @@ export class TeamProcessBridge {
         progress: 70
       });
       uploadStarted = true;
+      const restitchPrep =
+        request.toolId === 'restitch'
+          ? restitchPrepReport(output.discovered, downloaded.sourceVersion)
+          : undefined;
       const upload = transfer.uploadResult(
         {
           operationId: request.operationId,
@@ -426,6 +430,9 @@ export class TeamProcessBridge {
           mimeType: output.mimeType,
           sizeBytes: cleanSize,
           ...(output.audioFingerprint ? { audioFingerprint: output.audioFingerprint } : {}),
+          // 071: a background re-stitch (catalog round, launch) keeps what it read, as a
+          // manual delivery always did, so the next one of the same video takes seconds.
+          ...(restitchPrep ? { restitchPrep } : {}),
           onProgress: (completed, total) => {
             const ratio = total > 0 ? completed / total : 0;
             this.#events.update(request.operationId, {
