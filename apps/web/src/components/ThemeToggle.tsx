@@ -22,7 +22,9 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
     <IconButton
       className={`theme-toggle ${compact ? 'theme-toggle-compact' : ''}`.trim()}
       label={isDark ? t('themeToLight') : t('themeToDark')}
-      pressed={isDark}
+      /* The state for a reader, no pressed plate for the eye (070, the tools pass): in the dark
+         theme the toggle looked held down beside its neighbours; the sun or the moon says it. */
+      aria-pressed={isDark}
       onClick={event => {
         const bounds = event.currentTarget.getBoundingClientRect();
         toggleTheme({

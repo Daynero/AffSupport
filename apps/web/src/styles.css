@@ -6439,11 +6439,15 @@ body:has(.public-home) {
   width: var(--app-header-control-icon-size);
   height: var(--app-header-control-icon-size);
 }
-:root[data-theme='dark'] .ui-icon-button.theme-toggle,
+/* As quiet as its neighbours (the power switch, the language pair): the sun or the moon says
+   the theme; a tinted plate in the dark theme read as a button held down (070, the tools pass). */
+.ui-icon-button.theme-toggle,
+:root[data-theme='dark'] .ui-icon-button.theme-toggle {
+  color: var(--color-text-muted);
+}
+.ui-icon-button.theme-toggle:hover:not(:disabled),
 :root[data-theme='dark'] .ui-icon-button.theme-toggle:hover:not(:disabled) {
-  color: var(--purple-200);
-  background: color-mix(in srgb, var(--color-accent) 16%, var(--color-surface-muted));
-  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+  color: var(--color-text);
 }
 .ui-icon-button.theme-toggle:hover:not(:disabled) {
   transform: translateY(-1px);
