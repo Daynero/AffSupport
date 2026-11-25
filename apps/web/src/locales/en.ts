@@ -3399,13 +3399,13 @@ export const en = {
   searchScopeLabel: 'Where to search',
   searchScopeFolder: 'In this folder',
   searchScopeFolderHint: 'Together with its subfolders',
-  searchAlsoTried: 'Also tried “{query}” on the other keyboard layout.',
-  searchIndexNotReady:
-    'Search in this space is not ready yet: Soty has not finished reading its files from Google Drive.',
   searchScopeSpace: 'In the whole space',
   searchEverywhere: 'Search the whole space',
   searchResetFilters: 'Reset filters',
   searchNothingFor: 'Nothing found for “{query}”',
+  searchAlsoTried: 'Also tried “{query}” on the other keyboard layout.',
+  searchIndexNotReady:
+    'Search in this space is not ready yet: Soty has not finished reading its files from Google Drive.',
   searchLayoutShown: 'Showing results for “{query}”.',
   searchLayoutAsTyped: 'Search for “{query}”',
   searchMatchedInTranscript: 'in the transcript',

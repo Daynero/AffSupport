@@ -14870,12 +14870,6 @@ a.history-subject {
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-left: auto;
-  /* A drawer this narrow takes the plates at a tile's size: at a row's 44 px they read as the
-     row's main thing and pushed it wider than the screen. */
-  .catalog-compact-table .catalog-icon-toolbar .ui-picto-toggle {
-    width: var(--icon-plate-tile);
-    height: var(--icon-plate-tile);
-  }
 }
 .team-sync-panel-reason {
   margin: 0;
@@ -15212,6 +15206,12 @@ a.history-subject {
   }
   .catalog-row-actions {
     flex-direction: row;
+  }
+  /* A drawer this narrow takes the plates at a tile's size: at a row's 44 px they read as the
+     row's main thing and pushed it wider than the screen. */
+  .catalog-compact-table .catalog-icon-toolbar .ui-picto-toggle {
+    width: var(--icon-plate-tile);
+    height: var(--icon-plate-tile);
   }
 }
 @media (forced-colors: active) {
