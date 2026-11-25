@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type {
   CatalogMaterialItem,
   LandingViewerPreset,
@@ -23,6 +23,8 @@ import { teamErrorMessage } from '../errors';
 import { LandingPreviewFrame, type LandingPreviewView } from './LandingPreviewFrame';
 import { PreviewUnavailable } from './PreviewUnavailable';
 import { startPreviewAttempt } from './previewAnalytics';
+import { previewPoster } from './previewPoster';
+import { VideoStage } from './VideoStage';
 import { Modal } from '../../components/Modal';
 
 type AgentRequest = Extract<TeamPreviewResult, { kind: 'agent' }>;
@@ -237,6 +239,16 @@ export function MaterialPreview({
     setFailedMediaKey(null);
     setAttempt(value => value + 1);
   };
+  /*
+   * A video is shown in its frame from the moment the viewer opens (070, phase 9е): the frame
+   * takes the thumbnail's shape and holds the wait, so nothing jumps when the stream arrives.
+   * Whether it is a video is known from the file before the grant and from the grant after it —
+   * a restored creative with no cached category becomes one only then.
+   */
+  const poster = useMemo(() => previewPoster(materialId), [materialId]);
+  const showStage =
+    (state.kind === 'loading' && material.category === 'video') ||
+    (state.kind === 'media' && mediaCategory === 'video' && !mediaFailed);
 
   return (
     /* On the one dialog primitive: this used to claim `aria-modal` while
@@ -275,7 +287,19 @@ export function MaterialPreview({
       </header>
       {toolbar && <div className="landing-full-view-toolbar">{toolbar}</div>}
       <div className="team-preview-content">
-        {state.kind === 'loading' && <p aria-live="polite">{t('teamPreviewLoading')}</p>}
+        {showStage && (
+          <VideoStage
+            key={materialId}
+            src={state.kind === 'media' ? state.rangeUrl : null}
+            poster={poster}
+            waiting={state.kind === 'loading' || mediaLoading}
+            onReady={markMediaReady}
+            onFailed={markMediaFailed}
+          />
+        )}
+        {state.kind === 'loading' && !showStage && (
+          <p aria-live="polite">{t('teamPreviewLoading')}</p>
+        )}
         {state.kind === 'error' && (
           <p className="team-inline-error" role="alert">
             {/* The three cases with their own advice keep it; everything else asks
@@ -304,7 +328,7 @@ export function MaterialPreview({
           )}
         {state.kind === 'media' && (
           <>
-            {mediaLoading && (
+            {mediaLoading && !showStage && (
               <p className="team-preview-media-status" aria-live="polite">
                 {t('teamPreviewLoading')}
               </p>
@@ -318,22 +342,6 @@ export function MaterialPreview({
                   {t('retry')}
                 </Button>
               </>
-            )}
-            {!mediaFailed && mediaCategory === 'video' && (
-              <video
-                ref={element => element?.setAttribute('referrerpolicy', 'no-referrer')}
-                controls
-                /* The browser's own menu offered "Download" under a heading
-                   that says this is a safe view, and a cast button that would
-                   send a private cut to whatever is on the network. */
-                controlsList="nodownload noremoteplayback noplaybackrate"
-                disablePictureInPicture
-                preload="metadata"
-                src={state.rangeUrl}
-                onLoadedData={markMediaReady}
-                onCanPlay={markMediaReady}
-                onError={markMediaFailed}
-              />
             )}
             {!mediaFailed && mediaCategory === 'image' && (
               <img

@@ -11,6 +11,13 @@
   inherits: true;
   initial-value: #7c59e0;
 }
+/* The video viewer's shape, width over height (070, phase 9е): registered so that the frame
+   grows from the thumbnail's shape to the clip's own instead of jumping. 16:9 until told. */
+@property --preview-aspect {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1.7778;
+}
 
 /*
  * The five widths a layout may change at (070, FR-040).
@@ -527,6 +534,9 @@
   --rank-emblem-list: 32px;
   --rank-emblem-detail: 124px;
   --rank-emblem-tile-inset: 2px;
+  /* On a phone's narrow tile (070, phase 9е): the full emblem's wings reached the play mark in the
+     middle of the picture; ≈ 25px of comb still reads as the league. */
+  --rank-emblem-tile-compact: 48px;
   /* The card's ladder of leagues: small combs (≈ 21px of comb in the 40px box), the leagues not
      reached yet faded and colourless so the eye lands on where the creative stands. */
   --rank-ladder-emblem: 40px;

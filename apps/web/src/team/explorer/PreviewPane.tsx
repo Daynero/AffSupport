@@ -34,6 +34,7 @@ import { MaterialTasks } from '../materials/MaterialTasks';
 import { useTeam } from '../TeamContext';
 import { MaterialRank } from '../ranks/MaterialRank';
 import { carriesRank } from '../ranks/creativeRanks';
+import { rememberPreviewPoster } from '../preview/previewPoster';
 
 /**
  * What the selected row looks like, before it is opened (011, FR-016): the
@@ -281,7 +282,10 @@ export function PreviewPane({
               decoding="async"
               immediate={replaced}
               aria-busy={loadedImage !== image || undefined}
-              onLoad={() => setLoadedImage(image)}
+              onLoad={event => {
+                setLoadedImage(image);
+                if (row.kind === 'video') rememberPreviewPoster(row.id, event.currentTarget);
+              }}
               onError={() => {
                 markBroken(pictureKey);
                 setBrokenKey(pictureKey);

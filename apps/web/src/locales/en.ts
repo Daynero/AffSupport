@@ -2544,6 +2544,7 @@ export const en = {
   teamProvenanceSourceUnavailable: 'The source is no longer available.',
   teamPreviewClose: 'Close preview',
   teamPreviewLoading: 'Preparing the file preview…',
+  teamPreviewUnmute: 'Turn the sound on',
   teamPreviewLoadFailed: 'Could not prepare this preview.',
   teamPreviewPermissionLost: 'You no longer have permission to preview this file.',
   teamPreviewUnsupported: 'This file type cannot be previewed.',

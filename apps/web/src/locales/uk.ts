@@ -2530,6 +2530,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamProvenanceSourceUnavailable: 'Джерело більше недоступне.',
   teamPreviewClose: 'Закрити перегляд',
   teamPreviewLoading: 'Готуємо перегляд файлу…',
+  teamPreviewUnmute: 'Увімкнути звук',
   teamPreviewLoadFailed: 'Не вдалося підготувати перегляд.',
   teamPreviewPermissionLost: 'У вас більше немає дозволу переглядати цей файл.',
   teamPreviewUnsupported: 'Цей тип файлу неможливо переглянути.',

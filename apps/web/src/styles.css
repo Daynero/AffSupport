@@ -8271,15 +8271,100 @@ button,
   max-height: calc(100vh - 2 * var(--space-4));
 }
 /* The picture sits on black in both themes; the bar above it keeps the theme. */
-.team-preview-dialog:not(.landing-full-view) .team-preview-content:has(> video, > img) {
+.team-preview-dialog:not(.landing-full-view)
+  .team-preview-content:has(> video, > img, > .team-preview-stage) {
   display: grid;
   place-items: center;
   padding: var(--space-4);
   background: var(--grey-950);
 }
 .team-preview-content:has(> video),
-.team-preview-content:has(> img) {
+.team-preview-content:has(> img),
+.team-preview-content:has(> .team-preview-stage) {
   overflow: hidden;
+}
+/*
+ * A video's frame (070, phase 9е; `team/preview/VideoStage.tsx`).
+ *
+ * It is the clip's shape from the moment the viewer opens — the thumbnail's, until the clip
+ * says otherwise — and as large as the viewer allows: the full width, or the full height left
+ * under the bar, whichever runs out first. The shape is a registered number
+ * (`--preview-aspect`, styles/tokens.css), so when the clip's own size differs from the
+ * thumbnail's the frame grows to it over `--dur-layout` instead of jumping; under reduced motion
+ * that is 1 ms. The dialog's height follows the frame, and the backdrop keeps it centred.
+ */
+.team-preview-dialog:not(.landing-full-view) {
+  /* The window, less the backdrop's padding, the bar (60px) and the content's padding. */
+  --preview-stage-height: calc(100dvh - 2 * var(--space-4) - 60px - 2 * var(--space-4));
+}
+.team-preview-stage {
+  position: relative;
+  aspect-ratio: var(--preview-aspect);
+  width: min(100%, calc(var(--preview-stage-height) * var(--preview-aspect)));
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--grey-900);
+  transition: --preview-aspect var(--dur-layout) var(--ease-standard);
+}
+/* The thumbnail holds the frame while the clip is on its way; the clip takes over, faded in,
+   once it has a picture of its own. */
+.team-preview-stage > video,
+.team-preview-stage-poster {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  object-fit: contain;
+  transition: opacity var(--dur-section) var(--ease-fade);
+}
+.team-preview-stage > video {
+  opacity: 0;
+}
+.team-preview-stage[data-ready] > video {
+  opacity: 1;
+}
+.team-preview-stage[data-ready] .team-preview-stage-poster {
+  opacity: 0;
+}
+/* The wait, in the middle of the frame it is waiting for. */
+.team-preview-stage-status {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+  height: fit-content;
+  margin: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-black) 62%, transparent);
+  color: var(--color-white);
+  font-size: var(--text-label);
+  backdrop-filter: blur(6px);
+}
+/* Playing without sound because the browser would not allow it: the way to the sound, where the
+   eye already is and clear of the player's own bar at the bottom. */
+.team-preview-unmute {
+  position: absolute;
+  z-index: 1;
+  top: var(--space-3);
+  left: var(--space-3);
+  box-shadow: var(--shadow-md);
+}
+@media (max-width: 640px) {
+  /* A sheet from the bottom edge: up to 94% of the window. The viewer's backdrop padding above
+     outranked the phone rule's `padding: 0`, so the sheet floated a step above the edge with its
+     square bottom corners in the air. */
+  .team-preview-backdrop:not(:has(.landing-full-view)) {
+    padding: 0;
+  }
+  .team-preview-dialog:not(.landing-full-view) {
+    --preview-stage-height: calc(94dvh - 60px - 2 * var(--space-4));
+  }
 }
 .team-landing-preview iframe {
   min-height: min(68vh, 720px);

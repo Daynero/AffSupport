@@ -8,6 +8,10 @@ import {
   MaterialPreview,
   type MaterialPreviewClient
 } from '../apps/web/src/team/preview/MaterialPreview';
+import {
+  forgetPreviewPosters,
+  rememberPreviewPoster
+} from '../apps/web/src/team/preview/previewPoster';
 
 const TEAM_ID = '42000000-0000-4000-8000-000000000001';
 
@@ -52,6 +56,7 @@ function client(result: TeamPreviewResult): MaterialPreviewClient {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  forgetPreviewPosters();
 });
 
 describe('team material preview UI', () => {
@@ -318,4 +323,63 @@ describe('a media stream that refuses for a moment', () => {
     );
     expect(previewClient.requestPreview).toHaveBeenCalledTimes(3);
   });
+});
+
+// 070, phase 9е: the owner opened a video to watch it — it opened as a narrow bar, jumped wider
+// and waited for a press on play.
+it('opens a video in the frame of its thumbnail and plays it, muted with a way to the sound when refused', async () => {
+  rememberPreviewPoster('material-video', {
+    naturalWidth: 165,
+    naturalHeight: 220,
+    currentSrc: 'https://example.invalid/thumb',
+    src: 'https://example.invalid/thumb'
+  } as HTMLImageElement);
+  const calls: boolean[] = [];
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (
+    this: HTMLMediaElement
+  ) {
+    calls.push(this.muted);
+    return this.muted
+      ? Promise.resolve()
+      : Promise.reject(new DOMException('No gesture', 'NotAllowedError'));
+  });
+  render(
+    <MaterialPreview
+      teamId={TEAM_ID}
+      material={item('video')}
+      client={client({
+        kind: 'media',
+        rangeUrl: 'https://example.invalid/clip',
+        mimeType: 'video/mp4',
+        expiresAt: '2026-08-01T12:05:00Z'
+      })}
+      onClose={vi.fn()}
+    />
+  );
+  // The wait is in the frame, in the thumbnail's shape, over the thumbnail.
+  const stage = document.body.querySelector<HTMLElement>('.team-preview-stage')!;
+  expect(stage).not.toBeNull();
+  expect(stage.style.getPropertyValue('--preview-aspect')).toBe(String(165 / 220));
+  expect(stage.querySelector('img')?.getAttribute('src')).toBe('https://example.invalid/thumb');
+  expect(stage.textContent).toContain('Preparing the file preview…');
+
+  await waitFor(() => expect(stage.querySelector('video')).not.toBeNull());
+  const video = stage.querySelector('video')!;
+  // The clip's own shape replaces the guess.
+  Object.defineProperty(video, 'videoWidth', { value: 1080 });
+  Object.defineProperty(video, 'videoHeight', { value: 1920 });
+  fireEvent.loadedMetadata(video);
+  expect(stage.style.getPropertyValue('--preview-aspect')).toBe(String(1080 / 1920));
+
+  // It starts on its own: with sound first, silently when that is refused, once.
+  fireEvent.loadedData(video);
+  fireEvent.canPlay(video);
+  const unmute = await screen.findByRole('button', { name: 'Turn the sound on' });
+  expect(calls).toEqual([false, true]);
+  expect(video.muted).toBe(true);
+  expect(screen.queryByText('Preparing the file preview…')).toBeNull();
+
+  await userEvent.click(unmute);
+  expect(video.muted).toBe(false);
+  expect(screen.queryByRole('button', { name: 'Turn the sound on' })).toBeNull();
 });

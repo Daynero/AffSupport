@@ -45,6 +45,7 @@ import { TagDot } from './TagDot';
 import type { TaggingProps } from './ContentList';
 import type { FolderPageClient, FolderPageState } from './useFolderPage';
 import { useThumbnailSession, type ThumbnailSessionClient } from './useThumbnailSession';
+import { rememberPreviewPoster } from '../preview/previewPoster';
 
 /**
  * Tiles (011, FR-014/FR-016): a prepared image or video shows its provider
@@ -369,6 +370,10 @@ function Tile({
             alt=""
             loading="lazy"
             decoding="async"
+            // The viewer opens in this picture's shape, on this picture (070, phase 9е).
+            onLoad={event => {
+              if (row.kind === 'video') rememberPreviewPoster(row.id, event.currentTarget);
+            }}
             onError={() => {
               markBroken(pictureKey);
               setBroken(true);
@@ -395,8 +400,11 @@ function Tile({
         <TileCompanions owner={row} rows={companions} onSelect={onSelect} onPreview={onPreview} />
       )}
       {rankLeague && rank && (
-        // Top left of the picture, where the checkbox appears on hover (it steps aside then);
-        // bottom right on touch. A picture, not a control — presses go to the tile beneath.
+        // Bottom right of the picture, always (070, phase 9е): top left it shared a corner with
+        // the checkbox and had to step aside whenever the tile was pointed at or chosen — the
+        // owner: "if it gets in the way of selection, just move it". Nothing else lives there:
+        // the checkbox and the menu hold the top, the companions' count the bottom left.
+        // A picture, not a control — presses go to the tile beneath.
         <span className="team-explorer-tile-badge-layer creative-rank-tile-layer">
           <RankEmblem
             league={rankLeague}
