@@ -198,7 +198,7 @@ it('explains invalid re-stitch settings and stops presenting the operation as ac
     />
   );
   expect(screen.getByRole('alert').textContent).toContain(
-    'Re-stitching settings are missing or invalid'
+    'Re-stitching is off: both the start and the end of the video are turned off'
   );
   expect(screen.queryByRole('progressbar')).toBeNull();
 });

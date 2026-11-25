@@ -739,7 +739,7 @@ export const en = {
   launchesUrl: 'URL',
   launchesSubNotFound: '{slots} not found in the URL; these parameters will be left unchanged.',
   launchesRestitchInvalid:
-    'Re-stitching settings are missing or invalid. Check the Re-stitching section in workspace settings and save it.',
+    'Re-stitching is off: both the start and the end of the video are turned off in workspace settings. Turn at least one on in the Re-stitching section.',
   launchesPreview: 'Preview',
   launchesCampaignName: 'Campaign name',
   launchesCampaignNames: 'Campaign names',
@@ -2930,6 +2930,12 @@ export const en = {
   catalogRunPartial: 'Partially updated · details',
   catalogRunUnknown: 'Result unconfirmed · details',
   catalogRunNextVideoFailed: 'Next video preparation failed · details',
+  catalogRestitchOffTitle: 'Re-stitching is off',
+  catalogRestitchOff:
+    'Re-stitching is off in this workspace — both the start and the end of the video. An update with re-stitching will not start until you turn at least one on.',
+  catalogRestitchOffScheduled:
+    'Catalogs re-stitched on a schedule: {count}. Their updates will not start until you turn on the start or the end of the video in workspace settings.',
+  catalogOpenRestitchSettings: 'Open re-stitching settings',
   catalogIconsExcluded: 'These catalogs cannot run yet:',
   catalogIconsRunReady: 'Run available catalogs',
   catalogIconsActions: 'Actions',

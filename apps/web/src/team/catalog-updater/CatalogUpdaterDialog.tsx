@@ -15,7 +15,7 @@ import type {
 } from '../../api/team';
 import { teamApi } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui/index';
+import { Alert, Button } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
@@ -45,6 +45,12 @@ import { shownCatalogRows, useCatalogDates } from './catalogRowState';
 import { useCatalogManagerTrash } from './useCatalogManagerTrash';
 import { useCatalogStop } from './useCatalogStop';
 import { useCatalogListFocus } from './useCatalogListFocus';
+import {
+  restitchSettingsFailed,
+  useRestitchSettingsReady,
+  wantsRestitch,
+  type RestitchDefaultsReader
+} from './useRestitchSettingsReady';
 
 export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient, CatalogCommandClient {
   getConnectionStatus?: (teamId: string) => Promise<{ driveKind?: TeamAnalyticsStorage | null }>;
@@ -80,6 +86,8 @@ export interface CatalogUpdaterDialogClient extends CatalogUpdaterClient, Catalo
   setCatalogUpdaterRefreshTexts?: (teamId: string, refresh: boolean) => Promise<boolean>;
   getCatalogUpdaterGrow?: (teamId: string) => Promise<boolean>;
   setCatalogUpdaterGrow?: (teamId: string, grow: boolean) => Promise<boolean>;
+  /** Effective re-stitch settings; null when the space has both screens off (2026-11-25). */
+  getRestitchDefaults?: RestitchDefaultsReader;
 }
 
 const defaultClient: CatalogUpdaterDialogClient = teamApi;
@@ -294,6 +302,28 @@ function CatalogUpdaterDialogScope({
       : row;
   });
   const rowsById = new Map(rows.map(row => [row.catalogId, row]));
+  // Re-stitching works out of the box; the one case it cannot is a space with both the start and
+  // the end turned off. Such a run is refused where it was pressed, with the way to the setting,
+  // instead of a round that waits «Готуємо відео…» for ever (production 2026-11-25).
+  const restitchSettings = useRestitchSettingsReady(teamId, client.getRestitchDefaults);
+  const [restitchRefused, setRestitchRefused] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    if (restitchSettings.state === 'ready') setRestitchRefused(new Set());
+  }, [restitchSettings.state]);
+  const markRestitchRefused = (ids: readonly string[]) =>
+    setRestitchRefused(current => new Set([...current, ...ids]));
+  /** The catalogs among these whose re-stitching cannot run here; each row is told why. */
+  const refuseWithoutRestitch = async (ids: string[]): Promise<string[]> => {
+    const wanting = ids.filter(id => wantsRestitch(rowsById.get(id)));
+    if (!wanting.length) return [];
+    const state = restitchSettings.state === 'ready' ? 'ready' : await restitchSettings.recheck();
+    if (state !== 'missing') return [];
+    if (owner.current()) markRestitchRefused(wanting);
+    return wanting;
+  };
+  const scheduledRestitchCount = rows.filter(
+    row => wantsRestitch(row) && row.updateInterval !== null
+  ).length;
   const nameCounts = new Map<string, number>();
   for (const row of rows) nameCounts.set(row.name, (nameCounts.get(row.name) ?? 0) + 1);
   const duplicateNames = new Set(
@@ -430,7 +460,14 @@ function CatalogUpdaterDialogScope({
     });
   };
 
-  const updateNow = (ids: string[]) => {
+  const updateNow = async (requested: string[]) => {
+    const refused = await refuseWithoutRestitch(requested);
+    if (!owner.current()) return;
+    // A row says it in place; a selection may hide some rows, so it is also said once here.
+    if (refused.length && requested.length > 1)
+      push({ tone: 'error', text: t('catalogRestitchOff') });
+    const ids = requested.filter(id => !refused.includes(id));
+    if (!ids.length) return;
     const excluded = ids.filter(
       id =>
         inline.blocked(id) ||
@@ -458,6 +495,14 @@ function CatalogUpdaterDialogScope({
       busyRef.current.has(row.catalogId)
     )
       return;
+    // A schedule that would re-stitch in a space with both screens off is not saved.
+    const schedulesRestitch =
+      (field === 'updateInterval' && value !== null && wantsRestitch(row)) ||
+      (field === 'restitch' && value === true && row.updateInterval !== null);
+    if (schedulesRestitch && restitchSettings.state === 'missing') {
+      markRestitchRefused([row.catalogId]);
+      return;
+    }
     heldRows.current.set(row.catalogId, row);
     void inline.change(row.catalogId, field, value);
   };
@@ -510,6 +555,8 @@ function CatalogUpdaterDialogScope({
     saveSchedule: async (row, interval, schedule) => {
       if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
       if (busyRef.current.has(row.catalogId)) throw new TeamApiError('WRONG_STATE', false);
+      if (interval !== null && (await refuseWithoutRestitch([row.catalogId])).length)
+        throw new TeamApiError('RESTITCH_INVALID', false);
       await inline.saveSchedule(row.catalogId, { interval, schedule });
     },
     videoR2For,
@@ -522,6 +569,11 @@ function CatalogUpdaterDialogScope({
       else if (what === 'publication') setPublicationCatalogId(row.catalogId);
       else setVideoCatalogsRow(row);
     },
+    restitchOff: row =>
+      restitchSettings.state !== 'ready' &&
+      (restitchRefused.has(row.catalogId) || restitchSettingsFailed(row)),
+    openRestitchSettings: () =>
+      guard(() => navigateTo(spaceRouteFor(teamId, { kind: 'settings', tab: 'restitch' }))),
     run: row => void updateNow([row.catalogId]),
     stop: row => void cancelNow(row),
     reload: registry.reload
@@ -572,6 +624,20 @@ function CatalogUpdaterDialogScope({
       />
 
       {notice}
+      {mayRun && restitchSettings.state === 'missing' && scheduledRestitchCount > 0 && (
+        <Alert
+          color="warning"
+          className="catalog-restitch-off-notice"
+          title={t('catalogRestitchOffTitle')}
+          action={
+            <Button size="sm" color="neutral" onClick={ctx.openRestitchSettings}>
+              {t('catalogOpenRestitchSettings')}
+            </Button>
+          }
+        >
+          {t('catalogRestitchOffScheduled', { count: scheduledRestitchCount })}
+        </Alert>
+      )}
 
       <CatalogUpdaterToolbar
         searchId={searchId}
@@ -740,6 +806,7 @@ function CatalogUpdaterDialogScope({
         listRef={listRef}
         registryReload={registry.reload}
         onChanged={onChanged}
+        refuseWithoutRestitch={refuseWithoutRestitch}
       />
       <div className="catalog-undo-notice" role="status">
         {undoToast && (

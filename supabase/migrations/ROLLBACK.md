@@ -3581,3 +3581,15 @@ Dropping them is safe; finding a removed catalog's unfinished videos becomes slo
 Replaces `private.assistant_latest_dialog` and `public.assistant_new_dialog` with the same bodies
 plus a transaction-scoped advisory lock per (space, person). No data changes. Undo by restoring the
 bodies from 20261223160000; concurrent opens can then make two dialogs again.
+
+## 20261224160000 — a catalog round without re-stitch settings ends instead of waiting for ever
+
+Adds `private.close_catalog_round_without_restitch_settings` and
+`private.settle_unconfigured_catalog_variant_request`, and patches (through `pg_get_functiondef`,
+failing if the replaced text is missing) `private.capture_catalog_round_video_snapshot` (marks a
+round opened without configured settings RESTITCH_INVALID), `public.service_adopt_catalog_variant_round`
+(re-reads the settings; still missing, the round ends 'failed' with RESTITCH_INVALID and no request),
+both resume functions (a request admitted with empty settings and no video set takes settings saved
+since, or ends the same way) and `public.service_read_catalog_updater_variants_before_foreground`
+(a failed request-less round reads 'canceled'). No table or column. Undo by restoring the bodies
+from 20261224110000 / 20261221180000 and dropping both helpers; rounds already ended stay ended.

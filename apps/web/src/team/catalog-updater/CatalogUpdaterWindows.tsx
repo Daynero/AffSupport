@@ -76,6 +76,8 @@ export interface CatalogUpdaterWindowsProps {
   listRef: RefObject<HTMLTableElement | null>;
   registryReload: () => void;
   onChanged?: () => void;
+  /** The catalogs among these whose re-stitching cannot run in this space (2026-11-25). */
+  refuseWithoutRestitch?: (catalogIds: string[]) => Promise<string[]>;
 }
 
 export function CatalogUpdaterWindows({
@@ -118,7 +120,8 @@ export function CatalogUpdaterWindows({
   setReplaceVideoCatalogId,
   listRef,
   registryReload,
-  onChanged
+  onChanged,
+  refuseWithoutRestitch
 }: CatalogUpdaterWindowsProps) {
   const { t } = useI18n();
   return (
@@ -392,6 +395,9 @@ export function CatalogUpdaterWindows({
                             busyRef.current.has(row.catalogId)
                           )
                             throw new TeamApiError('WRONG_STATE', false);
+                          // A retry re-stitches like a run: refused here, not left to hang.
+                          if ((await refuseWithoutRestitch?.([row.catalogId]))?.length)
+                            throw new TeamApiError('RESTITCH_INVALID', false);
                           const outcome = await commands.submit([row.catalogId], sourceAttemptId);
                           if (outcome.kind === 'rejected' || outcome.kind === 'unknown')
                             throw outcome.error;

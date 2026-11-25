@@ -6,7 +6,7 @@ import type {
   TeamPermissions
 } from '@video-compressor/shared';
 import type { CatalogRegistryRow, CatalogUpdaterInterval } from '../../api/team';
-import { Button, Checkbox, IconButton } from '../../components/ui/index';
+import { Alert, Button, Checkbox, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { teamErrorMessage, teamErrorMessageFor } from '../errors';
@@ -55,6 +55,12 @@ export interface CatalogRowContext {
   ) => void;
   run: (row: CatalogRegistryRow) => void;
   stop: (row: CatalogRegistryRow) => void;
+  /**
+   * This catalog's re-stitching cannot run: the space has both screens off, and a run, a schedule
+   * or the server's own round was refused for it (2026-11-25). The row says so, with the way there.
+   */
+  restitchOff: (row: CatalogRegistryRow) => boolean;
+  openRestitchSettings: () => void;
   reload: () => void;
 }
 
@@ -115,6 +121,7 @@ export function CatalogUpdaterRow({
     reload: ctx.reload
   };
   const busy = ctx.busyIds.has(row.catalogId) || ctx.inline.blocked(row.catalogId);
+  const restitchOff = ctx.restitchOff(row);
   const successfulAt = lastSuccess(row);
   const result = row.profile?.lastResult;
   const requiresReview = row.lastUpdateError === 'CATALOG_ATTEMPT_STATE_INCONSISTENT';
@@ -233,7 +240,8 @@ export function CatalogUpdaterRow({
             {row.folderName ?? row.videoName} · {row.catalogId.slice(-6)}
           </small>
         )}
-        {row.videoGeneration &&
+        {!restitchOff &&
+          row.videoGeneration &&
           ['accepted', 'preparing', 'cancel_requested', 'unknown'].includes(
             row.videoGeneration.state
           ) && (
@@ -264,7 +272,7 @@ export function CatalogUpdaterRow({
           className="catalog-row-feedback"
           role="status"
         >
-          {requiresReview ? (
+          {restitchOff ? null : requiresReview ? (
             <OutcomeButton
               title={teamErrorMessageFor({ code: row.lastUpdateError }, t)}
               onClick={actions.history}
@@ -330,6 +338,20 @@ export function CatalogUpdaterRow({
             </OutcomeButton>
           ) : null}
         </span>
+        {restitchOff && (
+          <Alert
+            color="warning"
+            live="alert"
+            className="catalog-row-restitch-off"
+            action={
+              <Button size="sm" color="neutral" onClick={ctx.openRestitchSettings}>
+                {t('catalogOpenRestitchSettings')}
+              </Button>
+            }
+          >
+            {t('catalogRestitchOff')}
+          </Alert>
+        )}
         {state && ['error', 'conflict', 'unknown'].includes(state.phase) && (
           <div className="catalog-row-error" role="alert">
             {state.phase === 'unknown'

@@ -737,7 +737,7 @@ export const uk: Record<keyof typeof en, string> = {
   launchesUrl: 'URL',
   launchesSubNotFound: '{slots} не знайдено в URL, ці параметри залишимо без змін.',
   launchesRestitchInvalid:
-    'Налаштування перезашивки відсутні або некоректні. Перевірте розділ «Перезашивка» в налаштуваннях простору та збережіть їх.',
+    'Перезашивку вимкнено: у налаштуваннях простору вимкнено і початок, і кінець відео. Увімкніть хоча б одне в розділі «Перезашивка».',
   launchesPreview: 'Прев’ю',
   launchesCampaignName: 'Назва кампанії',
   launchesCampaignNames: 'Назви кампаній',
@@ -2917,6 +2917,12 @@ export const uk: Record<keyof typeof en, string> = {
   catalogRunPartial: 'Оновлено частково · деталі',
   catalogRunUnknown: 'Результат не підтверджено · деталі',
   catalogRunNextVideoFailed: 'Не вдалося підготувати наступне відео · деталі',
+  catalogRestitchOffTitle: 'Перезашивку вимкнено',
+  catalogRestitchOff:
+    'У просторі вимкнено перезашивку — і початок, і кінець відео. Оновлення з перезашивкою не запуститься, доки не увімкнете хоча б одне.',
+  catalogRestitchOffScheduled:
+    'Каталогів із перезашивкою за розкладом: {count}. Їхні оновлення не запустяться, доки в налаштуваннях простору не увімкнете початок або кінець відео.',
+  catalogOpenRestitchSettings: 'Відкрити налаштування перезашивки',
   catalogIconsExcluded: 'Ці каталоги поки не можна запустити:',
   catalogIconsRunReady: 'Оновити доступні каталоги',
   catalogIconsActions: 'Дії',

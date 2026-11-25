@@ -56,8 +56,54 @@ export interface TeamRestitchDefaults {
    * `drive` rows draw from the space's source pools and leave those lists empty.
    */
   sourceMode: RestitchSourceMode;
+  /**
+   * Which enabled slots Soty's standard picture stands in for (owner 2026-11-25: re-stitching
+   * works out of the box). Present on effective settings from the server, absent on a raw row.
+   * See {@link RESTITCH_BUILTIN_SCREENS} and migration 20261224170000 for the whole contract.
+   */
+  builtin?: RestitchBuiltinSlots;
   updatedAt: string;
   updatedBy: string | null;
+}
+
+/**
+ * Soty's standard re-stitch pictures, served by the web app as immutable static files
+ * (`apps/web/public/restitch/`; a new picture is a new version and a new file name).
+ *
+ * The contract (migration 20261224170000, `private.effective_restitch_defaults_json`):
+ * `builtin.start` / `builtin.end` are true when that slot is ENABLED and has no picture of the
+ * person's own — no saved settings, an emptied Drive pool, an empty legacy id list. Effective
+ * settings are `configured` whenever a slot is enabled; null means both screens are off.
+ *
+ * Agents up to 1.6.x fetch pictures only from the space's Drive, so the server also rewrites the
+ * execution fields for them: a standard start is left out (`startEnabled: false`), a standard end
+ * is the video's own last frame (`automaticEndFrame: true`) or, beside the person's own start
+ * pictures, left out (`endEnabled: false`). An agent that bundles these files renders them for
+ * the slots `builtin` names instead.
+ */
+export const RESTITCH_BUILTIN_SCREENS = {
+  version: 1,
+  start: {
+    path: '/restitch/soty-restitch-start.v1.png',
+    sha256: '10908c0a7e18c167e90febc3983025865580beeb7eb5d852c80ae072fe480989'
+  },
+  end: {
+    path: '/restitch/soty-restitch-end.v1.png',
+    sha256: '03ddeba103fe5ab227c149b05b2ee40ed9e8177346f9c7bc91b7a5faf80485f6'
+  }
+} as const;
+
+export interface RestitchBuiltinSlots {
+  version: number;
+  start: boolean;
+  end: boolean;
+}
+
+function parseBuiltinSlots(value: unknown): RestitchBuiltinSlots | null {
+  if (!isRecord(value)) return null;
+  const version = finite(value.version);
+  if (version === null || !Number.isInteger(version) || version < 1) return null;
+  return { version, start: value.start === true, end: value.end === true };
 }
 
 /**
@@ -201,6 +247,7 @@ export function parseTeamRestitchDefaults(value: unknown): RestitchParse<TeamRes
       endImageIds,
       sourceMode,
       ...(value.automaticEndFrame === true ? { automaticEndFrame: true } : {}),
+      ...(parseBuiltinSlots(value.builtin) ? { builtin: parseBuiltinSlots(value.builtin)! } : {}),
       fitMode: oneOf(value.fitMode, RESTITCH_FIT_MODES, 'cover'),
       finalDurationMode: oneOf(value.finalDurationMode, RESTITCH_DURATION_MODES, 'random-40-50'),
       customFinalDurationSeconds: clampStitchEndDuration(

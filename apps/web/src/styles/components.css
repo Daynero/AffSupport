@@ -5051,6 +5051,15 @@
 .catalog-manager-dialog > .catalog-undo-notice:empty {
   border-top-color: transparent;
 }
+/* Re-stitching off in the space (2026-11-25): the warning over the list keeps the toolbar's
+   inset instead of running into the dialog's edges; the row's own note sits under the name. */
+.catalog-manager-dialog > .catalog-restitch-off-notice {
+  flex-shrink: 0;
+  margin: 0 var(--space-6) var(--space-2);
+}
+.catalog-row-restitch-off {
+  margin-top: var(--space-2);
+}
 .launch-defaults-actions {
   display: flex;
   flex-direction: column;
