@@ -49,7 +49,7 @@ describe('privacy-minimized analytics', () => {
   it('uses an explicit event allowlist', () => {
     expect(analyticsEventNames).toContain('compression_completed');
     expect(analyticsEventNames).toContain('marketing_consent_changed');
-    expect(analyticsEventNames).toContain('support_donation_clicked');
+    expect(analyticsEventNames).toContain('support_feedback_started');
     expect(analyticsEventNames).not.toContain('compression_progress');
     expect(analyticsEventNames).not.toContain('file_opened');
   });

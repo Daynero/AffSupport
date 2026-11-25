@@ -121,7 +121,6 @@ export const analyticsEventNames = [
   'language_changed',
   'marketing_consent_changed',
   'support_opened',
-  'support_donation_clicked',
   'support_feedback_started',
   'diagnostics_copied',
   'power_panel_opened',

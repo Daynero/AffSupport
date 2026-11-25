@@ -28,7 +28,7 @@ const generated = execFileSync(
 );
 if (!generated.includes('export type Database =')) throw new Error('INVALID_DATABASE_TYPES');
 const types = `import type { Database } from './database.compat';
-export type { Database, SupportGoalStatus, SupportGoalRow, Profile, AnalyticsEventRow, AdminUserRow, MarketingExportRow } from './database.compat';
+export type { Database, Profile, AnalyticsEventRow, AdminUserRow, MarketingExportRow } from './database.compat';
 ${generated.replace('export type Database =', 'export type GeneratedDatabase =')}`;
 const target = 'apps/web/src/lib/database.types.ts';
 writeFileSync(`${target}.tmp`, types);

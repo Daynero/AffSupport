@@ -71,21 +71,6 @@ const overview = {
   videos_with_image: 3
 };
 
-const supportGoal = {
-  id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
-  slug: 'mac-updates-apple-developer',
-  currency: 'USD',
-  target_cents: 9900,
-  raised_cents: 0,
-  title_en: 'Get rid of reinstalls',
-  title_uk: 'Позбутися перевстановлень',
-  description_en: 'English goal description.',
-  description_uk: 'Опис цілі українською.',
-  status: 'active',
-  created_at: '2026-07-31T00:00:00.000Z',
-  updated_at: '2026-07-31T00:00:00.000Z'
-} as const;
-
 beforeEach(() => {
   localStorage.setItem('language', 'en');
   rpc.mockReset();
@@ -100,19 +85,6 @@ beforeEach(() => {
       return { data: [{ category: 'mode', label: 'optimal', total: 4 }], error: null };
     if (name === 'admin_agent_versions')
       return { data: [{ agent_version: '0.4.0-test.1', total: 7 }], error: null };
-    if (name === 'admin_active_support_goal') return { data: supportGoal, error: null };
-    if (name === 'admin_update_support_goal')
-      return {
-        data: {
-          ...supportGoal,
-          title_en: 'Code signing',
-          title_uk: 'Підпис коду',
-          target_cents: 15000,
-          raised_cents: 4250,
-          updated_at: '2026-07-31T12:00:00.000Z'
-        },
-        error: null
-      };
     if (name === 'admin_list_users')
       return {
         data: [
@@ -215,59 +187,19 @@ describe('database-authorized admin UI', () => {
     expect(parseAdminOverview(['raw-event'])).toBeNull();
   });
 
-  it('edits the goal title, target and confirmed total through the admin-only RPC', async () => {
+  it('has no donation goal: the section and its RPCs are gone', async () => {
     render(
       <AuthContextOverride value={context(true)}>
         <AdminPage />
       </AuthContextOverride>
     );
     openAnalytics();
-    const raised = await screen.findByLabelText('Total raised, USD');
-    expect(raised.getAttribute('value')).toBe('0');
-    expect(screen.getByLabelText('Goal, USD').getAttribute('value')).toBe('99');
-    expect(screen.getByLabelText('Goal title, Ukrainian').getAttribute('value')).toBe(
-      supportGoal.title_uk
-    );
-
-    fireEvent.change(screen.getByLabelText('Goal title, Ukrainian'), {
-      target: { value: ' Підпис коду ' }
-    });
-    fireEvent.change(screen.getByLabelText('Goal title, English'), {
-      target: { value: 'Code signing' }
-    });
-    fireEvent.change(screen.getByLabelText('Goal, USD'), { target: { value: '150' } });
-    fireEvent.change(raised, { target: { value: '42,50' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save goal' }));
-
-    await waitFor(() => expect(screen.getByText('Goal updated.')).toBeTruthy());
-    expect(rpc).toHaveBeenCalledWith('admin_update_support_goal', {
-      p_goal_id: supportGoal.id,
-      p_title_en: 'Code signing',
-      p_title_uk: 'Підпис коду',
-      p_target_cents: 15000,
-      p_raised_cents: 4250
-    });
-    expect(screen.getByText('$42.50 of $150')).toBeTruthy();
-    expect(screen.getByText('Code signing')).toBeTruthy();
-  });
-
-  it('refuses an empty title or a zero goal without calling the RPC', async () => {
-    render(
-      <AuthContextOverride value={context(true)}>
-        <AdminPage />
-      </AuthContextOverride>
-    );
-    openAnalytics();
-    const target = await screen.findByLabelText('Goal, USD');
-    fireEvent.change(target, { target: { value: '0' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save goal' }));
-    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
-
-    fireEvent.change(target, { target: { value: '99' } });
-    fireEvent.change(screen.getByLabelText('Goal title, English'), { target: { value: '   ' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save goal' }));
-    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
-    expect(rpc).not.toHaveBeenCalledWith('admin_update_support_goal', expect.anything());
+    await screen.findByText('user@example.com');
+    expect(screen.queryByText('Donation goal')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save goal' })).toBeNull();
+    const called = rpc.mock.calls.map(([name]) => name);
+    expect(called).not.toContain('admin_active_support_goal');
+    expect(called).not.toContain('admin_update_support_goal');
   });
 
   it('exports only the consent list and neutralizes spreadsheet formulas', () => {

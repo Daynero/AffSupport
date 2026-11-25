@@ -2779,29 +2779,6 @@ input.is-invalid {
     gap: var(--space-2);
   }
 
-  .support-goal-card {
-    padding: var(--space-4);
-  }
-
-  .support-goal-heading > span {
-    max-width: 190px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .support-goal-funding {
-    padding: 12px 13px;
-  }
-
-  .support-goal-total > strong {
-    font-size: var(--text-15xl);
-  }
-
-  .support-goal-percent > strong {
-    font-size: var(--text-12xl);
-  }
-
   .language-switch button {
     min-width: 32px;
     padding-inline: 6px;
@@ -3533,141 +3510,6 @@ body:has(.public-home) {
   color: var(--color-text-muted);
 }
 
-.support-goal-card {
-  position: relative;
-  overflow: hidden;
-  gap: var(--space-4);
-  box-shadow: var(--shadow-md);
-}
-
-/* Slim brand accent along the top edge — the card's only flourish, matching the
-   otherwise clean surface cards used across the app. */
-.support-goal-card::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 3px;
-  background: var(--gradient-brand);
-  content: '';
-}
-
-.support-goal-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.support-goal-heading > span {
-  padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
-  border-radius: var(--radius-full);
-  color: var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
-  font-size: var(--text-lg);
-  font-weight: 750;
-  letter-spacing: 0.065em;
-}
-
-.support-goal-heading > strong {
-  color: var(--color-text);
-  font-size: var(--text-xl);
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.support-goal-card h3 {
-  max-width: 440px;
-  font-size: var(--text-10xl);
-  line-height: 1.18;
-  letter-spacing: -0.025em;
-}
-
-.support-goal-card > p {
-  color: var(--color-text-muted);
-  font-size: var(--text-2xl);
-  line-height: 1.6;
-}
-
-.support-goal-funding {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: 14px 16px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface-subtle);
-}
-
-.support-goal-total {
-  display: grid;
-  gap: 1px;
-}
-
-.support-goal-total > span {
-  color: var(--color-text-muted);
-  font-size: var(--text-md);
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.support-goal-total > strong {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: var(--text-17xl);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.045em;
-  line-height: 1;
-}
-
-.support-goal-total > strong small {
-  color: var(--color-text-muted);
-  font-size: var(--text-4xl);
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.015em;
-}
-
-.support-goal-percent {
-  display: grid;
-  gap: 2px;
-  text-align: right;
-}
-
-.support-goal-percent > strong {
-  color: var(--color-accent);
-  font-size: var(--text-14xl);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04em;
-  line-height: 1;
-}
-
-.support-goal-percent > span {
-  color: var(--color-text-muted);
-  font-size: var(--text-lg);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.support-goal-note {
-  color: var(--color-text-muted, var(--color-text-muted));
-  font-size: var(--text-lg);
-  line-height: 1.4;
-}
-
-.support-goal-card.is-complete {
-  border-color: color-mix(in srgb, var(--color-success) 35%, var(--color-border));
-}
-
-.support-goal-card.is-complete .support-goal-percent > strong {
-  color: var(--color-success);
-}
-
 .support-section {
   display: grid;
   gap: var(--space-3);
@@ -3682,75 +3524,6 @@ body:has(.public-home) {
 .support-note {
   color: var(--color-text-muted);
   font-size: var(--text-2xl);
-}
-
-.support-donate {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.support-monobank {
-  justify-self: start;
-}
-
-.support-crypto {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.support-wallet {
-  display: grid;
-  gap: var(--space-3);
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-subtle);
-}
-
-.support-wallet-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.support-qr {
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  margin: 0;
-}
-
-.support-qr img {
-  width: 120px;
-  height: 120px;
-  padding: 8px;
-  border-radius: var(--radius-sm);
-  background: var(--color-white);
-  box-shadow: 0 1px 4px var(--tint-medium);
-}
-
-.support-qr figcaption {
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-}
-
-.support-wallet-info {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.support-wallet-info strong {
-  font-size: var(--text-2xl);
-}
-
-.support-wallet-info code {
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .support-copy {
@@ -4098,94 +3871,6 @@ body:has(.public-home) {
   gap: var(--space-4);
 }
 
-.support-goal-admin-card {
-  border-color: color-mix(in srgb, var(--color-accent) 20%, var(--color-border));
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--color-accent-softer) 55%, transparent),
-      transparent 42%
-    ),
-    var(--color-surface);
-}
-
-.support-goal-admin-heading > div {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.support-goal-admin-heading p,
-.support-goal-admin-summary span,
-.support-goal-admin-meta {
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-}
-
-.support-goal-admin-summary {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.support-goal-admin-summary > div {
-  display: grid;
-  gap: 5px;
-}
-
-.support-goal-admin-summary strong {
-  font-size: var(--text-11xl);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.025em;
-}
-
-.support-goal-admin-summary b {
-  color: var(--color-accent);
-  font-size: var(--text-12xl);
-  font-variant-numeric: tabular-nums;
-}
-
-.support-goal-admin-form {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: end;
-  gap: var(--space-4);
-}
-
-.support-goal-admin-actions {
-  grid-column: 1 / -1;
-}
-
-.support-goal-admin-actions {
-  display: flex;
-  min-height: 40px;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.support-goal-admin-success {
-  color: var(--color-success);
-  font-size: var(--text-xl);
-  font-weight: 650;
-}
-
-.support-goal-admin-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-4);
-  margin-top: calc(var(--space-2) * -1);
-}
-
-.support-goal-admin-meta span {
-  max-width: 680px;
-}
-
-.support-goal-admin-meta time {
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-
 .chart-legend {
   display: flex;
   gap: var(--space-4);
@@ -4517,15 +4202,6 @@ body:has(.public-home) {
   }
 
   .admin-card-heading.users-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .support-goal-admin-form {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .support-goal-admin-meta {
     align-items: flex-start;
     flex-direction: column;
   }
@@ -6116,11 +5792,6 @@ body:has(.public-home) {
 :root[data-theme='dark'] .google-sign-in:hover:not(:disabled) {
   background: var(--google-surface-hover);
   box-shadow: 0 2px 6px color-mix(in srgb, var(--color-black) 50%, transparent);
-}
-/* QR must stay on a light plate to remain scannable (the purple scale is
-   not theme-flipped, so this stays light in dark mode) */
-:root[data-theme='dark'] .support-qr {
-  background: var(--purple-50);
 }
 
 /* ============================================================

@@ -226,7 +226,6 @@ export function UserMenu() {
       />
       {technicalSupportOpen && (
         <SupportDialog
-          mode="technical"
           onClose={() => setTechnicalSupportOpen(false)}
           returnFocus={trigger.current}
         />

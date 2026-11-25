@@ -47,11 +47,6 @@ export type Database = Omit<GeneratedDatabase, 'public'> & {
     };
   };
 };
-export type SupportGoalStatus = 'draft' | 'active' | 'archived';
-export type SupportGoalRow = Omit<
-  Database['public']['Tables']['support_goals']['Row'],
-  'status'
-> & { status: SupportGoalStatus };
 export type Profile = Omit<
   GeneratedDatabase['public']['Tables']['profiles']['Row'],
   'language' | 'plan' | 'account_status' | 'task_progress_max_default' | 'transcript_delete_pref'

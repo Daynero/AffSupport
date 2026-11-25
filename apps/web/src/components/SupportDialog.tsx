@@ -1,16 +1,9 @@
-import { lazy, Suspense, useEffect, useId, useRef, useState } from 'react';
+import { lazy, Suspense, useId, useState } from 'react';
 import { useI18n } from '../i18n';
 import { analytics } from '../analytics/service';
-import { activeCryptoWallets, hasDonationOptions, monobankUrl, supportEmail } from '../lib/support';
-import { useSupportGoal } from '../support/SupportGoalContext';
-import {
-  formatSupportAmount,
-  supportGoalDescription,
-  supportGoalProgress,
-  supportGoalTitle
-} from '../support/goals';
+import { supportEmail } from '../lib/support';
 import { Modal } from './Modal';
-import { Badge, Button, Card, FormField, Progress, Textarea, uiClasses } from './ui/index';
+import { Button, FormField, Textarea } from './ui/index';
 
 /**
  * Loaded on demand. The bundle reads the local app's journal, so it needs the agent client
@@ -21,24 +14,23 @@ const DiagnosticsBundle = lazy(() =>
   import('../support/DiagnosticsBundle').then(module => ({ default: module.DiagnosticsBundle }))
 );
 
-type SupportDialogMode = 'project' | 'technical';
-
+/**
+ * Technical support: a message to the support inbox and the diagnostics bundle. The
+ * donation side of this dialog (goal, Monobank jar, crypto wallets) was removed on the
+ * owner's word; nothing in the product opened it any more.
+ */
 export function SupportDialog({
   onClose,
-  mode = 'project',
   returnFocus
 }: {
   onClose: () => void;
-  mode?: SupportDialogMode;
   returnFocus?: HTMLElement | null;
 }) {
   const { t } = useI18n();
-  const { goal } = useSupportGoal();
   const titleId = useId();
   const messageId = useId();
   const [message, setMessage] = useState('');
   const [error, setError] = useState(false);
-  const isTechnicalSupport = mode === 'technical';
 
   const send = () => {
     if (!message.trim()) {
@@ -46,7 +38,7 @@ export function SupportDialog({
       return;
     }
     const href = `mailto:${supportEmail}?subject=${encodeURIComponent(
-      t(isTechnicalSupport ? 'technicalSupportSubject' : 'supportSubject')
+      t('technicalSupportSubject')
     )}&body=${encodeURIComponent(message.trim())}`;
     analytics.track('support_feedback_started', {});
     window.location.href = href;
@@ -60,72 +52,19 @@ export function SupportDialog({
       onClose={onClose}
       closeLabel={t('supportClose')}
       returnFocus={returnFocus}
-      initialFocus={isTechnicalSupport ? 'textarea' : undefined}
+      initialFocus="textarea"
     >
       <header className="support-head">
         <span className="support-badge" aria-hidden="true">
-          {isTechnicalSupport ? <TechnicalSupportIcon /> : <HeartIcon />}
+          <TechnicalSupportIcon />
         </span>
-        <h2 id={titleId}>{t(isTechnicalSupport ? 'technicalSupportTitle' : 'supportTitle')}</h2>
-        <p>{t(isTechnicalSupport ? 'technicalSupportIntro' : 'supportIntro')}</p>
+        <h2 id={titleId}>{t('technicalSupportTitle')}</h2>
+        <p>{t('technicalSupportIntro')}</p>
       </header>
 
-      {!isTechnicalSupport && goal && <SupportGoalCard />}
-
-      {!isTechnicalSupport && (
-        <section className="support-section">
-          <h3>{goal ? t('supportGoalDonateTitle') : t('supportDonateTitle')}</h3>
-          {hasDonationOptions ? (
-            <div className="support-donate">
-              {monobankUrl && (
-                <a
-                  /* A link, not a button: it leaves the product. It wears the
-                     inventory's solid primary so it reads as the same control. */
-                  className={uiClasses('button', {
-                    color: 'primary',
-                    variant: 'solid',
-                    size: 'md',
-                    className: 'support-monobank'
-                  })}
-                  href={monobankUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() =>
-                    analytics.track('support_donation_clicked', {
-                      feature_identifier: goal?.slug ?? 'general-support',
-                      action_identifier: 'monobank'
-                    })
-                  }
-                >
-                  {goal
-                    ? `${t('supportGoalDonateCta')} · ${t('supportMonobank')}`
-                    : `${t('supportMonobank')} · ${t('supportMonobankOpen')}`}
-                </a>
-              )}
-              {activeCryptoWallets.length > 0 && (
-                <div className="support-crypto">
-                  <p className="support-note">{t('supportCryptoNote')}</p>
-                  {activeCryptoWallets.map(wallet => (
-                    <CryptoRow
-                      key={wallet.network}
-                      network={wallet.network}
-                      address={wallet.address}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="support-note">{t('supportDonateSoon')}</p>
-          )}
-        </section>
-      )}
-
       <section className="support-section">
-        <h3>{t(isTechnicalSupport ? 'technicalSupportMessageTitle' : 'supportFeedbackTitle')}</h3>
-        <p className="support-note">
-          {t(isTechnicalSupport ? 'technicalSupportMessageHint' : 'supportFeedbackHint')}
-        </p>
+        <h3>{t('technicalSupportMessageTitle')}</h3>
+        <p className="support-note">{t('technicalSupportMessageHint')}</p>
         {supportEmail ? (
           <div className="support-form">
             <FormField
@@ -138,11 +77,7 @@ export function SupportDialog({
                 value={message}
                 rows={4}
                 invalid={error}
-                placeholder={t(
-                  isTechnicalSupport
-                    ? 'technicalSupportMessagePlaceholder'
-                    : 'supportMessagePlaceholder'
-                )}
+                placeholder={t('technicalSupportMessagePlaceholder')}
                 onChange={event => {
                   setMessage(event.target.value);
                   if (error) setError(false);
@@ -162,133 +97,6 @@ export function SupportDialog({
         <DiagnosticsBundle />
       </Suspense>
     </Modal>
-  );
-}
-
-function SupportGoalCard() {
-  const { language, t } = useI18n();
-  const { goal } = useSupportGoal();
-  if (!goal) return null;
-  const progress = supportGoalProgress(goal);
-  const raised = formatSupportAmount(goal.raised_cents, goal.currency, language);
-  const target = formatSupportAmount(goal.target_cents, goal.currency, language);
-  const remaining = formatSupportAmount(progress.remainingCents, goal.currency, language);
-  const progressText = t('supportGoalRaisedOf', { raised, target });
-
-  return (
-    <Card as="section" className={`support-goal-card${progress.complete ? ' is-complete' : ''}`}>
-      <div className="support-goal-heading">
-        <Badge color={progress.complete ? 'success' : 'primary'} variant="soft" size="xs">
-          {t('supportGoalEyebrow')}
-        </Badge>
-        <strong>{t('supportGoalTarget', { amount: target })}</strong>
-      </div>
-      <h3>{supportGoalTitle(goal, language)}</h3>
-      <p>{supportGoalDescription(goal, language)}</p>
-      <div className="support-goal-funding">
-        <div className="support-goal-total">
-          <span>{t('supportGoalCollected')}</span>
-          <strong>
-            {raised}
-            <small>/ {target}</small>
-          </strong>
-        </div>
-        <div className="support-goal-percent">
-          <strong>{progress.displayPercent}%</strong>
-          <span>
-            {progress.complete
-              ? t('supportGoalComplete')
-              : t('supportGoalRemaining', { amount: remaining })}
-          </span>
-        </div>
-      </div>
-      <Progress
-        value={progress.visualPercent}
-        color={progress.complete ? 'success' : 'primary'}
-        size="sm"
-        label={t('supportGoalProgressLabel')}
-        valueText={progressText}
-      />
-      <small className="support-goal-note">{t('supportGoalManualNote')}</small>
-    </Card>
-  );
-}
-
-function CryptoRow({ network, address }: { network: string; address: string }) {
-  const { t } = useI18n();
-  const [copied, setCopied] = useState(false);
-  const [qr, setQr] = useState('');
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    // Loaded on demand. The generator is only reachable from the donation
-    // dialog's crypto tab, and it was being downloaded by everyone who opened
-    // the application — including the majority who never open this dialog at
-    // all. The failure path already degrades to the address text and the copy
-    // button, so a chunk that does not arrive costs a picture, not a feature.
-    void import('qrcode')
-      .then(({ default: QRCode }) =>
-        QRCode.toDataURL(address, { margin: 1, width: 320, errorCorrectionLevel: 'M' })
-      )
-      .then(url => {
-        if (active) setQr(url);
-      })
-      .catch(() => {
-        /* QR generation failed — address text and copy button still work. */
-      });
-    return () => {
-      active = false;
-    };
-  }, [address]);
-
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    []
-  );
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(address);
-      setCopied(true);
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(false), 1800);
-    } catch {
-      /* Clipboard unavailable — the address stays visible for manual copy. */
-    }
-  };
-
-  return (
-    <div className="support-wallet">
-      <div className="support-wallet-row">
-        <div className="support-wallet-info">
-          <strong>{network}</strong>
-          <code>{address}</code>
-        </div>
-        <Button variant="outline" size="sm" className="support-copy" onClick={() => void copy()}>
-          {copied ? t('supportCopied') : t('supportCopy')}
-        </Button>
-      </div>
-      {qr && (
-        <figure className="support-qr">
-          <img src={qr} alt={t('supportQrAlt', { network })} width={120} height={120} />
-          <figcaption>{t('supportScan')}</figcaption>
-        </figure>
-      )}
-    </div>
-  );
-}
-
-function HeartIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
-      <path
-        d="M10 17.5 8.9 16.5C4.7 12.8 2 10.4 2 7.4 2 4.9 4 3 6.5 3c1.4 0 2.7.7 3.5 1.8C10.8 3.7 12.1 3 13.5 3 16 3 18 4.9 18 7.4c0 3-2.7 5.4-6.9 9.1L10 17.5Z"
-        fill="currentColor"
-      />
-    </svg>
   );
 }
 

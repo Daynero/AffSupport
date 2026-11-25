@@ -1,8 +1,6 @@
 import type { Database } from './database.compat';
 export type {
   Database,
-  SupportGoalStatus,
-  SupportGoalRow,
   Profile,
   AnalyticsEventRow,
   AdminUserRow,

@@ -267,15 +267,6 @@ const RPC: Record<string, (args: Record<string, unknown>) => unknown> = {
     { agent_version: '1.0.3', total: 5 }
   ],
   admin_list_users: () => ADMIN_USERS,
-  admin_active_support_goal: () => SUPPORT_GOAL,
-  admin_update_support_goal: args => ({
-    ...SUPPORT_GOAL,
-    title_en: args.p_title_en,
-    title_uk: args.p_title_uk,
-    target_cents: args.p_target_cents,
-    raised_cents: args.p_raised_cents,
-    updated_at: new Date().toISOString()
-  }),
   admin_list_team_workspace_waitlist: () => [
     { user_id: 'u-w1', email: 'buyer@example.com', created_at: ago(48) },
     { user_id: 'u-w2', email: 'media@example.com', created_at: ago(12) }
@@ -346,21 +337,6 @@ const ADMIN_USERS = [
     account_status: 'deleted'
   }
 ];
-
-const SUPPORT_GOAL = {
-  id: 'goal-1',
-  slug: 'for-bug-fixes',
-  title_en: 'For bug fixes',
-  title_uk: 'На виправлення багів',
-  description_en: 'Keeping the lights on.',
-  description_uk: 'Щоб світло не гасло.',
-  currency: 'USD',
-  raised_cents: 0,
-  target_cents: 2_500,
-  status: 'active',
-  created_at: ago(24 * 30),
-  updated_at: ago(5)
-};
 
 /* Two accounts and five agents, with runs, balances and markers — the density
    reference the accounts table was designed against. */
