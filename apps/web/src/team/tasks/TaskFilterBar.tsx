@@ -46,7 +46,8 @@ export function TaskFilterBar({
   sort,
   onSortChange,
   trailing,
-  display
+  display,
+  selection
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -66,6 +67,12 @@ export function TaskFilterBar({
   trailing?: ReactNode;
   /** How the cards are drawn (024): switches that change the view, not what is on it. */
   display?: ReactNode;
+  /**
+   * The selection bar, drawn in this row's place while cards are selected — the explorer's
+   * way (070, phase 9ж). The row stays laid out under it, unseen and inert, so the bar takes
+   * exactly its height: a card a rectangle selects is never pushed out from under it.
+   */
+  selection?: ReactNode;
 }) {
   const { t } = useI18n();
   const headingId = useId();
@@ -100,74 +107,86 @@ export function TaskFilterBar({
 
   return (
     <div className="task-filter-bar">
-      <div className="task-filter-row">
-        {/* The inventory's search box (070, T079): the raw field inherited the panel's body
+      <div className={`team-board-controls${selection ? ' is-selecting' : ''}`}>
+        <div className="task-filter-row" inert={selection ? true : undefined}>
+          {/* The inventory's search box (070, T079): the raw field inherited the panel's body
             size and set its placeholder at 20px, taller than every control beside it. */}
-        <SearchField
-          className="task-board-search"
-          aria-label={t('teamTasksSearch')}
-          placeholder={t('teamTasksSearch')}
-          clearLabel={t('teamSearchClear')}
-          value={query}
-          onChange={onQueryChange}
-        />
-        <TaskDateFilterControl
-          value={date}
-          onChange={onDateChange}
-          status={status}
-          onStatusChange={onStatusChange}
-          inlineDays
-        >
-          <TaskFiltersButton count={chips.length}>
-            {/* Three kinds of thing, named apart the way Linear parts Filter
+          <SearchField
+            className="task-board-search"
+            aria-label={t('teamTasksSearch')}
+            placeholder={t('teamTasksSearch')}
+            clearLabel={t('teamSearchClear')}
+            value={query}
+            onChange={onQueryChange}
+          />
+          <TaskDateFilterControl
+            value={date}
+            onChange={onDateChange}
+            status={status}
+            onStatusChange={onStatusChange}
+            inlineDays
+            size="sm"
+          >
+            <TaskFiltersButton count={chips.length} size="sm">
+              {/* Three kinds of thing, named apart the way Linear parts Filter
                   from Display: what is shown, in what order, and how the cards
                   are drawn. One column, every control the panel's full width,
                   a hairline between the sections. */}
-            {(accounts.length > 0 ||
-              scope.kind !== 'all' ||
-              labels.length > 0 ||
-              labelIds.length > 0) && (
+              {(accounts.length > 0 ||
+                scope.kind !== 'all' ||
+                labels.length > 0 ||
+                labelIds.length > 0) && (
+                <div
+                  className="task-filter-section"
+                  role="group"
+                  aria-labelledby={`${headingId}-show`}
+                >
+                  <span id={`${headingId}-show`} className="task-filter-heading">
+                    {t('teamTasksFilterGroup')}
+                  </span>
+                  {(accounts.length > 0 || scope.kind !== 'all') && (
+                    <TaskAccountFilter accounts={accounts} scope={scope} onChange={onScopeChange} />
+                  )}
+                  {(labels.length > 0 || labelIds.length > 0) && (
+                    <TaskLabelFilter
+                      labels={labels}
+                      selectedIds={labelIds}
+                      onChange={onLabelIdsChange}
+                    />
+                  )}
+                </div>
+              )}
               <div
                 className="task-filter-section"
                 role="group"
-                aria-labelledby={`${headingId}-show`}
+                aria-labelledby={`${headingId}-sort`}
               >
-                <span id={`${headingId}-show`} className="task-filter-heading">
-                  {t('teamTasksFilterGroup')}
+                <span id={`${headingId}-sort`} className="task-filter-heading">
+                  {t('teamTasksSortGroup')}
                 </span>
-                {(accounts.length > 0 || scope.kind !== 'all') && (
-                  <TaskAccountFilter accounts={accounts} scope={scope} onChange={onScopeChange} />
-                )}
-                {(labels.length > 0 || labelIds.length > 0) && (
-                  <TaskLabelFilter
-                    labels={labels}
-                    selectedIds={labelIds}
-                    onChange={onLabelIdsChange}
-                  />
-                )}
+                <TaskSortControl
+                  value={sort}
+                  onChange={onSortChange}
+                  hasLabels={labels.length > 0}
+                />
               </div>
-            )}
-            <div className="task-filter-section" role="group" aria-labelledby={`${headingId}-sort`}>
-              <span id={`${headingId}-sort`} className="task-filter-heading">
-                {t('teamTasksSortGroup')}
-              </span>
-              <TaskSortControl value={sort} onChange={onSortChange} hasLabels={labels.length > 0} />
-            </div>
-            {display && (
-              <div
-                className="task-filter-section"
-                role="group"
-                aria-labelledby={`${headingId}-view`}
-              >
-                <span id={`${headingId}-view`} className="task-filter-heading">
-                  {t('teamTasksDisplayGroup')}
-                </span>
-                <div className="task-filter-display">{display}</div>
-              </div>
-            )}
-          </TaskFiltersButton>
-          {trailing}
-        </TaskDateFilterControl>
+              {display && (
+                <div
+                  className="task-filter-section"
+                  role="group"
+                  aria-labelledby={`${headingId}-view`}
+                >
+                  <span id={`${headingId}-view`} className="task-filter-heading">
+                    {t('teamTasksDisplayGroup')}
+                  </span>
+                  <div className="task-filter-display">{display}</div>
+                </div>
+              )}
+            </TaskFiltersButton>
+            {trailing}
+          </TaskDateFilterControl>
+        </div>
+        {selection}
       </div>
       {chips.length > 0 && (
         <div className="task-filter-chips" aria-label={t('teamTasksActiveFilters')}>

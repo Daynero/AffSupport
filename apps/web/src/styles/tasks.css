@@ -1525,6 +1525,63 @@ button.team-task-label-chip:hover:not(:disabled),
   margin-inline-start: auto;
 }
 
+/* The selection takes the controls' place (070, phase 9ж), as it does in the explorer: the bar
+   and the row share one grid cell, the row stays laid out under the bar — unseen and inert — so
+   the cell keeps the row's height whatever the bar holds. A rectangle that selects a card moves
+   nothing on the board; the bar used to arrive above the grid and push the card out from under
+   the rectangle, which let it go. */
+.team-board-controls {
+  display: grid;
+  min-width: 0;
+}
+.team-board-controls > * {
+  grid-area: 1 / 1;
+}
+.team-board-controls.is-selecting > :not(.ui-selection-bar) {
+  visibility: hidden;
+}
+/* The library's toolbar is as wide as its content, which a size container reports as nothing;
+   the bar takes the row's whole width instead. */
+.team-board-controls > .team-board-selection-bar {
+  flex-wrap: nowrap;
+  align-self: stretch;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height-md);
+  padding-block: 0;
+  padding-inline: var(--space-2);
+  container-type: inline-size;
+}
+.team-board-selection-bar .ui-selection-count {
+  flex: none;
+  font-size: var(--text-label);
+  white-space: nowrap;
+}
+.team-board-selection-bar .ui-selection-actions {
+  flex-wrap: nowrap;
+  min-width: 0;
+  gap: var(--space-1);
+}
+.team-board-selection-bar .team-task-bulk {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-board-selection-bar .ui-button {
+  flex: none;
+  white-space: nowrap;
+}
+/* The acts keep their words while there is room; on a narrow bar the word goes (CSS only — the
+   name stays for a reader and the tooltip). */
+@container (max-width: 640px) {
+  .team-board-selection-act-label,
+  .team-board-selection-bar .ui-selection-clear-label {
+    display: none;
+  }
+}
+
 /* The row's controls are whole controls: nothing wraps inside itself, and the strip that used
    to scroll sideways on a phone (024) has nothing left in it that needs to. */
 .task-date-filter {
@@ -1592,6 +1649,10 @@ button.team-task-label-chip:hover:not(:disabled),
 .task-date-filter-calendar.is-active .task-date-filter-trigger {
   padding-inline-end: var(--space-1);
   background: none;
+}
+
+.task-date-filter.is-sm .task-date-filter-calendar .task-date-filter-trigger {
+  padding: var(--control-padding-sm);
 }
 
 .task-date-filter-calendar .task-date-filter-clear {
@@ -1965,6 +2026,11 @@ button.team-task-label-chip:hover:not(:disabled),
    presets, the date chip and «Фільтри» are their glyphs (the name stays in the hint), and the
    statuses are glyphs with "Всі" still a word. */
 @media (max-width: 640px) {
+  /* The row is two lines here; the bar is one, on the first, and the second stays clear. */
+  .team-board-controls > .team-board-selection-bar {
+    align-self: start;
+  }
+
   .task-filter-row > .task-board-search,
   .launch-list-toolbar > .launch-list-search {
     flex: 1 1 100%;

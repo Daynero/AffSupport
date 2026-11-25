@@ -248,13 +248,6 @@ export interface SelectionBarProps {
   clearLabel: string;
   /** The bar's own name for a screen reader; the clear label when not given. */
   toolbarLabel?: string;
-  /**
-   * Over the page at the bottom of the window instead of in the flow (owner, beta 25.11). A
-   * board whose bar arrives above its cards pushes them down the moment a rectangle selects
-   * one — out from under the rectangle, which lets go, which takes the bar away, which brings
-   * the cards back: a loop. Floating, the bar never moves what was selected.
-   */
-  floating?: boolean;
   className?: string;
 }
 
@@ -266,7 +259,6 @@ export function SelectionBar({
   onClear,
   clearLabel,
   toolbarLabel,
-  floating = false,
   className
 }: SelectionBarProps) {
   if (count === 0) return null;
@@ -275,7 +267,7 @@ export function SelectionBar({
        actions, and the count is read as the bar's own text. */
     <Toolbar
       label={toolbarLabel ?? clearLabel}
-      className={uiClasses('selection-bar', { className, states: { floating } })}
+      className={uiClasses('selection-bar', { className })}
     >
       <span className="ui-selection-count">{label}</span>
       <div className="ui-selection-actions">{actions}</div>

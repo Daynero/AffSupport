@@ -1,5 +1,6 @@
 import { withReadDeadline } from '../readCoordinator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ListChecks } from 'lucide-react';
 import type { TeamAccountSummary, TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi, type TeamMemberSummary, type TeamAssigneeSummary } from '../../api/team';
 import { taskDeleteTitleKey, useI18n } from '../../i18n';
@@ -31,6 +32,7 @@ import { useTaskClipboard, type TaskCopyClient } from './useTaskClipboard';
 import { useTaskListSelection } from './useTaskListSelection';
 import { useCardMarqueeSelection } from '../useCardMarqueeSelection';
 import { LabeledSkeleton } from '../../components/LabeledSkeleton';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 
 export type TaskSpaceClient = TaskCopyClient &
   TasksClient &
@@ -608,6 +610,59 @@ export function TaskSpace({
             </>
           ) : undefined
         }
+        selection={
+          selected.length > 0 ? (
+            <SelectionBar
+              className="team-board-selection-bar"
+              count={selected.length}
+              label={t('teamTaskSelectedCount', { count: selected.length })}
+              clearLabel={t('teamTaskClearSelection', { count: selected.length })}
+              onClear={() => setSelectedIds(new Set())}
+              actions={
+                <div ref={bulkAnchor} className="team-task-bulk">
+                  {/* "All loaded" belongs to a selection that has begun (070 T069): it hung
+                      alone on its own row at the right of the board, an action with no
+                      selection to act on. Its word goes on a narrow bar; the name stays. */}
+                  {selected.length < taskIds.length && (
+                    <Button
+                      size="sm"
+                      color="neutral"
+                      variant="ghost"
+                      className="team-board-selection-act"
+                      aria-label={t('teamTasksSelectLoaded')}
+                      leading={
+                        <ListChecks size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                      }
+                      onClick={() => setSelectedIds(new Set(taskIds))}
+                    >
+                      <span className="team-board-selection-act-label">
+                        {t('teamTasksSelectLoaded')}
+                      </span>
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    color="neutral"
+                    variant="outline"
+                    aria-haspopup="menu"
+                    aria-expanded={bulkOpen}
+                    onClick={() => setBulkOpen(current => !current)}
+                  >
+                    {t('teamTaskBulkActions')}
+                  </Button>
+                  <DropdownMenu
+                    open={bulkOpen}
+                    onClose={() => setBulkOpen(false)}
+                    anchor={bulkAnchor}
+                    placement="bottom-start"
+                    items={bulkItems}
+                    label={t('teamTaskBulkActions')}
+                  />
+                </div>
+              }
+            />
+          ) : null
+        }
       />
       {error && <ErrorState className="team-inline-error" message={t('teamTaskCreateFailed')} />}
       {tasks.error && (
@@ -629,45 +684,6 @@ export function TaskSpace({
           }
         />
       )}
-      <SelectionBar
-        floating
-        count={selected.length}
-        label={t('teamTaskSelectedCount', { count: selected.length })}
-        clearLabel={t('teamTaskClearSelection', { count: selected.length })}
-        onClear={() => setSelectedIds(new Set())}
-        actions={
-          <div ref={bulkAnchor} className="team-task-bulk">
-            {/* "All loaded" belongs to a selection that has begun (070 T069): it hung alone on
-                its own row at the right of the board, an action with no selection to act on. */}
-            {selected.length < taskIds.length && (
-              <Button
-                size="sm"
-                color="neutral"
-                variant="ghost"
-                onClick={() => setSelectedIds(new Set(taskIds))}
-              >
-                {t('teamTasksSelectLoaded')}
-              </Button>
-            )}
-            <Button
-              size="sm"
-              color="neutral"
-              variant="outline"
-              onClick={() => setBulkOpen(current => !current)}
-            >
-              {t('teamTaskBulkActions')}
-            </Button>
-            <DropdownMenu
-              open={bulkOpen}
-              onClose={() => setBulkOpen(false)}
-              anchor={bulkAnchor}
-              placement="top-start"
-              items={bulkItems}
-              label={t('teamTaskBulkActions')}
-            />
-          </div>
-        }
-      />
       {confirmingDelete.length > 0 && (
         <ConfirmDialog
           title={t(taskDeleteTitleKey(language, confirmingDelete.length), {

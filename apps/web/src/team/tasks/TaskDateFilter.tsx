@@ -94,6 +94,7 @@ export function TaskDateFilterControl({
   calendarLabel,
   inlineDays = false,
   inlineTomorrow = false,
+  size = 'md',
   children
 }: {
   value: TaskDateFilter;
@@ -108,6 +109,12 @@ export function TaskDateFilterControl({
   inlineDays?: boolean;
   /** Include tomorrow after today for planning upcoming launches. */
   inlineTomorrow?: boolean;
+  /**
+   * The row's controls at the statuses' step (070, phase 9ж): on the boards they sit beside the
+   * small segmented statuses, and at `md` they were a step larger and bolder than their
+   * neighbours. Accounts keeps `md`, beside its own `md` presets.
+   */
+  size?: 'sm' | 'md';
   /** A further filter that shares the row — the account scope (017). */
   children?: React.ReactNode;
 }) {
@@ -178,7 +185,10 @@ export function TaskDateFilterControl({
   };
 
   return (
-    <div className="task-date-filter" aria-label={t('teamTasksDateFilter')}>
+    <div
+      className={`task-date-filter${size === 'sm' ? ' is-sm' : ''}`}
+      aria-label={t('teamTasksDateFilter')}
+    >
       {/*
        * One chip (024), now two inventory controls (070, T079): the trigger says "Дата" until a
        * range is on and the range once it is — a calendar glyph alone read as decoration, and on
@@ -190,6 +200,7 @@ export function TaskDateFilterControl({
       >
         <Button
           ref={trigger}
+          size={size}
           variant="ghost"
           color={value.kind !== 'all' ? 'secondary' : 'neutral'}
           className="task-date-filter-trigger"
@@ -276,6 +287,7 @@ export function TaskDateFilterControl({
             .map(option => (
               <Button
                 key={option.range}
+                size={size}
                 {...toggleLook(quick === option.range)}
                 className="task-date-day"
                 aria-pressed={quick === option.range}
@@ -293,6 +305,7 @@ export function TaskDateFilterControl({
             ))}
           {inlineTomorrow && (
             <Button
+              size={size}
               {...toggleLook(tomorrowActive)}
               className="task-date-day"
               aria-pressed={tomorrowActive}

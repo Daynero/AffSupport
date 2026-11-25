@@ -3702,37 +3702,6 @@
   border-radius: var(--radius-md);
   background: var(--color-secondary-softer);
 }
-/* Floating: over the page, at the bottom of the window, so arriving and leaving move nothing
-   on the board under it. It rises in on transform and opacity only. */
-.ui-selection-bar.is-floating {
-  position: fixed;
-  bottom: var(--space-5);
-  left: 50%;
-  z-index: var(--layer-dropdown);
-  width: max-content;
-  max-width: calc(100vw - 2 * var(--space-4));
-  border-color: var(--color-secondary-border);
-  background: var(--color-neutral-surface-raised);
-  box-shadow: var(--shadow-lg);
-  transform: translateX(-50%);
-  animation: ui-selection-rise var(--motion-base) var(--ease-out-curve) both;
-}
-@keyframes ui-selection-rise {
-  from {
-    opacity: 0;
-    transform: translate(-50%, var(--space-3));
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ui-selection-bar.is-floating {
-    animation: none;
-  }
-}
-/* The page keeps room under its last row for the bar, so nothing ends up beneath it. Room at
-   the bottom moves nothing above it. */
-.team-panel:has(.ui-selection-bar.is-floating) {
-  padding-bottom: calc(var(--space-6) * 3);
-}
 .ui-selection-count {
   font-weight: var(--weight-label);
 }

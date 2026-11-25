@@ -50,11 +50,12 @@ export function MembersSection({
       <h2 id="team-members-title" className="visually-hidden">
         {t('teamSectionMembers')}
       </h2>
-      {/* One column (070): the members, then the invitations, each as wide as the
-          panel. Side by side they were two cards of different heights with a field
-          of empty background under the shorter one. */}
+      {/* Two columns, as the owner shaped it: who is in the space on the left, the
+          invitation card on the right. 070 stacked them full width, which turned a
+          short list into a wide table with air between its columns and the form
+          into a band under it. They stack again only where two do not fit. */}
       {can('manage_members') ? (
-        <div className="team-members-stack">
+        <div className="team-space-settings-grid team-members-grid">
           <MemberList
             teamId={teamId}
             client={client}

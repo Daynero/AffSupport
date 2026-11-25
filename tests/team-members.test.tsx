@@ -278,7 +278,7 @@ it('lets an owner leave by transferring from the leave line, choosing the new ow
     </TeamProvider>
   );
   // The way out is an action on the members table, not a sentence describing where one is.
-  expect(await screen.findByRole('table', { name: 'Members' })).toBeTruthy();
+  expect(await screen.findByRole('list', { name: 'Members' })).toBeTruthy();
   await user.click(await screen.findByRole('button', { name: 'Transfer ownership…' }));
   const dialog = await screen.findByRole('dialog', { name: 'Transfer ownership of this space' });
   const confirm = screen.getByRole('checkbox', { name: 'Choose the new owner first' });

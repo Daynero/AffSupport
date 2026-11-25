@@ -1,14 +1,13 @@
 /* ============================================================
-   Members (070, T051) — who is in the space, who has been asked,
-   and how you stop being one of them.
+   Members — who is in the space, who has been asked, and how you
+   stop being one of them.
 
-   One column: the member table, its one line about leaving, and the
-   invitations under it. Side by side the two cards were of different
-   heights, and the shorter one left a field of background under itself.
-   The table is the inventory's; what is here is only what a member row
-   needs beyond it — a person in one cell, the role and its exception in
-   the next, and the row's two actions right-aligned in a column of their
-   own, so they sit in the same place on every row.
+   Two cards side by side, as the owner shaped them before 070: the
+   members on the left at three fifths, the invitation on the right at
+   two. 070 stacked them full width, which stretched a two-line list
+   into a four-column table with air between the columns and laid the
+   form out as a band under it (Phase 9ж). A member is one line — the
+   name, the address, the role — and the row's two actions at its end.
    ============================================================ */
 
 .team-members-stack {
@@ -18,60 +17,77 @@
   min-width: 0;
 }
 
-.team-member-table {
-  --team-member-actions-width: 13rem;
-}
-.team-member-table .ui-table-row {
-  padding-block: var(--space-2);
-}
-.team-member-table .ui-table-header-cell:last-child {
-  justify-self: end;
+/* The settings grid already gives the cards their gap, their neutral ground and
+   the air under the tabs; this adds only the split. */
+@container (min-width: 56rem) {
+  .team-space-settings-grid.team-members-grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+  }
 }
 
-/* A person: the name at the label step, the address under it at the caption
-   step — one scale, not a 20 px name beside a 13 px address. */
-.team-member-person {
-  overflow: visible;
+.team-member-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.team-member-person .user-avatar {
-  font-size: var(--text-caption);
+.team-member-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-block: var(--space-2);
+  border-top: 1px solid var(--color-border);
 }
-.team-member-person .ui-user-name {
-  color: var(--color-text);
-  font-size: var(--text-label);
+/* The name, the address and the role, on one line. A row without actions (the
+   owner's) is as tall as one with them, so the list keeps one rhythm. */
+.team-member-identity {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-height-sm);
 }
-.team-member-person .ui-user-meta {
+.team-member-name {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
-  font-size: var(--text-caption);
+  color: var(--color-text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-label);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .team-member-self {
   color: var(--color-text-muted);
+  font-size: var(--text-caption);
   font-weight: var(--weight-body);
 }
-
-.team-member-role {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  overflow: visible;
-}
-.team-member-joined {
+.team-member-email {
+  flex: 0 2 auto;
+  min-width: 0;
+  overflow: hidden;
   color: var(--color-text-muted);
   font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-member-identity > .team-role-badge,
+.team-member-identity > .team-member-custom {
+  flex: none;
 }
 
 .team-member-actions {
   display: flex;
+  flex: none;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--space-1);
-  overflow: visible;
+  margin-left: auto;
 }
 
-/* The way out, under the table it belongs to — a line, not a third card. */
+/* The way out, under the list it belongs to — a line, not a third card. */
 .team-member-footer {
   padding-top: var(--space-3);
   border-top: 1px solid var(--color-border);
@@ -169,31 +185,22 @@
   white-space: nowrap;
 }
 
-/* A phone: the person and the actions on one line, the role under the name,
-   the date and the column captions gone — the row says them itself. */
+/* A phone: the name and the role on the first line, the address under them,
+   and a manageable member's actions on a line of their own at the row's end —
+   beside the name they squeezed the role chip onto a line by itself. */
 @media (max-width: 640px) {
-  .team-member-table .ui-table-header {
-    display: none;
-  }
-  .team-member-table .ui-table-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'person person'
-      'role actions';
+  .team-member-list li {
+    flex-wrap: wrap;
     row-gap: var(--space-1);
   }
-  .team-member-table .team-member-person {
-    grid-area: person;
+  .team-member-identity {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    row-gap: 0;
   }
-  .team-member-table .team-member-role {
-    grid-area: role;
-    padding-left: calc(32px + var(--space-2));
-  }
-  .team-member-table .team-member-joined {
-    display: none;
-  }
-  .team-member-table .team-member-actions {
-    grid-area: actions;
+  .team-member-email {
+    flex-basis: 100%;
+    order: 3;
   }
   .team-leave-row {
     flex-wrap: wrap;

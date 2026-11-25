@@ -12,7 +12,16 @@ import { Button, Popover } from '../../components/ui/index';
  * the way the date chip is once it narrows the list. On a phone the word folds away and the
  * glyph with its count is the chip; the name stays for a reader either way.
  */
-export function TaskFiltersButton({ count, children }: { count: number; children: ReactNode }) {
+export function TaskFiltersButton({
+  count,
+  size = 'md',
+  children
+}: {
+  count: number;
+  /** The step of the row it sits in — the date filter's. */
+  size?: 'sm' | 'md';
+  children: ReactNode;
+}) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -20,6 +29,7 @@ export function TaskFiltersButton({ count, children }: { count: number; children
   return (
     <div ref={root} className="task-filter-more">
       <Button
+        size={size}
         {...(count > 0 ? ({ variant: 'soft', color: 'secondary' } as const) : { variant: 'ghost' })}
         className="task-filter-more-trigger"
         aria-expanded={open}

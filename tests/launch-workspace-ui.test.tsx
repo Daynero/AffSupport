@@ -1631,8 +1631,8 @@ it('copies selected list links and deletes the exact selection with the chosen r
   expect(links).toHaveLength(2);
   expect(links[0]).toContain(LAUNCH);
   expect(links[1]).toContain(second);
-  fireEvent.click(screen.getByRole('button', { name: 'Do to all' }));
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Delete selected launches (2)' }));
+  // Delete is on the bar itself (070, phase 9ж); "…" keeps the rarer acts.
+  fireEvent.click(screen.getByRole('button', { name: 'Delete selected launches (2)' }));
   await screen.findByText('The catalog and restitched video will remain in the workspace.');
   fireEvent.click(screen.getByRole('checkbox', { name: 'Do not show again' }));
   fireEvent.click(screen.getByRole('button', { name: 'Delete launch' }));
@@ -1656,9 +1656,11 @@ it('deletes the keyboard selection only after warnings are loaded and confirmed'
   });
   seams.archive.mockResolvedValue(undefined);
   render(<LaunchSpace teamId={TEAM} query={emptyTeamRouteQuery()} />);
-  // "Select loaded" is the selection bar's (070 T069): it appears once a selection has begun.
+  // "Select loaded" is the selection bar's (070 T069): it appears, under the bar's "…", once a
+  // selection has begun.
   fireEvent.click((await screen.findAllByRole('checkbox', { name: 'Select launch' }))[0]);
-  fireEvent.click(await screen.findByRole('button', { name: 'Select loaded launches' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Do to all' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Select loaded launches' }));
   fireEvent.keyDown(document, { key: 'Delete' });
   await screen.findByText('The catalog will remain in the workspace.');
   expect(seams.archiveWarning.mock.calls.map(call => call[1])).toEqual([LAUNCH, second]);
@@ -2098,8 +2100,7 @@ it.each(['single', 'bulk'] as const)(
     } else {
       for (const checkbox of screen.getAllByRole('checkbox', { name: 'Select launch' }))
         fireEvent.click(checkbox);
-      fireEvent.click(screen.getByRole('button', { name: 'Do to all' }));
-      fireEvent.click(screen.getByRole('menuitem', { name: 'Delete selected launches (2)' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Delete selected launches (2)' }));
     }
     await waitFor(() => expect(seams.archive).toHaveBeenCalledTimes(rows.length));
     expect(screen.queryByRole('checkbox', { name: 'Do not show again' })).toBeNull();

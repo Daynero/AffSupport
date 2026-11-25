@@ -10,15 +10,8 @@ import {
   ErrorState,
   IconButton,
   LoadingState,
-  Table,
-  TableCell,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
-  Tooltip,
-  User
+  Tooltip
 } from '../../components/ui/index';
-import { UserAvatar } from '../../components/UserAvatar';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import type {
   TeamContextSnapshot,
@@ -31,7 +24,7 @@ import {
   type TeamBaseRole
 } from '@video-compressor/shared';
 import { Modal } from '../../components/Modal';
-import { useI18n, type Language, type TranslationKey } from '../../i18n';
+import { useI18n, type TranslationKey } from '../../i18n';
 import { memberCountKey } from '../accounts/plural';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
@@ -74,17 +67,6 @@ const ROLE_KEY = {
   viewer: 'teamRoleViewer'
 } as const satisfies Record<TeamMemberSummary['role'], TranslationKey>;
 
-/** When someone joined, as a short date — a column read down, so it is never relative. */
-function joinedLabel(joinedAt: string, language: Language): string {
-  const at = new Date(joinedAt);
-  if (Number.isNaN(at.getTime())) return '';
-  return at.toLocaleDateString(language === 'uk' ? 'uk-UA' : 'en-US', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  });
-}
-
 function memberName(member: TeamMemberSummary, fallback: string) {
   return member.displayName ?? member.email ?? fallback;
 }
@@ -106,7 +88,7 @@ export function MemberList({
   /** The list as read, for a neighbour whose wording depends on it. */
   onLoaded?: (members: TeamMemberSummary[]) => void;
   /**
-   * The line under the table — how to leave (024, FR-049). It is handed the way to
+   * The line under the list — how to leave (024, FR-049). It is handed the way to
    * start a transfer, because an owner's way out *is* a transfer: the action sits
    * where the instruction used to send them looking for it.
    */
@@ -209,26 +191,11 @@ export function MemberList({
         <LoadingState shape="row" count={2} label={t('teamMemberLoading')} />
       )}
       {(!loading || members.length > 0) && !error && client && teamId && (
-        /* A table, as Linear's members page is (070, T051): who, in what role, since when,
-           and the row's two actions — one column each, read down as well as across. The
-           name and the address are one person, so they share a cell at the label and
-           caption steps of the type scale rather than a 20 px name beside a 13 px address. */
-        <Table
-          size="sm"
-          label={t('teamMembers')}
-          className="team-member-table"
-          columns="minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) var(--team-member-actions-width)"
-        >
-          <TableHeader>
-            <TableHeaderCell>{t('teamMembersColumnPerson')}</TableHeaderCell>
-            <TableHeaderCell>{t('teamMembersColumnRole')}</TableHeaderCell>
-            <TableHeaderCell className="team-member-joined">
-              {t('teamMembersColumnJoined')}
-            </TableHeaderCell>
-            <TableHeaderCell>
-              <span className="visually-hidden">{t('teamMembersColumnActions')}</span>
-            </TableHeaderCell>
-          </TableHeader>
+        /* A compact list, as the space had it before 070 turned it into a table: the
+           name, the address and the role on one line, the row's two actions at its end.
+           Beside the invitation card there is no room for a column of dates, and a
+           four-column table across the whole panel left a field of air between them. */
+        <ul className="team-member-list" aria-label={t('teamMembers')}>
           {members.map(member => {
             const name = memberName(member, t('teamFormerMember'));
             const changed =
@@ -240,29 +207,15 @@ export function MemberList({
                   ).length;
             const self = member.userId === auth?.user?.id;
             return (
-              <TableRow key={member.membershipId} data-member-id={member.userId}>
-                <TableCell className="team-member-person">
-                  <User
-                    size="sm"
-                    avatar={
-                      <UserAvatar
-                        url={null}
-                        name={member.displayName}
-                        email={member.email}
-                        alt=""
-                        size="small"
-                      />
-                    }
-                    name={
-                      <>
-                        {name}
-                        {self && <span className="team-member-self"> · {t('teamMemberYou')}</span>}
-                      </>
-                    }
-                    meta={member.email && member.email !== name ? member.email : undefined}
-                  />
-                </TableCell>
-                <TableCell className="team-member-role">
+              <li key={member.membershipId} data-member-id={member.userId}>
+                <div className="team-member-identity">
+                  <strong className="team-member-name">
+                    {name}
+                    {self && <span className="team-member-self"> · {t('teamMemberYou')}</span>}
+                  </strong>
+                  {member.email && member.email !== name && (
+                    <small className="team-member-email">{member.email}</small>
+                  )}
                   <Badge
                     size="sm"
                     variant="soft"
@@ -278,52 +231,47 @@ export function MemberList({
                       </span>
                     </Tooltip>
                   )}
-                </TableCell>
-                <TableCell className="team-member-joined numeric">
-                  {joinedLabel(member.joinedAt, language)}
-                </TableCell>
-                <TableCell className="team-member-actions">
-                  {canManage && member.role !== 'owner' && (
-                    <>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        aria-label={t('teamMemberEditFor', { name })}
-                        onClick={() => setEditing(member)}
-                      >
-                        {t('teamMemberEdit')}
-                      </Button>
-                      {/* Rare and heavy, so behind "…" (024, FR-097): three bordered
-                          buttons on every member made removing someone look as
-                          ordinary as editing them. */}
-                      <MemberRowMenu
-                        label={t('teamMemberActionsFor', { name })}
-                        items={[
-                          ...(isOwner
-                            ? [
-                                {
-                                  id: 'transfer',
-                                  label: t('teamOwnershipTransferAction'),
-                                  onSelect: () => setTransferring(member.userId)
-                                }
-                              ]
-                            : []),
-                          {
-                            id: 'remove',
-                            label: t('teamMemberRemove'),
-                            destructive: true,
-                            onSelect: () => setRemoving(member)
-                          }
-                        ]}
-                      />
-                    </>
-                  )}
-                </TableCell>
-              </TableRow>
+                </div>
+                {canManage && member.role !== 'owner' && (
+                  <div className="team-member-actions">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      aria-label={t('teamMemberEditFor', { name })}
+                      onClick={() => setEditing(member)}
+                    >
+                      {t('teamMemberEdit')}
+                    </Button>
+                    {/* Rare and heavy, so behind "…" (024, FR-097): three bordered
+                        buttons on every member made removing someone look as
+                        ordinary as editing them. */}
+                    <MemberRowMenu
+                      label={t('teamMemberActionsFor', { name })}
+                      items={[
+                        ...(isOwner
+                          ? [
+                              {
+                                id: 'transfer',
+                                label: t('teamOwnershipTransferAction'),
+                                onSelect: () => setTransferring(member.userId)
+                              }
+                            ]
+                          : []),
+                        {
+                          id: 'remove',
+                          label: t('teamMemberRemove'),
+                          destructive: true,
+                          onSelect: () => setRemoving(member)
+                        }
+                      ]}
+                    />
+                  </div>
+                )}
+              </li>
             );
           })}
-        </Table>
+        </ul>
       )}
       {footer && !error && client && teamId && members.length > 0 && (
         <div className="team-member-footer">

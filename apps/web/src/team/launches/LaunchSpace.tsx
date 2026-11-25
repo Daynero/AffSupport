@@ -11,7 +11,7 @@ import { useLaunchListSelection } from './useLaunchListSelection.js';
 import { useOptionalToasts } from '../../components/toast';
 import { launchBatchLoading, launchMutation } from './analytics';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Copy, Play, Link2, Plus, Trash2 } from 'lucide-react';
+import { Copy, Link2, ListChecks, MoreHorizontal, Play, Plus, Trash2 } from 'lucide-react';
 import {
   LAUNCH_BATCH_MAX_ITEMS,
   launchInputsLocked,
@@ -28,6 +28,7 @@ import {
   DropdownMenu,
   EmptyState,
   ErrorState,
+  IconButton,
   Modal,
   PermissionState,
   SearchField,
@@ -689,73 +690,209 @@ function LaunchSpaceContent({
        * запуск» — with "Вчора / Сьогодні / Завтра" folded into the calendar's presets, where the
        * calendar glyph used to stand alone on a row of its own.
        */}
-      <div className="launch-list-toolbar">
-        <SearchField
-          className="launch-list-search"
-          aria-label={t('launchesSearch')}
-          placeholder={t('launchesSearch')}
-          clearLabel={t('teamSearchClear')}
-          value={search}
-          onChange={next => changeFilters(() => setSearch(next))}
-        />
-        <TaskDateFilterControl
-          value={dates}
-          onChange={next => changeFilters(() => setDates(next))}
-          status="all"
-          onStatusChange={() => {}}
-          showStatus={false}
-          inlineDays
-          inlineTomorrow
-        >
-          <TaskFiltersButton count={activeListFilterCount}>
-            <div
-              className="task-filter-section"
-              role="group"
-              aria-labelledby={`${filterHeadingId}-show`}
-            >
-              <span id={`${filterHeadingId}-show`} className="task-filter-heading">
-                {t('teamTasksFilterGroup')}
-              </span>
-              <LaunchListFilter
-                label={t('launchesFilterAccount')}
-                allLabel={t('launchesFilterAllAccounts')}
-                value={accountFilter}
-                onChange={next => changeFilters(() => setAccountFilter(next))}
-                options={accounts
-                  .map(account => ({ value: account.id, label: account.name }))
-                  .sort((a, b) => a.label.localeCompare(b.label))}
-              />
-              <LaunchListFilter
-                label={t('launchesOffer')}
-                allLabel={t('launchesAllOffers')}
-                value={offerFilter}
-                onChange={next => changeFilters(() => setOfferFilter(next))}
-                options={offers
-                  .map(offer => ({ value: offer.id, label: offer.value }))
-                  .sort((a, b) => a.label.localeCompare(b.label))}
-              />
-              <LaunchListFilter
-                label={t('launchesFilterAssignee')}
-                allLabel={t('launchesFilterAllAssignees')}
-                value={assigneeFilter}
-                onChange={next => changeFilters(() => setAssigneeFilter(next))}
-                options={assignees
-                  .map(member => ({ value: member.userId, label: member.label }))
-                  .sort((a, b) => a.label.localeCompare(b.label))}
-              />
-            </div>
-          </TaskFiltersButton>
-        </TaskDateFilterControl>
-        {can('edit') && (
-          <Button
-            type="button"
-            className="launch-list-new"
-            variant={selectedIds.size ? 'outline' : 'primary'}
-            onClick={() => route('new', 'settings')}
+      {/* The selection bar takes this row's place while launches are selected — the explorer's
+          way (070, phase 9ж). The row stays laid out under it, unseen and inert, so the bar has
+          exactly its height and a rectangle's launch is never pushed out from under it. */}
+      <div className={`team-board-controls${selectedIds.size > 0 ? ' is-selecting' : ''}`}>
+        <div className="launch-list-toolbar" inert={selectedIds.size > 0 ? true : undefined}>
+          <SearchField
+            className="launch-list-search"
+            aria-label={t('launchesSearch')}
+            placeholder={t('launchesSearch')}
+            clearLabel={t('teamSearchClear')}
+            value={search}
+            onChange={next => changeFilters(() => setSearch(next))}
+          />
+          <TaskDateFilterControl
+            value={dates}
+            onChange={next => changeFilters(() => setDates(next))}
+            status="all"
+            onStatusChange={() => {}}
+            showStatus={false}
+            inlineDays
+            inlineTomorrow
+            size="sm"
           >
-            <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-            {t('launchesNew')}
-          </Button>
+            <TaskFiltersButton count={activeListFilterCount} size="sm">
+              <div
+                className="task-filter-section"
+                role="group"
+                aria-labelledby={`${filterHeadingId}-show`}
+              >
+                <span id={`${filterHeadingId}-show`} className="task-filter-heading">
+                  {t('teamTasksFilterGroup')}
+                </span>
+                <LaunchListFilter
+                  label={t('launchesFilterAccount')}
+                  allLabel={t('launchesFilterAllAccounts')}
+                  value={accountFilter}
+                  onChange={next => changeFilters(() => setAccountFilter(next))}
+                  options={accounts
+                    .map(account => ({ value: account.id, label: account.name }))
+                    .sort((a, b) => a.label.localeCompare(b.label))}
+                />
+                <LaunchListFilter
+                  label={t('launchesOffer')}
+                  allLabel={t('launchesAllOffers')}
+                  value={offerFilter}
+                  onChange={next => changeFilters(() => setOfferFilter(next))}
+                  options={offers
+                    .map(offer => ({ value: offer.id, label: offer.value }))
+                    .sort((a, b) => a.label.localeCompare(b.label))}
+                />
+                <LaunchListFilter
+                  label={t('launchesFilterAssignee')}
+                  allLabel={t('launchesFilterAllAssignees')}
+                  value={assigneeFilter}
+                  onChange={next => changeFilters(() => setAssigneeFilter(next))}
+                  options={assignees
+                    .map(member => ({ value: member.userId, label: member.label }))
+                    .sort((a, b) => a.label.localeCompare(b.label))}
+                />
+              </div>
+            </TaskFiltersButton>
+          </TaskDateFilterControl>
+          {can('edit') && (
+            <Button
+              type="button"
+              className="launch-list-new"
+              variant={selectedIds.size ? 'outline' : 'primary'}
+              onClick={() => route('new', 'settings')}
+            >
+              <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              {t('launchesNew')}
+            </Button>
+          )}
+        </div>
+        {selectedIds.size > 0 && (
+          <SelectionBar
+            className="team-board-selection-bar"
+            count={selectedIds.size}
+            label={t('teamTaskSelectedCount', { count: selectedIds.size })}
+            clearLabel={t('teamTaskClearSelection', { count: selectedIds.size })}
+            onClear={() => setSelectedIds(new Set())}
+            actions={
+              /* The batch's three acts on the bar, the rarer ones under "…" — the explorer's
+                 way. The words go on a narrow bar (CSS only); the names stay. */
+              <div ref={bulkAnchor} className="team-task-bulk">
+                {can('edit') && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    className="team-board-selection-act"
+                    aria-label={t('launchesBulkGenerate', { count: eligible.length })}
+                    disabled={!eligible.length || batchSubmissionPending || batchLoading}
+                    title={!eligible.length ? t('launchesBulkDraftsOnly') : undefined}
+                    loading={batchLoading}
+                    leading={<Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+                    onClick={() => void startBatch()}
+                  >
+                    <span className="team-board-selection-act-label">
+                      {t('launchesBulkGenerate', { count: eligible.length })}
+                    </span>
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  color="neutral"
+                  variant="ghost"
+                  className="team-board-selection-act"
+                  aria-label={t('launchesBulkCopy', { count: selectedIds.size })}
+                  disabled={selection.busy}
+                  leading={<Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+                  onClick={selection.copySelected}
+                >
+                  <span className="team-board-selection-act-label">
+                    {t('launchesBulkCopy', { count: selectedIds.size })}
+                  </span>
+                </Button>
+                {can('delete') && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    color="error"
+                    className="team-board-selection-act"
+                    aria-label={t('launchesArchiveSelected', { count: selectedIds.size })}
+                    disabled={
+                      archiveBusy ||
+                      items.some(
+                        i => selectedIds.has(i.id) && launchInputsLocked(i.generationState)
+                      )
+                    }
+                    leading={
+                      <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    }
+                    onClick={deleteSelected}
+                  >
+                    <span className="team-board-selection-act-label">
+                      {t('launchesArchiveSelected', { count: selectedIds.size })}
+                    </span>
+                  </Button>
+                )}
+                <IconButton
+                  size="sm"
+                  variant="ghost"
+                  label={t('teamTaskBulkActions')}
+                  title=""
+                  aria-haspopup="menu"
+                  aria-expanded={bulkOpen}
+                  onClick={() => setBulkOpen(current => !current)}
+                >
+                  <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                </IconButton>
+                <DropdownMenu
+                  open={bulkOpen}
+                  onClose={() => setBulkOpen(false)}
+                  anchor={bulkAnchor}
+                  placement="bottom-end"
+                  label={t('teamTaskBulkActions')}
+                  items={[
+                    /* "All loaded" belongs to a selection that has begun (070 T069). */
+                    ...(selectedIds.size < items.length
+                      ? [
+                          {
+                            id: 'select-loaded',
+                            label: t('launchesBulkSelectAll'),
+                            icon: (
+                              <ListChecks
+                                size={ICON_SIZE}
+                                strokeWidth={ICON_STROKE}
+                                aria-hidden="true"
+                              />
+                            ),
+                            onSelect: () => {
+                              setSelectedIds(new Set(items.map(i => i.id)));
+                              setBulkOpen(false);
+                            }
+                          }
+                        ]
+                      : []),
+                    {
+                      id: 'copy-links',
+                      label: t('launchesCopySelectedLinks'),
+                      icon: <Link2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />,
+                      onSelect: () => {
+                        const links = items
+                          .filter(item => selectedIds.has(item.id))
+                          .map(item => {
+                            const path = buildTeamRoute({
+                              spaceId: teamId,
+                              section: 'launches',
+                              query: { ...emptyTeamRouteQuery(), launchId: item.id }
+                            });
+                            return new URL(path, window.location.origin).href;
+                          });
+                        void navigator.clipboard.writeText(links.join('\n')).catch(() => {
+                          setError(t('launchesCopyFailed'));
+                        });
+                        setBulkOpen(false);
+                      }
+                    }
+                  ]}
+                />
+              </div>
+            }
+          />
         )}
       </div>
       {/* The error pattern (070, T080): the sentence, and — when the list could not even be set
@@ -821,141 +958,6 @@ function LaunchSpaceContent({
             onOpen={id => route(id, 'result')}
           />
         )}
-        <SelectionBar
-          floating
-          count={selectedIds.size}
-          label={t('teamTaskSelectedCount', { count: selectedIds.size })}
-          clearLabel={t('teamTaskClearSelection', { count: selectedIds.size })}
-          onClear={() => setSelectedIds(new Set())}
-          actions={
-            <div ref={bulkAnchor} className="team-task-bulk flex flex-wrap gap-2">
-              {/* "All loaded" belongs to a selection that has begun (070 T069), as on the
-                  tasks board — not a loose button beside the sort caption. */}
-              {selectedIds.size < items.length && (
-                <Button
-                  size="sm"
-                  color="neutral"
-                  variant="ghost"
-                  onClick={() => setSelectedIds(new Set(items.map(i => i.id)))}
-                >
-                  {t('launchesBulkSelectAll')}
-                </Button>
-              )}
-              {can('edit') && (
-                <Button
-                  size="sm"
-                  variant="primary"
-                  disabled={!eligible.length || batchSubmissionPending || batchLoading}
-                  title={!eligible.length ? t('launchesBulkDraftsOnly') : undefined}
-                  loading={batchLoading}
-                  onClick={() => void startBatch()}
-                >
-                  <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  {t('launchesBulkGenerate', { count: eligible.length })}
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={selection.busy}
-                onClick={selection.copySelected}
-              >
-                <Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                {t('launchesBulkCopy', { count: selectedIds.size })}
-              </Button>
-              {can('delete') && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  color="error"
-                  disabled={
-                    archiveBusy ||
-                    items.some(i => selectedIds.has(i.id) && launchInputsLocked(i.generationState))
-                  }
-                  onClick={deleteSelected}
-                >
-                  <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  {t('launchesArchiveSelected', { count: selectedIds.size })}
-                </Button>
-              )}
-              <Button
-                size="sm"
-                color="neutral"
-                variant="outline"
-                onClick={() => setBulkOpen(current => !current)}
-              >
-                {t('teamTaskBulkActions')}
-              </Button>
-              <DropdownMenu
-                open={bulkOpen}
-                onClose={() => setBulkOpen(false)}
-                anchor={bulkAnchor}
-                placement="top-start"
-                label={t('teamTaskBulkActions')}
-                items={[
-                  {
-                    id: 'copy-links',
-                    label: t('launchesCopySelectedLinks'),
-                    icon: <Link2 size={ICON_SIZE} />,
-                    onSelect: () => {
-                      const links = items
-                        .filter(item => selectedIds.has(item.id))
-                        .map(item => {
-                          const path = buildTeamRoute({
-                            spaceId: teamId,
-                            section: 'launches',
-                            query: { ...emptyTeamRouteQuery(), launchId: item.id }
-                          });
-                          return new URL(path, window.location.origin).href;
-                        });
-                      void navigator.clipboard.writeText(links.join('\n')).catch(() => {
-                        setError(t('launchesCopyFailed'));
-                      });
-                      setBulkOpen(false);
-                    }
-                  },
-                  ...(can('delete')
-                    ? [
-                        {
-                          id: 'archive-selected',
-                          label: t('launchesArchiveSelected', { count: selectedIds.size }),
-                          icon: (
-                            <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                          ),
-                          destructive: true,
-                          disabled: items.some(
-                            item =>
-                              selectedIds.has(item.id) && launchInputsLocked(item.generationState)
-                          ),
-                          onSelect: () => {
-                            const selected = items.filter(item => selectedIds.has(item.id));
-                            void Promise.all(
-                              selected.map(async item => {
-                                const warning = await launchApi.archiveWarning(teamId, item.id);
-                                return {
-                                  id: item.id,
-                                  version: item.version,
-                                  requestKey: crypto.randomUUID(),
-                                  hasCatalog: warning.hasCatalog,
-                                  hasRestitch: warning.hasRestitch,
-                                  suppressed: warning.suppressed
-                                };
-                              })
-                            )
-                              .then(targets => {
-                                requestArchive(targets);
-                              })
-                              .catch(e => setError(teamErrorMessageFor(e, t)));
-                            setBulkOpen(false);
-                          }
-                        }
-                      ]
-                    : [])
-                ]}
-              />
-            </div>
-          }
-        />
         <div
           className="team-task-grid launch-grid"
           onPointerDown={event => {
