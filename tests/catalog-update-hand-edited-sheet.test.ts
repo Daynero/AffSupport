@@ -306,3 +306,57 @@ it('an untouched sheet is updated exactly as before, with nothing extra in the w
   expect(w.markers).toEqual(['marker']);
   expect(w.drive.renameNativeSpreadsheetSheet).not.toHaveBeenCalled();
 });
+
+it('sends the independent reads of an update together and reads the folders above once', async () => {
+  // The owner, 2026-11-25: updating only the texts of a catalog takes long. Every catalog
+  // asked Google a dozen questions one after another; the ones that do not depend on each
+  // other now go out together.
+  const w = world();
+  const getFile = w.drive.getFile.getMockImplementation()!;
+  w.drive.getFile.mockImplementation(async (id: string) => ({
+    ...(await getFile(id)),
+    parents: id === 'sheet' ? ['folder'] : ['root']
+  }));
+  let sheetsAsked!: () => void;
+  const asked = new Promise<void>(resolve => (sheetsAsked = resolve));
+  const sheets = w.drive.getNativeSpreadsheetSheets.getMockImplementation()!;
+  w.drive.getNativeSpreadsheetSheets.mockImplementation(async () => {
+    sheetsAsked();
+    return sheets();
+  });
+  const markers = w.drive.readNativeSpreadsheetMarkers.getMockImplementation()!;
+  let first = true;
+  w.drive.readNativeSpreadsheetMarkers.mockImplementation(async () => {
+    // Before the write the marker lookup answers only once the tabs were asked for too:
+    // one after the other, as before, this update would never finish.
+    if (first) {
+      first = false;
+      await asked;
+    }
+    return markers();
+  });
+  const { rows } = await w.update();
+  expect(filled(w.catalog.grid)).toEqual(rows);
+  // The folder is read once for the whole update; the sheet itself every time it is asked.
+  const reads = w.drive.getFile.mock.calls.map(([id]) => id);
+  expect(reads.filter(id => id === 'folder')).toHaveLength(1);
+  expect(reads.filter(id => id === 'sheet').length).toBeGreaterThanOrEqual(4);
+});
+
+it('names a marker another writer left before anything the reads beside it found', async () => {
+  const w = world();
+  w.markers.push('someone-else');
+  w.drive.getNativeSpreadsheetSheets.mockRejectedValue(new Error('DRIVE_UNAVAILABLE'));
+  await expect(w.update()).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+  expect(w.drive.writeNativeSpreadsheetCells).not.toHaveBeenCalled();
+});
+
+it('still refuses a write whose proof finds the publication lane’s cells changed', async () => {
+  const w = world();
+  const write = w.drive.writeNativeSpreadsheetCells.getMockImplementation()!;
+  w.drive.writeNativeSpreadsheetCells.mockImplementation(async input => {
+    await write(input);
+    w.catalog.grid[2]![VIDEO] = 'https://fixture.invalid/someone-else.mp4';
+  });
+  await expect(w.update()).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
+});

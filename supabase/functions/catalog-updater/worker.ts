@@ -266,6 +266,8 @@ export interface CatalogUpdaterDeps {
   /** What a gone video left behind: its sheet and its text, a day after it went (024, US24). */
   claimOrphans?(limit: number, leaseSeconds: number): Promise<unknown[]>;
   clearOrphan?(materialId: string, trashed: boolean): Promise<boolean>;
+  /** Ask for the next tick now; true when one was sent. Only called with a backlog. */
+  dispatchNext?(): Promise<boolean>;
   now(): number;
   log(message: string, detail: string): void;
 }
@@ -300,6 +302,14 @@ export interface TickSummary {
   deletedCopies: number;
   /** Sheets and texts of deleted videos, put in Drive's bin (024, US24). */
   clearedOrphans: number;
+  /**
+   * The time budget ran out while rounds were still being handed out: the last claim came
+   * back full and this tick updated at least one sheet. The caller dispatches the next tick
+   * at once instead of leaving the rest to the minute's schedule.
+   */
+  backlog?: boolean;
+  /** The next tick was dispatched for that backlog. */
+  continued?: boolean;
 }
 
 function text(value: unknown): string | null {
@@ -961,14 +971,26 @@ async function updateOne(
         ...(nonVideo.recipeRowIds ? { _catalogRecipeRowIds: nonVideo.recipeRowIds } : {})
       };
     }
-    const before = await drive.getFile(item.driveFileId, item.resourceKey);
+    // The sheet's version and the two picture checks do not depend on each other: one is a
+    // Google read, the others are database reads that take up to a second each with a large
+    // pool. They go out together and are judged in their old order, so the first failure
+    // named is the one it always was.
     const outgoingImages = catalogImagesInRows(rows);
-    if (outgoingImages.length) {
-      if (!item.teamId) throw new TeamFunctionError('INVALID_RESPONSE');
-      await deps.validateImageRows?.(item.teamId, outgoingImages);
-    }
-    if (item.teamId && item.imageAttemptId)
-      await deps.validateImageUses?.(item.teamId, item.imageAttemptId);
+    const teamId = item.teamId;
+    const [beforeRead, rowsChecked, usesChecked] = await Promise.allSettled([
+      drive.getFile(item.driveFileId, item.resourceKey),
+      outgoingImages.length && teamId
+        ? deps.validateImageRows?.(teamId, outgoingImages)
+        : undefined,
+      teamId && item.imageAttemptId
+        ? deps.validateImageUses?.(teamId, item.imageAttemptId)
+        : undefined
+    ]);
+    if (beforeRead.status === 'rejected') throw beforeRead.reason;
+    const before = beforeRead.value;
+    if (outgoingImages.length && !teamId) throw new TeamFunctionError('INVALID_RESPONSE');
+    if (rowsChecked.status === 'rejected') throw rowsChecked.reason;
+    if (usesChecked.status === 'rejected') throw usesChecked.reason;
     const marker = crypto.randomUUID();
     if (
       !(await deps.beginWrite(item.catalogId, {
@@ -1052,6 +1074,11 @@ async function updateOne(
         .finalizeImageUses?.(item.teamId, item.imageAttemptId, false)
         .catch(() => undefined);
     const code = codeOf(error);
+    // The code of a failed try is kept nowhere once a later try succeeds; the log keeps it.
+    deps.log(
+      '[catalog-updater] update failed',
+      `${item.catalogId} ${code}${writeStarted ? ' after write' : ''}`
+    );
     if (code === 'NEEDS_REAUTH') {
       await deps.markNeedsReauth(item.credentialId).catch(() => undefined);
     }
@@ -1091,8 +1118,10 @@ export async function runCatalogUpdaterTick(
   };
   summary.rounds = await deps.openRounds();
 
+  let lastClaimFull = false;
   while (deps.now() - startedAt < options.budgetMs) {
     const rows = await deps.claim(CLAIM_LIMIT, LEASE_SECONDS);
+    lastClaimFull = rows.length >= CLAIM_LIMIT;
     if (rows.length === 0) break;
     const claimed: ClaimedCatalog[] = [];
     for (const row of rows) {
@@ -1126,6 +1155,14 @@ export async function runCatalogUpdaterTick(
     });
     await Promise.all(runners);
   }
+  // Production 2026-11: a manual run of six catalogs updated three, then the other three
+  // waited for the next minute's schedule (30–60 s) with nothing else to do. A full last
+  // claim at the end of the budget is the sign that more are waiting; progress this tick
+  // keeps the chain of follow-up ticks bounded by the work itself.
+  summary.backlog = lastClaimFull && summary.updated > 0;
+  // Sent before this tick's own housekeeping below, so the next rounds start meanwhile.
+  if (summary.backlog && deps.dispatchNext)
+    summary.continued = await deps.dispatchNext().catch(() => false);
 
   if (deps.now() - startedAt < options.budgetMs) await clearOrphans(deps, summary);
 

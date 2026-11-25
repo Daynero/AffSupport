@@ -308,6 +308,83 @@ describe('a tick', () => {
     expect(slow.deps.claim).toHaveBeenCalledTimes(2);
   });
 
+  it('says more rounds are waiting only when the budget ran out on a full claim it worked on', async () => {
+    // Production 2026-11-25: six catalogs of one manual run; three waited for the next minute.
+    const full = () => [claimedRow('a'), claimedRow('b'), claimedRow('c')];
+    const cut = setup({ batches: [full(), full()], clockStepMs: 9000 });
+    cut.deps.dispatchNext = vi.fn(async () => true);
+    expect(await runCatalogUpdaterTick(cut.deps, { budgetMs: 8000 })).toMatchObject({
+      updated: 3,
+      backlog: true,
+      continued: true
+    });
+    expect(cut.deps.claim).toHaveBeenCalledOnce();
+    expect(cut.deps.dispatchNext).toHaveBeenCalledOnce();
+
+    // A dispatch that fails leaves the rest to the schedule, as before.
+    const unsent = setup({ batches: [full(), full()], clockStepMs: 9000 });
+    unsent.deps.dispatchNext = vi.fn(async () => {
+      throw new Error('pg_net unavailable');
+    });
+    expect(await runCatalogUpdaterTick(unsent.deps, { budgetMs: 8000 })).toMatchObject({
+      updated: 3,
+      backlog: true,
+      continued: false
+    });
+
+    // The queue ran dry inside the budget: nothing is left for a follow-up tick.
+    const drained = setup({ batches: [full(), []] });
+    drained.deps.dispatchNext = vi.fn(async () => true);
+    expect((await runCatalogUpdaterTick(drained.deps, { budgetMs: 8000 })).backlog).toBe(false);
+    expect(drained.deps.dispatchNext).not.toHaveBeenCalled();
+
+    // A short last claim means the queue had no more to give at that moment.
+    const short = setup({ batches: [[claimedRow('a')]], clockStepMs: 9000 });
+    expect((await runCatalogUpdaterTick(short.deps, { budgetMs: 8000 })).backlog).toBe(false);
+
+    // Nothing was updated: a follow-up would only meet the same refusals.
+    const refused = setup({
+      batches: [full()],
+      clockStepMs: 9000,
+      failFor: {
+        a: new TeamFunctionError('RATE_LIMITED'),
+        b: new TeamFunctionError('RATE_LIMITED'),
+        c: new TeamFunctionError('RATE_LIMITED')
+      }
+    });
+    expect((await runCatalogUpdaterTick(refused.deps, { budgetMs: 8000 })).backlog).toBe(false);
+  });
+
+  it('reads the sheet’s version beside the picture checks, and names failures in their old order', async () => {
+    // The version read waits until the picture check has started: one after the other,
+    // as before, this would never finish.
+    const { deps, drive } = setup({ batches: [[claimedRow('a', { image_attempt_id: 'att' })]] });
+    let started!: () => void;
+    const checking = new Promise<void>(resolve => (started = resolve));
+    const getFile = drive.getFile;
+    let first = true;
+    drive.getFile = vi.fn(async (...args: unknown[]) => {
+      if (first) {
+        first = false;
+        await checking;
+      }
+      return getFile(...args);
+    });
+    deps.validateImageUses = vi.fn(async () => started());
+    expect((await runCatalogUpdaterTick(deps, { budgetMs: 8000 })).updated).toBe(1);
+
+    // Both fail: the version read is named, as it was when it went first.
+    const both = setup({ batches: [[claimedRow('a', { image_attempt_id: 'att' })]] });
+    both.drive.getFile = vi.fn(async () => {
+      throw new TeamFunctionError('DRIVE_UNAVAILABLE');
+    });
+    both.deps.validateImageUses = vi.fn(async () => {
+      throw new TeamFunctionError('GLOBAL_IMAGE_READINESS_UNKNOWN');
+    });
+    await runCatalogUpdaterTick(both.deps, { budgetMs: 8000 });
+    expect(both.deps.retry).toHaveBeenCalledWith('a', 'DRIVE_UNAVAILABLE', expect.any(Date));
+  });
+
   it('skips a claimed row it cannot read instead of writing a wrong sheet', async () => {
     const { deps, written } = setup({
       batches: [[claimedRow('a', { settings_snapshot: { title: 'x' } }), claimedRow('b')]]

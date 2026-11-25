@@ -1318,7 +1318,9 @@ export class GoogleDriveClient {
           ]
         }),
         signal: AbortSignal.timeout(30_000)
-      }
+      },
+      // A search changes nothing: Google's «slow down» on it is waited out like any read's.
+      { read: true }
     );
     const data: unknown = await response.json().catch(() => null);
     if (
@@ -2046,10 +2048,15 @@ export class GoogleDriveClient {
     return metadata;
   }
 
-  async #request(url: URL, init: RequestInit = {}): Promise<Response> {
+  async #request(
+    url: URL,
+    init: RequestInit = {},
+    /** A POST that only looks (a metadata search) is a read too; its body is a string. */
+    options: { read?: boolean } = {}
+  ): Promise<Response> {
     // Only a read is asked again: it changes nothing, so a second answer is the same
     // answer. A write keeps one attempt — a lost reply never proves it did not apply.
-    const read = (init.method ?? 'GET').toUpperCase() === 'GET';
+    const read = options.read === true || (init.method ?? 'GET').toUpperCase() === 'GET';
     for (let attempt = 0; ; attempt++) {
       const retry = read && attempt < DRIVE_READ_RETRY_DELAYS_MS.length;
       let response: Response;

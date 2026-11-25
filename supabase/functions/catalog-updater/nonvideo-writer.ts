@@ -1,5 +1,9 @@
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
-import { proveLiveAncestry, type GoogleDriveClient } from '../_shared/drive.ts';
+import {
+  proveLiveAncestry,
+  type DriveFileMetadata,
+  type GoogleDriveClient
+} from '../_shared/drive.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
 import {
@@ -51,10 +55,34 @@ export function createCatalogNonVideoUpdater(
     const productCount = c.productCount;
     const drive = await driveFor(item.credentialId),
       before = await drive.getFile(item.driveFileId, item.resourceKey);
-    const prior = await drive.readNativeSpreadsheetMarkers(
-      item.driveFileId,
-      CATALOG_NONVIDEO_MARKER
-    );
+    // The folders above the sheet, read once for this update: the proof after the write asks
+    // about the sheet itself afresh and about its folders from here (see proveLiveAncestry).
+    const ancestors = new Map<string, Promise<DriveFileMetadata>>();
+    const readAncestor = (id: string) => {
+      let read = ancestors.get(id);
+      if (!read) {
+        read = drive.getFile(id);
+        ancestors.set(id, read);
+        read.catch(() => ancestors.delete(id));
+      }
+      return read;
+    };
+    // Three reads that do not depend on each other go out together — one Google round trip
+    // instead of three, on every catalog of every update. Their answers are judged in the
+    // order they were always judged, so a sheet that fails two checks names the same cause.
+    const [priorRead, ancestry, sheetsRead] = await Promise.allSettled([
+      drive.readNativeSpreadsheetMarkers(item.driveFileId, CATALOG_NONVIDEO_MARKER),
+      proveLiveAncestry({
+        client: drive,
+        fileId: item.driveFileId,
+        rootFolderId: c.rootFolderId,
+        resourceKey: item.resourceKey,
+        maximumDepth: 16,
+        readAncestor
+      }),
+      drive.getNativeSpreadsheetSheets(item.driveFileId)
+    ]);
+    const prior = settled(priorRead);
     const previousMarker = expectedPreviousMarker(c, prior);
     if (
       prior.length > 1 ||
@@ -62,13 +90,7 @@ export function createCatalogNonVideoUpdater(
       (typeof previousMarker === 'string' && prior[0] !== previousMarker)
     )
       throw uncertain();
-    await proveLiveAncestry({
-      client: drive,
-      fileId: item.driveFileId,
-      rootFolderId: c.rootFolderId,
-      resourceKey: item.resourceKey,
-      maximumDepth: 16
-    });
+    settled(ancestry);
     if (
       before.mimeType !== SPREADSHEET_MIME_TYPE ||
       before.trashed ||
@@ -84,7 +106,7 @@ export function createCatalogNonVideoUpdater(
     // every product row from the records, an empty sheet around them, a grid large enough.
     // Production 2026-11-20 (DreamTeam, TR 84_v1): 62 video links pasted under the last
     // product stopped every update of that catalog for good.
-    const sheets = await drive.getNativeSpreadsheetSheets(item.driveFileId);
+    const sheets = settled(sheetsRead);
     let sheet = sheets.find(s => s.title === PRODUCT_CATALOG_SHEET_NAME),
       stable = before;
     if (!sheet && sheets.length === 1) {
@@ -104,11 +126,13 @@ export function createCatalogNonVideoUpdater(
     const observed = new Map<number, string[]>();
     // 062: an image catalog's H is the publication lane's, read and kept like the video cells.
     const kind = item.creatives?.kind ?? 'video';
-    for (const column of catalogPreservedColumnIndices(kind)) {
-      // A column someone deleted off the end of the grid holds nothing to keep.
-      const actual =
+    const preserved = catalogPreservedColumnIndices(kind);
+    // Each preserved column is its own bounded read; an image catalog's two go out together.
+    const reads = await Promise.all(
+      preserved.map(column =>
+        // A column someone deleted off the end of the grid holds nothing to keep.
         column < sheet.columnCount
-          ? await drive.readNativeCatalogColumns({
+          ? drive.readNativeCatalogColumns({
               fileId: item.driveFileId,
               sheetName: PRODUCT_CATALOG_SHEET_NAME,
               columns: [id, column],
@@ -116,7 +140,11 @@ export function createCatalogNonVideoUpdater(
               expectedRows: item.productCount + 2,
               tolerant: true
             })
-          : [[], Array.from({ length: item.productCount + 2 }, () => '')];
+          : Promise.resolve([[], Array.from({ length: item.productCount + 2 }, () => '')])
+      )
+    );
+    preserved.forEach((column, index) => {
+      const actual = reads[index]!;
       // The reader's own contract, not the sheet's content: an answer of another shape is
       // incomplete evidence, and incomplete evidence is never read as empty cells.
       if (actual.length !== 2 || actual[1]?.length !== item.productCount + 2) throw uncertain();
@@ -126,7 +154,7 @@ export function createCatalogNonVideoUpdater(
         ...actual[1].slice(2),
         ...Array.from({ length: productCount - item.productCount }, () => '')
       ]);
-    }
+    });
     const after = await drive.getFile(item.driveFileId, item.resourceKey);
     if (after.version !== stable.version || after.trashed) throw uncertain();
     const cells = observed.get(catalogVideoColumnIndices()[0]!);
@@ -174,41 +202,57 @@ export function createCatalogNonVideoUpdater(
         });
       },
       async verify(marker) {
-        const delivered = await drive.getFile(item.driveFileId, item.resourceKey);
+        // The four reads of the proof go out together and are judged in their old order.
+        // The sheet itself is read afresh; its folders come from the reads made above, in
+        // this same update (proveLiveAncestry: ancestors may be cached for one request).
+        const expected = [...observed];
+        const [deliveredRead, ancestryRead, markersRead, ...columnReads] = await Promise.allSettled(
+          [
+            drive.getFile(item.driveFileId, item.resourceKey),
+            proveLiveAncestry({
+              client: drive,
+              fileId: item.driveFileId,
+              resourceKey: item.resourceKey,
+              rootFolderId: c.rootFolderId as string,
+              maximumDepth: 16,
+              readAncestor
+            }),
+            drive.readNativeSpreadsheetMarkers(item.driveFileId, CATALOG_NONVIDEO_MARKER),
+            ...expected.map(([column]) =>
+              drive.readNativeCatalogColumns({
+                fileId: item.driveFileId,
+                sheetName: PRODUCT_CATALOG_SHEET_NAME,
+                columns: [id, column],
+                rowCount: Math.max(sheet.rowCount, productCount + 2),
+                expectedRows: productCount + 2,
+                // What someone types under the products after the write is not this write's.
+                tolerant: true
+              })
+            )
+          ]
+        );
+        const delivered = settled(deliveredRead);
         if (
           delivered.id !== item.driveFileId ||
           delivered.trashed ||
           delivered.mimeType !== SPREADSHEET_MIME_TYPE
         )
           throw uncertain();
-        await proveLiveAncestry({
-          client: drive,
-          fileId: item.driveFileId,
-          resourceKey: item.resourceKey,
-          rootFolderId: c.rootFolderId as string,
-          maximumDepth: 16
+        settled(ancestryRead);
+        if (!settled(markersRead).includes(marker)) throw uncertain();
+        expected.forEach(([, cells], index) => {
+          const actual = settled(columnReads[index]!) as string[][];
+          if (JSON.stringify(actual[1]) !== JSON.stringify(cells)) throw uncertain();
         });
-        if (
-          !(
-            await drive.readNativeSpreadsheetMarkers(item.driveFileId, CATALOG_NONVIDEO_MARKER)
-          ).includes(marker)
-        )
-          throw uncertain();
-        for (const [column, expected] of observed) {
-          const actual = await drive.readNativeCatalogColumns({
-            fileId: item.driveFileId,
-            sheetName: PRODUCT_CATALOG_SHEET_NAME,
-            columns: [id, column],
-            rowCount: Math.max(sheet.rowCount, productCount + 2),
-            expectedRows: productCount + 2,
-            // What someone types under the products after the write is not this write's.
-            tolerant: true
-          });
-          if (JSON.stringify(actual[1]) !== JSON.stringify(expected)) throw uncertain();
-        }
       }
     };
   };
+}
+
+/** The value of a read that went out beside others, or the error it ended with. */
+function settled<T>(result: PromiseSettledResult<T>): T {
+  if (result.status === 'rejected') throw result.reason;
+  return result.value;
 }
 
 /** The marker this round may replace. Normally the one the last verified round

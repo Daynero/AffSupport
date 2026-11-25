@@ -259,6 +259,25 @@ Deno.serve(async request => {
     const uncertainUploads = reconcileUncertainProcessUploads(service, driveFor, {
       limit: 3
     }).catch(() => ['waiting' as const]);
+    // The task and Launch cleanup lanes share nothing with catalog rounds but this request:
+    // they run beside the rounds instead of in front of them, so a person who pressed
+    // «update now» does not wait for them. Joined below on every path, like the cleanup above.
+    const cleanups = (async () => {
+      // Cleanup failures retain their durable leases and must not starve regular
+      // catalog rounds or the other Launch cleanup lane.
+      await runTaskCleanupTick(service, driveFor).catch(() => ({ completed: 0, pending: 1 }));
+      const launchCleanup = await runLaunchCleanupTick(service, driveFor).catch(() => ({
+        completed: 0,
+        pending: 1,
+        unavailable: true
+      }));
+      const launchVideoCleanup = await runLaunchVideoCleanupTick(service, driveFor).catch(() => ({
+        completed: 0,
+        pending: 1,
+        unavailable: true
+      }));
+      return { launchCleanup, launchVideoCleanup };
+    })();
     try {
       const pending = await rpcValue(service, 'service_claim_catalog_reconciliations', {
         p_limit: 3
@@ -319,19 +338,6 @@ Deno.serve(async request => {
           );
         }
       }
-      // Cleanup failures retain their durable leases and must not starve regular
-      // catalog rounds or the other Launch cleanup lane.
-      await runTaskCleanupTick(service, driveFor).catch(() => ({ completed: 0, pending: 1 }));
-      const launchCleanup = await runLaunchCleanupTick(service, driveFor).catch(() => ({
-        completed: 0,
-        pending: 1,
-        unavailable: true
-      }));
-      const launchVideoCleanup = await runLaunchVideoCleanupTick(service, driveFor).catch(() => ({
-        completed: 0,
-        pending: 1,
-        unavailable: true
-      }));
       let claimQuarantined = 0;
       let claimStale = 0;
       const summary = await runCatalogUpdaterTick(
@@ -566,11 +572,22 @@ Deno.serve(async request => {
               p_material: materialId,
               p_deleted: deleted
             })) === true,
+          // More rounds are waiting than this request had time for: the next tick is sent
+          // now, through the same gate as the minute's schedule (due work, the lease cap).
+          dispatchNext: async () =>
+            (await rpcValue(service, 'service_continue_catalog_updater', {}).catch(error => {
+              console.error(
+                '[catalog-updater] continuation not dispatched',
+                error instanceof Error ? error.message : 'UNKNOWN'
+              );
+              return null;
+            })) !== null,
           now: () => Date.now(),
           log: (message, detail) => console.error(message, detail)
         },
         { budgetMs: BUDGET_MS }
       );
+      const { launchCleanup, launchVideoCleanup } = await cleanups;
       return successResponse({
         ...summary,
         claimed: summary.claimed + claimQuarantined + claimStale,
@@ -588,6 +605,7 @@ Deno.serve(async request => {
     } catch (cause) {
       await processCleanup;
       await uncertainUploads;
+      await cleanups;
       throw cause;
     }
   } catch (error) {

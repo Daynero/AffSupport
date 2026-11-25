@@ -123,6 +123,19 @@ describe('Drive reads ride out a transient failure', () => {
     expect(a.fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('asks a spreadsheet’s marker search again after «slow down»: a POST that only looks', async () => {
+    // 2026-11-25: catalog updates now follow each other without waiting for the minute's
+    // schedule, which brings Google's per-user Sheets quota closer. The search changes nothing.
+    const a = drive(json(429, {}), json(200, { matchedDeveloperMetadata: [] }));
+    expect(await a.client.readNativeSpreadsheetMarkers('sheet-1', 'soty_catalog_updater')).toEqual(
+      []
+    );
+    expect(a.fetchImpl).toHaveBeenCalledTimes(2);
+    const calls = a.fetchImpl.mock.calls as unknown as Array<[URL, RequestInit]>;
+    expect(calls.map(([, init]) => init.method)).toEqual(['POST', 'POST']);
+    expect(calls[1]![1].body).toBe(calls[0]![1].body);
+  });
+
   it('never retries past a request deadline', async () => {
     const a = drive(json(503, {}), json(200, FILE));
     const bounded = a.client.withRequestDeadline(Date.now() - 1);
