@@ -9409,6 +9409,12 @@ body {
   gap: var(--space-2);
   padding: 8px;
 }
+/* A placeholder's lines have no width of their own: in the caption's content-sized column
+   (the shared heading rule's space-between) they measured zero and the loading tile was a
+   blank card in both themes (070, 9и). The column takes the tile's width for them. */
+.team-task-attachment.is-placeholder .team-task-attachment-caption {
+  grid-template-columns: minmax(0, 1fr);
+}
 .team-task-attachment-caption-heading {
   display: flex;
   min-width: 0;

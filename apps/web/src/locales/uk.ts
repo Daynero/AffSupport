@@ -32,6 +32,11 @@ export const uk: Record<keyof typeof en, string> = {
   launchesPendingName: 'Резервуємо назву каталогу…',
   launchesPendingLink: 'Створюємо посилання…',
   launchesPendingPreview: 'Попередній перегляд',
+  launchesStoppedTitle: 'Запуск скасовано',
+  launchesStoppedHelp:
+    'Результат не створено. Налаштування збережені — змініть їх за потреби й запустіть знову.',
+  launchesStoppedSettings: 'Відкрити налаштування',
+  launchesRefusedTitle: 'Запуск не стартував',
   launchesBulkDraftsOnly: 'Виберіть збережені чернетки для спільної генерації',
   launchesBulkLimit: 'Виберіть до 100 збережених заготовок для одного масового запуску.',
   launchesBulkNewest: 'Спочатку найновіші',

@@ -242,7 +242,12 @@ function LaunchSpaceContent({
       listRequest.current++;
     };
   }, []);
-  const route = (id: string | null, tab?: 'result' | 'settings', revisionId?: string) =>
+  const route = (
+    id: string | null,
+    tab?: 'result' | 'settings',
+    revisionId?: string,
+    replace = false
+  ) =>
     navigateTo(
       buildTeamRoute({
         spaceId: teamId,
@@ -254,7 +259,7 @@ function LaunchSpaceContent({
           revisionId: revisionId ?? null
         }
       }),
-      false,
+      replace,
       false
     );
   /*
@@ -1140,7 +1145,14 @@ function LaunchSpaceContent({
               (visibleDetail?.activeRevision || visibleDetail?.generation ? 'result' : 'settings')
             }
             revisionId={query.revisionId ?? null}
-            onTab={tab => route(open, tab)}
+            onTab={(tab, replace) => route(open, tab, undefined, replace)}
+            refusedCode={
+              open === 'new'
+                ? null
+                : batchItemFor(open)?.admission === 'refused'
+                  ? (batchItemFor(open)?.errorCode ?? 'UNKNOWN')
+                  : null
+            }
             onRevision={id => route(open, 'result', id)}
             historical={Boolean(query.revisionId)}
             onChange={changed}

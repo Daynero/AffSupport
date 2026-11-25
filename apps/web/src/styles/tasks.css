@@ -1324,13 +1324,6 @@ button.team-task-label-chip:hover:not(:disabled),
   line-height: 1;
 }
 
-.team-task-label-menu-search:focus-visible,
-.team-task-label-menu-search:focus {
-  outline: 2px solid var(--color-focus);
-  outline-offset: -1px;
-  box-shadow: none;
-}
-
 /* "Catalog" in words (024) came out wider than the tile could hold beside the eye and "…", which
    then wrapped onto a line of its own. The words keep their size; the padding gives way. */
 .team-task-attachment-actions .ui-material-actions-worded {
@@ -1967,6 +1960,13 @@ button.team-task-label-chip:hover:not(:disabled),
   height: auto;
   padding: 0;
   outline: 0;
+}
+/* One ring on the focused search (070, 9и): the inventory box draws an accent edge and an
+   outline two pixels out, which in a menu this tight read as two rings. Here the edge stays
+   and a halo hugs it, as on every other field of the task. */
+.team-task-label-menu-search .ui-search-field-group:has(input:focus-visible) {
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--color-secondary-softer);
 }
 
 /* --- The ⌘K palette --------------------------------------------------------------------- */

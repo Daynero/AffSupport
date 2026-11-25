@@ -30,6 +30,11 @@ export const en = {
   launchesPendingName: 'Reserving catalog name…',
   launchesPendingLink: 'Creating link…',
   launchesPendingPreview: 'Preview',
+  launchesStoppedTitle: 'Launch canceled',
+  launchesStoppedHelp:
+    'No result was created. Your settings are kept — change them if needed and launch again.',
+  launchesStoppedSettings: 'Open settings',
+  launchesRefusedTitle: 'The launch did not start',
   launchesBulkDraftsOnly: 'Select saved drafts to generate together',
   launchesBulkLimit: 'Select up to 100 saved drafts for one batch.',
   launchesBulkNewest: 'Newest first',

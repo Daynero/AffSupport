@@ -1,11 +1,73 @@
 import {
   launchNamingPreview,
   type LaunchDraft,
+  type LaunchGenerationState,
   type LaunchSourceSnapshot
 } from '@video-compressor/shared';
-import { Badge, Card } from '../../components/ui/index.js';
+import { Badge, Button, Card } from '../../components/ui/index.js';
 import { useI18n } from '../../i18n.js';
 import { CopyResultField } from './CopyResultField.js';
+
+/** The states in which the server is still working towards a result. */
+const RESULT_IN_FLIGHT: readonly LaunchGenerationState[] = [
+  'accepted',
+  'running',
+  'waiting_dependency'
+];
+
+/**
+ * Whether «Preparing your result» is true. Only a run that is still going can bring a
+ * result: a canceled, failed or cancelling one has nothing on its way, and its reserved
+ * catalog name and coming links were a promise the page could not keep (070, 9и — a
+ * canceled launch read «Preparing your result · Reserving catalog name…» for good).
+ * A request of this page's own still in the air counts, unless it is the cancel.
+ */
+export function launchResultPending({
+  busy,
+  unresolved,
+  stage,
+  state
+}: {
+  busy: boolean;
+  unresolved: boolean;
+  stage: string | null;
+  state: LaunchGenerationState | null | undefined;
+}): boolean {
+  if (stage === 'cancel') return false;
+  if (busy || unresolved) return true;
+  return state != null && RESULT_IN_FLIGHT.includes(state);
+}
+
+/**
+ * Canceled: no result is coming. A cancel still being carried out counts only where no
+ * progress card already says «cancelling» — otherwise the tab would announce the end early.
+ */
+export function launchResultStopped(
+  state: LaunchGenerationState | null | undefined,
+  progressShown: boolean
+): boolean {
+  if (state === 'canceled' || state === 'canceled_with_cleanup_pending') return true;
+  return state === 'cancel_requested' && !progressShown;
+}
+
+/**
+ * The Result tab of a launch that was canceled before it made anything: what happened and
+ * the way on, instead of a preview of links that will never come.
+ */
+export function LaunchStoppedResult({ onSettings }: { onSettings: () => void }) {
+  const { t } = useI18n();
+  return (
+    <Card>
+      <div className="flex min-w-0 flex-col items-start gap-3">
+        <strong>{t('launchesStoppedTitle')}</strong>
+        <p className="m-0 text-label text-ink-muted">{t('launchesStoppedHelp')}</p>
+        <Button color="neutral" onClick={onSettings}>
+          {t('launchesStoppedSettings')}
+        </Button>
+      </div>
+    </Card>
+  );
+}
 
 /** A preview is never a revision, a publication receipt or proof of result delivery. */
 export function LaunchPendingResult({

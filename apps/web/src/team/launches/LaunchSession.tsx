@@ -1,4 +1,9 @@
-import { LaunchPendingResult } from './LaunchPendingResult.js';
+import {
+  LaunchPendingResult,
+  LaunchStoppedResult,
+  launchResultPending,
+  launchResultStopped
+} from './LaunchPendingResult.js';
 import { launchAction, launchMutation, launchObservedGeneration, launchVisible } from './analytics';
 import { launchPublicationTimePassed } from './launchPublicationTiming';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
@@ -104,7 +109,8 @@ export function LaunchSession({
   onChange,
   onClose,
   closeRequestRef,
-  onDictionaries
+  onDictionaries,
+  refusedCode = null
 }: {
   teamId: string;
   detail: LaunchDetail | null;
@@ -118,13 +124,19 @@ export function LaunchSession({
   deletable: boolean;
   tab: 'result' | 'settings';
   revisionId: string | null;
-  onTab: (tab: 'result' | 'settings') => void;
+  /** `replace` corrects the address in place, for a tab that had nothing to show. */
+  onTab: (tab: 'result' | 'settings', replace?: boolean) => void;
   onRevision: (id: string) => void;
   historical: boolean;
   onChange: (detail: LaunchDetail, tab?: 'result' | 'settings') => void;
   onClose: () => void;
   closeRequestRef: { current: () => void };
   onDictionaries: () => Promise<void>;
+  /**
+   * Why a batch did not start this launch, when it refused it (070, 9и). The card says
+   * «Error»; the open launch says what failed, above the settings that fix it.
+   */
+  refusedCode?: string | null;
 }) {
   const { t } = useI18n();
   const toasts = useOptionalToasts();
@@ -1307,7 +1319,7 @@ export function LaunchSession({
         query: {
           ...emptyTeamRouteQuery(),
           launchId: detail?.id ?? 'new',
-          launchTab: tab,
+          launchTab: shownTab,
           settings: true,
           settingsTab: 'restitch'
         }
@@ -1330,6 +1342,32 @@ export function LaunchSession({
         detail.generation.state
       )
     );
+  // «Preparing your result» only while a result can still come (070, 9и).
+  const resultPending =
+    !historical &&
+    launchResultPending({
+      busy: generation.busy,
+      unresolved: generation.hasUnresolvedRequest,
+      stage: generation.pendingStage,
+      state: detail?.generation?.state
+    });
+  // Canceled before anything was made: the tab says so and points to the settings.
+  const resultStopped =
+    !historical &&
+    !displayedRevision &&
+    !resultPending &&
+    launchResultStopped(detail?.generation?.state, showProgress);
+  /* The Result tab is offered only when it has something to show. `?launchTab=result` on a
+     launch with nothing there (a batch launch refused before it started) lit the tab over the
+     settings; now the settings tab is the one shown and the address follows it. */
+  const resultAvailable = Boolean(
+    displayedRevision || showProgress || resultPending || resultStopped
+  );
+  const shownTab = tab === 'result' && !resultAvailable ? 'settings' : tab;
+  const tabCorrected = shownTab !== tab;
+  useEffect(() => {
+    if (tabCorrected) onTab('settings', true);
+  }, [tabCorrected, onTab]);
   const preparationStatus = historical
     ? null
     : uploading
@@ -1367,7 +1405,7 @@ export function LaunchSession({
               : unsavedChanges
                 ? t('launchesDraftPending')
                 : detail
-                  ? t(tab === 'result' ? 'launchesChangesSaved' : 'launchesDraftSaved')
+                  ? t(shownTab === 'result' ? 'launchesChangesSaved' : 'launchesDraftSaved')
                   : t('launchesAutosave')));
   /* Which saved profile the form matches right now: the buttons say so for as
      long as it is true, not only in a message that the next edit clears. */
@@ -1507,7 +1545,7 @@ export function LaunchSession({
           </Button>
           <Tabs
             label={t('launchesTitle')}
-            value={tab}
+            value={shownTab}
             onChange={next => {
               if (next === 'result' || next === 'settings') onTab(next);
             }}
@@ -1515,7 +1553,7 @@ export function LaunchSession({
               {
                 id: 'result',
                 label: t('launchesResult'),
-                disabled: !displayedRevision && !showProgress && !detail?.generation
+                disabled: !resultAvailable
               },
               { id: 'settings', label: t('launchesSettings') }
             ]}
@@ -1793,37 +1831,31 @@ export function LaunchSession({
           }}
         />
       )}
-      {tab === 'result' &&
-        !historical &&
-        (generation.busy ||
-          generation.hasUnresolvedRequest ||
-          (detail?.generation && detail.generation.state !== 'succeeded')) &&
-        displayedRevision && (
-          <>
-            <LaunchPendingResult
-              config={draft.config}
-              sources={draft.sources}
-              catalogName={previewCatalogName}
-              onCopied={rememberPreviewCopy}
-              onCopyOutcome={reportPreviewCopy}
-            />
-            <p className="text-label text-ink-muted">{t('launchesBulkPreviousResult')}</p>
-          </>
-        )}
-      {tab === 'result' &&
-      !historical &&
-      (generation.busy ||
-        generation.hasUnresolvedRequest ||
-        (detail?.generation && detail.generation.state !== 'succeeded')) &&
-      !displayedRevision ? (
-        <LaunchPendingResult
-          config={draft.config}
-          sources={draft.sources}
-          catalogName={previewCatalogName}
-          onCopied={rememberPreviewCopy}
-          onCopyOutcome={reportPreviewCopy}
-        />
-      ) : tab === 'result' && displayedRevision ? (
+      {shownTab === 'result' && resultPending && displayedRevision && (
+        <>
+          <LaunchPendingResult
+            config={draft.config}
+            sources={draft.sources}
+            catalogName={previewCatalogName}
+            onCopied={rememberPreviewCopy}
+            onCopyOutcome={reportPreviewCopy}
+          />
+          <p className="text-label text-ink-muted">{t('launchesBulkPreviousResult')}</p>
+        </>
+      )}
+      {shownTab === 'result' && resultStopped ? (
+        <LaunchStoppedResult onSettings={() => onTab('settings')} />
+      ) : shownTab === 'result' && !displayedRevision ? (
+        resultPending ? (
+          <LaunchPendingResult
+            config={draft.config}
+            sources={draft.sources}
+            catalogName={previewCatalogName}
+            onCopied={rememberPreviewCopy}
+            onCopyOutcome={reportPreviewCopy}
+          />
+        ) : null
+      ) : shownTab === 'result' && displayedRevision ? (
         <LaunchResult
           teamId={teamId}
           launchId={detail?.id}
@@ -1921,6 +1953,11 @@ export function LaunchSession({
         />
       ) : (
         <>
+          {refusedCode && !detail?.generation && !displayedRevision && (
+            <Alert color="error" title={t('launchesRefusedTitle')}>
+              {teamErrorMessageFor({ code: refusedCode }, t)}
+            </Alert>
+          )}
           <DeferredLaunchEditor
             teamId={teamId}
             config={draft.config}
@@ -2093,7 +2130,7 @@ export function LaunchSession({
         </>
       )}
       {detail && (
-        <div className={tab === 'result' ? 'launch-result-footer' : undefined}>
+        <div className={shownTab === 'result' ? 'launch-result-footer' : undefined}>
           <Button
             variant="secondary"
             className="self-start"
