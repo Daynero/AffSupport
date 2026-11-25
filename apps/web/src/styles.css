@@ -11436,11 +11436,18 @@ body {
   margin: calc(-1 * var(--modal-padding, 36px)) calc(-1 * var(--modal-padding, 36px)) 0;
   padding: var(--modal-padding, 36px) var(--modal-padding, 36px) 0;
   background: var(--color-surface);
-  z-index: 2;
+  /* The sticky layer, not a plain 2: the re-stitching strip's own layers are 2 too, and coming
+     later they scrolled over the tabs (owner, 25.11). */
+  z-index: var(--layer-sticky);
 }
 .team-space-settings-bar {
   display: grid;
   gap: var(--space-4);
+}
+/* The tab strip tucks 8px under itself elsewhere; inside the sticky bar that hung below its
+   ground, and the text scrolling past showed through under the tabs (owner, 25.11). */
+.team-settings-dialog .team-space-settings-bar .team-settings-tabs {
+  margin-bottom: 0;
 }
 
 /* Storage chip (011, US4). */
