@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../icons';
 import { Alert } from './Alert';
 import { Button } from './Button';
-import { HoldToConfirmButton } from './HoldToConfirmButton';
+import { HoldToConfirmButton, type HoldDuration } from './HoldToConfirmButton';
 import { Empty, Skeleton } from './Feedback';
 import { Modal } from './Overlay';
 import { Toolbar } from './Navigation';
@@ -107,6 +107,8 @@ export function PermissionState({ message, className }: PermissionStateProps) {
 export interface ConfirmDialogProps {
   returnFocus?: HTMLElement | null;
   holdHint?: string;
+  /** How long the hold lasts when `holdHint` asks for one. */
+  holdDuration?: HoldDuration;
   alternative?: { label: string; onSelect: () => void };
   open?: boolean;
   onCancel: () => void;
@@ -132,6 +134,7 @@ export interface ConfirmDialogProps {
 export function ConfirmDialog({
   returnFocus,
   holdHint,
+  holdDuration,
   alternative,
   open = true,
   onCancel,
@@ -195,7 +198,12 @@ export function ConfirmDialog({
             {/* The safe action carries the emphasis and sits where the eye lands
               last; the destructive one is soft and to its left. */}
             {holdHint ? (
-              <HoldToConfirmButton disabled={busy} hint={holdHint} onConfirm={onConfirm}>
+              <HoldToConfirmButton
+                disabled={busy}
+                hint={holdHint}
+                duration={holdDuration}
+                onConfirm={onConfirm}
+              >
                 {confirmLabel}
               </HoldToConfirmButton>
             ) : (

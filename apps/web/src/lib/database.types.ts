@@ -8848,6 +8848,12 @@ export type GeneratedDatabase = {
           ok: boolean;
         }[];
       };
+      delete_space: {
+        Args: { p_team: string };
+        Returns: {
+          ok: boolean;
+        }[];
+      };
       delete_team_account: {
         Args: { p_account: string; p_team: string };
         Returns: {
@@ -9135,6 +9141,7 @@ export type GeneratedDatabase = {
         };
       };
       get_share_preference: { Args: { p_team: string }; Returns: Json };
+      get_space_removal_preview: { Args: { p_team: string }; Returns: Json };
       get_task_progress_max_default: { Args: Record<PropertyKey, never>; Returns: number };
       get_team_account_archive_preflight: {
         Args: { p_entity: string; p_kind: string; p_team: string };

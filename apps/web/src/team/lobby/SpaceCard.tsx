@@ -1,26 +1,35 @@
+import { useRef, useState } from 'react';
+import { MoreHorizontal } from 'lucide-react';
 import type { TeamContextSnapshot } from '../../api/team';
 import { Card } from '../../components/Card';
-import { Button } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { DropdownMenu, IconButton, type MenuEntry } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 
 export type SpaceReadiness = 'ready' | 'setup_incomplete' | 'preparing';
 
 /**
  * Classify how a space should appear in the lobby from its shared connection
- * state and the viewer's role. Owners can also enter a space with a missing
- * root to reach the existing storage recovery controls. An owner whose space
- * never got a root sees "Continue setup", while
- * everyone else sees a read-only "being set up" state (covers an invited member
- * opening a space whose owner has not finished folder connection).
+ * state and the viewer's role.
+ *
+ * An owner can enter any space whose folder was connected once, whatever state the
+ * connection is in now: inside are the controls that fix it (reconnect, choose the folder
+ * again). A space that never got a folder is "Continue setup". Only someone who cannot fix
+ * anything sees "being set up" — a member of a space whose owner has not finished — and even
+ * then the card's menu lets them leave (2026-11-25: an owner's space with an expired Google
+ * sign-in used to say "being set up" to the owner, forever, with nothing to press).
+ *
+ * A connection that needs signing in again is browsable for everyone (011, FR-033): the catalog
+ * indexed once stays readable, and the shell says what is wrong.
  */
 export function spaceReadiness(space: TeamContextSnapshot): SpaceReadiness {
-  if (space.connectionState === 'connected') return 'ready';
-  if (space.role === 'owner' && space.connectionState === 'root_missing') return 'ready';
-  if (
-    space.role === 'owner' &&
-    (space.connectionState === 'none' || space.connectionState === 'detached')
-  ) {
-    return 'setup_incomplete';
+  if (space.connectionState === 'connected' || space.connectionState === 'needs_reauth') {
+    return 'ready';
+  }
+  if (space.role === 'owner') {
+    return space.connectionState === 'none' || space.connectionState === 'detached'
+      ? 'setup_incomplete'
+      : 'ready';
   }
   return 'preparing';
 }
@@ -32,85 +41,143 @@ function roleLabel(role: TeamContextSnapshot['role'], t: ReturnType<typeof useI1
   return t('teamRoleViewer');
 }
 
+/** A state of the connection the owner has to act on, said on the card rather than hidden. */
+function ownerAttention(space: TeamContextSnapshot): 'reconnect' | 'root' | 'pending' | null {
+  if (space.role !== 'owner') return null;
+  if (space.connectionState === 'root_missing') return 'root';
+  if (space.connectionState === 'needs_reauth' || space.connectionState === 'unavailable') {
+    return 'reconnect';
+  }
+  if (space.connectionState === 'pending') return 'pending';
+  return null;
+}
+
 export function SpaceCard({
   space,
   onEnter,
   onResume,
-  onDeleteDraft
+  onRemove
 }: {
   space: TeamContextSnapshot;
   onEnter: (teamId: string) => void;
   onResume: (teamId: string) => void;
   /**
-   * Offered only for an owner's never-finished space. The server has the final
-   * say on whether it really is a draft, so this is an affordance, not a
-   * guarantee.
+   * The way out of the space: leaving for a member, deleting (or handing over first) for its
+   * owner. The server has the final say; this only opens the dialog that asks it.
    */
-  onDeleteDraft?: (space: TeamContextSnapshot) => void;
+  onRemove?: (space: TeamContextSnapshot) => void;
 }) {
   const { t } = useI18n();
   const readiness = spaceReadiness(space);
-  const rootMissing = space.connectionState === 'root_missing';
+  const attention = ownerAttention(space);
   const actionable = readiness !== 'preparing';
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuAnchor = useRef<HTMLButtonElement>(null);
   const activate = () => {
     if (readiness === 'ready') onEnter(space.id);
     else if (readiness === 'setup_incomplete') onResume(space.id);
   };
 
-  const actionLabel = rootMissing
-    ? t('teamDriveRootMissing')
-    : readiness === 'ready'
-      ? t('teamSpaceCardEnter')
-      : readiness === 'setup_incomplete'
-        ? t('teamSpaceCardContinueSetup')
-        : t('teamSpaceCardPreparing');
+  const actionLabel =
+    attention === 'root'
+      ? t('teamDriveRootMissing')
+      : attention === 'reconnect'
+        ? t('spaceCardReconnect')
+        : attention === 'pending'
+          ? t('spaceCardFinishConnection')
+          : readiness === 'ready'
+            ? t('teamSpaceCardEnter')
+            : readiness === 'setup_incomplete'
+              ? t('teamSpaceCardContinueSetup')
+              : t('teamSpaceCardPreparing');
+  const hint =
+    attention === 'root'
+      ? t('teamSpaceRootMissingBody')
+      : attention === 'reconnect'
+        ? t('spaceCardReconnectHint')
+        : attention === 'pending'
+          ? t('spaceCardFinishConnectionHint')
+          : readiness === 'preparing'
+            ? t('teamSpaceCardPreparingHint')
+            : null;
+
+  const menu: MenuEntry[] = [
+    ...(actionable
+      ? [{ id: 'open', label: actionLabel, onSelect: activate }, 'separator' as const]
+      : []),
+    space.role === 'owner'
+      ? {
+          id: 'delete',
+          label: t('spaceRemovalDeleteMenu'),
+          destructive: true,
+          onSelect: () => onRemove?.(space)
+        }
+      : {
+          id: 'leave',
+          label: t('spaceRemovalLeaveMenu'),
+          destructive: true,
+          onSelect: () => onRemove?.(space)
+        }
+  ];
 
   return (
-    <Card
-      as="article"
-      interactive={actionable}
-      className={`team-space-card is-${readiness}`}
-      {...(actionable
-        ? {
-            role: 'button',
-            tabIndex: 0,
-            'aria-label': `${space.name} — ${actionLabel}`,
-            onClick: activate,
-            onKeyDown: (event: React.KeyboardEvent) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                activate();
+    <div className="team-space-card-shell">
+      <Card
+        as="article"
+        interactive={actionable}
+        className={`team-space-card is-${readiness}${attention ? ' has-attention' : ''}`}
+        {...(actionable
+          ? {
+              role: 'button',
+              tabIndex: 0,
+              'aria-label': `${space.name} — ${actionLabel}`,
+              onClick: activate,
+              onKeyDown: (event: React.KeyboardEvent) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  activate();
+                }
               }
             }
-          }
-        : {
-            'aria-label': `${space.name} — ${rootMissing ? t('teamDriveRootMissing') : t('teamSpaceCardPreparingHint')}`
-          })}
-    >
-      <div className="team-space-card-copy">
-        <h3>{space.name}</h3>
-        <p className="team-space-card-role">{roleLabel(space.role, t)}</p>
-        {rootMissing && <p className="team-space-card-hint">{t('teamSpaceRootMissingBody')}</p>}
-        {readiness === 'preparing' && !rootMissing && (
-          <p className="team-space-card-hint">{t('teamSpaceCardPreparingHint')}</p>
-        )}
-      </div>
-      <span className={`team-space-card-action is-${readiness}`}>{actionLabel}</span>
-      {readiness === 'setup_incomplete' && space.role === 'owner' && onDeleteDraft && (
-        <Button
-          size="sm"
-          variant="ghost"
-          className="team-space-card-discard"
-          // Stops the card's own activation: pressing "discard" must not also
-          // resume the setup it is discarding.
-          onClick={event => {
-            event.stopPropagation();
-            onDeleteDraft(space);
-          }}
-        >
-          {t('teamDraftDeleteAction')}
-        </Button>
+          : {
+              'aria-label': `${space.name} — ${hint ?? actionLabel}`
+            })}
+      >
+        <div className="team-space-card-copy">
+          <h3>{space.name}</h3>
+          <p className="team-space-card-role">{roleLabel(space.role, t)}</p>
+          {hint && <p className="team-space-card-hint">{hint}</p>}
+        </div>
+        <span className={`team-space-card-action is-${attention ? 'setup_incomplete' : readiness}`}>
+          {actionLabel}
+        </span>
+      </Card>
+      {/* Beside the card, not inside it: the card is itself a button, and a button in a
+          button is neither valid nor reachable as its own thing. */}
+      {onRemove && (
+        <>
+          <IconButton
+            ref={menuAnchor}
+            className="team-space-card-menu"
+            size="sm"
+            label={t('spaceCardMenu')}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(value => !value)}
+          >
+            <MoreHorizontal size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+          <DropdownMenu
+            open={menuOpen}
+            onClose={() => setMenuOpen(false)}
+            anchor={menuAnchor}
+            placement="bottom-end"
+            minWidth={220}
+            label={t('spaceCardMenu')}
+            items={menu}
+          />
+        </>
       )}
-    </Card>
+    </div>
   );
 }

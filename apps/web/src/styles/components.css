@@ -36,11 +36,17 @@
 .hold-confirm-button.is-holding .hold-confirm-fill {
   animation: destructive-hold-fill var(--motion-destructive-hold) linear forwards;
 }
+.hold-confirm-button.is-long.is-holding .hold-confirm-fill {
+  animation-duration: var(--motion-space-delete-hold);
+}
 /* Functional elapsed-time feedback must match the confirmation timer even
    when decorative animation is disabled. */
 @media (prefers-reduced-motion: reduce) {
   .hold-confirm-button.is-holding .hold-confirm-fill {
     animation-duration: var(--motion-destructive-hold) !important;
+  }
+  .hold-confirm-button.is-long.is-holding .hold-confirm-fill {
+    animation-duration: var(--motion-space-delete-hold) !important;
   }
 }
 .hold-confirm-label {

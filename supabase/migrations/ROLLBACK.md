@@ -3710,3 +3710,16 @@ it. No table or column: the name lives in the Launch config jsonb. Undo by re-ru
 functions' definitions from 20261221100000 / 20261221110000 without the inserted lines; a stored
 `creativeLabel` then passes unchecked and the card falls back to «<first> +N» (the shared naming
 still reads it from the config).
+
+## 20261224340000 — leaving or deleting a space (owner, 2026-11-25)
+
+Adds `public.get_space_removal_preview(uuid)` (stable; owner gets counts of what deleting would
+take, anyone else only their role) and `public.delete_space(uuid)` (owner alone in the space:
+`OWNER_TRANSFER_REQUIRED` while any other member is active). Deleting archives the team
+(`teams.status = 'archived'`), revokes pending invitations, pauses scheduled catalog updates,
+unbinds a live tariff (`create_team` binds it to the owner's next space), queues the team's R2
+video copies and catalog pictures for purging with reason `team_deleted` (copies → `deleted`) and
+closes its global-pool identities. No table or column. Undo by dropping the two functions; the
+lobby then answers `NOT_FOUND`/unknown RPC on delete. An archived space comes back with
+`update public.teams set status = 'active'` (R2 copies are re-made on demand by the reconcile;
+a tariff already rebound elsewhere stays there).

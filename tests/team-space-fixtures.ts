@@ -31,6 +31,21 @@ export function makeClient(overrides: Partial<TeamSpaceClient> = {}): TeamSpaceC
     listMyInvitations: vi.fn().mockResolvedValue([]),
     createTeam: vi.fn(),
     deleteDraftTeam: vi.fn().mockResolvedValue(true),
+    // 2026-11-25 — leaving and deleting a space. An owner alone, by default.
+    getSpaceRemovalPreview: vi.fn().mockResolvedValue({
+      role: 'owner',
+      otherMembers: 0,
+      pendingInvitations: 0,
+      files: 0,
+      catalogs: 0,
+      tasks: 0,
+      launches: 0,
+      accounts: 0,
+      storedVideos: 0,
+      tariff: false,
+      driveFolder: null
+    }),
+    deleteSpace: vi.fn().mockResolvedValue(true),
     leaveTeam: vi
       .fn()
       .mockResolvedValue({ ok: true, warningCode: 'EXTERNAL_DRIVE_ACCESS_REMAINS' }),

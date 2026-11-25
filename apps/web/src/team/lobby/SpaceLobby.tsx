@@ -20,7 +20,7 @@ export function SpaceLobby({
   onEnter,
   onResume,
   onCreate,
-  onDeleteDraft,
+  onRemove,
   invitationClient
 }: {
   teams: TeamContextSnapshot[];
@@ -29,8 +29,8 @@ export function SpaceLobby({
   onEnter: (teamId: string) => void;
   onResume: (teamId: string) => void;
   onCreate: () => void;
-  /** Discards an abandoned, never-connected space (finding I3). */
-  onDeleteDraft?: (space: TeamContextSnapshot) => void;
+  /** Leaves a space, or deletes one its owner is alone in (2026-11-25). */
+  onRemove?: (space: TeamContextSnapshot) => void;
   /** Reads and answers invitations; falls back to the live API. */
   invitationClient?: InvitationListClient;
 }) {
@@ -89,12 +89,7 @@ export function SpaceLobby({
       <ul className="team-space-card-grid">
         {teams.map(space => (
           <li key={space.id}>
-            <SpaceCard
-              space={space}
-              onEnter={onEnter}
-              onResume={onResume}
-              onDeleteDraft={onDeleteDraft}
-            />
+            <SpaceCard space={space} onEnter={onEnter} onResume={onResume} onRemove={onRemove} />
           </li>
         ))}
       </ul>

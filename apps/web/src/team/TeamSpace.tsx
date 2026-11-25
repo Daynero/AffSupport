@@ -1,9 +1,8 @@
 import { workspaceAnnouncementEnabled } from '../lib/feature-flags';
 import { SpaceComingSoon } from './SpaceComingSoon';
-import { Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { LockKeyhole } from 'lucide-react';
 import { useOptionalAuth } from '../auth/AuthContext';
-import { Modal } from '../components/Modal';
 import { ToastProvider, useToasts } from '../components/toast';
 import { Button } from '../components/ui/index';
 import { ICON_STROKE } from '../components/icons';
@@ -16,8 +15,8 @@ import { recoverableLazy } from '../lib/recoverable-lazy';
 import { configuredTeamDirectAddMode } from '../lib/config';
 import { readRememberedSpaceId, useTeam } from './TeamContext';
 import { readDriveAuthorization, type DriveAuthorizationTarget } from './drive/authorizationReturn';
-import { teamErrorMessageFor } from './errors';
 import { SpaceLobby } from './lobby/SpaceLobby';
+import { SpaceRemovalDialog, type SpaceRemovalClient } from './lobby/SpaceRemovalDialog';
 import {
   buildTeamRoute,
   parseTeamRoute,
@@ -61,7 +60,8 @@ export type TeamSpaceClient = {
   acceptInvitation: (invitationId: string, token?: string) => Promise<unknown>;
   declineInvitation: (invitationId: string, token?: string) => Promise<unknown>;
 } & CreateSpaceWizardClient &
-  WorkspaceShellClient;
+  WorkspaceShellClient &
+  SpaceRemovalClient;
 
 /** What the address, the loaded spaces, and the local cache add up to. */
 export type TeamEntry =
@@ -239,12 +239,20 @@ export function TeamSpace({
   const browserRoute = useBrowserRoute();
   const route: TeamRoute = routeProp ??
     parseTeamRoute(browserRoute) ?? { kind: 'resolver', driveReturn: null, showAll: false };
-  const { teams, activeTeam, loading, error: teamError, replaceTeams, setActiveTeamId } = useTeam();
+  const {
+    teams,
+    activeTeam,
+    loading,
+    error: teamError,
+    replaceTeams,
+    refreshTeams,
+    setActiveTeamId
+  } = useTeam();
   const [flow, setFlow] = useState<Flow>({ mode: 'browse' });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [teamsLoaded, setTeamsLoaded] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState<number | null>(null);
-  const [discarding, setDiscarding] = useState<TeamContextSnapshot | null>(null);
+  const [removing, setRemoving] = useState<TeamContextSnapshot | null>(null);
   // Captured once: the resolver needs the value from before this session began
   // writing to it (see readRememberedSpaceId).
   const [rememberedTeamId] = useState(readRememberedSpaceId);
@@ -681,17 +689,24 @@ export function TeamSpace({
         onEnter={teamId => navigateTo(buildTeamRoute({ spaceId: teamId }))}
         onResume={teamId => setFlow({ mode: 'resume', teamId })}
         onCreate={() => setFlow({ mode: 'create' })}
-        onDeleteDraft={setDiscarding}
+        onRemove={setRemoving}
         invitationClient={client}
       />
-      {discarding && (
-        <DiscardDraftDialog
-          space={discarding}
+      {removing && (
+        <SpaceRemovalDialog
+          space={removing}
           client={client}
-          onClose={() => setDiscarding(null)}
-          onDiscarded={() => {
-            setDiscarding(null);
-            replaceTeams(teams.filter(team => team.id !== discarding.id));
+          onClose={() => setRemoving(null)}
+          onRemoved={() => {
+            setRemoving(null);
+            // Off the list at once: the server already said so, and a refetch racing the
+            // resolver could send the person back into the space they just left.
+            replaceTeams(teams.filter(team => team.id !== removing.id));
+            void refreshTeams();
+          }}
+          onTransferred={() => {
+            setRemoving(null);
+            void refreshTeams();
           }}
         />
       )}
@@ -707,60 +722,6 @@ export function TeamSpace({
  * above. Sticky, because a message that dismisses itself while the screen is
  * also changing underneath is a message nobody reads (FR-019).
  */
-/**
- * Confirms discarding a space that never finished setup.
- *
- * The confirmation names what is lost rather than asking "are you sure?", and
- * the server still decides whether the space really is a draft — a space that
- * has ever had a drive connection is refused with `TEAM_NOT_DRAFT`, which is
- * the case where discarding would actually destroy something.
- */
-function DiscardDraftDialog({
-  space,
-  client,
-  onClose,
-  onDiscarded
-}: {
-  space: TeamContextSnapshot;
-  client: Pick<TeamSpaceClient, 'deleteDraftTeam'>;
-  onClose: () => void;
-  onDiscarded: () => void;
-}) {
-  const { t } = useI18n();
-  const { push } = useToasts();
-  const [busy, setBusy] = useState(false);
-  const titleId = useId();
-
-  const discard = async () => {
-    setBusy(true);
-    try {
-      await client.deleteDraftTeam(space.id);
-      push({ tone: 'success', text: t('teamDraftDeleteDone') });
-      onDiscarded();
-    } catch (cause) {
-      push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
-      onClose();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Modal labelledBy={titleId} size="sm" onClose={onClose}>
-      <h3 id={titleId}>{t('teamDraftDeleteConfirmTitle', { name: space.name })}</h3>
-      <p>{t('teamDraftDeleteConfirmBody')}</p>
-      <div className="team-dialog-actions">
-        <Button type="button" variant="danger" loading={busy} onClick={() => void discard()}>
-          {t('teamDraftDeleteAction')}
-        </Button>
-        <Button type="button" variant="secondary" onClick={onClose}>
-          {t('teamCancel')}
-        </Button>
-      </div>
-    </Modal>
-  );
-}
-
 export function MembershipLostNotice() {
   const { t } = useI18n();
   const { push } = useToasts();

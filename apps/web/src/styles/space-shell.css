@@ -624,11 +624,6 @@
   color: var(--color-text-muted);
 }
 
-.team-space-card-discard.ui-button {
-  align-self: flex-start;
-  font-weight: inherit;
-}
-
 /* Placed by the component (021). */
 .team-space-switcher-menu {
   z-index: var(--layer-popover);
@@ -701,23 +696,58 @@
   border-top: 0;
 }
 
-/* Discard control on an unfinished space card (010 US4). Quiet by default so a
-   destructive action does not compete with "continue setup", which is what the
-   owner usually wants. */
-.team-space-card-discard {
-  padding: var(--space-1) var(--space-2);
-  font: inherit;
-  font-size: var(--text-caption);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  background: none;
-  border: none;
-  border-radius: var(--radius-sm);
+/* The way out of a space (2026-11-25): a "…" in the card's corner, beside the card rather than
+   inside it, because the card is itself a button. The name keeps clear of it. */
+.team-space-card-shell {
+  position: relative;
+  min-width: 0;
+}
+.team-space-card-shell .team-space-card-copy {
+  padding-inline-end: calc(var(--control-height-sm) + var(--space-2));
+}
+.team-space-card-menu.ui-icon-button {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+}
+/* A connection its owner has to fix reads as a call to act, not as a dimmed wait. */
+.team-space-card.has-attention {
+  opacity: 1;
 }
 
-.team-space-card-discard:hover {
-  color: var(--color-error);
-  background: var(--color-error-soft);
+/* What deleting a space takes, and what it leaves alone. */
+.space-removal-body {
+  display: grid;
+  gap: var(--space-3);
+}
+.space-removal-body p {
+  margin: 0;
+}
+.space-removal-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3);
+  list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+.space-removal-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-label);
+}
+.space-removal-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-label);
+}
+.space-removal-stays {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.space-removal-start.ui-button {
+  justify-self: start;
 }
 
 /* The space picker (024): a centred panel, spaces as rows in one column. */

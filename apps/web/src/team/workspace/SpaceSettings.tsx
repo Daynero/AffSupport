@@ -15,6 +15,8 @@ import { readRestitchRow } from './restitch/restitch-row';
 import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
 import { TeamPreferencesSection, type TeamPreferencesClient } from './TeamPreferencesSection';
 import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
+import { SpaceRemovalSection } from './SpaceRemovalSection';
+import type { SpaceRemovalClient } from '../lobby/SpaceRemovalDialog';
 import { CatalogSettingsSection, type CatalogSettingsClient } from './CatalogSettingsSection';
 import { SpaceTariffSection } from '../tariffs/SpaceTariffSection';
 import { CatalogVideoR2UsageSection } from '../tariffs/CatalogVideoR2UsageSection';
@@ -40,7 +42,8 @@ export type SpaceSettingsClient = MemberManagementClient &
   TaskLabelsSectionClient &
   TeamPreferencesClient &
   CatalogSettingsClient &
-  SpaceNameClient;
+  SpaceNameClient &
+  SpaceRemovalClient;
 
 /**
  * The remembered answer to "open this file to anyone with the link?" (024).
@@ -262,6 +265,8 @@ export function SpaceSettings({
               />
             )}
             <SharePreferenceSettings teamId={teamId} client={client} />
+            {/* Last, as the settings of every product people know keep it (2026-11-25). */}
+            <SpaceRemovalSection teamId={teamId} client={client} />
           </>
         )}
 

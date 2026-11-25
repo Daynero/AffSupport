@@ -138,12 +138,15 @@ describe('the token layer', () => {
     // Deliberate destructive-action dwell time, mirrored by the JS hold timer.
     // Its fill reports elapsed confirmation time rather than a UI transition.
     expect(light.get('--motion-destructive-hold')).toBe('3000ms');
+    // Deleting a whole space asks for a longer, deliberate hold (2026-11-25).
+    expect(light.get('--motion-space-delete-hold')).toBe('5000ms');
     for (const [name, value] of light) {
       if (
         !name.startsWith('--motion-') ||
         AMBIENT.has(name) ||
         name === '--motion-account-hold' ||
-        name === '--motion-destructive-hold'
+        name === '--motion-destructive-hold' ||
+        name === '--motion-space-delete-hold'
       )
         continue;
       const ms = /^(\d+(?:\.\d+)?)ms$/.exec(value);

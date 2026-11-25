@@ -1321,6 +1321,43 @@ function errorCode(value: unknown): TeamErrorCode | null {
     : null;
 }
 
+/** What deleting a space would take with it; counts are present for its owner only. */
+export interface SpaceRemovalPreview {
+  role: TeamRole;
+  otherMembers: number;
+  pendingInvitations: number;
+  files: number;
+  catalogs: number;
+  tasks: number;
+  launches: number;
+  accounts: number;
+  storedVideos: number;
+  tariff: boolean;
+  driveFolder: string | null;
+}
+
+export function parseSpaceRemovalPreview(value: unknown): SpaceRemovalPreview | null {
+  const row = asRecord(value);
+  if (!row || !['owner', 'admin', 'editor', 'viewer'].includes(String(row.role))) return null;
+  const count = (key: string) => {
+    const raw = row[key];
+    return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? raw : 0;
+  };
+  return {
+    role: row.role as TeamRole,
+    otherMembers: count('otherMembers'),
+    pendingInvitations: count('pendingInvitations'),
+    files: count('files'),
+    catalogs: count('catalogs'),
+    tasks: count('tasks'),
+    launches: count('launches'),
+    accounts: count('accounts'),
+    storedVideos: count('storedVideos'),
+    tariff: row.tariff === true,
+    driveFolder: typeof row.driveFolder === 'string' ? row.driveFolder : null
+  };
+}
+
 function mapTeamContext(value: unknown): TeamContextSnapshot | null {
   const row = asRecord(value);
   if (!row) return null;
@@ -5901,6 +5938,34 @@ export const teamApi = {
     );
     throwRpc(error);
     if (data?.[0]?.ok !== true) throw new TeamApiError('INVALID_RESPONSE', false);
+    return true;
+  },
+
+  /**
+   * What deleting the space would take with it (2026-11-25). Owner-only counts;
+   * anyone else learns only their role.
+   */
+  async getSpaceRemovalPreview(
+    teamId: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<SpaceRemovalPreview> {
+    const preview = parseSpaceRemovalPreview(
+      await invokeTeamRpc('get_space_removal_preview', { p_team: teamId }, options)
+    );
+    if (!preview) throw new TeamApiError('INVALID_RESPONSE', false);
+    return preview;
+  },
+
+  /**
+   * Delete a space its owner is alone in. The server archives it — out of every
+   * list, no background work — and releases what it held in R2; Drive is not
+   * touched. Another member in it answers `OWNER_TRANSFER_REQUIRED`.
+   */
+  async deleteSpace(teamId: string): Promise<true> {
+    const data = await invokeTeamRpc('delete_space', { p_team: teamId });
+    if (!Array.isArray(data) || asRecord(data[0])?.ok !== true) {
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    }
     return true;
   },
 

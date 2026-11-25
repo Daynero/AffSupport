@@ -2,17 +2,28 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { Button } from './Button';
 
 export const DESTRUCTIVE_HOLD_MS = 3000;
+/**
+ * Deleting a whole space (2026-11-25): long enough to be a decision rather than a
+ * reflex, as the owner asked. Mirrors `--motion-space-delete-hold`.
+ */
+export const SPACE_DELETE_HOLD_MS = 5000;
+
+const HOLD_MS = { destructive: DESTRUCTIVE_HOLD_MS, space: SPACE_DELETE_HOLD_MS } as const;
+export type HoldDuration = keyof typeof HOLD_MS;
 
 /** A continuous press, including keyboard presses; a click never confirms. */
 export function HoldToConfirmButton({
   children,
   hint,
   disabled = false,
+  duration = 'destructive',
   onConfirm
 }: {
   children: ReactNode;
   hint: string;
   disabled?: boolean;
+  /** How long the press must last; each length has its own token for the fill. */
+  duration?: HoldDuration;
   onConfirm: () => void;
 }) {
   const [holding, setHolding] = useState(false);
@@ -48,7 +59,7 @@ export function HoldToConfirmButton({
         color="error"
         variant="outline"
         disabled={disabled}
-        className={`hold-confirm-button${holding ? ' is-holding' : ''}`}
+        className={`hold-confirm-button${duration === 'space' ? ' is-long' : ''}${holding ? ' is-holding' : ''}`}
         aria-describedby={hintId}
         onBlur={stop}
         onPressStart={event => {
@@ -59,7 +70,7 @@ export function HoldToConfirmButton({
             if (!active.current || latest.current.disabled || document.hidden) return;
             setHolding(false);
             latest.current.onConfirm();
-          }, DESTRUCTIVE_HOLD_MS);
+          }, HOLD_MS[duration]);
         }}
         onPressEnd={stop}
       >

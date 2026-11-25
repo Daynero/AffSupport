@@ -64,3 +64,22 @@ it.each(['release', 'blur', 'window blur', 'unmount', 'disabled'])(
     }
   }
 );
+
+it('holds a space deletion for five seconds, not three', () => {
+  const confirm = vi.fn();
+  render(
+    <HoldToConfirmButton hint="Hold for 5 seconds" duration="space" onConfirm={confirm}>
+      Delete space
+    </HoldToConfirmButton>
+  );
+  const button = screen.getByRole('button', { name: 'Delete space' });
+  expect(button.className).toContain('is-long');
+  button.focus();
+  vi.useFakeTimers();
+  down(button);
+  act(() => vi.advanceTimersByTime(4999));
+  expect(confirm).not.toHaveBeenCalled();
+  act(() => vi.advanceTimersByTime(1));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  up(button);
+});
