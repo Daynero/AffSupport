@@ -777,10 +777,10 @@ export async function prepareTeamRestitchMaterials(input: {
 
 /**
  * 071: whether this computer's Soty may prepare the space in the background right now — an app
- * that can, with nothing else to do and a machine that is not loaded. Any doubt answers no: an
- * older app, an app that cannot be reached, a refused read.
+ * that can, with nothing else to do and a machine that is not loaded. `unsupported` is an app
+ * that predates it; any other doubt (unreachable, a refused read) answers `busy`.
  */
-export async function teamRestitchBackgroundAllowed(): Promise<boolean> {
+export async function teamRestitchBackgroundAllowed(): Promise<'allowed' | 'busy' | 'unsupported'> {
   try {
     const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
     const contracts = health.toolContracts ?? {};
@@ -789,14 +789,14 @@ export async function teamRestitchBackgroundAllowed(): Promise<boolean> {
       !toolContractCompatible('stitcher', contracts) ||
       !restitchPrepareBackgroundSupported(contracts)
     )
-      return false;
+      return 'unsupported';
     const value = await request<{ allowed?: unknown }>(
       '/api/team/restitch/prepare/background',
       'GET'
     );
-    return value.allowed === true;
+    return value.allowed === true ? 'allowed' : 'busy';
   } catch {
-    return false;
+    return 'busy';
   }
 }
 

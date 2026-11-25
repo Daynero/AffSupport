@@ -50,9 +50,10 @@ export interface RestitchBackgroundState {
   teamId: string | null;
   /**
    * `off`: switched off for this space · `waiting`: Soty or the machine is busy, or a manual run
-   * goes · `running`: a video is being read · `idle`: nothing left to read (or nothing to read for).
+   * goes · `running`: a video is being read · `idle`: nothing left to read (or nothing to read for)
+   * · `unsupported`: the app on this computer predates background preparation.
    */
-  status: 'off' | 'waiting' | 'running' | 'idle';
+  status: 'off' | 'waiting' | 'running' | 'idle' | 'unsupported';
   current: { name: string; since: number } | null;
   phase: TeamRestitchPreparationPhase | null;
   progress: number;
@@ -121,7 +122,7 @@ export function writeAutoPrepare(teamId: string, enabled: boolean): void {
   } catch {
     // Unsaved, the choice still holds for this page.
   }
-  if (state.teamId === teamId) publish({ status: enabled ? 'waiting' : 'off' });
+  if (state.teamId === teamId) publish({ status: enabled ? 'idle' : 'off' });
   emit();
 }
 
@@ -179,7 +180,8 @@ async function follow(teamId: string, operationId: string, signal: AbortSignal):
 
 /** The loop for one space while it is open, enabled and allowed to process. */
 async function run(teamId: string, signal: AbortSignal): Promise<void> {
-  publish({ ...INITIAL, teamId, status: readAutoPrepare(teamId) ? 'waiting' : 'off' });
+  // Nothing is promised until the app has been asked.
+  publish({ ...INITIAL, teamId, status: readAutoPrepare(teamId) ? 'idle' : 'off' });
   await sleep(START_DELAY_MS, signal);
   let queue: TeamMaterialRow[] = [];
   let listedAt = 0;
@@ -193,7 +195,14 @@ async function run(teamId: string, signal: AbortSignal): Promise<void> {
         await sleep(BUSY_RETRY_MS, signal);
         continue;
       }
-      if (manual.has(teamId) || !(await teamRestitchBackgroundAllowed())) {
+      const allowed = manual.has(teamId) ? 'busy' : await teamRestitchBackgroundAllowed();
+      if (allowed === 'unsupported') {
+        // An older app: nothing to promise until it is updated (asked again now and then).
+        publish({ status: 'unsupported', current: null });
+        await sleep(REST_MS, signal);
+        continue;
+      }
+      if (allowed === 'busy') {
         publish({ status: 'waiting', current: null });
         await sleep(manual.has(teamId) ? POLL_MS * 30 : BUSY_RETRY_MS, signal);
         continue;
