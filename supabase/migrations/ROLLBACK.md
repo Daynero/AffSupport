@@ -3670,3 +3670,13 @@ unchanged from 20261224170000 but for `finalDurationRangeSeconds`). Undo: first 
 `final_duration_mode = 'random-centered'` to `'random-40-50'` (or `'custom'`), restore the three
 functions from 20261029100000/20261224170000, restore the old checks, then drop the helper and the
 two columns. A web without the column saves the three old windows and `custom` only.
+
+## 20261224290000 — launches re-stitch out of the box too
+
+Adds `private.launch_restitch_draw` and patches (through `pg_get_functiondef`, failing if the
+replaced text is missing) `public.prepare_launch_restitch_unchecked` (a draw or a redraw with
+nothing left falls back to Soty's standard pictures; a redraw after the pictures changed takes
+today's settings instead of SOURCE_CHANGED; both screens off is RESTITCH_INVALID instead of the
+automatic end frame) and `public.service_accept_launch_catalog_video_generation` (both screens
+off is RESTITCH_INVALID; `builtin` is left out of the settings comparison). No table or column.
+Undo by restoring both bodies from their previous migrations and dropping the helper.

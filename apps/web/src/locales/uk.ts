@@ -780,7 +780,7 @@ export const uk: Record<keyof typeof en, string> = {
   launchesCatalog: 'Каталог',
   launchesCatalogImagesUnavailable:
     'Зображення для каталогу зараз недоступні. Спробуйте ще раз, коли джерело зображень буде готове.',
-  launchesOpenRestitchSettings: 'Обрати зображення для перезашивки',
+  launchesOpenRestitchSettings: 'Відкрити налаштування перезашивки',
   launchesOther: 'Без каталогу',
   launchesAdvantage: 'Advantage+',
   launchesUrl: 'URL',

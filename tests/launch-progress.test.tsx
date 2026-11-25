@@ -568,7 +568,7 @@ it('offers image settings for a durable or immediate missing-image failure', () 
       onOpenRestitchSettings={open}
     />
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Choose re-stitching images' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Open re-stitching settings' }));
   expect(open).toHaveBeenCalledOnce();
   view.rerender(
     <LaunchGenerationProgress
@@ -580,7 +580,7 @@ it('offers image settings for a durable or immediate missing-image failure', () 
       onOpenRestitchSettings={open}
     />
   );
-  expect(screen.getByRole('button', { name: 'Choose re-stitching images' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Open re-stitching settings' })).toBeTruthy();
   expect(screen.queryByRole('progressbar')).toBeNull();
 });
 

@@ -785,7 +785,7 @@ export const en = {
   launchesCatalog: 'Catalog',
   launchesCatalogImagesUnavailable:
     'Catalog images are currently unavailable. Try again when the image source is ready.',
-  launchesOpenRestitchSettings: 'Choose re-stitching images',
+  launchesOpenRestitchSettings: 'Open re-stitching settings',
   launchesOther: 'No catalog',
   launchesAdvantage: 'Advantage+',
   launchesUrl: 'URL',

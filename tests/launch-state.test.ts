@@ -130,7 +130,7 @@ it('prepares restitch from the selected video and duration without any saved wor
   ).toMatchObject({ stage: 'restitch_preparing', state: 'waiting_dependency' });
 });
 
-it('uses the space image pool when its owner creates a Launch and records an empty pool explicitly', async () => {
+it('uses the space image pool, stands the standard pictures in for an emptied pool and refuses only both screens off', async () => {
   const pictures = await db.root<{ id: string }>(
     `insert into public.team_materials(team_id,connection_id,drive_file_id,parent_folder_id,name,kind,category,mime_type,size_bytes,checksum,drive_version)
      select team_id,connection_id,'launch-screen-'||n,'root','screen.png','file','image','image/png',100,repeat(n::text,32),'1'
@@ -236,6 +236,18 @@ it('uses the space image pool when its owner creates a Launch and records an emp
     for (const slot of ['start', 'end'])
       await db.asUser(ACTOR, "select public.set_restitch_sources($1,$2,'[]'::jsonb)", [team, slot]);
     expect(await settingsVersion()).not.toBe(originalVersion);
+    // Owner 2026-11-25: switched-on re-stitching never fails. A redraw after the pools were emptied
+    // goes on with Soty's standard pictures, in the form agents up to 1.6.x render.
+    const builtin = {
+      defaults: {
+        builtin: { version: 1, start: true, end: true },
+        startEnabled: false,
+        automaticEndFrame: true,
+        finalDurationMode: 'custom',
+        customFinalDurationSeconds: 120
+      },
+      draw: { screens: [] }
+    };
     expect(
       (
         await db.asUser<{ v: unknown }>(
@@ -244,7 +256,7 @@ it('uses the space image pool when its owner creates a Launch and records an emp
           [team, g.id, [pictures[0].id]]
         )
       )[0].v
-    ).toEqual({ errorCode: 'SOURCE_CHANGED' });
+    ).toMatchObject(builtin);
     const empty = await prepare({
       method: 'catalog',
       catalog: {
@@ -254,7 +266,30 @@ it('uses the space image pool when its owner creates a Launch and records an emp
         customFinalDurationSeconds: 120
       }
     });
-    const failed = await accept(empty.args);
+    const standard = await accept(empty.args);
+    expect(
+      (
+        await db.asUser<{ v: unknown }>(ACTOR, 'select public.prepare_launch_restitch($1,$2) v', [
+          team,
+          standard.id
+        ])
+      )[0].v
+    ).toMatchObject(builtin);
+    // The one case without re-stitching: the person turned both screens off.
+    await db.root(
+      'update public.team_restitch_defaults set start_enabled=false,end_enabled=false where team_id=$1',
+      [team]
+    );
+    const off = await prepare({
+      method: 'catalog',
+      catalog: {
+        productCount: 3,
+        restitchEnabled: true,
+        finalDurationMode: 'custom',
+        customFinalDurationSeconds: 120
+      }
+    });
+    const failed = await accept(off.args);
     expect(
       (
         await db.asUser<{ v: unknown }>(ACTOR, 'select public.prepare_launch_restitch($1,$2) v', [
@@ -262,7 +297,7 @@ it('uses the space image pool when its owner creates a Launch and records an emp
           failed.id
         ])
       )[0].v
-    ).toEqual({ errorCode: 'RESTITCH_POOL_EMPTY' });
+    ).toEqual({ errorCode: 'RESTITCH_INVALID' });
     expect(
       (
         await db.root<{ stage: string; state: string; safe_error_code: string }>(
@@ -273,7 +308,7 @@ it('uses the space image pool when its owner creates a Launch and records an emp
     ).toMatchObject({
       stage: 'restitch_preparing',
       state: 'failed',
-      safe_error_code: 'RESTITCH_POOL_EMPTY'
+      safe_error_code: 'RESTITCH_INVALID'
     });
   } finally {
     await db.root('delete from public.team_restitch_defaults where team_id=$1', [team]);
@@ -3999,9 +4034,12 @@ it('persists a closed preparation failure after acceptance and replays it withou
     }
   });
   const accepted = await accept(prepared.args);
-  await db.root('update public.team_restitch_defaults set configured=false where team_id=$1', [
-    team
-  ]);
+  // A saved row without pictures now re-stitches with the standard ones; the settings this launch
+  // was reviewed with change only when the screens are turned off.
+  await db.root(
+    'update public.team_restitch_defaults set start_enabled=false,end_enabled=false where team_id=$1',
+    [team]
+  );
   const first = (
     await db.asUser<{ v: { errorCode: string } }>(
       ACTOR,
@@ -4062,9 +4100,10 @@ it('persists a closed preparation failure after acceptance and replays it withou
       )
     )[0].n
   ).toBe(0);
-  await db.root('update public.team_restitch_defaults set configured=true where team_id=$1', [
-    team
-  ]);
+  await db.root(
+    'update public.team_restitch_defaults set start_enabled=true,end_enabled=true where team_id=$1',
+    [team]
+  );
 });
 
 it('records revoked actor authority once and drains those rows from recovery without publishing their results', async () => {
