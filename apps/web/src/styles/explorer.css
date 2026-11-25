@@ -1977,3 +1977,17 @@
 .team-explorer-tile-check .ui-checkbox-mark {
   background: var(--color-surface);
 }
+
+/* A folder on its way (owner, 25.11): as many placeholders as the tree counts in it, and only
+   once the wait is long enough to see — a folder that answers inside --delay-skeleton never
+   shows a bar. They sit quieter than the rows they stand for: bright bars read as content. */
+.team-explorer-placeholder {
+  animation: ui-route-skeleton-in var(--motion-slow) var(--ease-out-curve) var(--delay-skeleton)
+    both;
+}
+.team-explorer-placeholder .ui-skeleton {
+  opacity: 0.55;
+}
+.team-explorer-placeholder .ui-skeleton--row {
+  height: var(--control-height-sm);
+}

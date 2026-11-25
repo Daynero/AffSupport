@@ -30,6 +30,7 @@ import {
   type CreativeRank
 } from '../ranks/creativeRanks';
 import type { CreativeRanksState } from '../ranks/useCreativeRanks';
+import { placeholderCount } from './placeholderCount';
 import { displayedSize, formatDate } from '../../format';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { knownBroken, markBroken } from './brokenPictures';
@@ -80,6 +81,7 @@ export function ContentGrid({
   tagging,
   emptyAction,
   emptyState,
+  expectedCount,
   onDropMaterials,
   companionRows,
   ranks
@@ -112,6 +114,9 @@ export function ContentGrid({
    */
   emptyAction?: ReactNode;
   emptyState?: 'uploading' | 'syncing' | 'unchecked';
+  /** What the tree already counts in this folder: the placeholder draws that many, not a fixed
+      handful (owner, 25.11 — three bright bars over a folder of six read as wrong). */
+  expectedCount?: number | null;
   /** An unconfirmed catalog is not an empty folder. */
   /** Each video's own files — its text, its catalogs — listed on its tile (024, US25). */
   companionRows?: ReadonlyMap<string, readonly TeamMaterialRow[]>;
@@ -208,12 +213,14 @@ export function ContentGrid({
       <Reveal
         busy={page.loading && page.rows.length === 0}
         placeholder={
-          <LoadingState
-            label={t('teamMaterialsLoading')}
-            shape="tile"
-            count={8}
-            className="team-explorer-grid"
-          />
+          placeholderCount(expectedCount, 8) > 0 && (
+            <LoadingState
+              label={t('teamMaterialsLoading')}
+              shape="tile"
+              count={placeholderCount(expectedCount, 8)}
+              className="team-explorer-grid team-explorer-placeholder"
+            />
+          )
         }
       >
         <ul className="team-explorer-grid" role="list">

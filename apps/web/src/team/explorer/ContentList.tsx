@@ -41,6 +41,7 @@ import {
   type CreativeRank
 } from '../ranks/creativeRanks';
 import type { CreativeRanksState } from '../ranks/useCreativeRanks';
+import { placeholderCount } from './placeholderCount';
 
 /** Setting a tag is the space owner's; everyone else is handed nothing. */
 export interface TaggingProps {
@@ -61,6 +62,7 @@ export function ContentList({
   tagging,
   emptyAction,
   emptyState,
+  expectedCount,
   companionCounts,
   openedCompanions,
   onToggleCompanions,
@@ -97,6 +99,9 @@ export function ContentList({
    */
   emptyAction?: ReactNode;
   emptyState?: 'uploading' | 'syncing' | 'unchecked';
+  /** What the tree already counts in this folder: the placeholder draws that many, not a fixed
+      handful (owner, 25.11 — three bright bars over a folder of six read as wrong). */
+  expectedCount?: number | null;
   /** An unconfirmed catalog is not an empty folder. */
   /** How many companions each video holds, folded away until opened (024, US25). */
   companionCounts?: ReadonlyMap<string, number>;
@@ -179,7 +184,16 @@ export function ContentList({
       )}
       <Reveal
         busy={page.loading && page.rows.length === 0}
-        placeholder={<LoadingState label={t('teamMaterialsLoading')} shape="row" count={4} />}
+        placeholder={
+          placeholderCount(expectedCount, 4) > 0 && (
+            <LoadingState
+              label={t('teamMaterialsLoading')}
+              shape="row"
+              count={placeholderCount(expectedCount, 4)}
+              className="team-explorer-placeholder"
+            />
+          )
+        }
       >
         {rows.length > 0 && (
           <Table

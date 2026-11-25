@@ -270,6 +270,12 @@ function ExplorerBody({
     }
   });
   const unindexedFolder = Boolean(currentFolderId && nodeOf(currentFolderId)?.indexedAt === null);
+  // What the tree counts in the folder being opened, so its placeholder is that size (owner, 25.11).
+  const currentNode = currentFolderId ? nodeOf(currentFolderId) : null;
+  const expectedCount =
+    currentNode && currentNode.indexedAt !== null
+      ? currentNode.childFolderCount + currentNode.childFileCount
+      : null;
   const contentsPending = folderResync.running || uploadingThisFolder || unindexedFolder;
   const emptyState = uploadingThisFolder
     ? 'uploading'
@@ -707,6 +713,7 @@ function ExplorerBody({
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
                 emptyState={emptyState}
+                expectedCount={expectedCount}
               />
             ) : (
               <ContentList
@@ -722,6 +729,7 @@ function ExplorerBody({
                 tagging={tagging}
                 emptyAction={emptyUploadAction}
                 emptyState={emptyState}
+                expectedCount={expectedCount}
                 sort={sort}
                 onSortChange={changeSort}
               />
