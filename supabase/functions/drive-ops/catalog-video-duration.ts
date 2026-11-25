@@ -3,7 +3,7 @@ import { TeamFunctionError } from '../_shared/errors.ts';
 /** A child samples from its immutable server identity. Lost grant acknowledgements
  * reconstruct the same duration without a fresh draw or current team defaults. */
 export async function sampleCatalogVideoDuration(
-  settings: TeamRestitchDefaults & { finalDurationRangeSeconds?: [number, number] },
+  settings: TeamRestitchDefaults & { finalDurationRangeSeconds?: readonly [number, number] },
   identity: { setId: string; requestId: string; settingsDigest: string }
 ): Promise<TeamRestitchDefaults> {
   const mode = settings.finalDurationMode;
