@@ -8,7 +8,12 @@ import type {
   LaunchDraft,
   LaunchCampaign
 } from '../launches.js';
-import { normalizeLaunchSub, normalizeLaunchOffer, parseLaunchConfig } from './validation.js';
+import {
+  normalizeLaunchCreativeLabel,
+  normalizeLaunchSub,
+  normalizeLaunchOffer,
+  parseLaunchConfig
+} from './validation.js';
 import { launchBudgets, launchAdRange, launchPreviewRows } from './budgets.js';
 import { launchCampaignName, launchCreativeLabel, isLaunchDate } from './naming.js';
 import { patchLaunchUrl } from './url.js';
@@ -123,12 +128,12 @@ export function launchPreview(
 }
 
 /** A SUB preview does not depend on age, budgets or the validity of the rest of the form. */
-/** A creative's SUB value: an alias, or a Launch label with «+N» for the other creatives. */
+/**
+ * A creative's SUB value: an alias, the automatic «<first>+N» (an alias of up to 160 characters
+ * and «+400» at most) or the name typed for several creatives.
+ */
 function normalizeLaunchCreativeSub(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const label = /^(.+)\+(\d{1,3})$/u.exec(value);
-  const alias = normalizeLaunchSub(label ? label[1] : value);
-  return alias === null ? null : label ? `${alias}+${label[2]}` : alias;
+  return normalizeLaunchCreativeLabel(value, 164);
 }
 
 export function launchSubPreview(
@@ -197,7 +202,19 @@ export function launchNamingPreview(
   return rows.map(row => ({
     ...row,
     name: launchCampaignName(
-      { creativeAlias: alias, age, gender, advantagePlus, method, launchDate },
+      {
+        creativeAlias: alias,
+        // As generation names them: «+N» or the typed name for several creatives.
+        ...(method === 'catalog' && config.creatives ? { creatives: config.creatives } : {}),
+        ...(normalizeLaunchCreativeLabel(config.creativeLabel)
+          ? { creativeLabel: config.creativeLabel }
+          : {}),
+        age,
+        gender,
+        advantagePlus,
+        method,
+        launchDate
+      },
       { social, agentId, offer },
       row
     )

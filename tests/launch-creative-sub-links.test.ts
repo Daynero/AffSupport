@@ -73,7 +73,9 @@ describe('SUB «Креатив» of a Launch', () => {
   it('shows the same label in the editor preview', () => {
     const config = multi([creative(1, 2), creative(2, 2)]);
     expect(launchSubPreview(config.subConfig, 'creo_1+1', sources).sub3).toBe('creo_1+1');
-    expect(launchSubPreview(config.subConfig, 'bad label+x', sources).sub3).toBeNull();
+    // A typed name may hold «+» anywhere (2026-11-25), but nothing outside [A-Za-z0-9_+-].
+    expect(launchSubPreview(config.subConfig, 'pak+x', sources).sub3).toBe('pak+x');
+    expect(launchSubPreview(config.subConfig, 'bad label!', sources).sub3).toBeNull();
   });
 });
 

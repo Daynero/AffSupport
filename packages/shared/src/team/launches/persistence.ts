@@ -35,6 +35,7 @@ export function parseLaunchDraft(value: unknown): LaunchDraft | null {
     else if (k === 'materialId' && typeof v === 'string') result.materialId = v;
     else if (k === 'creativeAlias' && typeof v === 'string') result.creativeAlias = v;
     else if (k === 'creativeKind' && (v === 'video' || v === 'image')) result.creativeKind = v;
+    else if (k === 'creativeLabel' && typeof v === 'string') result.creativeLabel = v;
     else if (k === 'creatives' && Array.isArray(v)) {
       // A draft may be mid-edit; full rules apply in parseLaunchConfig.
       const creatives = v.flatMap(item =>
@@ -449,6 +450,9 @@ export function parseLaunchSummary(value: unknown): LaunchSummary | null {
     Number.isSafeInteger(value.creativeCount) &&
     value.creativeCount >= 1
       ? { creativeCount: value.creativeCount }
+      : {}),
+    ...(typeof value.creativeLabel === 'string' && value.creativeLabel
+      ? { creativeLabel: value.creativeLabel }
       : {}),
     ...(value.creativeKind === 'video' || value.creativeKind === 'image'
       ? { creativeKind: value.creativeKind }

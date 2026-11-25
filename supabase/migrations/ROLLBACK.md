@@ -3700,3 +3700,13 @@ calls it after an agent's successful process finalize that carries `restitchPrep
 read is the material's current one, the actor may still `process`, and the record is not older than
 the existing one. No table or column. Undo by dropping the function; drive-ops ignores the failed
 call (best effort) and background re-stitches simply read their source again, as before.
+
+## 20261224310000 — a typed name for several creatives (062)
+
+Patches `private.launch_creatives_error(jsonb, boolean)` to refuse a config whose `creativeLabel`
+is not 1..80 characters of `[A-Za-z0-9_+-]` (`LAUNCH_SUB_INVALID`, at the draft and at admission),
+and `private.list_launches_pre_assignment(uuid, jsonb, integer)` to list `creativeLabel` and search
+it. No table or column: the name lives in the Launch config jsonb. Undo by re-running the two
+functions' definitions from 20261221100000 / 20261221110000 without the inserted lines; a stored
+`creativeLabel` then passes unchecked and the card falls back to «<first> +N» (the shared naming
+still reads it from the config).

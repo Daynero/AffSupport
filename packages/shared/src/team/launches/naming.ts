@@ -33,12 +33,24 @@ export function launchTomorrow(
   const date = new Date(Date.UTC(part('year'), part('month') - 1, part('day') + 1));
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
-/** 062: the first creative's alias, with `+N` for the other creatives. */
-export function launchCreativeLabel(
+/** 062: the automatic name — the first creative's alias, with `+N` for the other creatives. */
+export function launchAutoCreativeLabel(
   config: Pick<LaunchConfig, 'creativeAlias'> & Partial<Pick<LaunchConfig, 'creatives'>>
 ): string {
   const others = (config.creatives?.length ?? 1) - 1;
   return others > 0 ? `${config.creativeAlias}+${others}` : config.creativeAlias;
+}
+/**
+ * The name a Launch's creatives go by in SUB «Креатив», campaign names and the result's title:
+ * the name the person typed for several creatives, else the automatic «<first>+N». One creative
+ * is always its own alias.
+ */
+export function launchCreativeLabel(
+  config: Pick<LaunchConfig, 'creativeAlias'> &
+    Partial<Pick<LaunchConfig, 'creatives' | 'creativeLabel'>>
+): string {
+  if ((config.creatives?.length ?? 1) > 1 && config.creativeLabel) return config.creativeLabel;
+  return launchAutoCreativeLabel(config);
 }
 /** 062: product-ID prefix from a creative alias (already `[A-Za-z0-9_-]`). */
 export function launchCreativeIdPrefix(alias: string): string {
@@ -49,7 +61,7 @@ export function launchCampaignName(
     LaunchConfig,
     'launchDate' | 'creativeAlias' | 'method' | 'gender' | 'age' | 'advantagePlus'
   > &
-    Partial<Pick<LaunchConfig, 'creatives'>>,
+    Partial<Pick<LaunchConfig, 'creatives' | 'creativeLabel'>>,
   sources: Pick<LaunchSources, 'social' | 'agentId' | 'offer'>,
   campaign: Omit<LaunchCampaign, 'name'>
 ): string {

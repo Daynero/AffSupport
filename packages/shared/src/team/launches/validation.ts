@@ -7,6 +7,7 @@ import {
   LAUNCH_ADS_MAX,
   LAUNCH_BUDGET_MAX,
   LAUNCH_CAMPAIGN_MAX,
+  LAUNCH_CREATIVE_LABEL_MAX,
   LAUNCH_SUB_VARIABLES,
   type LaunchConfig,
   type LaunchCreative,
@@ -72,14 +73,16 @@ const CYRILLIC_LATIN: Record<string, string> = {
  * transliteration, spaces to `_`, anything else outside `A–Z a–z 0–9 _ -` dropped.
  * 062: names are no longer typed by hand, so this is the name.
  */
-export function launchCreativeAlias(filename: string): string {
-  const stem = filename.replace(/\.[^.]+$/u, '').normalize('NFC');
-  const latin = Array.from(stem, char => {
+function latinized(text: string): string {
+  return Array.from(text.normalize('NFC'), char => {
     const lower = char.toLowerCase();
     const mapped = CYRILLIC_LATIN[lower];
     if (mapped === undefined) return char;
     return char === lower || !mapped ? mapped : mapped[0]!.toUpperCase() + mapped.slice(1);
   }).join('');
+}
+export function launchCreativeAlias(filename: string): string {
+  const latin = latinized(filename.replace(/\.[^.]+$/u, ''));
   const alias = latin
     .replace(/\p{Zs}+/gu, '_')
     .replace(/[^A-Za-z0-9_-]+/gu, '')
@@ -87,6 +90,34 @@ export function launchCreativeAlias(filename: string): string {
     .replace(/^[_-]+|[_-]+$/gu, '')
     .slice(0, 160);
   return alias || 'creative';
+}
+/**
+ * The name of several creatives, or the automatic «<first>+N», as SUB «Креатив» takes it:
+ * spaces to `_`, then only `A–Z a–z 0–9 _ - +` (a «+» goes out as %2B, never as a space).
+ */
+export function normalizeLaunchCreativeLabel(
+  value: unknown,
+  max = LAUNCH_CREATIVE_LABEL_MAX
+): string | null {
+  if (typeof value !== 'string') return null;
+  const text = value
+    .normalize('NFC')
+    .replace(/^\p{Zs}+|\p{Zs}+$/gu, '')
+    .replace(/\p{Zs}+/gu, '_');
+  return text.length <= max && /^[A-Za-z0-9_+-]+$/u.test(text) ? text : null;
+}
+/**
+ * What a person types into the name of several creatives, turned into that alphabet as they
+ * type: «пак 1» → «pak_1». Cyrillic is transliterated as creative names are, spaces become `_`,
+ * any other character is dropped. `final` (on leaving the field) also trims separators at the
+ * ends, which typing keeps so «pak » can still become «pak_1».
+ */
+export function launchCreativeLabelInput(text: string, final = false): string {
+  const typed = latinized(text)
+    .replace(/\p{Zs}+/gu, '_')
+    .replace(/[^A-Za-z0-9_+-]+/gu, '')
+    .slice(0, LAUNCH_CREATIVE_LABEL_MAX);
+  return final ? typed.replace(/^[_+-]+|[_+-]+$/gu, '') : typed;
 }
 export function normalizeLaunchOffer(value: unknown): string | null {
   if (typeof value !== 'string' || /\p{Cc}/u.test(value)) return null;
@@ -291,6 +322,13 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
   if (budgetMode !== 'manual' && budgets !== null) errors.budgets = 'LAUNCH_BUDGET_INVALID';
   const creatives = parseLaunchCreatives(value);
   if (!creatives.ok) errors.creatives = creatives.code;
+  // Kept exactly as stored: admission compares the parsed config with the saved draft.
+  const creativeLabel =
+    value.creativeLabel === undefined
+      ? undefined
+      : normalizeLaunchCreativeLabel(value.creativeLabel);
+  if (value.creativeLabel !== undefined && creativeLabel !== value.creativeLabel)
+    errors.creativeLabel = 'LAUNCH_SUB_INVALID';
   if (Object.keys(errors).length) return { ok: false, errors };
   if (!creatives.ok) return { ok: false, errors: { creatives: creatives.code } };
   // Narrow every field again instead of trusting a route generic or casting a payload.
@@ -347,6 +385,7 @@ export function parseLaunchConfig(value: unknown): LaunchParseResult<LaunchConfi
       ...(creatives.creatives
         ? { creativeKind: creatives.creativeKind, creatives: creatives.creatives }
         : {}),
+      ...(creativeLabel ? { creativeLabel } : {}),
       campaignCount: value.campaignCount,
       maxBudget: value.maxBudget,
       ...(typeof value.minBudget === 'number' ? { minBudget: value.minBudget } : {}),

@@ -84,7 +84,8 @@ function withCreatives(
       materialId: one?.materialId,
       creativeAlias: one ? launchCreativeAlias(one.name) : undefined,
       creatives: undefined,
-      creativeKind: undefined
+      creativeKind: undefined,
+      creativeLabel: undefined
     };
   }
   const n = draft.catalog?.productCount ?? resolved.length;

@@ -131,6 +131,27 @@ export function creativeSelectKey(language: Language, count: number): Translatio
   return category === 'few' ? 'launchesSelectCreativesFew' : 'launchesSelectCreativesMany';
 }
 
+/** «14 креативів» — the count of a generated Launch's creatives. */
+export function launchCreativeCountKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'launchResultCreativesOne';
+  return category === 'few' ? 'launchResultCreativesFew' : 'launchResultCreativesMany';
+}
+
+/** «140 товарів». */
+export function launchProductCountKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'launchResultProductsOne';
+  return category === 'few' ? 'launchResultProductsFew' : 'launchResultProductsMany';
+}
+
+/** «по 10 товарів кожен» — every creative holds the same share. */
+export function launchEachProductKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'launchResultEachProductOne';
+  return category === 'few' ? 'launchResultEachProductFew' : 'launchResultEachProductMany';
+}
+
 export function selectedCountKey(language: Language, count: number): TranslationKey {
   const category = pluralCategory(language, count);
   if (category === 'one') return 'selectedOne';

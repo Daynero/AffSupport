@@ -14,6 +14,7 @@ import {
   LAUNCH_ADS_MAX,
   LAUNCH_BUDGET_MAX,
   LAUNCH_CAMPAIGN_MAX,
+  LAUNCH_CREATIVE_LABEL_MAX,
   LAUNCH_SUB_VARIABLES,
   LAUNCH_URL_MAX
 } from '../launches.js';
@@ -23,6 +24,7 @@ export type LaunchFieldKind =
   | 'buyer'
   | 'account'
   | 'creatives'
+  | 'label'
   | 'integer'
   | 'money'
   | 'money-list'
@@ -101,6 +103,18 @@ export const LAUNCH_FIELDS: readonly LaunchFieldSpec[] = [
     profile: false,
     words: ['відео', 'креатив', 'креативи', 'картинка', 'матеріал'],
     note: 'material names such as TR_16, in order'
+  },
+  {
+    path: 'creativeLabel',
+    tier: 2,
+    assistant: false,
+    kind: 'label',
+    ops: OPTIONAL,
+    max: LAUNCH_CREATIVE_LABEL_MAX,
+    profile: false,
+    catalogOnly: true,
+    words: ['назва креативів', 'назва набору', 'пак'],
+    note: 'one name for several creatives in SUB and campaign names; empty = first+N'
   },
   {
     path: 'campaignCount',

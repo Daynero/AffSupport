@@ -1,23 +1,37 @@
-import { useState, type KeyboardEvent } from 'react';
-import { ImageIcon, Play, X } from 'lucide-react';
-import type { LaunchCreativeKind } from '@video-compressor/shared';
+import { useId, useState, type KeyboardEvent } from 'react';
+import { ImageIcon, Play, RotateCcw, X } from 'lucide-react';
+import {
+  LAUNCH_CREATIVE_LABEL_MAX,
+  launchCreativeLabelInput,
+  type LaunchCreativeKind
+} from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons.js';
-import { Button, IconButton, Input, Slider, Tooltip } from '../../components/ui/index.js';
+import {
+  Button,
+  FormField,
+  IconButton,
+  Input,
+  Slider,
+  Tooltip
+} from '../../components/ui/index.js';
 import { useI18n } from '../../i18n.js';
 
 const PAGE_STEP = 10;
 /** Characters of a long creative name always shown at its end. */
 const NAME_TAIL = 4;
 
-function Thumbnail({
+export function LaunchCreativeThumbnail({
   thumbnailUrl,
   kind,
   disabled,
+  label,
   onPreview
 }: {
   thumbnailUrl: string | null;
   kind: LaunchCreativeKind | null;
   disabled: boolean;
+  /** The button's name where several thumbnails stand together. */
+  label?: string;
   onPreview: () => void;
 }) {
   const { t } = useI18n();
@@ -27,7 +41,7 @@ function Thumbnail({
       className="launch-creative-thumbnail"
       variant="ghost"
       disabled={disabled}
-      aria-label={t('launchesPreviewCreative')}
+      aria-label={label ?? t('launchesPreviewCreative')}
       onClick={onPreview}
     >
       {thumbnailUrl && broken !== thumbnailUrl ? (
@@ -86,7 +100,7 @@ export function LaunchCreativeShareRow({
   };
   return (
     <li className="launch-creative-share-row flex min-w-0 items-center gap-3">
-      <Thumbnail
+      <LaunchCreativeThumbnail
         thumbnailUrl={thumbnailUrl}
         kind={kind}
         disabled={disabled}
@@ -178,7 +192,7 @@ export function LaunchCreativeRow({
   const messageId = `${inputId}-message`;
   return (
     <div className="flex min-w-0 items-center gap-3">
-      <Thumbnail
+      <LaunchCreativeThumbnail
         thumbnailUrl={thumbnailUrl}
         kind={kind}
         disabled={disabled}
@@ -203,5 +217,80 @@ export function LaunchCreativeRow({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The one name of several creatives (owner, 2026-11-25): SUB «Креатив», the campaign names and
+ * the result's title carry it. It shows the automatic «<first>+N» and follows the list until the
+ * person types a name of their own («пак 1» → «pak_1», as the trackers take it); clearing the
+ * field or «Скинути» gives the automatic name back.
+ */
+export function LaunchCreativeLabelField({
+  value,
+  automatic,
+  disabled,
+  onChange
+}: {
+  /** The typed name; undefined while the name is automatic. */
+  value: string | undefined;
+  automatic: string;
+  disabled: boolean;
+  onChange: (label: string | undefined) => void;
+}) {
+  const { t } = useI18n();
+  const id = useId();
+  // What the field shows while focused: «» stays «» there, not the automatic name.
+  const [editing, setEditing] = useState<string | null>(null);
+  const store = (text: string) => onChange(text && text !== automatic ? text : undefined);
+  return (
+    <FormField
+      label={t('launchCreativeLabel')}
+      htmlFor={id}
+      help={
+        value
+          ? t('launchCreativeLabelCustomHelp', { name: automatic })
+          : t('launchCreativeLabelHelp')
+      }
+      className="launch-creative-label"
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <Input
+          id={id}
+          value={editing ?? value ?? automatic}
+          placeholder={automatic}
+          maxLength={LAUNCH_CREATIVE_LABEL_MAX}
+          spellCheck={false}
+          autoComplete="off"
+          disabled={disabled}
+          onFocus={() => setEditing(value ?? automatic)}
+          onChange={event => {
+            const text = launchCreativeLabelInput(event.target.value);
+            setEditing(text);
+            store(text);
+          }}
+          onBlur={() => {
+            if (editing === null) return;
+            store(launchCreativeLabelInput(editing, true));
+            setEditing(null);
+          }}
+        />
+        {value && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="shrink-0"
+            disabled={disabled}
+            onClick={() => {
+              setEditing(null);
+              onChange(undefined);
+            }}
+          >
+            <RotateCcw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            <span>{t('launchCreativeLabelReset')}</span>
+          </Button>
+        )}
+      </div>
+    </FormField>
   );
 }

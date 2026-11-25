@@ -155,8 +155,8 @@ it('shows the share of each creative in its own row and lets a typed share hold'
     creativeKind: 'video',
     creatives: [1, 2, 3, 4].map(i => creative(i, 25))
   });
-  // Names are not typed here: no text field per creative.
-  expect(screen.queryByRole('textbox')).toBeNull();
+  // Names are not typed per creative: the one text field names them all (owner, 2026-11-25).
+  expect(screen.getAllByRole('textbox')).toEqual([screen.getByLabelText('Creatives name')]);
   expect((screen.getByRole('button', { name: 'Even' }) as HTMLButtonElement).disabled).toBe(true);
   fireEvent.change(screen.getByRole('spinbutton', { name: 'Copies for clip_1' }), {
     target: { value: '40' }

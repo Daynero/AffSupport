@@ -11,6 +11,8 @@ export const LAUNCH_BUDGET_MAX = 999999;
 export const LAUNCH_ADS_MAX = 1000;
 export const LAUNCH_URL_MAX = 8192;
 export const LAUNCH_SUB_VALUE_MAX = 512;
+/** Characters of a typed name of several creatives (SUB «Креатив», campaign names). */
+export const LAUNCH_CREATIVE_LABEL_MAX = 80;
 export const LAUNCH_SUB_VARIABLES = [
   'buyer',
   'social',
@@ -70,6 +72,12 @@ export interface LaunchConfig {
   creativeKind?: LaunchCreativeKind;
   /** 062: ordered creatives; absent on older launches. */
   creatives?: LaunchCreative[];
+  /**
+   * The name of several creatives as the person typed it («pak_1»): SUB «Креатив», campaign
+   * names and the result's title use it instead of the automatic «<first>+N». Absent = automatic;
+   * read only while the Launch has two or more creatives. `[A-Za-z0-9_+-]`, ≤ 80 characters.
+   */
+  creativeLabel?: string;
   campaignCount: number;
   maxBudget: number;
   /** Absent on legacy launches, which retain max/count allocation. */
@@ -199,6 +207,8 @@ export interface LaunchSummary {
   creativeAlias: string;
   /** 062: number of creatives; absent on older servers (one). */
   creativeCount?: number;
+  /** The typed name of several creatives; absent or null = automatic «<first>+N». */
+  creativeLabel?: string | null;
   creativeKind?: LaunchCreativeKind;
   method: 'catalog' | 'other';
   workStatus: 'todo' | 'in_progress' | 'done';

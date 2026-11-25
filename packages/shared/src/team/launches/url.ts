@@ -64,9 +64,9 @@ export function patchLaunchUrl(
         (catalogSlots.has(slot as LaunchSubSlot) && value.length > LAUNCH_SUB_VALUE_MAX) ||
         (catalogSlots.has(slot as LaunchSubSlot)
           ? /[\p{Cc}\p{Cs}]/u.test(value)
-          : // «+» only as a Launch label's «+N» (062); written as %2B below, so a tracker
-            // never reads it as a space.
-            !/^[A-Za-z0-9_-]+(?:\+\d{1,3})?$/u.test(value)))
+          : // «+» only from a creatives name — «<first>+N» (062) or one typed for several
+            // creatives; written as %2B below, so a tracker never reads it as a space.
+            !/^[A-Za-z0-9_+-]+$/u.test(value)))
     )
       throw new Error('LAUNCH_SUB_INVALID');
   const hash = original.indexOf('#');

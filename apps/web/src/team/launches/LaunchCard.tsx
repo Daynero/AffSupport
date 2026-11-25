@@ -131,11 +131,15 @@ export function LaunchCard({
                 : 'teamAgentFree'
           )
   ].join('\n');
-  // 062: the first creative names the launch; the others show as a count.
+  // 062: the first creative names the launch; the others show as a count — unless several
+  // creatives were given a name of their own, which then names them here as everywhere.
   const others = (value.creativeCount ?? 1) - 1;
-  const creativeLabel = value.creativeAlias.trim()
-    ? `${value.creativeAlias.trim()}${others > 0 ? ` +${others}` : ''}`
-    : '';
+  const creativeLabel =
+    others > 0 && value.creativeLabel
+      ? value.creativeLabel
+      : value.creativeAlias.trim()
+        ? `${value.creativeAlias.trim()}${others > 0 ? ` +${others}` : ''}`
+        : '';
   const methodLabel = [
     t(value.method === 'catalog' ? 'launchesCatalog' : 'launchesOther'),
     value.creativeKind === 'image' ? t('launchCreativeKindImage') : ''

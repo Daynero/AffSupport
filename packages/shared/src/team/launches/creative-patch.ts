@@ -58,6 +58,7 @@ export function creativesPatch(
       creativeAlias: undefined,
       creatives: undefined,
       creativeKind: undefined,
+      creativeLabel: undefined,
       ...catalog
     };
   // A video added while restitch is on needs a variation of its own: one per video is the
@@ -75,6 +76,8 @@ export function creativesPatch(
     creativeAlias: first.alias,
     creatives,
     creativeKind: kind ?? undefined,
+    // A name for several creatives; one creative is its own name, so a typed one goes with it.
+    ...(creatives.length < 2 ? { creativeLabel: undefined } : {}),
     ...catalog,
     ...(followCount !== undefined && config.catalog
       ? {

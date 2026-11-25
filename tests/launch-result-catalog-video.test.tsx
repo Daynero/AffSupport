@@ -2,7 +2,7 @@
 // 047 T071: the variation/deferred-publication parts of a Launch result, which shipped to
 // every build in 1.4.0 (00c82e4) while their UI was still covered only behind the beta flag.
 import React from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CatalogPublicationSnapshot } from '@video-compressor/shared';
 import { teamApi } from '../apps/web/src/api/team';
@@ -126,17 +126,55 @@ it('reads no publication for a pre-047 catalog, a deleted catalog or a result ou
   expect(document.querySelector('.catalog-publication-line')).toBeNull();
 });
 
-it('lists every creative of a multi-creative launch with its share', () => {
+it('says the creatives of a multi-creative launch in words and shows each one', () => {
+  // Owner, 2026-11-25: «Зображення: 10 × 10 · 11 × 10 · …» read as a riddle.
   const creatives = [
     { materialId: 'a', alias: 'Lp33', copies: 60, pinned: null },
     { materialId: 'b', alias: 'Qa47', copies: 40, pinned: 1 }
   ];
   show(revision({ creatives, creativeKind: 'video' }), false);
-  expect(screen.getByLabelText('Creative').textContent).toBe('Video: Lp33 × 60 · Qa47 × 40');
+  const shares = screen.getByRole('region', { name: 'Creatives' });
+  expect(shares.textContent).toContain('2 creatives · 100 products');
+  expect(shares.textContent).not.toContain('×');
+  // Shares differ, so each thumbnail carries its own count.
+  expect(screen.getByLabelText('60 products').textContent).toBe('60');
+  expect(screen.getByLabelText('40 products').textContent).toBe('40');
+  expect(screen.getByText('Lp33')).toBeTruthy();
   cleanup();
-  show(revision({ creatives, creativeKind: 'image' }), false);
-  expect(screen.getByLabelText('Creative').textContent).toBe('Image: Lp33 × 60 · Qa47 × 40');
+  const even = Array.from({ length: 12 }, (_, i) => ({
+    materialId: `m${i}`,
+    alias: `c${i + 1}`,
+    copies: 10,
+    pinned: null
+  }));
+  show(revision({ creatives: even, creativeKind: 'image' }), false);
+  const region = screen.getByRole('region', { name: 'Creatives' });
+  expect(region.textContent).toContain('12 creatives · 10 products each');
+  expect(screen.queryByLabelText('10 products')).toBeNull();
+  // The first eight, then «+4» opens the rest.
+  expect(
+    region.querySelectorAll('li.launch-result-creative .launch-creative-thumbnail')
+  ).toHaveLength(8);
+  fireEvent.click(screen.getByRole('button', { name: '+4' }));
+  expect(
+    region.querySelectorAll('li.launch-result-creative .launch-creative-thumbnail')
+  ).toHaveLength(12);
+  expect(screen.getByRole('button', { name: 'Show less' }).getAttribute('aria-expanded')).toBe(
+    'true'
+  );
   cleanup();
   show(revision({ creatives: creatives.slice(0, 1) }), false);
-  expect(screen.queryByLabelText('Creative')).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Creatives' })).toBeNull();
+});
+
+it('titles the result with the name typed for several creatives', () => {
+  const creatives = [
+    { materialId: 'a', alias: 'Lp33', copies: 2, pinned: null },
+    { materialId: 'b', alias: 'Qa47', copies: 2, pinned: null }
+  ];
+  show(revision({ creatives, creativeKind: 'video', creativeLabel: 'pak_1' }), false);
+  expect(document.querySelector('.launch-result-card')?.textContent).toContain('/ pak_1');
+  cleanup();
+  show(revision({ creatives, creativeKind: 'video' }), false);
+  expect(document.querySelector('.launch-result-card')?.textContent).toMatch(/\/ \S+\+1/u);
 });

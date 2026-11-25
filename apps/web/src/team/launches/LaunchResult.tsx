@@ -17,6 +17,7 @@ import { Button, Card, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { CopyResultField } from './CopyResultField';
+import { LaunchResultCreatives } from './LaunchResultCreatives';
 import { launchAction } from './analytics';
 import { campaignCountLabel } from './campaignCountLabel';
 import { LazyCatalogRenameDialog } from '../product-catalog/LazyCatalogRenameDialog.js';
@@ -183,15 +184,11 @@ export function LaunchResult({
               {t('launchesCopyHint')}
             </span>
             {(revision.config.creatives?.length ?? 0) > 1 && (
-              <p className="m-0 text-ink-muted" aria-label={t('launchesCreative')}>
-                {t(
-                  revision.config.creativeKind === 'image'
-                    ? 'launchCreativeKindImage'
-                    : 'launchCreativeKindVideo'
-                )}
-                {': '}
-                {revision.config.creatives!.map(c => `${c.alias} × ${c.copies}`).join(' · ')}
-              </p>
+              <LaunchResultCreatives
+                teamId={teamId}
+                creatives={revision.config.creatives!}
+                kind={revision.config.creativeKind ?? revision.sources.materialType}
+              />
             )}
             {revision.catalog && (
               <section className="launch-result-copy-section" aria-label={t('launchesCatalog')}>

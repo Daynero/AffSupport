@@ -409,6 +409,48 @@
   gap: var(--space-4);
   margin-top: var(--space-3);
 }
+/* The creatives of a generated Launch: one line in words, then the pictures with their names. */
+.launch-result-creatives {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.launch-result-creatives-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.launch-result-creative {
+  position: relative;
+  display: flex;
+  width: calc(var(--space-5) * 4);
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.launch-result-creative-name {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-badge.launch-result-creative-count {
+  position: absolute;
+  inset-inline-start: var(--space-1);
+  inset-block-start: var(--space-1);
+  pointer-events: none;
+}
+.launch-result-creatives-more {
+  display: flex;
+}
+.launch-result-creatives-toggle {
+  height: calc(var(--space-5) * 2.5);
+  white-space: nowrap;
+}
 .launch-result-campaigns,
 .launch-result-copy-section {
   display: flex;

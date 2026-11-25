@@ -9,6 +9,7 @@ import {
   maxCopiesFor,
   setCopies,
   classifyMaterial,
+  launchAutoCreativeLabel,
   launchCreativeAlias,
   normalizeLaunchSub,
   removeCreative,
@@ -43,7 +44,11 @@ import {
   reportFileAttemptError,
   retryableError
 } from '../../analytics/file-attempt-errors.js';
-import { LaunchCreativeRow, LaunchCreativeShareRow } from './LaunchCreativeList.js';
+import {
+  LaunchCreativeLabelField,
+  LaunchCreativeRow,
+  LaunchCreativeShareRow
+} from './LaunchCreativeList.js';
 import { creativesPatch, draftCreatives } from './launchCreatives.js';
 
 type PickerError =
@@ -156,7 +161,8 @@ export function LaunchCreativePicker({
         materialId: one.id,
         creativeAlias: launchCreativeAlias(one.name),
         creatives: undefined,
-        creativeKind: undefined
+        creativeKind: undefined,
+        creativeLabel: undefined
       });
       return;
     }
@@ -565,6 +571,14 @@ export function LaunchCreativePicker({
             }}
           />
         </div>
+        {catalogMode && creatives.length > 1 && (
+          <LaunchCreativeLabelField
+            value={config.creativeLabel}
+            automatic={launchAutoCreativeLabel({ creativeAlias: creatives[0]!.alias, creatives })}
+            disabled={unavailable}
+            onChange={creativeLabel => onChange({ creativeLabel })}
+          />
+        )}
       </div>
       {errorText && (
         <p role="alert" className="ui-field-error">

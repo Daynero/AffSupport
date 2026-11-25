@@ -174,14 +174,16 @@ export function LaunchEditor({
     offer: offers.find(offer => offer.id === config.offerId)?.value,
     buyer: buyers.find(buyer => buyer.id === config.buyerId)?.value
   };
-  // One SUB «Креатив» for the whole Launch: the first creative with «+N» for the others.
+  // One SUB «Креатив» for the whole Launch: the name typed for several creatives, else the
+  // first creative with «+N» for the others.
   const subPreview = config.subConfig
     ? launchSubPreview(
         config.subConfig,
         config.creativeAlias
           ? launchCreativeLabel({
               creativeAlias: config.creativeAlias,
-              creatives: config.method === 'catalog' ? config.creatives : undefined
+              creatives: config.method === 'catalog' ? config.creatives : undefined,
+              creativeLabel: config.creativeLabel
             })
           : config.creativeAlias,
         localSources
@@ -507,7 +509,11 @@ export function LaunchEditor({
                     changed({
                       method,
                       ...(method === 'other'
-                        ? { creatives: undefined, creativeKind: undefined }
+                        ? {
+                            creatives: undefined,
+                            creativeKind: undefined,
+                            creativeLabel: undefined
+                          }
                         : {}),
                       ...(method === 'catalog' && !config.catalog
                         ? { catalog: newLaunchCatalogConfig() }
