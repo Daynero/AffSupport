@@ -1133,6 +1133,7 @@ function LaunchSpaceContent({
             teamId={teamId}
             detail={open === 'new' ? null : visibleDetail}
             initialMaterialId={open === 'new' ? query.launchMaterialId : null}
+            initialMaterialName={open === 'new' ? query.launchMaterialName : null}
             defaults={defaults}
             accounts={accounts}
             offers={offers}

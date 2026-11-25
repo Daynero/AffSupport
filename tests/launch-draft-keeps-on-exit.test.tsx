@@ -10,6 +10,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { useLaunchDraft } from '../apps/web/src/team/launches/useLaunchDraft';
 import { useLaunchAutosave } from '../apps/web/src/team/launches/useLaunchAutosave';
 import { useExitAfterUpload } from '../apps/web/src/team/launches/useExitAfterUpload';
+import { withInitialCreative } from '../apps/web/src/team/launches/launchDraftDefaults';
+import { launchCreativeAlias } from '../packages/shared/src/team/launches';
 
 afterEach(() => {
   cleanup();
@@ -24,6 +26,20 @@ it('treats a creative chosen before the editor opened as an unsaved edit', () =>
   expect(started.result.current.config.materialId).toBe(MATERIAL);
   expect(started.result.current.dirty).toBe(true);
   expect(started.result.current.isDirty()).toBe(true);
+});
+
+it('names a creative chosen in Explorer the way the picker names it', () => {
+  const started = renderHook(() => useLaunchDraft(null, MATERIAL, 'Мій ролик 1.mp4'));
+  expect(started.result.current.config.materialId).toBe(MATERIAL);
+  expect(started.result.current.config.creativeAlias).toBe(launchCreativeAlias('Мій ролик 1.mp4'));
+  expect(started.result.current.config.creativeAlias).toMatch(/^[A-Za-z0-9_-]+$/);
+  expect(started.result.current.dirty).toBe(true);
+});
+
+it('keeps the creative without a name when the address carried none', () => {
+  const draft = withInitialCreative({ schemaVersion: 1 }, MATERIAL, '  ');
+  expect(draft).toEqual({ schemaVersion: 1, materialId: MATERIAL });
+  expect(withInitialCreative({ schemaVersion: 1 }, null, 'x.mp4')).toEqual({ schemaVersion: 1 });
 });
 
 it('leaves an untouched blank launch unsaved, so nothing empty lands in the list', () => {

@@ -38,6 +38,8 @@ export interface TeamRouteQuery {
   taskId: string | null;
   launchId?: string | null;
   launchMaterialId?: string | null;
+  /** The chosen creative's file name, so a launch from Explorer is named like one from the picker. */
+  launchMaterialName?: string | null;
   launchTab?: 'result' | 'settings' | null;
   revisionId?: string | null;
   /** Tasks tagged with one agent (017) — how the Accounts tab links into the list. */
@@ -298,6 +300,9 @@ export function parseTeamRoute(route: string): TeamRoute | null {
     ...(params.has('launchMaterial')
       ? { launchMaterialId: trimmedParam(params, 'launchMaterial') }
       : {}),
+    ...(params.has('launchMaterialName')
+      ? { launchMaterialName: trimmedParam(params, 'launchMaterialName') }
+      : {}),
     ...(params.has('launch') ? { launchId: trimmedParam(params, 'launch') } : {}),
     ...(params.get('launchTab') === 'result'
       ? { launchTab: 'result' as const }
@@ -425,8 +430,10 @@ export function buildTeamRoute(input: TeamRouteInput): string {
   if (query.storage) params.set('storage', '1');
   if (section === 'launches') {
     if (query.launchId) params.set('launch', query.launchId);
-    if (query.launchId === 'new' && query.launchMaterialId)
+    if (query.launchId === 'new' && query.launchMaterialId) {
       params.set('launchMaterial', query.launchMaterialId);
+      if (query.launchMaterialName) params.set('launchMaterialName', query.launchMaterialName);
+    }
     if (query.launchTab) params.set('launchTab', query.launchTab);
     if (query.revisionId) params.set('revision', query.revisionId);
   }

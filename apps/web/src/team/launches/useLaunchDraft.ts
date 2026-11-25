@@ -5,17 +5,21 @@ import {
   type LaunchDetail,
   type LaunchSourceSnapshot
 } from '@video-compressor/shared';
-import { newLaunchDraft } from './launchDraftDefaults';
+import { newLaunchDraft, withInitialCreative } from './launchDraftDefaults';
 /**
  * A new launch opened with a creative already chosen (Explorer's «Launch») starts from
  * an edit, not from a blank form: the baseline is the blank form, so the chosen creative
  * is unsaved and autosave keeps the launch as a draft at once. With the creative as the
  * baseline, closing the editor without touching anything else lost the launch.
  */
-export function useLaunchDraft(detail: LaunchDetail | null, materialId?: string | null) {
+export function useLaunchDraft(
+  detail: LaunchDetail | null,
+  materialId?: string | null,
+  materialName?: string | null
+) {
   const [blank] = useState<LaunchDraft>(() => detail?.draft ?? newLaunchDraft());
   const [config, setConfig] = useState<LaunchDraft>(() =>
-    detail ? detail.draft : { ...blank, ...(materialId ? { materialId } : {}) }
+    detail ? detail.draft : withInitialCreative(blank, materialId, materialName)
   );
   const [sources, setSources] = useState<LaunchSourceSnapshot | null>(
     detail?.expectedSourceSnapshot ?? null

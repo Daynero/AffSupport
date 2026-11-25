@@ -251,7 +251,8 @@ export function PreviewPane({
                           query: {
                             launchId: 'new',
                             launchTab: 'settings',
-                            launchMaterialId: row.id
+                            launchMaterialId: row.id,
+                            launchMaterialName: row.name
                           }
                         })
                       )

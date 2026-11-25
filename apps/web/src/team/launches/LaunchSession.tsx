@@ -56,7 +56,7 @@ import { LaunchGenerationProgress } from './LaunchGenerationProgress';
 import { useLaunchProgressScroll } from './useLaunchProgressScroll';
 import { isLaunchCatalogReady, readLaunchPreparation, LaunchPreparationError } from './preparation';
 import { useLaunchDraft } from './useLaunchDraft';
-import { newLaunchDraft } from './launchDraftDefaults';
+import { newLaunchDraft, withInitialCreative } from './launchDraftDefaults';
 import { mergeLaunchOverrides, useLaunchOverrides } from './useLaunchOverrides';
 import { useLaunchGeneration } from './useLaunchGeneration';
 import { catalogComparable, withCatalogGenerationDefaults } from './catalogGenerationDefaults';
@@ -95,6 +95,7 @@ export function LaunchSession({
   teamId,
   detail,
   initialMaterialId,
+  initialMaterialName,
   defaults,
   accounts,
   offers,
@@ -116,6 +117,7 @@ export function LaunchSession({
   teamId: string;
   detail: LaunchDetail | null;
   initialMaterialId?: string | null;
+  initialMaterialName?: string | null;
   defaults: Awaited<ReturnType<typeof launchApi.defaults>>;
   accounts: TeamAccountSummary[];
   offers: LaunchDictionaryItem[];
@@ -141,7 +143,7 @@ export function LaunchSession({
 }) {
   const { t } = useI18n();
   const toasts = useOptionalToasts();
-  const draft = useLaunchDraft(detail, initialMaterialId);
+  const draft = useLaunchDraft(detail, initialMaterialId, initialMaterialName);
   const progressScroll = useLaunchProgressScroll();
   const latestProgressDetail = useRef(detail);
   latestProgressDetail.current = detail;
@@ -496,9 +498,9 @@ export function LaunchSession({
       // The workspace defaults are the blank form; a creative chosen before the editor
       // opened is the first edit, so autosave keeps it even if nothing else is touched.
       draft.acknowledge(blank);
-      draft.setConfig(initialMaterialId ? { ...blank, materialId: initialMaterialId } : blank);
+      draft.setConfig(withInitialCreative(blank, initialMaterialId, initialMaterialName));
     }
-  }, [detail, defaults, draft, buyers, t, initialMaterialId]);
+  }, [detail, defaults, draft, buyers, t, initialMaterialId, initialMaterialName]);
   useEffect(() => {
     if (!overridesDirty) return;
     const warn = (e: BeforeUnloadEvent) => {

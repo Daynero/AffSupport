@@ -497,3 +497,27 @@ it('preserves the selected material when opening a new launch', () => {
     })
   ).not.toContain('launchMaterial');
 });
+
+it('carries the chosen creative name with its material into a new launch', () => {
+  const path = buildTeamRoute({
+    spaceId: 'space',
+    section: 'launches',
+    query: {
+      launchId: 'new',
+      launchTab: 'settings',
+      launchMaterialId: 'video-id',
+      launchMaterialName: 'Мій ролик 1.mp4'
+    }
+  });
+  const parsed = parseTeamRoute(path);
+  if (parsed?.kind !== 'space') throw new Error('expected a space route');
+  expect(parsed.query.launchMaterialId).toBe('video-id');
+  expect(parsed.query.launchMaterialName).toBe('Мій ролик 1.mp4');
+  expect(
+    buildTeamRoute({
+      spaceId: 'space',
+      section: 'launches',
+      query: { launchId: 'saved-launch', launchMaterialName: 'Мій ролик 1.mp4' }
+    })
+  ).not.toContain('launchMaterialName');
+});
