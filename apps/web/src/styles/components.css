@@ -4820,22 +4820,8 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-4);
 }
-.catalog-schedule-fields {
-  display: grid;
-  gap: var(--space-3);
-  margin-bottom: var(--space-6);
-}
-.catalog-schedule-fields {
-  align-content: start;
-  min-height: 0;
-  overflow-y: auto;
-}
-.catalog-schedule-weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-1);
 /* The four cadences are four tiles, as the owner drew them: the inventory's segmented control
    drew them as a cramped strip at a quarter of the panel (070, phase 9д). */
 .catalog-schedule-preset {
@@ -4868,21 +4854,25 @@
   outline: 2px solid var(--color-secondary-solid);
   outline-offset: 2px;
 }
-}
-.catalog-schedule-fields.is-weekly {
-  grid-template-columns: minmax(0, 1fr) 123px;
-  column-gap: var(--space-3);
-}
-.catalog-schedule-weekday-field,
-.catalog-schedule-time {
+.catalog-schedule-fields {
   display: grid;
-  align-content: start;
-  gap: var(--space-2);
-  font-size: var(--text-lg);
-  color: var(--color-text-muted);
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
-.catalog-schedule-fields.is-weekly .catalog-schedule-time {
-  padding-inline-start: var(--space-3);
+.catalog-schedule-fields {
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  /* The scroll box clipped the time field's bottom rule and every focus ring at its edge; a
+     little room inside, given back outside, keeps the fields where they were. */
+  padding: var(--space-1);
+  margin-inline: calc(-1 * var(--space-1));
+}
+.catalog-schedule-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
 .catalog-schedule-weekday {
   min-height: var(--control-height-lg);
   padding: 0;
@@ -4900,6 +4890,20 @@
   background: var(--color-secondary-solid);
   color: var(--color-secondary-on-solid);
 }
+.catalog-schedule-fields.is-weekly {
+  grid-template-columns: minmax(0, 1fr) 123px;
+  column-gap: var(--space-3);
+}
+.catalog-schedule-weekday-field,
+.catalog-schedule-time {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
+}
+.catalog-schedule-fields.is-weekly .catalog-schedule-time {
+  padding-inline-start: var(--space-3);
   border-inline-start: 1px solid var(--color-border);
 }
 .catalog-schedule-time .ui-input.is-narrow {
