@@ -124,9 +124,9 @@
     "packages/shared/src/team/launches/creative-patch.ts": 84,
     "packages/shared/src/team/launches/defaults-merge.ts": 86,
     "packages/shared/src/team/launches/fields.ts": 96,
-    "apps/agent/src/stitcher/run.ts": 85,
-    "apps/agent/src/files/strip-metadata.ts": 40,
-    "packages/shared/src/machine-load.ts": 95,
-    "packages/shared/src/media-metadata.ts": 75
+    "apps/agent/src/stitcher/run.ts": 90,
+    "apps/agent/src/files/strip-metadata.ts": 66,
+    "packages/shared/src/machine-load.ts": 98,
+    "packages/shared/src/media-metadata.ts": 77
   }
 }
