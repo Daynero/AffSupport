@@ -635,7 +635,7 @@ export function TaskSpace({
                       }
                       onClick={() => setSelectedIds(new Set(taskIds))}
                     >
-                      <span className="team-board-selection-act-label">
+                      <span className="team-board-selection-act-label ui-selection-act-label">
                         {t('teamTasksSelectLoaded')}
                       </span>
                     </Button>

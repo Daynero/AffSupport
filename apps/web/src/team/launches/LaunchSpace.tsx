@@ -792,7 +792,7 @@ function LaunchSpaceContent({
                     leading={<Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
                     onClick={() => void startBatch()}
                   >
-                    <span className="team-board-selection-act-label">
+                    <span className="team-board-selection-act-label ui-selection-act-label">
                       {t('launchesBulkGenerate', { count: eligible.length })}
                     </span>
                   </Button>
@@ -807,7 +807,7 @@ function LaunchSpaceContent({
                   leading={<Copy size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
                   onClick={selection.copySelected}
                 >
-                  <span className="team-board-selection-act-label">
+                  <span className="team-board-selection-act-label ui-selection-act-label">
                     {t('launchesBulkCopy', { count: selectedIds.size })}
                   </span>
                 </Button>
@@ -829,7 +829,7 @@ function LaunchSpaceContent({
                     }
                     onClick={deleteSelected}
                   >
-                    <span className="team-board-selection-act-label">
+                    <span className="team-board-selection-act-label ui-selection-act-label">
                       {t('launchesArchiveSelected', { count: selectedIds.size })}
                     </span>
                   </Button>

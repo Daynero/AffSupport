@@ -279,7 +279,7 @@ function SelectionAct({
       leading={icon}
       onClick={onPress}
     >
-      <span className="team-explorer-selection-act-label">{label}</span>
+      <span className="team-explorer-selection-act-label ui-selection-act-label">{label}</span>
     </Button>
   );
 }

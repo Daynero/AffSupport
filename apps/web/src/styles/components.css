@@ -3730,6 +3730,12 @@
   gap: var(--space-2);
   margin-right: auto;
 }
+/* The bar's own measure of its room (owner, 25.11): the clear button's word goes first, then
+   the acts' words one by one from the last. The × and every name stay. */
+.ui-selection-bar[data-fit='tight'] .ui-selection-clear-label,
+.ui-selection-act-label[data-bare] {
+  display: none;
+}
 
 /* ============================================================
    The demo surface (development only)

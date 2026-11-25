@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../icons';
 import { Alert } from './Alert';
@@ -251,9 +251,58 @@ export interface SelectionBarProps {
   className?: string;
 }
 
+/** An act's word in a selection bar: the part the bar may let go of when room runs out. */
+const SELECTION_ACT_LABEL = 'ui-selection-act-label';
+
+/**
+ * Fits the bar to the room it has, measured rather than guessed (owner, 25.11): a width
+ * threshold could not know that the explorer's card takes 380 px beside the list, that Ukrainian
+ * words are longer than English ones, or that a selection of videos has one more act — and the
+ * clear button was laid over «Перемістити в кошик». The bar gives up as little as it must, in
+ * order: the clear button's word (the × and its name stay), the caveat after the count
+ * (`data-fit="tight"`), then the acts' words one at a time from the last (`data-bare`), so a bar
+ * one word too narrow loses one word, not all of them. Every name stays for a reader and the
+ * tooltip.
+ */
+function useSelectionFit() {
+  const probe = useRef<HTMLSpanElement>(null);
+  const fit = useRef<() => void>(() => {});
+  fit.current = () => {
+    const bar = probe.current?.parentElement;
+    if (!bar) return;
+    const actions = bar.querySelector<HTMLElement>('.ui-selection-actions');
+    const words = [...bar.querySelectorAll<HTMLElement>(`.${SELECTION_ACT_LABEL}`)];
+    const over = () =>
+      bar.scrollWidth > bar.clientWidth + 1 ||
+      (actions !== null && actions.scrollWidth > actions.clientWidth + 1);
+    for (const word of words) delete word.dataset.bare;
+    bar.dataset.fit = 'full';
+    if (!over()) return;
+    bar.dataset.fit = 'tight';
+    for (const word of words.reverse()) {
+      if (!over()) return;
+      word.dataset.bare = '';
+    }
+  };
+  // Every render: the count, the caveat and the acts change what fits.
+  useLayoutEffect(() => fit.current());
+  useEffect(() => {
+    const bar = probe.current?.parentElement;
+    if (!bar || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => fit.current());
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, []);
+  return probe;
+}
+
 /** The strip that appears when rows are selected — explorer, tools, library. */
-export function SelectionBar({
-  count,
+export function SelectionBar(props: SelectionBarProps) {
+  if (props.count === 0) return null;
+  return <FittedSelectionBar {...props} />;
+}
+
+function FittedSelectionBar({
   label,
   actions,
   onClear,
@@ -261,7 +310,7 @@ export function SelectionBar({
   toolbarLabel,
   className
 }: SelectionBarProps) {
-  if (count === 0) return null;
+  const probe = useSelectionFit();
   return (
     /* On the inventory's Toolbar (024, T032): one Tab stop, the arrows walk the
        actions, and the count is read as the bar's own text. */
@@ -269,7 +318,9 @@ export function SelectionBar({
       label={toolbarLabel ?? clearLabel}
       className={uiClasses('selection-bar', { className })}
     >
-      <span className="ui-selection-count">{label}</span>
+      <span ref={probe} className="ui-selection-count">
+        {label}
+      </span>
       <div className="ui-selection-actions">{actions}</div>
       {/* The word can go on a narrow bar (CSS only); the × and the name stay (070, phase 8):
           the bar on a phone used to lay "Скинути вибір (2)" over the acts beside it. */}

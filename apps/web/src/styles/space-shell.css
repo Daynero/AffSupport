@@ -200,24 +200,72 @@
 .team-space-shell-updater .ui-tooltip-anchor {
   align-items: center;
 }
-/* The three doors on the right are one set of equal pills (the owner's header): the manager's
-   link, «Перейти до…» and «Простір». */
+/* Everything on the right of the header is one set of equal pills (owner, 25.11): the health
+   indicator, the catalog manager's door, «Перейти до…» and «Простір» — one height, one frame,
+   one ground, one row of type. They had been four shapes: a frameless word, a two-line chip
+   twice the height in a gold wash, and two outlined buttons. A pill's tone is now carried by
+   its icon and its status, never by a different shape or ground; only a door that needs a
+   person keeps a tinted edge. */
 .team-space-shell-header .team-space-shell-pill.ui-button,
-.team-space-shell-updater .team-updater-entry {
-  border-color: var(--color-border);
+.team-space-shell-header .team-space-health-indicator.ui-button,
+.team-space-shell-updater .team-updater-entry,
+.team-space-shell-updater .team-updater-chip {
+  box-sizing: border-box;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   background: var(--color-surface-muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-label);
+  line-height: var(--leading-caption);
 }
 .team-space-shell-header .team-space-shell-pill.ui-button:hover:not(:disabled),
-.team-space-shell-updater .team-updater-entry:hover {
+.team-space-shell-header .team-space-health-indicator.ui-button:hover:not(:disabled),
+.team-space-shell-updater .team-updater-entry:hover,
+.team-space-shell-updater .team-updater-chip:hover {
   border-color: var(--color-border-strong);
 }
 .team-space-shell-updater .team-updater-entry {
-  box-sizing: border-box;
-  min-height: var(--control-height-sm);
-  padding: var(--control-padding-sm);
+  color: var(--color-text);
+}
+/* The manager's chip says its title, its count and where it is in one line, like its
+   neighbours' labels; the gold wash of a busy or troubled run is gone with the second line. */
+.team-space-shell-updater .team-updater-chip {
+  color: var(--color-text);
+  background-image: none;
+}
+.team-space-shell-updater .team-updater-chip.ui-chip-warn {
+  border-color: color-mix(in srgb, var(--color-warning) 45%, var(--color-border));
+}
+.team-space-shell-updater .catalog-chip-copy {
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.team-space-shell-updater .catalog-chip-title {
+  gap: var(--space-1);
   font-size: var(--text-caption);
-  font-weight: var(--weight-label);
+}
+.team-space-shell-updater .catalog-chip-status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-body);
+}
+.team-space-shell-updater .catalog-chip-status::before {
+  content: '·';
+  color: var(--color-text-muted);
+}
+.team-space-shell-updater .team-updater-chip.ui-chip-busy .catalog-chip-status,
+.team-space-shell-updater .team-updater-chip.ui-chip-busy .ui-chip-spinner {
+  color: var(--color-accent-text);
+}
+.team-space-shell-updater .team-updater-chip.ui-chip-warn .catalog-chip-status,
+.team-space-shell-updater .team-updater-chip.ui-chip-warn > svg {
+  color: var(--color-warning-text);
 }
 .team-space-shell-find kbd {
   font-family: inherit;

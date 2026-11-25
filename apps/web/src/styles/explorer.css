@@ -1231,6 +1231,13 @@
     display: none;
   }
 }
+.team-explorer-selection-bar[data-fit='tight'] .team-explorer-selection-elsewhere {
+  display: none;
+}
+/* The acts never shrink under their own content: a squeezed «⋯» read as a stray dot. */
+.team-explorer-selection-bar .ui-selection-actions > * {
+  flex: none;
+}
 /* Files held over the folder (070, FR-008): a layer over the list that names where they will
    land. It takes no pointer events, so moving across the rows under it does not flicker it, and
    its message keeps to the middle of the window on a folder longer than the window. */
