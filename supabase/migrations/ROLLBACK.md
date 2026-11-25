@@ -3659,3 +3659,14 @@ lease cap), and answers null when nothing is sent. The catalog-updater function 
 time budget ran out on a full claim it made progress on. No table, column or cron change. Undo by
 dropping the function; the worker logs «continuation not dispatched» and the rest waits for the
 minute's schedule, as before.
+
+## 20261224271000 — a space's final picture as any range of minutes (071)
+
+Adds `final_duration_range_seconds integer[]` (with a range check) to `team_restitch_defaults` and
+`team_member_restitch_preferences`, widens both duration-mode checks with `random-centered`, adds
+`private.restitch_duration_range_input`, and redefines `public.set_restitch_defaults`,
+`public.set_member_restitch_defaults` and `private.effective_restitch_defaults_json` (the latter
+unchanged from 20261224170000 but for `finalDurationRangeSeconds`). Undo: first rewrite any row with
+`final_duration_mode = 'random-centered'` to `'random-40-50'` (or `'custom'`), restore the three
+functions from 20261029100000/20261224170000, restore the old checks, then drop the helper and the
+two columns. A web without the column saves the three old windows and `custom` only.

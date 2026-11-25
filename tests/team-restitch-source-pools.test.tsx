@@ -111,14 +111,32 @@ describe('a slot’s pool', () => {
     expect(screen.getByRole('status').textContent).toContain('4 sources are unavailable.');
   });
 
-  it('says the slot is off when nothing is chosen, and warns past the limit', () => {
-    renderPool({ pool: pool({ state: 'empty', eligibleCount: 0, sources: [] }) });
-    expect(screen.getByRole('status').textContent).toContain('this slot is off');
+  it('says Soty’s picture stands in when nothing is chosen, and warns past the limit', () => {
+    renderPool({
+      pool: pool({ state: 'empty', eligibleCount: 0, sources: [] }),
+      builtin: { picture: '/restitch/soty-restitch-start.v1.png', label: 'Soty’s standard picture' }
+    });
+    expect(screen.getByRole('status').textContent).toContain('Soty uses its standard one');
+    expect(screen.getByText('Soty’s standard picture')).toBeTruthy();
+    // Soty's picture is not a source: there is nothing to remove.
+    expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull();
     cleanup();
     renderPool({ pool: pool({ overLimit: true, eligibleCount: 500 }) });
     expect(screen.getByRole('status').textContent).toContain(
       'Only the first 500 pictures are used.'
     );
+  });
+
+  it('shows a file’s face when the explorer’s thumbnails are at hand', () => {
+    const thumbnailFor = vi.fn((id: string) => `https://thumbs.test/${id}`);
+    renderPool({
+      pool: pool({
+        sources: [source({ materialId: 'pic', kind: 'file', name: 'pic.png', imageCount: 1 })]
+      }),
+      thumbnailFor
+    });
+    expect(thumbnailFor).toHaveBeenCalledWith('pic');
+    expect(document.querySelector('img')?.getAttribute('src')).toBe('https://thumbs.test/pic');
   });
 
   it('marks overlapping sources once', () => {

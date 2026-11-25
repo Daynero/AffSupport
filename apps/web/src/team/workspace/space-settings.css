@@ -253,3 +253,291 @@
   color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
+
+/* Re-stitching as a strip of the finished video (071): the strip and its sum, the panel of the
+   picked clip, then how the picture fits the frame. */
+.team-space-settings .team-restitch-stage {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.team-space-settings .team-restitch-summary {
+  margin: 0;
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+.team-space-settings .team-restitch-inspector {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-neutral-surface-subtle);
+}
+.team-space-settings .team-restitch-slot,
+.team-space-settings .team-restitch-slot-body {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.team-space-settings .team-restitch-slot-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+.team-space-settings .team-restitch-length {
+  justify-items: start;
+}
+.team-space-settings .team-restitch-hint,
+.team-space-settings .team-restitch-defaults p.team-restitch-hint {
+  max-width: 70ch;
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* A slot's pictures: tiles that show their face, a folder with its count, × in the corner. */
+.team-space-settings .team-restitch-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-space-settings .team-restitch-tile {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  width: calc(var(--space-6) * 4);
+  min-width: 0;
+  font-size: var(--text-caption);
+}
+.team-space-settings .team-restitch-tile-picture {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-muted);
+  color: var(--color-neutral-text-muted);
+}
+.team-space-settings .team-restitch-tile-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.team-space-settings .team-restitch-tile.is-builtin .team-restitch-tile-picture {
+  border-style: dashed;
+}
+.team-space-settings .team-restitch-tile-count {
+  position: absolute;
+  right: var(--space-1);
+  bottom: var(--space-1);
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-full);
+  background: var(--color-overlay-backdrop);
+  color: var(--color-white);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+}
+.team-space-settings .team-restitch-tile-name {
+  overflow: hidden;
+  color: var(--color-neutral-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-space-settings .team-restitch-tile small {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+}
+.team-space-settings .team-restitch-tile .ui-badge {
+  justify-self: start;
+}
+.team-space-settings .team-restitch-tile-remove {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+}
+
+/* How the picture fits: an upright frame with the same square picture in it. */
+.team-space-settings .team-restitch-fit-cards {
+  grid-auto-columns: minmax(0, calc(var(--space-6) * 10));
+}
+.team-space-settings .team-restitch-fit-cards .ui-radio-label {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+.team-space-settings .team-restitch-fit-cards .ui-radio {
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+.team-space-settings .team-restitch-fit-cards .ui-radio-icon {
+  display: flex;
+  flex: none;
+}
+.team-space-settings .team-restitch-fit-frame {
+  display: block;
+  flex: none;
+  width: calc(var(--space-6) * 1.5);
+  height: calc(var(--space-6) * 1.5 * 16 / 9);
+  overflow: hidden;
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-bg);
+}
+.team-space-settings .team-restitch-fit-frame img {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+}
+.team-space-settings .team-restitch-fit-frame[data-fit='cover'] img {
+  object-fit: cover;
+}
+.team-space-settings .team-restitch-fit-frame[data-fit='contain'] img {
+  object-fit: contain;
+}
+.team-space-settings .team-restitch-fit-frame[data-fit='stretch'] img {
+  object-fit: fill;
+}
+@media (max-width: 640px) {
+  .team-space-settings .team-restitch-inspector {
+    padding: var(--space-3);
+  }
+  .team-space-settings .team-restitch-fit-cards {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+  }
+  .team-space-settings .team-restitch-tile {
+    width: calc(var(--space-6) * 3.5);
+  }
+}
+
+/* "Re-stitched videos in seconds" (071): the space's preparation as a feature card — a benefit,
+   one line of why, before → after, and the one number that matters on screen in every state. */
+.team-space-settings .team-restitch-boost {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  margin-top: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-primary-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-softer),
+    var(--color-neutral-surface-subtle) 60%
+  );
+}
+.team-space-settings .team-restitch-boost[data-state='complete'] {
+  border-color: var(--color-success-border);
+  background: var(--color-neutral-surface-subtle);
+}
+.team-space-settings .team-restitch-boost-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3) var(--space-4);
+}
+.team-space-settings .team-restitch-boost-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--space-6) * 1.75);
+  height: calc(var(--space-6) * 1.75);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+.team-space-settings .team-restitch-boost-copy {
+  display: grid;
+  flex: 1 1 calc(var(--space-6) * 12);
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-space-settings .team-restitch-boost-copy h3 {
+  margin: 0;
+  color: var(--color-neutral-text);
+  font-size: var(--text-section);
+  font-weight: var(--weight-label);
+}
+.team-space-settings .team-restitch-boost-copy p {
+  max-width: 70ch;
+  margin: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-label);
+}
+.team-space-settings .team-restitch-boost-compare {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1-5) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-label);
+}
+.team-space-settings .team-restitch-boost-compare > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.team-space-settings .team-restitch-boost-compare .is-after {
+  color: var(--color-primary-text);
+  font-weight: var(--weight-label);
+}
+.team-space-settings .team-restitch-boost-meter {
+  display: grid;
+  gap: var(--space-2);
+}
+.team-space-settings .team-restitch-boost-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+.team-space-settings .team-restitch-boost-count strong {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  color: var(--color-neutral-text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-label);
+  font-variant-numeric: tabular-nums;
+}
+.team-space-settings .team-restitch-boost-count strong.is-complete {
+  color: var(--color-success-text);
+}
+.team-space-settings .team-restitch-boost-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.team-space-settings .team-restitch-boost-foot p {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+@media (max-width: 640px) {
+  .team-space-settings .team-restitch-boost {
+    padding: var(--space-4);
+  }
+}

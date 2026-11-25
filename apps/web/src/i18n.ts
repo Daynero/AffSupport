@@ -96,6 +96,13 @@ export function creditsCountKey(language: Language, count: number): TranslationK
   return category === 'few' ? 'creditsCountFew' : 'creditsCountMany';
 }
 
+/** 071 — «1 хвилина», «54 хвилини», «45 хвилин»: an exact final-picture length, read aloud. */
+export function restitchMinutesKey(language: Language, count: number): TranslationKey {
+  const category = pluralCategory(language, count);
+  if (category === 'one') return 'teamRestitchValueExactOne';
+  return category === 'few' ? 'teamRestitchValueExactFew' : 'teamRestitchValueExactMany';
+}
+
 /** 023 — "12 catalogs" on the updater's chip. */
 export function catalogCountKey(language: Language, count: number): TranslationKey {
   const category = pluralCategory(language, count);

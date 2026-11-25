@@ -43,6 +43,12 @@ export interface TeamRestitchDefaults {
   fitMode: ImageFitMode;
   finalDurationMode: FinalImageDurationMode;
   customFinalDurationSeconds: number;
+  /**
+   * Any random length between two whole minutes, 1–60 (071). Only with `random-centered`; the
+   * server draws inside it as it does for a launch. Without it, `random-centered` keeps its
+   * launch meaning: five minutes either side of `customFinalDurationSeconds`.
+   */
+  finalDurationRangeSeconds?: readonly [number, number];
   startEnabled?: boolean;
   endEnabled?: boolean;
   startDurationMode?: StartImageDurationMode;
@@ -226,6 +232,23 @@ function finite(value: unknown): number | null {
 }
 
 /**
+ * A random final-picture range as the server accepts it (`freeze_restitch_selection_defaults`):
+ * two whole minutes in seconds, 60–3600, in order. Anything else is no range at all.
+ */
+export function parseFinalDurationRange(value: unknown): readonly [number, number] | null {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const [low, high] = value as unknown[];
+  const minute = (entry: unknown) =>
+    typeof entry === 'number' &&
+    Number.isInteger(entry) &&
+    entry >= 60 &&
+    entry <= 3600 &&
+    entry % 60 === 0;
+  if (!minute(low) || !minute(high) || (low as number) > (high as number)) return null;
+  return [low as number, high as number];
+}
+
+/**
  * A space's defaults, off the wire.
  *
  * Total rather than strict: a row written by an older build, or one whose enum drifted, comes
@@ -253,6 +276,10 @@ export function parseTeamRestitchDefaults(value: unknown): RestitchParse<TeamRes
       customFinalDurationSeconds: clampStitchEndDuration(
         custom ?? DEFAULT_CUSTOM_FINAL_IMAGE_DURATION_SECONDS
       ),
+      ...(value.finalDurationMode === 'random-centered' &&
+      parseFinalDurationRange(value.finalDurationRangeSeconds)
+        ? { finalDurationRangeSeconds: parseFinalDurationRange(value.finalDurationRangeSeconds)! }
+        : {}),
       startEnabled: value.startEnabled !== false,
       endEnabled: value.endEnabled !== false,
       startDurationMode: oneOf(

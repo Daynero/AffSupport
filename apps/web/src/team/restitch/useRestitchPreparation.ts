@@ -50,6 +50,15 @@ export interface RestitchPreparationState {
   errorCode: string | null;
   mediaPhase?: 'inspecting' | 'converting' | 'verifying' | null;
   mediaProgress?: number;
+  /**
+   * What the run is on (071): how many were ready before it started, when it started, and the
+   * video in hand with when it was taken. A run reads every video in full from the drive, and a
+   * long one sat as "1 of 256" for minutes with nothing moving; the name and the time on it are
+   * what show it is working, and the pace of the finished ones is what an estimate rests on.
+   */
+  already?: number;
+  startedAt?: number | null;
+  current?: { name: string; since: number } | null;
 }
 
 const IDLE: RestitchPreparationState = {
@@ -73,7 +82,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 /** Every video in the space, with the version each preparation will be keyed to. */
-async function listVideos(teamId: string, signal: AbortSignal): Promise<TeamMaterialRow[]> {
+export async function listVideos(teamId: string, signal: AbortSignal): Promise<TeamMaterialRow[]> {
   const folders = await teamApi.listFolderTree(teamId);
   const parents: (string | null)[] = [null, ...folders.map(folder => folder.driveFileId)];
   const rows: TeamMaterialRow[] = [];
@@ -157,12 +166,21 @@ export function useRestitchPreparation(teamId: string) {
         ready: already,
         unsupported: 0,
         failed: 0,
-        errorCode: null
+        errorCode: null,
+        already,
+        startedAt: Date.now(),
+        current: null
       });
 
       for (let index = 0; index < pending.length; index += BATCH) {
         if (signal.aborted) return;
         const batch = pending.slice(index, index + BATCH);
+        setState(current => ({
+          ...current,
+          current: { name: batch[0]!.name, since: Date.now() },
+          mediaPhase: null,
+          mediaProgress: 0
+        }));
         const materials = [];
         let transferUrl = '';
         for (const video of batch) {
@@ -190,7 +208,7 @@ export function useRestitchPreparation(teamId: string) {
         await follow(operationId, signal, setState);
       }
 
-      if (!signal.aborted) setState(current => ({ ...current, phase: 'finished' }));
+      if (!signal.aborted) setState(current => ({ ...current, phase: 'finished', current: null }));
       completeTeamWorkflow(flow, {
         outcome: signal.aborted ? 'cancelled' : 'success',
         retryable: false,

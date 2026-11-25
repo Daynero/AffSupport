@@ -11,9 +11,10 @@ import type { TeamContextSnapshot } from '../apps/web/src/api/team';
  * The space's re-stitching settings, as a member meets them (015, redrawn by 030).
  *
  * What is worth proving here is the states a person can actually be in — nobody has set this
- * up, somebody has, I am not allowed to, I inherit the owner's, the space still points at an
- * old library — and that saving writes the form and the pools, never a library and never a
- * picture. The stitcher's controls are its own and are tested where they live.
+ * up (it works anyway, 071), somebody has, it is switched off, I am not allowed to, I inherit
+ * the owner's, the space still points at an old library — and that saving writes the form and
+ * the pools, never a library and never a picture, and always as a re-stitch. The timeline's own
+ * behaviour is tested in restitch-timeline.test.tsx.
  */
 
 vi.mock('../apps/web/src/api/useSubresourceUrl', () => ({ useSubresourceUrl: () => null }));
@@ -137,34 +138,194 @@ function renderSection(
   );
 }
 
+/** The strip's first clip; its panel holds the start pool. */
+async function openStart(user = userEvent.setup()) {
+  await user.click(await screen.findByRole('button', { name: /^Start ·/ }));
+  return user;
+}
+
+const emptyListing: RestitchSourcesListing = {
+  sourceMode: 'drive',
+  legacyImageCount: 0,
+  pools: {
+    start: { state: 'empty', overLimit: false, eligibleCount: 0, sources: [] },
+    end: { state: 'empty', overLimit: false, eligibleCount: 0, sources: [] }
+  }
+};
+
 describe('a space’s re-stitching settings', () => {
-  it('says so when nobody has set them up', async () => {
-    renderSection(client({ getRestitchDefaults: vi.fn().mockResolvedValue(null) }));
-    expect(await screen.findByText('Not set up yet')).toBeTruthy();
+  it('works out of the box when nobody has set it up, with Soty’s standard pictures', async () => {
+    renderSection(
+      client({
+        getRestitchDefaults: vi.fn().mockResolvedValue(null),
+        listRestitchSources: vi.fn().mockResolvedValue(emptyListing)
+      })
+    );
+    expect(
+      await screen.findByText(
+        'Finished video: 1 frame of picture + your video + 40–50 min of picture'
+      )
+    ).toBeTruthy();
+    // The final picture's panel is open first: its slot falls back to Soty's picture.
+    expect(screen.getByText('Soty’s standard picture')).toBeTruthy();
+    expect(screen.queryByText(/Re-stitching is off/)).toBeNull();
+    expect(screen.getByRole('slider', { name: 'Longest final picture' })).toBeTruthy();
   });
 
-  it('names every operation on its own segment', async () => {
-    renderSection(client());
-    const chosen = await screen.findByRole('radio', { name: 'Re-stitch' });
-    expect(chosen.getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByRole('radio', { name: 'Stitch' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Remove the stitching' })).toBeTruthy();
+  it('offers no operation to choose, and saves a re-stitch whatever was stored', async () => {
+    const value = client({
+      getRestitchDefaults: vi.fn().mockResolvedValue({ ...stored, operation: 'unstitch' })
+    });
+    renderSection(value);
+    expect(await screen.findByText(/This space was set to “Remove the stitching”/)).toBeTruthy();
+    expect(screen.queryByRole('radio', { name: 'Re-stitch' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Stitch' })).toBeNull();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(value.setRestitchDefaults).toHaveBeenCalled());
+    expect(vi.mocked(value.setRestitchDefaults).mock.calls[0]?.[1]).toMatchObject({
+      operation: 'restitch'
+    });
   });
 
-  it('shows the pools where the galleries would be, read from the space', async () => {
+  it('shows the pools in the panel of the clip they belong to, read from the space', async () => {
     const value = client();
     renderSection(value);
-    expect(await screen.findByText('Openers')).toBeTruthy();
+    // The final clip is open first; its pool is empty, so Soty's picture stands in.
     expect(
-      screen.queryByText('Add at least one image or turn this option off before starting.')
-    ).toBeNull();
+      await screen.findByText('No pictures of your own yet — Soty uses its standard one.')
+    ).toBeTruthy();
+    await openStart();
+    expect(await screen.findByText('Openers')).toBeTruthy();
     expect(screen.getByText(/3 pictures in the selection pool/)).toBeTruthy();
-    expect(screen.getByText(/this slot is off/)).toBeTruthy();
     expect(value.listRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'owner');
     // The form is the saved settings', not a library's: the stored fit is what is selected.
-    expect(screen.getByRole('radio', { name: 'Fit completely' }).getAttribute('aria-checked')).toBe(
-      'true'
+    expect(screen.getByRole('radio', { name: 'Fit completely' })).toHaveProperty('checked', true);
+  });
+
+  it('draws the stored length on the strip and saves what the handles moved to', async () => {
+    const value = client();
+    renderSection(value);
+    const high = await screen.findByRole('slider', { name: 'Longest final picture' });
+    const low = screen.getByRole('slider', { name: 'Shortest final picture' });
+    expect(high.getAttribute('aria-valuetext')).toBe('30–40 minutes, random each time');
+    // No second control for the same value: no switch, no field, no preset buttons.
+    expect(screen.queryByRole('radio', { name: /Different each time|Always the same/ })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: /minutes/ })).toBeNull();
+    const user = userEvent.setup();
+    low.focus();
+    await user.keyboard('{PageDown}{PageDown}{PageDown}{PageDown}');
+    high.focus();
+    await user.keyboard('{PageUp}{PageUp}');
+    expect(high.getAttribute('aria-valuetext')).toBe('10–50 minutes, random each time');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(value.setRestitchDefaults).toHaveBeenCalled());
+    // Not one of the old windows: the launch's word, with the range and its middle.
+    expect(vi.mocked(value.setRestitchDefaults).mock.calls[0]?.[1]).toMatchObject({
+      finalDurationMode: 'random-centered',
+      customFinalDurationSeconds: 30 * 60,
+      finalDurationRangeSeconds: [600, 3000]
+    });
+  });
+
+  it('brings the handles together into one exact length, and keeps an old window by name', async () => {
+    const value = client();
+    renderSection(value);
+    const high = await screen.findByRole('slider', { name: 'Longest final picture' });
+    const user = userEvent.setup();
+    high.focus();
+    await user.keyboard('{PageDown}{PageDown}');
+    expect(high.getAttribute('aria-valuetext')).toBe('30 minutes');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(value.setRestitchDefaults).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(value.setRestitchDefaults).mock.calls[0]?.[1]).toMatchObject({
+      finalDurationMode: 'custom',
+      customFinalDurationSeconds: 30 * 60
+    });
+    high.focus();
+    await user.keyboard('{PageUp}{PageUp}{PageUp}{PageUp}');
+    screen.getByRole('slider', { name: 'Shortest final picture' }).focus();
+    await user.keyboard('{PageUp}{PageUp}{PageUp}{PageUp}');
+    // 50 and 50 → bring the low back to 40: the old 40–50 window, under its own name.
+    await user.keyboard('{PageDown}{PageDown}');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(value.setRestitchDefaults).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(value.setRestitchDefaults).mock.calls[1]?.[1]).toMatchObject({
+      finalDurationMode: 'random-40-50'
+    });
+  });
+
+  it('reads a stored range back onto the handles', async () => {
+    renderSection(
+      client({
+        getRestitchDefaults: vi.fn().mockResolvedValue({
+          ...stored,
+          finalDurationMode: 'random-centered',
+          customFinalDurationSeconds: 1200,
+          finalDurationRangeSeconds: [300, 2100]
+        })
+      })
     );
+    expect(
+      (await screen.findByRole('slider', { name: 'Shortest final picture' })).getAttribute(
+        'aria-valuenow'
+      )
+    ).toBe('5');
+    expect(
+      screen.getByRole('slider', { name: 'Longest final picture' }).getAttribute('aria-valuenow')
+    ).toBe('35');
+  });
+
+  it('says plainly when both ends are off, and saves exactly that', async () => {
+    const value = client();
+    renderSection(value);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('switch', { name: 'Picture after the video' }));
+    await openStart(user);
+    await user.click(screen.getByRole('switch', { name: 'Picture at the start' }));
+    expect(await screen.findByText(/Re-stitching is off/)).toBeTruthy();
+    expect(screen.queryByRole('slider')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(value.setRestitchDefaults).toHaveBeenCalled());
+    expect(vi.mocked(value.setRestitchDefaults).mock.calls[0]?.[1]).toMatchObject({
+      startEnabled: false,
+      endEnabled: false
+    });
+  });
+
+  it('reads the switches the person chose, not the ones rewritten for older agents', async () => {
+    // Effective settings turn a slot that falls back to Soty's picture off for agents ≤1.6.x
+    // and name it in `builtin`; the screen shows it on.
+    renderSection(
+      client({
+        getRestitchDefaults: vi.fn().mockResolvedValue({
+          ...stored,
+          startEnabled: false,
+          builtin: { version: 1, start: true, end: false }
+        })
+      })
+    );
+    await openStart();
+    expect(await screen.findByRole('switch', { name: 'Picture at the start' })).toHaveProperty(
+      'checked',
+      true
+    );
+  });
+
+  it('prefers the space’s own row when the space settings hand it over', async () => {
+    const value = client();
+    const readRow = vi.fn().mockResolvedValue({ ...stored, fitMode: 'stretch' as const });
+    render(
+      <AgentContextOverride value={agentContextStub({ capabilities: ['stitcher'] })}>
+        <TeamProvider initialTeams={[owned]} realtime={false}>
+          <ToastProvider>
+            <RestitchDefaultsSection teamId={TEAM_ID} client={value} readRow={readRow} />
+          </ToastProvider>
+        </TeamProvider>
+      </AgentContextOverride>
+    );
+    expect(await screen.findByRole('radio', { name: 'Stretch' })).toHaveProperty('checked', true);
+    expect(readRow).toHaveBeenCalledWith(TEAM_ID);
+    expect(value.getRestitchDefaults).not.toHaveBeenCalled();
   });
 
   it('says on the panel whether the save was kept, and keeps the choice when it was not', async () => {
@@ -179,9 +340,7 @@ describe('a space’s re-stitching settings', () => {
     await user.click(await screen.findByRole('radio', { name: 'Fill and crop' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect((await screen.findByText('Could not save')).getAttribute('role')).toBe('alert');
-    expect(screen.getByRole('radio', { name: 'Fill and crop' }).getAttribute('aria-checked')).toBe(
-      'true'
-    );
+    expect(screen.getByRole('radio', { name: 'Fill and crop' })).toHaveProperty('checked', true);
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Saved')).toBeTruthy();
   });
@@ -216,9 +375,10 @@ describe('a space’s re-stitching settings', () => {
   it('writes a pool the moment a source is removed', async () => {
     const value = client();
     renderSection(value);
-    await userEvent
-      .setup()
-      .click(await screen.findByRole('button', { name: 'Remove Openers from the pictures' }));
+    const user = await openStart();
+    await user.click(
+      await screen.findByRole('button', { name: 'Remove Openers from the pictures' })
+    );
     await waitFor(() =>
       expect(value.setRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'start', [])
     );
@@ -275,9 +435,10 @@ describe('a space’s re-stitching settings', () => {
       transferLegacyImages
     });
     renderSection(value, owned, 'disconnected');
-    await userEvent
-      .setup()
-      .click(await screen.findByRole('button', { name: 'Move the old pictures into the space' }));
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole('button', { name: 'Move the old pictures into the space' })
+    );
     await waitFor(() =>
       expect(transferLegacyImages).toHaveBeenCalledWith(
         TEAM_ID,
@@ -285,8 +446,9 @@ describe('a space’s re-stitching settings', () => {
         expect.any(Function)
       )
     );
+    await waitFor(() => expect(screen.queryByText(/still points at/)).toBeNull());
+    await openStart(user);
     expect(await screen.findByText('Openers')).toBeTruthy();
-    expect(screen.queryByText(/still points at/)).toBeNull();
   });
 
   it('inherits owner settings by default, showing the owner’s pools without controls', async () => {
@@ -304,7 +466,12 @@ describe('a space’s re-stitching settings', () => {
       'checked',
       true
     );
+    await openStart();
     expect(await screen.findByText('Openers')).toBeTruthy();
+    // Read, not editable: the handles do not move for someone who inherits.
+    expect(
+      screen.getByRole('slider', { name: 'Longest final picture' }).getAttribute('aria-disabled')
+    ).toBe('true');
     expect(screen.getByText(/These are the owner’s pools/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull();
@@ -329,7 +496,7 @@ describe('a space’s re-stitching settings', () => {
       .setup()
       .click(await screen.findByRole('checkbox', { name: "Use owner's settings" }));
     await waitFor(() => expect(setMemberRestitchUseOwner).toHaveBeenCalledWith(TEAM_ID, false));
-    expect(await screen.findByRole('radio', { name: 'Re-stitch' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeTruthy();
     await waitFor(() => expect(value.listRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'self'));
   });
 
@@ -349,7 +516,10 @@ describe('a space’s re-stitching settings', () => {
     await user.click(await screen.findByRole('button', { name: 'Save' }));
     await waitFor(() => expect(value.setMemberRestitchDefaults).toHaveBeenCalled());
     expect(value.setRestitchDefaults).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Remove Openers from the pictures' }));
+    await openStart(user);
+    await user.click(
+      await screen.findByRole('button', { name: 'Remove Openers from the pictures' })
+    );
     await waitFor(() =>
       expect(value.setMemberRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'start', [])
     );
@@ -380,6 +550,7 @@ describe('the pools follow the catalog (030)', () => {
         </TeamProvider>
       </AgentContextOverride>
     );
+    await openStart();
     expect(await screen.findByText('Openers')).toBeTruthy();
     await waitFor(() => expect(freshness.isFresh(TEAM_ID)).toBe(true));
     expect(value.listRestitchSources).toHaveBeenCalledTimes(1);

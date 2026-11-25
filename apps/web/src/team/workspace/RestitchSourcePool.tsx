@@ -16,7 +16,7 @@ import type {
   RestitchSourceInput
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Badge, Button, IconButton } from '../../components/ui/index';
+import { Badge, Button, FadeImage, IconButton } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
@@ -51,7 +51,9 @@ export function RestitchSourcePool({
   pool,
   editable,
   client,
-  onChange
+  onChange,
+  thumbnailFor,
+  builtin
 }: {
   teamId: string;
   slot: RestitchSlot;
@@ -61,6 +63,13 @@ export function RestitchSourcePool({
   /** Absent when the space's catalog cannot be browsed from here; the pickers are then hidden. */
   client?: RestitchSourcePoolClient;
   onChange: (slot: RestitchSlot, items: RestitchSourceInput[]) => void;
+  /** A file's thumbnail, when the explorer's thumbnail session is at hand (071). */
+  thumbnailFor?: (materialId: string) => string | null;
+  /**
+   * Soty's standard picture, when it stands in for this slot (071): shown as the slot's one
+   * tile, so "nothing chosen" reads as "this is what will be used" rather than as a gap.
+   */
+  builtin?: { picture: string; label: string } | null;
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
@@ -89,21 +98,42 @@ export function RestitchSourcePool({
         {overlap && ` ${t('teamRestitchPoolOverlap')}`}
         {pool.overLimit && ` ${t('teamRestitchPoolOverLimit')}`}
       </p>
-      {pool.sources.length > 0 && (
-        <ul className="product-catalog-sources">
+      {(pool.sources.length > 0 || builtin) && (
+        <ul className="team-restitch-tiles">
+          {builtin && pool.sources.length === 0 && (
+            <li className="team-restitch-tile is-builtin">
+              <span className="team-restitch-tile-picture">
+                <FadeImage src={builtin.picture} alt="" />
+              </span>
+              <span className="team-restitch-tile-name">{builtin.label}</span>
+            </li>
+          )}
           {pool.sources.map(source => {
             const key = source.materialId ?? source.driveFileId ?? source.name;
             const reason = AVAILABILITY_KEYS[source.availability];
             const skippedHere =
               source.skipped.format + source.skipped.size + source.skipped.animated;
+            const thumbnail =
+              source.kind === 'file' && source.materialId && source.availability === 'available'
+                ? (thumbnailFor?.(source.materialId) ?? null)
+                : null;
             return (
-              <li key={key} data-availability={source.availability}>
-                {source.kind === 'folder' ? (
-                  <Folder size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                ) : (
-                  <Image size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                )}
-                <span className="product-catalog-source-name" title={source.name}>
+              <li key={key} className="team-restitch-tile" data-availability={source.availability}>
+                <span className="team-restitch-tile-picture">
+                  {thumbnail ? (
+                    <FadeImage src={thumbnail} alt="" />
+                  ) : source.kind === 'folder' ? (
+                    <Folder size={20} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  ) : (
+                    <Image size={20} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  )}
+                  {source.kind === 'folder' && !reason && (
+                    <span className="team-restitch-tile-count" aria-hidden="true">
+                      {source.imageCount}
+                    </span>
+                  )}
+                </span>
+                <span className="team-restitch-tile-name" title={source.name}>
                   {source.name}
                 </span>
                 {reason ? (
@@ -125,9 +155,10 @@ export function RestitchSourcePool({
                 )}
                 {editable && (
                   <IconButton
+                    className="team-restitch-tile-remove"
                     title=""
                     size="xs"
-                    variant="ghost"
+                    variant="soft"
                     label={t('productCatalogImagesRemove', { name: source.name })}
                     onClick={() =>
                       onChange(

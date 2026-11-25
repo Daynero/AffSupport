@@ -11,6 +11,7 @@ import type { LeaveSpaceClient } from '../members/LeaveSpacePanel';
 import type { TeamAuditClient } from './HistoryDialog';
 import { DriveConnectionPanel, type DrivePanelClient } from '../drive/DriveConnectionPanel';
 import { RestitchDefaultsSection, type RestitchDefaultsClient } from './RestitchDefaultsSection';
+import { readRestitchRow } from './restitch/restitch-row';
 import { TaskLabelsSection, type TaskLabelsSectionClient } from '../labels/TaskLabelsSection';
 import { TeamPreferencesSection, type TeamPreferencesClient } from './TeamPreferencesSection';
 import { SpaceNameSection, type SpaceNameClient } from './SpaceNameSection';
@@ -273,7 +274,9 @@ export function SpaceSettings({
           </>
         )}
 
-        {tab === 'restitch' && <RestitchDefaultsSection teamId={teamId} client={client} />}
+        {tab === 'restitch' && (
+          <RestitchDefaultsSection teamId={teamId} client={client} readRow={readRestitchRow} />
+        )}
 
         {tab === 'product-catalog' && (
           <CatalogSettingsSection

@@ -1,0 +1,334 @@
+/*
+ * The re-stitch timeline (071).
+ *
+ * Four columns that the strip and its captions share, so a caption always stands under its
+ * clip: the first frame and the video are fixed blocks, a narrow column carries the axis break,
+ * and the final picture takes the rest, drawn to scale on 0–60 minutes. The final picture's
+ * width follows the handle directly — it is the thing being dragged, so it is never animated;
+ * only the bubble fades.
+ */
+.restitch-timeline {
+  --timeline-start: calc(var(--space-6) * 3);
+  --timeline-video: clamp(calc(var(--space-6) * 3), 18%, calc(var(--space-6) * 7));
+  --timeline-break: var(--space-5);
+  --timeline-height: calc(var(--space-6) * 3.5);
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: calc(var(--space-6) * 1.5);
+}
+
+.restitch-timeline-strip,
+.restitch-timeline-captions {
+  display: grid;
+  grid-template-columns:
+    var(--timeline-start) var(--timeline-video) var(--timeline-break)
+    minmax(0, 1fr);
+  column-gap: var(--space-1-5);
+  min-width: 0;
+}
+
+.restitch-timeline-strip {
+  height: var(--timeline-height);
+}
+
+.restitch-timeline-clip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-muted);
+  color: var(--color-neutral-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.restitch-timeline-clip[aria-pressed='true'] {
+  border-color: var(--color-secondary-solid);
+  box-shadow: 0 0 0 2px var(--color-secondary-solid);
+}
+.restitch-timeline-clip:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+.restitch-timeline-clip.is-off {
+  border-style: dashed;
+  background: transparent;
+}
+
+.restitch-timeline-picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The video: frames side by side, and the one sign everyone reads as "a video". */
+.restitch-timeline-clip.is-video {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-neutral-surface-raised) 0 calc(var(--space-6) * 1.25),
+    var(--color-neutral-border) calc(var(--space-6) * 1.25) calc(var(--space-6) * 1.25 + 1px)
+  );
+  color: var(--color-neutral-text);
+}
+.restitch-timeline-clip.is-video svg {
+  box-sizing: content-box;
+  padding: var(--space-1-5);
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+/* The axis break: two slanted strokes, where the scale changes from "not to scale" to minutes. */
+.restitch-timeline-break {
+  position: relative;
+}
+.restitch-timeline-break::before,
+.restitch-timeline-break::after {
+  position: absolute;
+  top: 22%;
+  bottom: 22%;
+  width: var(--space-px);
+  background: var(--color-neutral-text-muted);
+  transform: skewX(-18deg);
+  content: '';
+}
+.restitch-timeline-break::before {
+  left: 35%;
+}
+.restitch-timeline-break::after {
+  left: 65%;
+}
+
+/* The final picture's lane: the empty rest of it is the room the handle still has. */
+.restitch-timeline-track {
+  position: relative;
+  /* A handle's width of room, so the handle at sixty minutes stays inside the panel. */
+  margin-right: var(--space-4);
+  min-width: 0;
+  height: 100%;
+  border: 1px dashed var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-subtle);
+  touch-action: none;
+  cursor: ew-resize;
+}
+.restitch-timeline.is-disabled .restitch-timeline-track {
+  cursor: default;
+}
+
+.restitch-timeline-clip.is-end {
+  position: absolute;
+  inset-block: calc(var(--space-px) * -1);
+  left: calc(var(--space-px) * -1);
+  width: calc(var(--end-high) * 100%);
+  min-width: 0;
+  height: auto;
+  justify-content: flex-start;
+}
+.restitch-timeline-clip.is-end.is-off {
+  width: calc(100% + var(--space-px) * 2);
+  justify-content: center;
+}
+
+/* The picture repeats along its length: dragging it longer shows more of it. */
+.restitch-timeline-film {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-3);
+  background-image: var(--end-image);
+  background-position: left center;
+  background-repeat: repeat-x;
+  background-size: auto 100%;
+}
+
+/* Where the random length lands: anywhere in this band, drawn anew for every video. It is also
+   a grip — dragged, it slides the whole range. */
+.restitch-timeline-zone {
+  position: absolute;
+  inset-block: 0;
+  left: calc(var(--end-low) * 100%);
+  width: calc((var(--end-high) - var(--end-low)) * 100%);
+  border-left: 2px dashed var(--color-primary-solid);
+  background: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-neutral-bg) 72%, transparent) 0 var(--space-1-5),
+    color-mix(in srgb, var(--color-neutral-bg) 38%, transparent) var(--space-1-5) var(--space-3)
+  );
+  cursor: grab;
+}
+.restitch-timeline.is-dragging .restitch-timeline-zone {
+  cursor: grabbing;
+}
+
+.restitch-timeline-badge {
+  position: absolute;
+  bottom: var(--space-1);
+  left: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-full);
+  background: var(--color-overlay-backdrop);
+  color: var(--color-white);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-label);
+  line-height: 1.6;
+}
+
+.restitch-timeline-off {
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+/* Two handles, back to back when the length is exact: the shortest sits left of its minute,
+   the longest right of its own, so together they read as one grip split down the middle. */
+.restitch-timeline-handle {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  bottom: calc(var(--space-1) * -1);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-4);
+  background: var(--color-secondary-solid);
+  color: var(--color-secondary-on-solid);
+  box-shadow: var(--shadow-md);
+  cursor: ew-resize;
+  touch-action: none;
+}
+.restitch-timeline-handle.is-low {
+  left: calc(var(--end-low) * 100%);
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  transform: translateX(-100%);
+}
+.restitch-timeline-handle.is-high {
+  left: calc(var(--end-high) * 100%);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.restitch-timeline-handle:focus-visible {
+  z-index: 2;
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.restitch-timeline-handle[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.restitch-timeline-bubble {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: calc(var(--end-high) * 100%);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-secondary-border);
+  border-radius: var(--radius-md);
+  background: var(--color-neutral-surface-raised);
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity var(--motion-fast) var(--ease-fade);
+}
+/* Near either end the bubble leans inward rather than past the panel's edge. */
+.restitch-timeline-bubble[data-edge='start'] {
+  transform: none;
+}
+.restitch-timeline-bubble[data-edge='end'] {
+  transform: translateX(-100%);
+}
+.restitch-timeline.is-dragging .restitch-timeline-bubble,
+.restitch-timeline-track:has(.restitch-timeline-handle:focus-visible) .restitch-timeline-bubble {
+  opacity: 1;
+}
+
+.restitch-timeline-captions {
+  row-gap: var(--space-1);
+}
+.restitch-timeline-caption {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+.restitch-timeline-caption strong {
+  overflow: hidden;
+  color: var(--color-neutral-text);
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.restitch-timeline-caption > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.restitch-timeline-caption.is-start {
+  grid-column: 1;
+}
+.restitch-timeline-caption.is-video {
+  grid-column: 2 / span 2;
+}
+.restitch-timeline-caption.is-end {
+  grid-column: 4;
+}
+
+.restitch-timeline-ruler {
+  position: relative;
+  margin-right: var(--space-4);
+  grid-row: 2;
+  grid-column: 4;
+  height: var(--space-5);
+  border-top: 1px solid var(--color-neutral-border);
+}
+.restitch-timeline-ruler span {
+  position: absolute;
+  left: calc(var(--tick) * 100%);
+  padding-top: var(--space-1);
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.restitch-timeline-ruler span:first-child {
+  transform: none;
+}
+.restitch-timeline-ruler span:last-child {
+  transform: translateX(-100%);
+}
+
+@media (max-width: 640px) {
+  .restitch-timeline {
+    --timeline-start: calc(var(--space-6) * 2.5);
+    --timeline-video: calc(var(--space-6) * 2.75);
+    --timeline-break: var(--space-3);
+    --timeline-height: calc(var(--space-6) * 2.75);
+  }
+  .restitch-timeline-strip,
+  .restitch-timeline-captions {
+    column-gap: var(--space-1);
+  }
+  .restitch-timeline-ruler span.is-minor {
+    display: none;
+  }
+  .restitch-timeline-caption strong {
+    font-size: var(--text-caption);
+  }
+}

@@ -183,4 +183,20 @@ export type {
   RestitchDurationValue,
   RestitchDurationControlProps
 } from './RestitchDurationControl';
+/* A re-stitched video as a strip: first frame, video, final picture to scale (071). */
+export { RestitchTimeline } from './RestitchTimeline';
+export type {
+  RestitchTimelineLabels,
+  RestitchTimelinePart,
+  RestitchTimelineProps,
+  RestitchTimelineSlot
+} from './RestitchTimeline';
+export {
+  FINAL_MAX_MINUTES,
+  FINAL_MIN_MINUTES,
+  clampMinutes,
+  exactDuration,
+  spanText
+} from './restitch-timeline-scale';
+export type { FinalDuration, FinalHandle } from './restitch-timeline-scale';
 export { StageProgress, type ProgressStage } from './StageProgress';

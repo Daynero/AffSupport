@@ -155,6 +155,8 @@
 @import './admin.css' layer(soty);
 
 @import './launch-settings.css' layer(soty);
+/* The re-stitch timeline of the space settings (071). */
+@import './restitch-timeline.css' layer(soty);
 /* The task editor, refined over the legacy sheet and the board's (070, 9и). */
 @import './task-editor.css' layer(soty);
 @import './skin.css' layer(soty);
