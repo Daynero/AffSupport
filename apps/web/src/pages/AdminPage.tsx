@@ -173,6 +173,7 @@ export default function AdminPage() {
   const [analyticsOpened, setAnalyticsOpened] = useState(false);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [daily, setDaily] = useState<DailyActivity[]>([]);
+  const hasActivity = daily.some(day => day.active_users > 0 || day.event_count > 0);
   const [usage, setUsage] = useState<UsageRow[]>([]);
   const [versions, setVersions] = useState<AgentVersionRow[]>([]);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
@@ -551,18 +552,26 @@ export default function AdminPage() {
               <Card className="admin-card activity-card" aria-labelledby="activity-heading">
                 <div className="admin-card-heading">
                   <h3 id="activity-heading">{t('dailyActivity')}</h3>
-                  <div className="chart-legend">
-                    <span>
-                      <i className="legend-users" />
-                      {t('activeUsers')}
-                    </span>
-                    <span>
-                      <i className="legend-events" />
-                      {t('events')}
-                    </span>
-                  </div>
+                  {hasActivity ? (
+                    <div className="chart-legend">
+                      <span>
+                        <i className="legend-users" />
+                        {t('activeUsers')}
+                      </span>
+                      <span>
+                        <i className="legend-events" />
+                        {t('events')}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
-                <ActivityChart data={daily} />
+                {/* A period without a single active day is a quiet line, not 200px of empty
+                    axis with no word on it. */}
+                {hasActivity ? (
+                  <ActivityChart data={daily} />
+                ) : (
+                  <EmptyState className="admin-empty" size="sm" title={t('adminActivityEmpty')} />
+                )}
               </Card>
 
               <div className="admin-split-grid">

@@ -176,6 +176,39 @@ describe('database-authorized admin UI', () => {
     );
   });
 
+  it('draws the activity of a period with data and names a period without any', async () => {
+    const chart = { name: 'Daily active users and events' };
+    const view = render(
+      <AuthContextOverride value={context(true)}>
+        <AdminPage />
+      </AuthContextOverride>
+    );
+    openAnalytics();
+    await waitFor(() => expect(screen.getByRole('img', chart)).toBeTruthy());
+    expect(screen.queryByText('No data for this period.')).toBeNull();
+    view.unmount();
+
+    // 070: a period without a single active day was 200px of empty axis with no word on it.
+    const base = rpc.getMockImplementation()!;
+    rpc.mockImplementation(async (name: string) =>
+      name === 'admin_daily_activity'
+        ? {
+            data: [{ activity_date: '2026-07-18', active_users: 0, event_count: 0 }],
+            error: null
+          }
+        : base(name)
+    );
+    render(
+      <AuthContextOverride value={context(true)}>
+        <AdminPage />
+      </AuthContextOverride>
+    );
+    openAnalytics();
+    await waitFor(() => expect(screen.getByText('No data for this period.')).toBeTruthy());
+    expect(screen.queryByRole('img', chart)).toBeNull();
+    expect(document.querySelector('.activity-card .chart-legend')).toBeNull();
+  });
+
   it('rejects malformed aggregate responses', () => {
     expect(parseAdminOverview(overview)).toEqual(overview);
     expect(parseAdminOverview({ total_users: 1 })).toBeNull();

@@ -1826,6 +1826,7 @@ export const uk: Record<keyof typeof en, string> = {
   metricVideosCustom: 'Відео конвертовано (Custom)',
   metricVideosWithImage: 'Відео із зашитою картинкою',
   dailyActivity: 'Активність за днями',
+  adminActivityEmpty: 'Даних за період немає.',
   activeUsers: 'Активні користувачі',
   adminActivityChartLabel: 'Активні користувачі й події за днями',
   events: 'Події',

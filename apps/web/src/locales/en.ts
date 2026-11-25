@@ -1835,6 +1835,7 @@ export const en = {
   metricVideosCustom: 'Videos converted (Custom)',
   metricVideosWithImage: 'Videos with embedded image',
   dailyActivity: 'Activity by day',
+  adminActivityEmpty: 'No data for this period.',
   activeUsers: 'Active users',
   adminActivityChartLabel: 'Daily active users and events',
   events: 'Events',
