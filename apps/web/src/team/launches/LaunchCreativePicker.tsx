@@ -388,7 +388,7 @@ export function LaunchCreativePicker({
         <div
           className={
             compactDrop
-              ? `launch-creative-drop flex min-h-10 min-w-0 items-center gap-2 rounded-control border border-dashed px-3 text-caption text-ink-muted ${
+              ? `launch-creative-drop flex min-h-10 min-w-0 items-center gap-2 rounded-md border border-dashed px-3 text-caption text-ink-muted ${
                   dragging ? 'border-secondary-border bg-secondary-soft' : 'border-neutral-border'
                 }`
               : 'launch-creative-field'
@@ -425,7 +425,7 @@ export function LaunchCreativePicker({
           {compactDrop && (
             <>
               <Upload size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              <span className="min-w-0 truncate">
+              <span className="launch-creative-drop-hint min-w-0 truncate">
                 {busy
                   ? t('launchCreativeUploading')
                   : t(creatives.length ? 'launchCreativeDropMore' : 'launchCreativeDropHint')}

@@ -152,7 +152,7 @@ export function LaunchDictionaryManager({
                 .map(row => (
                   <div
                     key={row.id}
-                    className="flex flex-col gap-2 rounded-control border border-neutral-border p-2"
+                    className="flex flex-col gap-2 rounded-md border border-neutral-border p-2"
                   >
                     <div className="flex items-center gap-2">
                       {edit?.row.id === row.id ? (

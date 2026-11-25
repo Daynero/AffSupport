@@ -562,12 +562,15 @@ export function TaskAttachmentTile({
             )}
           </div>
         </div>
+        {/* On the picture's corner, not a line of its own (070, 9и): between the name and the
+            actions the lone × took a row of the tile and pushed "…" onto a third. */}
         {onDetach && (
           <IconButton
             title=""
             label={t('materialActionDetach')}
             size="sm"
             variant="ghost"
+            className="team-task-attachment-detach"
             onClick={event => {
               event.stopPropagation();
               onDetach();

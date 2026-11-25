@@ -158,7 +158,7 @@ export function TaskAccountPicker({
           <h2 id={titleId}>{t('teamTaskAccountPickerTitle')}</h2>
           <SegmentedControl<'all' | 'free'>
             className="team-task-account-picker-occupancy"
-            size="xs"
+            size="sm"
             label={t('teamAccountsFilterLabel')}
             value={occupancy === 'free' ? 'free' : 'all'}
             onChange={setOccupancy}
@@ -340,7 +340,11 @@ export function TaskAccountPicker({
             disabled={selected.size === 0}
             onClick={add}
           >
-            <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            {/* Plain beside the rocket (070, 9и): two leading icons made the row too wide for
+                one line, and the primary dropped under the other two. */}
+            {!onAddWithRun && (
+              <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+            )}
             {t('teamTaskAccountPickerAdd', { count: selected.size })}
           </Button>
           {/* The usual answer, so it is the primary one: picking the account a

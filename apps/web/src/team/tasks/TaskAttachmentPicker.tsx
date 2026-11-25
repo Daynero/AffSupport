@@ -412,7 +412,7 @@ export function TaskAttachmentPicker({
                           block
                           className={`team-task-picker-row ${selectedMaterial ? 'is-selected' : ''} ${
                             isAttached ? 'is-attached' : ''
-                          }`.trim()}
+                          } ${isFolder ? 'is-folder' : ''}`.trim()}
                           aria-pressed={isFolder ? undefined : selectedMaterial}
                           disabled={isAttached || unavailable !== null}
                           onClick={() => {

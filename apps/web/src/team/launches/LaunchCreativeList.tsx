@@ -85,7 +85,7 @@ export function LaunchCreativeShareRow({
     onDrag(copies + (event.key === 'PageUp' ? PAGE_STEP : -PAGE_STEP));
   };
   return (
-    <li className="flex min-w-0 items-center gap-3">
+    <li className="launch-creative-share-row flex min-w-0 items-center gap-3">
       <Thumbnail
         thumbnailUrl={thumbnailUrl}
         kind={kind}
@@ -94,7 +94,7 @@ export function LaunchCreativeShareRow({
       />
       {/* The free width of the row is the name's. Creatives of one batch share a beginning
           ("qa-multi-1", "qa-multi-2"), so a cut name keeps its end: "qa-mu…ti-1". */}
-      <div className="flex min-w-14 flex-1 items-center self-stretch">
+      <div className="launch-creative-share-name flex min-w-14 flex-1 items-center self-stretch">
         <Tooltip label={alias} asChild>
           <span tabIndex={0} className="flex min-w-0 items-center text-caption text-ink-muted">
             {alias.length > NAME_TAIL * 2 ? (
@@ -110,7 +110,7 @@ export function LaunchCreativeShareRow({
       </div>
       {shared && (
         <>
-          <div className="w-32 shrink-0">
+          <div className="launch-creative-share-slider w-32 shrink-0">
             <Slider
               size="lg"
               aria-label={label}
@@ -127,6 +127,7 @@ export function LaunchCreativeShareRow({
             aria-label={label}
             type="number"
             width="narrow"
+            className="launch-creative-share-count"
             min={1}
             max={max}
             value={copies}
@@ -139,7 +140,7 @@ export function LaunchCreativeShareRow({
         </>
       )}
       <IconButton
-        className="ml-auto"
+        className="launch-creative-share-remove ml-auto"
         label={t('launchCreativeRemoveOf', { name: alias || t('launchesCreative') })}
         disabled={disabled}
         onClick={onRemove}

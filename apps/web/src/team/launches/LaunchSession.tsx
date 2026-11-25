@@ -1493,10 +1493,10 @@ export function LaunchSession({
   return (
     <div
       ref={progressScroll.anchor}
-      className="launch-detail mx-auto box-border flex w-full min-w-0 max-w-none flex-col gap-3 p-3 sm:p-4"
+      className="launch-detail mx-auto box-border flex w-full min-w-0 max-w-5xl flex-col gap-3"
     >
       <header className="launch-detail-header">
-        <div className="launch-detail-toolbar flex flex-wrap items-center gap-2 rounded-control bg-surface p-2">
+        <div className="launch-detail-toolbar flex flex-wrap items-center gap-2">
           <Button
             variant="ghost"
             className="launch-detail-close"
@@ -1573,24 +1573,26 @@ export function LaunchSession({
               <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             </IconButton>
           )}
-        </div>
-        <div
-          className="launch-draft-save-status"
-          id={preparationStatusId}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          <span className="launch-draft-save-indicator" aria-hidden="true">
-            {statusBusy ? (
-              <span className="ui-spinner" />
-            ) : !unsavedChanges && detail ? (
-              <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-            ) : null}
-          </span>
-          <span className="launch-draft-save-label" title={saveStatus}>
-            {saveStatus}
-          </span>
+          {/* The receipt ends the line, beside the close, as Linear keeps "Saved" (070, 9и):
+              on a line of its own under the tabs it cost the form a row on a laptop screen. */}
+          <div
+            className="launch-draft-save-status"
+            id={preparationStatusId}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span className="launch-draft-save-indicator" aria-hidden="true">
+              {statusBusy ? (
+                <span className="ui-spinner" />
+              ) : !unsavedChanges && detail ? (
+                <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+              ) : null}
+            </span>
+            <span className="launch-draft-save-label" title={saveStatus}>
+              {saveStatus}
+            </span>
+          </div>
         </div>
       </header>
       {sourceChanged && (

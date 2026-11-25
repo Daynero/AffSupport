@@ -1,0 +1,127 @@
+/*
+ * The task editor, refined over the rules the legacy sheet first drew (070, phase 9и).
+ *
+ * Loaded after `styles.css` and `tasks.css`, so a rule here is the last word on the editor
+ * without reaching into those shared sheets. Three things the owner named on the M1 Air
+ * (1440 × 800): ovals where every other control is a rounded rectangle, a line of facts whose
+ * three controls stood at three heights, and attachment tiles that spent a row on a lone ×
+ * and another on "…".
+ */
+
+/* A wider dialog on a laptop: at 61vw the files column held two 160px tiles, too narrow for
+   the eye, "Каталоги: 2" and "…" on one line. Still a dialog — the board stays at its edges. */
+.modal:has(.team-task-editor-frame) {
+  --modal-width: clamp(880px, 74vw, 1240px);
+}
+
+/* --- State · who · when: one row, one height ------------------------------------------- */
+
+/* The editor's three statuses are a segmented control, as «Каталог / Без каталогу» is in a
+   launch: a rounded rectangle 38px tall, the height of the select and the date beside it.
+   The card keeps its own round faces (tasks.css, `.is-compact`). */
+.team-task-editor-facts .team-task-status-control:not(.is-compact) {
+  gap: var(--space-px);
+  padding: 3px;
+  border-radius: var(--radius-md);
+}
+.team-task-editor-facts .team-task-status-control:not(.is-compact) .team-task-status-option {
+  min-height: var(--control-height-sm);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+/* The date is a control in that row, not a tag: the select's height and corners. */
+.team-task-editor-facts .team-task-date-trigger {
+  min-height: var(--control-height-md);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-label);
+}
+
+/* --- Attachment tiles: a picture, a name, one line of actions ---------------------------- */
+
+.team-task-attachment {
+  position: relative;
+}
+
+/* Detaching is on the picture's corner, where a file in Drive or Linear keeps its ×. It shows
+   under the pointer and on focus; a touch screen has no hover, so there it is always there. */
+.team-task-attachment-detach.ui-icon-button {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  z-index: 1;
+  border-color: var(--color-neutral-border);
+  background: var(--color-neutral-surface-raised);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-out-curve);
+}
+.team-task-attachment:hover .team-task-attachment-detach,
+.team-task-attachment:focus-within .team-task-attachment-detach,
+.team-task-attachment-detach:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .team-task-attachment-detach.ui-icon-button {
+    opacity: 1;
+  }
+}
+
+/* The actions are one line, "…" last; the catalog's words give way to an ellipsis before
+   anything wraps. */
+.team-task-attachment-actions.ui-material-actions {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.team-task-attachment-actions .ui-material-actions-worded {
+  flex: 0 1 auto;
+  overflow: hidden;
+}
+.team-task-attachment-actions .ui-material-actions-worded .ui-button-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* «Додати з простору» fills its cell like the tiles beside it; as a button it stopped at its
+   content and stood a column narrower than the file next to it. */
+.team-task-attachment-add.ui-button {
+  width: 100%;
+}
+
+/* --- The «+ РК» picker ------------------------------------------------------------------ */
+
+/* Cancel, tag and launch on one line, the launch last, where the eye ends: wrapped, the primary
+   stood alone under the other two. A phone may still wrap them. */
+@media (width > 640px) {
+  .team-task-account-picker .team-task-picker-dialog-actions {
+    flex-wrap: nowrap;
+  }
+}
+
+/* --- «Додати медіа» / «Обрати креативи» ------------------------------------------------ */
+
+/* A folder is one line: its name and the chevron. "Відкрити папку" under every folder said
+   what the chevron says, and made six folders fill the dialog; it stays for a screen reader. */
+.team-task-picker-row.is-folder .team-task-picker-item-copy small {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* The chevron is a direction, not a check box: no ring, in the muted ink. */
+.team-task-picker-row.is-folder .team-task-picker-check {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-neutral-text-muted);
+}
+/* The crumbs scroll sideways; their strip has room for a focus ring, which it cut to two
+   brackets around «Корінь». */
+.team-task-picker-path nav {
+  margin: calc(0px - var(--space-1));
+  padding: var(--space-1);
+}

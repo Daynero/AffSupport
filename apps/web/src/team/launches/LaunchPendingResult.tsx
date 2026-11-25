@@ -45,14 +45,14 @@ export function LaunchPendingResult({
                 compact
               />
             ) : (
-              <div className="rounded-control border border-neutral-border p-3">
+              <div className="rounded-md border border-neutral-border p-3">
                 <strong>{t('launchesCatalogName')}</strong>
                 <p role="status" className="m-0 text-ink-muted">
                   {t('launchesPendingName')}
                 </p>
               </div>
             )}
-            <div className="rounded-control border border-neutral-border p-3">
+            <div className="rounded-md border border-neutral-border p-3">
               <strong>{t('launchesCatalogUrl')}</strong>
               <p className="m-0 text-ink-muted">{t('launchesPendingLink')}</p>
             </div>
@@ -77,7 +77,7 @@ export function LaunchPendingResult({
               />
             ))}
         </div>
-        <div className="rounded-control border border-neutral-border p-3">
+        <div className="rounded-md border border-neutral-border p-3">
           <strong>{t('launchesAdvertisingUrl')}</strong>
           <p className="m-0 text-ink-muted">{t('launchesPendingLink')}</p>
         </div>

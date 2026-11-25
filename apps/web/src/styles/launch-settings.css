@@ -517,3 +517,135 @@
     box-shadow: 0 0 0 4px transparent;
   }
 }
+
+/* The budget's mode keeps its width: the dialog lets every box shrink, and on a phone «Від»
+   was drawn over «Вручну · Єдиний». It wraps to its own line instead (070, 9и). */
+.launch-editor-compact .launch-editor-budget-row > .ui-field:has(.ui-segmented) {
+  flex: none;
+  min-width: fit-content;
+}
+
+/* --- The launch dialog's header (070, phase 9и) ----------------------------------------- */
+
+/* One line: the tabs, the two actions, the receipt and the close. The tabs sat on a dark slab
+   with the receipt on a line of its own under it, 120px of a 800px laptop screen before the
+   first field; the copy wore a plate and the bin did not. Now both are the same ghost square,
+   coloured by what they do, and the receipt ends the line as Linear's "Saved" does. */
+.team-launch-modal .launch-detail-header {
+  gap: 0;
+  padding-bottom: var(--space-1);
+}
+.launch-detail-toolbar {
+  column-gap: var(--space-1);
+}
+.launch-detail-toolbar .ui-button.launch-detail-copy,
+.launch-detail-toolbar .ui-button.launch-detail-delete {
+  border-color: transparent;
+  background: transparent;
+}
+.launch-detail-toolbar .ui-button.launch-detail-copy:hover:not(:disabled) {
+  background: var(--color-secondary-soft);
+}
+.launch-detail-toolbar .ui-button.launch-detail-delete:hover:not(:disabled) {
+  background: var(--color-error-soft);
+}
+/* Grows into the free width and never pushes a control onto a new line: a long preparation
+   status is cut, and its whole sentence is the label's title. */
+.launch-detail-toolbar .launch-draft-save-status {
+  flex: 1 1 0;
+  justify-content: flex-end;
+  min-height: 0;
+}
+.launch-detail-toolbar .launch-detail-close {
+  margin-inline-start: 0;
+}
+
+@media (max-width: 640px) {
+  /* The dialog's gutter is the only one on a phone: 20px of the dialog and 12px of the session
+     inside it left a 270px column, and the creative rows ran out of it. */
+  .ui-modal.team-launch-modal {
+    padding: var(--space-3);
+  }
+  .team-launch-modal .launch-detail-header {
+    top: calc(0px - var(--space-3));
+    margin-top: calc(0px - var(--space-3));
+    padding-top: var(--space-3);
+  }
+  /* The actions, the receipt and the close on the first line; the tabs take the second. */
+  .launch-detail-toolbar .launch-draft-save-status {
+    order: -3;
+  }
+
+  /* A creative is two lines: its picture beside the name and the ×, then the share under the
+     name. On one line the slider and the count ran past the dialog's edge. */
+  .launch-creative-share-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'thumb name remove'
+      'thumb share count';
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+  }
+  .launch-creative-share-row > .launch-creative-thumbnail {
+    grid-area: thumb;
+  }
+  .launch-creative-share-row > .launch-creative-share-name {
+    grid-area: name;
+  }
+  .launch-creative-share-row > .launch-creative-share-slider {
+    grid-area: share;
+    width: auto;
+  }
+  .launch-creative-share-row > .launch-creative-share-count {
+    grid-area: count;
+  }
+  .launch-creative-share-row > .launch-creative-share-remove {
+    grid-area: remove;
+  }
+  /* The mode on its own line and the values under it: the shared sheet's rule named the
+     segmented control as the row's child, and it has sat inside a field since 021, so the mode
+     took one grid column and «Від» was drawn over «Вручну · Єдиний». */
+  .launch-editor-budget-row > .ui-field:has(.ui-segmented),
+  .launch-editor-budget-row > .ui-field:has(.launch-editor-budget-values) {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  /* The result on a phone: the date under the name, not beside it past the card's edge; the
+     hint wraps; a copied row says so with its check alone, its word kept for the reader, so the
+     name and the link have the row's width instead of a column of single letters. */
+  .launch-result-card .ui-card-heading {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
+  .launch-result-card .ui-card-aside {
+    margin-left: 0;
+  }
+  .launch-result-hint {
+    white-space: normal;
+  }
+  .launch-result-row .launch-copy-affordance > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* A finger does not drag files: the zone is its «Обрати». */
+  .launch-creative-drop-hint {
+    display: none;
+  }
+  /* The summary of the substitutions is inside when it opens; on a phone its title wrapped
+     to four lines beside it. */
+  .launch-editor-sub-accordion .ui-accordion-aside {
+    display: none;
+  }
+}
+
+/* The actions line keeps its height while a run can still put a button there; a run that has
+   ended with nothing to offer gives the line back (070, 9и): a cancelled launch's progress
+   card ended in a blank band. */
+.launch-progress-actions:empty {
+  display: none;
+}

@@ -374,7 +374,7 @@ export function LaunchGenerationProgress({
         elapsedLabel &&
         !notStarted && (
           <span
-            className="inline-flex items-center gap-2 rounded-control bg-surface px-3 py-2 text-caption text-muted tabular-nums"
+            className="inline-flex items-center gap-2 rounded-md bg-surface px-3 py-2 text-caption text-muted tabular-nums"
             aria-label={t('launchesProgressElapsed', { time: elapsedLabel })}
           >
             <Clock3 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
@@ -471,7 +471,7 @@ export function LaunchGenerationProgress({
         </div>
       )}
       {showError && activeRestitch && restitchMediaError(code) && onUseOriginalVideo && (
-        <div className="flex flex-col items-start gap-3 rounded-control bg-surface p-3">
+        <div className="flex flex-col items-start gap-3 rounded-md bg-surface p-3">
           <p className="m-0 text-caption text-muted">{t('launchesOriginalVideoHint')}</p>
           <Button color="neutral" disabled={disabled} onClick={onUseOriginalVideo}>
             {t('launchesUseOriginalVideo')}

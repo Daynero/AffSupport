@@ -84,6 +84,17 @@
   --color-info: var(--color-info-solid);
   --color-warning: var(--color-warning-solid);
   --color-error: var(--color-error-solid);
+  /* The role words the launch editor and the fields write (070, 9и): `text-warning-text`,
+     `border-neutral-border` and the rest were never in this block, so they drew nothing — a
+     warning in body colour, a pending box ruled in currentColor. */
+  --color-success-text: var(--color-success-text);
+  --color-warning-text: var(--color-warning-text);
+  --color-error-text: var(--color-error-text);
+  --color-success-border: var(--color-success-border);
+  --color-warning-border: var(--color-warning-border);
+  --color-secondary-border: var(--color-secondary-border);
+  --color-neutral-border: var(--color-neutral-border);
+  --color-warning-soft: var(--color-warning-soft);
 
   --color-surface: var(--color-neutral-surface);
   --color-surface-subtle: var(--color-neutral-surface-subtle);
@@ -138,4 +149,6 @@
 @import './tariffs.css' layer(soty);
 
 @import './launch-settings.css' layer(soty);
+/* The task editor, refined over the legacy sheet and the board's (070, 9и). */
+@import './task-editor.css' layer(soty);
 @import './skin.css' layer(soty);

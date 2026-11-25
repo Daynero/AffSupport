@@ -121,7 +121,7 @@ export function CopyResultField({
   };
   return (
     <div
-      className={`${alreadyCopied ? 'launch-result-already-copied ' : ''}${compact ? `launch-result-row${campaignOrdinal ? ' launch-result-campaign-row' : ''}${hideLabel ? ' launch-result-hide-label' : ''}` : 'flex min-w-0 flex-col gap-1 rounded-control border p-2'} ${compact ? (copied ? 'launch-result-copied' : changed ? 'launch-result-changed' : '') : copied ? 'border-success-border bg-success-soft' : changed ? 'border-warning-border bg-warning-soft' : 'border-neutral-border bg-surface'}`}
+      className={`${alreadyCopied ? 'launch-result-already-copied ' : ''}${compact ? `launch-result-row${campaignOrdinal ? ' launch-result-campaign-row' : ''}${hideLabel ? ' launch-result-hide-label' : ''}` : 'flex min-w-0 flex-col gap-1 rounded-md border p-2'} ${compact ? (copied ? 'launch-result-copied' : changed ? 'launch-result-changed' : '') : copied ? 'border-success-border bg-success-soft' : changed ? 'border-warning-border bg-warning-soft' : 'border-neutral-border bg-surface'}`}
     >
       <div className="flex items-center justify-between gap-2">
         {!campaignOrdinal && <span className="min-w-0 font-medium">{displayLabel ?? label}</span>}
