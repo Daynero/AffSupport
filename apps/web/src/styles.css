@@ -743,7 +743,7 @@ a {
   grid-column: 1 / -1;
 }
 .settings-collapse-row {
-  /* The whole strip is the toggle: the button's hit area is stretched over it (070). */
+  /* The whole strip is the toggle: the row takes the click (SettingsPanelHeader). */
   position: relative;
   display: flex;
   width: 100%;
@@ -770,11 +770,6 @@ a {
   font-size: inherit;
   font-weight: inherit;
   transform: none;
-}
-.ui-button.settings-collapse::after {
-  content: '';
-  position: absolute;
-  inset: 0;
 }
 .settings-collapse .ui-button-leading {
   color: var(--color-accent);

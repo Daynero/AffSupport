@@ -11,9 +11,12 @@ import { Button } from './ui/index';
  * button is no heading at all, so a screen reader's list of headings skipped every panel.
  *
  * Here the heading holds the inventory's button (the accordion pattern), and the summary of
- * what will run sits beside it, outside the name. The whole strip still takes the click: the
- * button's hit area is stretched over the row in CSS (`.settings-collapse::after`), so pressing
- * the summary or the chevron folds the panel as it always did.
+ * what will run sits beside it, outside the name. The whole strip still takes the click, and
+ * the row itself takes it (owner, 25.11): the button's hit area used to be stretched over the
+ * row with `::after`, but React Aria counts a press only inside the button's own box, so a
+ * click on the summary or the chevron was released "outside" and dropped — only the title
+ * folded the panel. The button stays the one keyboard stop and the name; a pointer anywhere
+ * else on the strip folds it too.
  */
 export function SettingsPanelHeader({
   title,
@@ -32,7 +35,13 @@ export function SettingsPanelHeader({
   summary?: ReactNode;
 }) {
   return (
-    <div className="settings-collapse-row section-heading">
+    <div
+      className="settings-collapse-row section-heading"
+      onClick={event => {
+        // The button answers for itself; the rest of the strip is its larger target.
+        if (!(event.target as Element).closest('.settings-collapse')) onToggle();
+      }}
+    >
       <h2 id={titleId} className="settings-collapse-heading">
         <Button
           color="neutral"
