@@ -39,4 +39,4 @@ type UploadPurpose =
 
 ## Робітник (`pg_cron`, named secret `STORAGE_WORKER_SECRET`)
 
-`POST /worker/tick`: (1) прострочені upload-сесії → `AbortMultipartUpload`, резерв знято; (2) tombstones з `not_before <= now()` і без паузи → `DeleteObject` по одному ключу, з перевіркою префікса `s/<team_id>/`; (3) запобіжник масового видалення; (4) кошик старший за `trash_days` → tombstones; (5) запланові переходи, яким настав час; (6) нічна звірка `team_storage_usage`.
+`POST /worker/tick`: (1) прострочені upload-сесії → `AbortMultipartUpload`, резерв знято; (2) tombstones з `not_before <= now()` і без паузи → `DeleteObject` по одному ключу з перевіркою власності за `team_storage_objects` і відсутності uses (FR-019a), для `media` — очищення CDN; (3) запобіжник масового видалення; (4) кошик старший за `trash_days` → tombstones; (5) запланові переходи, яким настав час; (6) нічна звірка `team_storage_usage`.

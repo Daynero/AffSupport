@@ -11,7 +11,7 @@
 ## Technical Context
 
 - **Мови й рантайми:** TypeScript (web React + HeroUI v3, агент Node), Deno edge-функції Supabase, Postgres-міграції + pgTAP.
-- **Сховище:** Cloudflare R2 Standard. Новий приватний бакет `soty-library-<env>` на кожне середовище. Публічні бакети каталогу з 045/050 і новий префікс `f/` для фідів у публічному бакеті картинок каталогу **[припущення: окремий бакет фідів не потрібен]**.
+- **Сховище:** Cloudflare R2 Standard. Два нові бакети на середовище: медіабакет `soty-media-<env>` з власним доменом і CDN (відео, картинки, мініатюри, фіди) і приватний `soty-private-<env>` без домену. Бакети 045/050 лишаються для Drive-просторів до етапу F, нові R2-простори їх не використовують.
 - **Повторне використання:** SigV4 і multipart з `_shared/r2-catalog-images.ts`, `_shared/r2-catalog-video.ts`; tombstones і робітник 050; `TARGET_CONFIRMATION`-гейт; генератор колонок каталогу `_shared/product-catalog.ts`; WebP-кодер `_shared/catalog-webp`.
 - **Тестування:** vitest single-worker (`--pool=forks --poolOptions.forks.singleFork=true`), pgTAP у `supabase/tests/database/`, `npm run verify` як єдина перевірка.
 - **Дизайн:** нові екрани (квота, банер переходу, фід каталогу) тільки з компонентів `apps/web/src/components/ui/` і токенів `tokens.css`.
@@ -37,7 +37,7 @@
 ### Етап A. Фундамент (без видимих змін)
 
 - `_shared/r2/` (signer, multipart, readback, purge) виноситься з 045/050 без зміни поведінки; тести 045/050 зелені.
-- Runtime-конфіг `R2_LIBRARY_*` з `TARGET_CONFIRMATION`; `private.storage_r2_config`.
+- Runtime-конфіг `R2_MEDIA_*` і `R2_PRIVATE_*` з `TARGET_CONFIRMATION`; `private.storage_r2_config`.
 - Міграції data-model: `teams.storage_backend`, `soty_r2` підключення, `team_storage_objects`, `team_storage_usage`, `team_storage_upload_sessions`, `private.storage_tombstones`, коди помилок.
 - `StorageAdapter` + `DriveAdapter` (обгортка, поведінка Drive побайтово та сама) + перевірка `verify`: `GoogleDriveClient` імпортується тільки в `_shared/storage/drive-adapter.ts` і в коді, позначеному до етапу F (allowlist, що тільки скорочується).
 
@@ -63,7 +63,7 @@
 - Перевірка на beta: Meta приймає заплановане джерело з URL у CSV (Assumption 6). Якщо ні, XML-серіалізатор.
 - Рендер фіда з бази тим самим генератором; golden-тест SC-004.
 - `catalog-updater` для R2-каталогів: запис фіда з `If-Match`, очищення CDN, `feed_revision`.
-- 050 для R2-просторів: джерело копії — об'єкт бібліотеки, опція завжди ввімкнена, без Drive-запасу.
+- Для R2-просторів фід посилається на постійні медіа-URL матеріалів; копія 050 і публікація 045 не виконуються; `team_storage_object_uses` тримає медіа живих фідів (FR-019a); правило кешу медіадомену ігнорує `?v=` (R16).
 - Створення каталогу (діалог, меню, запуски 035) повертає URL фіда; перегляд і XLSX у застосунку.
 
 ### Етап E. Перехід і нові простори (US4, US6)
@@ -88,7 +88,8 @@
 | --- | --- | --- |
 | Код іде в Drive API з синтетичним `r2_…` id | середня | `StorageAdapter` + allowlist у `verify`; тест, що `GoogleDriveClient` отримує `r2_` id → падіння |
 | Meta не приймає CSV з URL | низька | перевірка першим кроком етапу D; XML |
-| Presigned без CDN дає повільні мініатюри | середня | вирівняний строк підпису (кеш браузера); Worker перед бакетом як наступний крок (research R5) |
+| Медіа-URL переслали назовні | низька | 128-бітні ключі, без лістингу; відкликання видаленням файлу; прийнято власником (R16) |
+| Видалення ламає товари в Meta | середня | uses живих фідів блокують tombstone (FR-019a) |
 | Bucket lock заважає чистити незавершені multipart | низька | перевірка на beta до прод-увімкнення; lock тільки на завершених об'єктах |
 | Перехід зупиняється посередині | середня | ідемпотентні кроки, повтор з адмінки, стан у `steps` |
 | Старий агент на R2-просторі | висока на старті | `AGENT_UPDATE_REQUIRED` + банер оновлення; перехід простору тільки коли всі агенти простору на новій версії (перевірка в кроці 1) |

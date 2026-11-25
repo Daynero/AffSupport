@@ -6,7 +6,7 @@
 interface StorageAdapter {
   readonly backend: 'drive' | 'r2';
 
-  /** URL читання для браузера чи агента. Для R2 — presigned GET; для Drive — наявний /range. */
+  /** URL читання для браузера чи агента. R2-медіа — постійний public_url (без підпису); R2-приватне — presigned GET; Drive — наявний /range. */
   readUrl(input: {
     material: MaterialRef;
     purpose: 'preview' | 'download' | 'agent_input' | 'thumbnail';

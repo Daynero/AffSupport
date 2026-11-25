@@ -36,7 +36,7 @@
 
 | Стовпець | Тип | Правило |
 | --- | --- | --- |
-| `feed_object_key` | `text null` | `f/<32 hex>.csv` у публічному бакеті каталогу |
+| `feed_object_key` | `text null` | `f/<32 hex>.csv` у медіабакеті |
 | `feed_url` | `text null` | повний публічний URL; незмінний після створення |
 | `feed_etag` | `text null` | ETag останнього запису (для `If-Match`) |
 | `feed_revision` | `bigint not null default 0` | +1 на кожен запис |
@@ -53,7 +53,9 @@
 | --- | --- | --- |
 | `id` | `uuid pk` | |
 | `team_id` | `uuid not null references teams on delete cascade` | тригер `before delete` ставить tombstone (`reason='team_deleted'`) на кожен `ready`-об'єкт; tombstones без FK переживають каскад (як 050) |
-| `object_key` | `text not null unique` | `s/<team_id>/<id>`; `check (object_key = 's/' \|\| team_id \|\| '/' \|\| id)` |
+| `bucket` | `text not null` | `'media' \| 'private'` (FR-002) |
+| `object_key` | `text not null unique` | за FR-003: `v/`, `i/`, `t/`, `f/` у `media`, `p/` у `private`, далі 32 hex з CSPRNG; `check` на формат і відповідність `bucket` |
+| `public_url` | `text null` | для `media`: `<media origin>/<object_key>`; незмінний; `null` для `private` |
 | `class` | `text not null` | `'original' \| 'derived'` |
 | `role` | `text null` | для `derived`: `'thumbnail' \| 'poster' \| 'landing_render' \| 'restitch_screen'` |
 | `parent_object_id` | `uuid null references team_storage_objects` | для похідних |
@@ -95,12 +97,16 @@
 | --- | --- | --- |
 | `object_key` | `text pk` | без FK: переживає каскади (як tombstones 050) |
 | `team_id` | `uuid not null` | без FK |
-| `bucket` | `text not null` | `'library' \| 'catalog_public'` |
+| `bucket` | `text not null` | `'media' \| 'private'`; для `media` робітник після `DeleteObject` очищає CDN за URL |
 | `reason` | `text not null` | `'trash_expired' \| 'user_purge' \| 'overwrite' \| 'team_deleted' \| 'upload_aborted' \| 'derived_orphan'` |
 | `not_before` | `timestamptz not null` | `created + 7 days` (для `upload_aborted` — `now()`) |
 | `paused` | `boolean not null default false` | запобіжник FR-021 |
 | `lease_until`, `attempts`, `last_error` | | робітник |
 | `deleted_at` | `timestamptz null` | |
+
+### `public.team_storage_object_uses`
+
+Хто тримає медіаоб'єкт живим (FR-019a). `object_id`, `team_id`, `holder_kind` (`'catalog_feed'`), `holder_id` (каталог), `created_at`; `primary key (object_id, holder_kind, holder_id)`. Запис фіда в одній транзакції замінює набір uses каталогу на набір URL, що реально є у фіді. Tombstone на об'єкт ставиться тільки коли (матеріал видалено назавжди) і (uses порожній). Перманентне видалення каталогу видаляє його uses і ставить tombstone на фід.
 
 ### `public.team_share_links`
 
