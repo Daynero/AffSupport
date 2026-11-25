@@ -82,9 +82,7 @@ describe('catalogRowActivity', () => {
       retryAt: new Date(NOW + 60_000).toISOString()
     });
     // A time already past is not offered as «next try».
-    expect(
-      catalogRowActivity(round({ roundNextAttemptAt: ago(1000) }), NOW).retryAt
-    ).toBeNull();
+    expect(catalogRowActivity(round({ roundNextAttemptAt: ago(1000) }), NOW).retryAt).toBeNull();
   });
 
   // Root cause of «still updating, but the button says run»: work outside the round.
@@ -189,9 +187,7 @@ describe('catalogRowActivity', () => {
       progressAttemptId: 'a'
     });
     expect(catalogRowActivity(legacy, NOW).motion).toBe('live');
-    expect(catalogRowActivity({ ...legacy, progressAttemptId: null }, NOW).motion).toBe(
-      'waiting'
-    );
+    expect(catalogRowActivity({ ...legacy, progressAttemptId: null }, NOW).motion).toBe('waiting');
   });
 });
 
