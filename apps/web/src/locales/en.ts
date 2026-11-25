@@ -3013,6 +3013,44 @@ export const en = {
   catalogUpdaterUnavailable: 'Catalogs unavailable',
   catalogRunNeedsReview: 'Requires review · details',
   catalogUpdaterCurrentProblem: 'Current problem:',
+  // 072 П5 — a running catalog, its moving work, its Drive folder, its history.
+  catalogLockedWhileRunning: 'An update is running — change the settings after it ends, or stop it',
+  catalogLockedWhileChecking:
+    'Checking what the sheet kept — the settings can change once the check ends',
+  catalogLockedRunningTitle: 'This catalog is updating',
+  catalogLockedRunningBody:
+    'While it runs the settings stay as they are, so the update never takes half old and half new ones. Wait for it to end, or stop it.',
+  catalogStopUpdate: 'Stop the update',
+  catalogStopVerifyingHint:
+    'Checking that the sheet took the changes — a few seconds, nothing to stop',
+  catalogStopVideosHint:
+    'Videos for this catalog are being made — it can be updated once they are ready',
+  catalogBulkSkippedRunning:
+    'Catalogs skipped because they are updating now: {count}. Their settings can change once the update ends.',
+  catalogNextTryAt: 'next try at {time}',
+  catalogWorkQueued: 'waiting its turn',
+  catalogOtherFolderRow: 'In a previous Drive folder',
+  catalogOtherFolderRunHint:
+    'Not updated: the catalog is in «{folder}», a folder the space no longer uses',
+  catalogOtherFolderTitle: 'This catalog is in a previous Drive folder',
+  catalogOtherFolderBody:
+    'The space now works with the folder «{space}», and this sheet is in «{folder}». Soty cannot update it, and reconnecting Drive will not change that. Nothing is broken: the sheet and its links work, just without updates. To bring updates back, move the sheet together with its video into «{space}» on Google Drive — Soty picks them up by itself.',
+  catalogOtherFolderBodyNoSpace:
+    'This sheet is in «{folder}», which was disconnected from the space. Until the space connects Drive again, Soty does not update it. The sheet and its links work.',
+  catalogDriveReconnectTitle: 'Soty lost access to Google Drive',
+  catalogDriveReconnectBody:
+    'Google no longer lets Soty into the space folder — this happens after a password change or revoked access. Nothing is lost: the sheet is intact and updates are simply waiting. The space owner connects Drive again with the same Google account in the space settings.',
+  catalogDriveRestoredTitle: 'Drive is connected again',
+  catalogDriveRestoredBody:
+    'The last update failed because Drive was unavailable. Access is back — run the update again.',
+  catalogOtherFolderAttemptReason:
+    'The space no longer worked with the Drive folder this catalog is in.',
+  catalogLastUpdateFailedTitle: 'The last update failed',
+  catalogHistoryStages: 'Stages',
+  catalogHistoryChanged: 'What changed',
+  catalogHistoryPlanned: 'What was planned',
+  catalogHistoryReason: 'Reason',
+  catalogHistoryShowMore: 'Show {count} more',
   catalogUpdaterLoading: 'Loading catalogs…',
   catalogUpdaterEmpty: 'No catalogs yet. Create one from a video.',
   catalogUpdaterNoMatches: 'Nothing matches the search.',

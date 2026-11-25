@@ -2997,6 +2997,45 @@ export const uk: Record<keyof typeof en, string> = {
   catalogUpdaterUnavailable: 'Каталоги недоступні',
   catalogRunNeedsReview: 'Потрібна перевірка · деталі',
   catalogUpdaterCurrentProblem: 'Поточна проблема:',
+  // 072 П5 — a running catalog, its moving work, its Drive folder, its history.
+  catalogLockedWhileRunning:
+    'Іде оновлення — налаштування можна змінити після нього або зупиніть оновлення',
+  catalogLockedWhileChecking:
+    'Перевіряємо, що збереглося в таблиці — налаштування можна змінити після перевірки',
+  catalogLockedRunningTitle: 'Іде оновлення цього каталогу',
+  catalogLockedRunningBody:
+    'Поки воно триває, налаштування не змінюються — щоб оновлення не взяло половину старих і половину нових. Дочекайтеся кінця або зупиніть його.',
+  catalogStopUpdate: 'Зупинити оновлення',
+  catalogStopVerifyingHint:
+    'Перевіряємо, чи таблиця прийняла зміни — це кілька секунд, зупиняти нічого',
+  catalogStopVideosHint:
+    'Готуємо відео для цього каталогу — оновити його можна, коли вони будуть готові',
+  catalogBulkSkippedRunning:
+    'Пропущено каталогів, що зараз оновлюються: {count}. Їхні налаштування можна змінити після оновлення.',
+  catalogNextTryAt: 'наступна спроба о {time}',
+  catalogWorkQueued: 'чекає черги',
+  catalogOtherFolderRow: 'У попередній папці Drive',
+  catalogOtherFolderRunHint:
+    'Не оновлюється: каталог у папці «{folder}», яку простір більше не використовує',
+  catalogOtherFolderTitle: 'Каталог лежить у попередній папці Drive',
+  catalogOtherFolderBody:
+    'Простір тепер працює з папкою «{space}», а ця таблиця — у «{folder}». Soty не може її оновлювати, і повторне підключення Drive тут не допоможе. Нічого не зламалось: таблиця й посилання в ній працюють, просто без оновлень. Щоб оновлення повернулись, перенесіть таблицю разом із відео в папку «{space}» на Google Drive — Soty підхопить їх сам.',
+  catalogOtherFolderBodyNoSpace:
+    'Ця таблиця — у папці «{folder}», яку від простору відʼєднано. Поки простір не підключить Drive знову, Soty її не оновлює. Таблиця й посилання в ній працюють.',
+  catalogDriveReconnectTitle: 'Soty втратив доступ до Google Drive',
+  catalogDriveReconnectBody:
+    'Google більше не пускає Soty в папку простору — так буває після зміни пароля або відкликання доступу. Нічого не втрачено: таблиця ціла, оновлення просто чекають. Власник простору підключає Drive знову тим самим Google-акаунтом у налаштуваннях простору.',
+  catalogDriveRestoredTitle: 'Drive знову підключено',
+  catalogDriveRestoredBody:
+    'Минуле оновлення не вдалося, бо Drive був недоступний. Зараз доступ є — запустіть оновлення ще раз.',
+  catalogOtherFolderAttemptReason:
+    'Простір уже не працював із папкою Drive, де лежить цей каталог.',
+  catalogLastUpdateFailedTitle: 'Останнє оновлення не вдалося',
+  catalogHistoryStages: 'Етапи',
+  catalogHistoryChanged: 'Що змінилось',
+  catalogHistoryPlanned: 'Що планувалось',
+  catalogHistoryReason: 'Причина',
+  catalogHistoryShowMore: 'Показати ще {count}',
   catalogUpdaterLoading: 'Завантажуємо каталоги…',
   catalogUpdaterEmpty: 'Каталогів ще немає. Створіть каталог із відео.',
   catalogUpdaterNoMatches: 'Нічого не знайдено.',
