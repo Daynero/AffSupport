@@ -148,9 +148,12 @@
 }
 
 /* Two bounded dictionaries; the form and heading stay outside their scrolling lists. */
+/* Two cards side by side take the dialog's whole width: the single column's cap is for one card,
+   and under it the pair stopped 70 px short of the tabs above them. */
 .team-space-settings .team-space-settings-grid.is-tags {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
   align-items: start;
+  max-width: none;
 }
 .team-space-settings .team-task-labels {
   min-width: 0;

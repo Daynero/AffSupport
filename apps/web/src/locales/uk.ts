@@ -3995,8 +3995,9 @@ export const uk: Record<keyof typeof en, string> = {
   teamAgentLabelsLabel: 'Теги РК',
   teamAgentLabelsNoneYet: 'У просторі ще немає тегів РК — створіть їх у налаштуваннях простору.',
   teamAgentLabelsUntagged: 'Без тега',
-  teamAgentTagsTitle: 'Теги РК',
-  teamAgentTagsDescription: 'Теги РК для групування акаунтів і повідомлень про платежі.',
+  teamAgentTagsTitle: 'Теги акаунтів (РК)',
+  teamAgentTagsDescription:
+    'Мітки рекламних кабінетів у вкладці «Акаунти»: групують кабінети й підписують повідомлення про платежі.',
   teamAgentTagNamePlaceholder: '#2, #5, Visa…',
   teamAgentTagsEmpty: 'Тегів РК ще немає. Для першого вкажіть назву і колір.',
   teamAccountsCopied: 'Скопійовано — РК: {count}',
@@ -4087,8 +4088,9 @@ export const uk: Record<keyof typeof en, string> = {
   teamTaskPreferencesTitle: 'Завдання',
   teamTaskPreferencesDescription: 'Для всіх у просторі.',
   teamSettingsTabTags: 'Теги',
-  teamTaskTagsTitle: 'Теги',
-  teamTaskTagsDescription: 'Теги для завдань, фільтрів і сортування дошки.',
+  teamTaskTagsTitle: 'Теги завдань',
+  teamTaskTagsDescription:
+    'Мітки на картках у вкладці «Завдання»: за ними фільтрують і сортують дошку.',
   teamTaskTagName: 'Назва',
   teamTaskTagNamePlaceholder: 'UGC, Гарячі, На перевірку…',
   teamTaskTagNameInvalid: 'Тегу потрібна назва до 24 символів.',
