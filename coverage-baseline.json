@@ -327,9 +327,7 @@
     "apps/web/src/stitcher/api.ts": 20.87,
     "apps/web/src/stitcher/input-diagnostics.ts": 100,
     "apps/web/src/support/DiagnosticsBundle.tsx": 97.76,
-    "apps/web/src/support/SupportGoalContext.tsx": 92.13,
     "apps/web/src/support/diagnostics-bundle.ts": 100,
-    "apps/web/src/support/goals.ts": 95.09,
     "apps/web/src/team/SpaceComingSoon.tsx": 30.43,
     "apps/web/src/team/SpaceSettingsLink.tsx": 86.48,
     "apps/web/src/team/TeamContext.tsx": 96.33,
@@ -863,6 +861,16 @@
       "coverage": 96.38,
       "removed_in": "508a1694bef98daa23a902480523d3d33c2dd8b2",
       "reason": "070 T034: the toolbar's give-up-words measurement moved into the inventory (components/ui/useCompactToolbar.ts, one useToolbarStages for the tools and the landing viewer); the product-level copies were deleted. Global and remaining numeric floors unchanged."
+    },
+    "apps/web/src/support/SupportGoalContext.tsx": {
+      "coverage": 92.13,
+      "removed_in": "c9f2e1d0a1006614cfb8e9bc95e805afdfaa19ad",
+      "reason": "The donation goal and its dialog were removed (feat(support) c9f2e1d0, owner 2026-11-25); the module went with them. Global and remaining numeric floors unchanged."
+    },
+    "apps/web/src/support/goals.ts": {
+      "coverage": 95.09,
+      "removed_in": "c9f2e1d0a1006614cfb8e9bc95e805afdfaa19ad",
+      "reason": "The donation goal and its dialog were removed (feat(support) c9f2e1d0, owner 2026-11-25); the module went with them. Global and remaining numeric floors unchanged."
     }
   }
 }

@@ -22,3 +22,5 @@ import '../../../packages/shared/dist/team/launches/naming.d.ts';
 // 064: the assistant's money tools read the Accounts report.
 import '../../../packages/shared/dist/team/agent-finance.d.ts';
 import '../../../packages/shared/dist/team/agent-finance-report.d.ts';
+// 073: the catalog image optimizer and the R2 worker strip metadata on the way out.
+import '../../../packages/shared/dist/media-metadata.d.ts';
