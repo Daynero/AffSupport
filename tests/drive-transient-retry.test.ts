@@ -136,6 +136,64 @@ describe('Drive reads ride out a transient failure', () => {
     expect(calls[1]![1].body).toBe(calls[0]![1].body);
   });
 
+  it('reads the tabs and the spreadsheet’s own markers in one request', async () => {
+    const sheet = {
+      properties: {
+        sheetId: 7,
+        title: 'Catalog',
+        sheetType: 'GRID',
+        gridProperties: { rowCount: 40, columnCount: 30 }
+      }
+    };
+    const marker = (value: string, extra: Record<string, unknown> = {}) => ({
+      metadataKey: 'soty_catalog_updater',
+      metadataValue: value,
+      visibility: 'DOCUMENT',
+      location: { locationType: 'SPREADSHEET' },
+      ...extra
+    });
+    const a = drive(
+      json(200, {
+        spreadsheetId: 'sheet-1',
+        sheets: [sheet],
+        developerMetadata: [
+          marker('mine'),
+          marker('other-key', { metadataKey: 'someone_else' }),
+          marker('on-a-row', { location: { locationType: 'ROW' } }),
+          marker('project-only', { visibility: 'PROJECT' })
+        ]
+      })
+    );
+    expect(
+      await a.client.getNativeSpreadsheetSheetsAndMarkers('sheet-1', 'soty_catalog_updater')
+    ).toEqual({
+      sheets: [{ sheetId: 7, title: 'Catalog', rowCount: 40, columnCount: 30 }],
+      markers: ['mine']
+    });
+    expect(a.fetchImpl).toHaveBeenCalledOnce();
+    const [url] = a.fetchImpl.mock.calls[0] as unknown as [URL];
+    expect(url.searchParams.get('fields')).toContain('developerMetadata(');
+
+    // No metadata at all is no marker; three of ours is a race the search refused as well.
+    const none = drive(json(200, { spreadsheetId: 'sheet-1', sheets: [sheet] }));
+    expect(
+      (await none.client.getNativeSpreadsheetSheetsAndMarkers('sheet-1', 'soty_catalog_updater'))
+        .markers
+    ).toEqual([]);
+    const many = drive(
+      json(200, {
+        spreadsheetId: 'sheet-1',
+        sheets: [sheet],
+        developerMetadata: [marker('a'), marker('b'), marker('c')]
+      })
+    );
+    expect(
+      await code(() =>
+        many.client.getNativeSpreadsheetSheetsAndMarkers('sheet-1', 'soty_catalog_updater')
+      )
+    ).toBe('INVALID_RESPONSE');
+  });
+
   it('never retries past a request deadline', async () => {
     const a = drive(json(503, {}), json(200, FILE));
     const bounded = a.client.withRequestDeadline(Date.now() - 1);

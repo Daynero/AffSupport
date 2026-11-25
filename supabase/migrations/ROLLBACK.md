@@ -3680,3 +3680,14 @@ today's settings instead of SOURCE_CHANGED; both screens off is RESTITCH_INVALID
 automatic end frame) and `public.service_accept_launch_catalog_video_generation` (both screens
 off is RESTITCH_INVALID; `builtin` is left out of the settings comparison). No table or column.
 Undo by restoring both bodies from their previous migrations and dropping the helper.
+
+## 20261224280000 — the catalog updater keeps within a Drive owner's Sheets quota
+
+Adds `private.google_sheets_read_budgets` (one row per Drive credential: tokens, refilled_at; no
+FK, no jsonb, not a team table), `public.service_take_google_sheets_reads(uuid, integer, integer)`
+(a bucket of 28 reads refilling 0.5 a second; answers 0 or the milliseconds to wait, and reserves
+a wait no longer than the caller's limit) and `public.service_defer_catalog_update(uuid, text,
+timestamptz)` (the lease holder hands a round back for at most ten minutes and the claim's try is
+returned). Both service_role only. Undo by dropping the two functions and the table; the worker
+then treats the budget as granted (logged «Sheets budget unavailable») and a deferral that fails
+falls back to the ordinary retry, as before.

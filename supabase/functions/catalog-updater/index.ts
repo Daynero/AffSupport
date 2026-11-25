@@ -17,6 +17,7 @@ import {
 import { runCatalogPublicationScheduler } from './publication-authority.ts';
 import { isPublicationLaneRequest, runCatalogPublicationLane } from './publication-lane.ts';
 import { prepareCatalogClaims } from './claim-preparation.ts';
+import { catalogUpdaterRpcError } from './rpc-error.ts';
 import { drawCatalogImagePool } from '../_shared/catalog-image-draw.ts';
 import { runProcessOutputCleanupTick } from '../drive-ops/process-output-recovery.ts';
 import { reconcileUncertainProcessUploads } from '../drive-ops/uncertain-upload-reconcile.ts';
@@ -74,7 +75,7 @@ function serviceClient(): RpcClient {
 
 async function rpcValue(client: RpcClient, name: string, parameters: Record<string, unknown>) {
   const { data, error } = await client.rpc(name, parameters);
-  if (error) throw new TeamFunctionError('DRIVE_UNAVAILABLE', { retryable: true });
+  if (error) throw catalogUpdaterRpcError(name, error);
   return data;
 }
 
@@ -582,6 +583,31 @@ Deno.serve(async request => {
               );
               return null;
             })) !== null,
+          // A budget that cannot be read does not stop updates: Google's own «slow down»
+          // still hands the round back below.
+          takeSheetsReads: async (credentialId, reads, maxWaitMs) => {
+            const waitMs = Number(
+              await rpcValue(service, 'service_take_google_sheets_reads', {
+                p_credential: credentialId,
+                p_reads: reads,
+                p_max_wait_ms: maxWaitMs
+              }).catch(error => {
+                console.error(
+                  '[catalog-updater] Sheets budget unavailable',
+                  error instanceof Error ? error.message : 'UNKNOWN'
+                );
+                return 0;
+              })
+            );
+            return Number.isFinite(waitMs) && waitMs > 0 ? waitMs : 0;
+          },
+          defer: async (catalogId, nextAttemptAt) =>
+            (await rpcValue(service, 'service_defer_catalog_update', {
+              p_item: catalogId,
+              p_worker: workerId,
+              p_next_attempt_at: nextAttemptAt.toISOString()
+            })) === true,
+          sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
           now: () => Date.now(),
           log: (message, detail) => console.error(message, detail)
         },

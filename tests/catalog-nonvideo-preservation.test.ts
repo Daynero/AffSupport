@@ -74,7 +74,11 @@ function fixture(cells: string[]) {
         version = '2';
       }
     ),
-    readNativeSpreadsheetMarkers: vi.fn(async () => markers)
+    readNativeSpreadsheetMarkers: vi.fn(async () => markers),
+    getNativeSpreadsheetSheetsAndMarkers: vi.fn(async () => ({
+      sheets: await drive.getNativeSpreadsheetSheets(),
+      markers: [...markers]
+    }))
   };
   const rpc = vi.fn(async () => ({
     data: {

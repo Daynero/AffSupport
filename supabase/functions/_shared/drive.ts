@@ -349,6 +349,43 @@ function driveRetryAfter(response: Response): number {
   return Number.isFinite(value) ? Math.min(1_000_000_000, Math.max(0, Math.ceil(value))) : 0;
 }
 
+/** The tabs of a spreadsheet as Sheets describes them; anything else is not an answer. */
+function nativeSheetsOf(data: unknown, fileId: string): NativeCatalogSheet[] {
+  if (
+    !isRecord(data) ||
+    data.spreadsheetId !== fileId ||
+    !Array.isArray(data.sheets) ||
+    !data.sheets.length
+  )
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  return data.sheets.map(sheet => {
+    const p = isRecord(sheet) && isRecord(sheet.properties) ? sheet.properties : null;
+    const grid = p && isRecord(p.gridProperties) ? p.gridProperties : null;
+    if (
+      !p ||
+      !grid ||
+      p.sheetType !== 'GRID' ||
+      typeof p.title !== 'string' ||
+      typeof p.sheetId !== 'number' ||
+      !Number.isSafeInteger(p.sheetId) ||
+      p.sheetId < 0 ||
+      typeof grid.rowCount !== 'number' ||
+      !Number.isSafeInteger(grid.rowCount) ||
+      grid.rowCount < 1 ||
+      typeof grid.columnCount !== 'number' ||
+      !Number.isSafeInteger(grid.columnCount) ||
+      grid.columnCount < 1
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    return {
+      sheetId: p.sheetId,
+      title: p.title,
+      rowCount: grid.rowCount,
+      columnCount: grid.columnCount
+    };
+  });
+}
+
 export class GoogleDriveClient {
   readonly #accessToken: string;
   readonly #fetch: typeof fetch;
@@ -918,40 +955,51 @@ export class GoogleDriveClient {
     );
     url.searchParams.set('fields', 'spreadsheetId,sheets.properties');
     const response = await this.#request(url);
+    return nativeSheetsOf(await response.json().catch(() => null), fileId);
+  }
+
+  /**
+   * The tabs and the spreadsheet's own markers under one key, in one read.
+   *
+   * 2026-11-25: a catalog update asked for the tabs and searched for its marker separately,
+   * two of the five Sheets reads it spends — and Google allows a Drive owner sixty a minute.
+   * Spreadsheet-level developer metadata comes with the spreadsheet itself; what is located
+   * on a tab, a row or a column is not part of it and is not a marker of ours.
+   */
+  async getNativeSpreadsheetSheetsAndMarkers(
+    fileId: string,
+    key: string
+  ): Promise<{ sheets: NativeCatalogSheet[]; markers: string[] }> {
+    if (!fileId || !/^[a-zA-Z0-9_-]{1,128}$/u.test(key))
+      throw new TeamFunctionError('INVALID_INPUT');
+    const url = new URL(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(fileId)}`
+    );
+    url.searchParams.set(
+      'fields',
+      'spreadsheetId,sheets.properties,developerMetadata(metadataKey,metadataValue,visibility,location/locationType)'
+    );
+    const response = await this.#request(url);
     const data: unknown = await response.json().catch(() => null);
-    if (
-      !isRecord(data) ||
-      data.spreadsheetId !== fileId ||
-      !Array.isArray(data.sheets) ||
-      !data.sheets.length
-    )
-      throw new TeamFunctionError('INVALID_RESPONSE');
-    return data.sheets.map(sheet => {
-      const p = isRecord(sheet) && isRecord(sheet.properties) ? sheet.properties : null;
-      const grid = p && isRecord(p.gridProperties) ? p.gridProperties : null;
+    const sheets = nativeSheetsOf(data, fileId);
+    const metadata = isRecord(data) ? (data.developerMetadata ?? []) : null;
+    if (!Array.isArray(metadata)) throw new TeamFunctionError('INVALID_RESPONSE');
+    const markers = metadata.flatMap(entry => {
+      if (!isRecord(entry)) throw new TeamFunctionError('INVALID_RESPONSE');
+      const location = isRecord(entry.location) ? entry.location.locationType : 'SPREADSHEET';
       if (
-        !p ||
-        !grid ||
-        p.sheetType !== 'GRID' ||
-        typeof p.title !== 'string' ||
-        typeof p.sheetId !== 'number' ||
-        !Number.isSafeInteger(p.sheetId) ||
-        p.sheetId < 0 ||
-        typeof grid.rowCount !== 'number' ||
-        !Number.isSafeInteger(grid.rowCount) ||
-        grid.rowCount < 1 ||
-        typeof grid.columnCount !== 'number' ||
-        !Number.isSafeInteger(grid.columnCount) ||
-        grid.columnCount < 1
+        entry.metadataKey !== key ||
+        entry.visibility !== 'DOCUMENT' ||
+        location !== 'SPREADSHEET'
       )
+        return [];
+      if (typeof entry.metadataValue !== 'string' || entry.metadataValue.length > 1024)
         throw new TeamFunctionError('INVALID_RESPONSE');
-      return {
-        sheetId: p.sheetId,
-        title: p.title,
-        rowCount: grid.rowCount,
-        columnCount: grid.columnCount
-      };
+      return [entry.metadataValue];
     });
+    // The search this replaces refused more than two as well: a writer races or a sheet is copied.
+    if (markers.length > 2) throw new TeamFunctionError('INVALID_RESPONSE');
+    return { sheets, markers };
   }
 
   /** Read only two bounded catalog columns. Formula expressions remain literal,

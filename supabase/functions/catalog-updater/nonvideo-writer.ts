@@ -67,11 +67,11 @@ export function createCatalogNonVideoUpdater(
       }
       return read;
     };
-    // Three reads that do not depend on each other go out together — one Google round trip
-    // instead of three, on every catalog of every update. Their answers are judged in the
-    // order they were always judged, so a sheet that fails two checks names the same cause.
-    const [priorRead, ancestry, sheetsRead] = await Promise.allSettled([
-      drive.readNativeSpreadsheetMarkers(item.driveFileId, CATALOG_NONVIDEO_MARKER),
+    // The reads that do not depend on each other go out together, and the tabs and the marker
+    // come in one Sheets read (a Drive owner has sixty a minute). Their answers are judged in
+    // the order they were always judged, so a sheet that fails two checks names the same cause.
+    const [tabsRead, ancestry] = await Promise.allSettled([
+      drive.getNativeSpreadsheetSheetsAndMarkers(item.driveFileId, CATALOG_NONVIDEO_MARKER),
       proveLiveAncestry({
         client: drive,
         fileId: item.driveFileId,
@@ -79,10 +79,9 @@ export function createCatalogNonVideoUpdater(
         resourceKey: item.resourceKey,
         maximumDepth: 16,
         readAncestor
-      }),
-      drive.getNativeSpreadsheetSheets(item.driveFileId)
+      })
     ]);
-    const prior = settled(priorRead);
+    const { sheets, markers: prior } = settled(tabsRead);
     const previousMarker = expectedPreviousMarker(c, prior);
     if (
       prior.length > 1 ||
@@ -106,7 +105,6 @@ export function createCatalogNonVideoUpdater(
     // every product row from the records, an empty sheet around them, a grid large enough.
     // Production 2026-11-20 (DreamTeam, TR 84_v1): 62 video links pasted under the last
     // product stopped every update of that catalog for good.
-    const sheets = settled(sheetsRead);
     let sheet = sheets.find(s => s.title === PRODUCT_CATALOG_SHEET_NAME),
       stable = before;
     if (!sheet && sheets.length === 1) {

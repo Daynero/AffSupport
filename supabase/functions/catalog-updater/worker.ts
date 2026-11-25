@@ -65,6 +65,33 @@ const CLAIM_LIMIT = PARALLEL;
 const LEASE_SECONDS = 300;
 const RETIRED_LIMIT = 10;
 const ORPHAN_LIMIT = 10;
+// Sheets reads of one nonvideo update: tabs with the marker, the preserved column before the
+// write; the marker and the column after it. An image catalog keeps a second column.
+const SHEETS_READS = { video: 4, image: 6 } as const;
+// A wait this short is reserved and slept through in place (the next caller waits behind it);
+// a longer one hands the round back until then. Claims stop after the tick's budget, so one
+// request still ends well inside the dispatcher's sixty seconds.
+const INLINE_SHEETS_WAIT_MS = 25_000;
+// Google's «slow down» without a Retry-After: the per-minute quota is the usual cause.
+const RATE_LIMITED_PAUSE_MS = 30_000;
+
+/** The Drive owner's Sheets minute is spent: the round waits, it has not failed. */
+class SheetsBudgetSpent extends Error {
+  constructor(readonly waitMs: number) {
+    super('SHEETS_BUDGET_SPENT');
+  }
+}
+
+/** Take the reads of one update, sleeping through a reserved short wait and no more. */
+async function takeSheetsReads(deps: CatalogUpdaterDeps, item: ClaimedCatalog): Promise<void> {
+  if (!deps.takeSheetsReads) return;
+  const reads = SHEETS_READS[item.creatives?.kind === 'image' ? 'image' : 'video'];
+  const maxWaitMs = deps.sleep ? INLINE_SHEETS_WAIT_MS : 0;
+  const waitMs = await deps.takeSheetsReads(item.credentialId, reads, maxWaitMs);
+  if (waitMs <= 0) return;
+  if (waitMs > maxWaitMs || !deps.sleep) throw new SheetsBudgetSpent(waitMs);
+  await deps.sleep(waitMs);
+}
 
 export type UpdaterDrive = Pick<
   GoogleDriveClient,
@@ -268,6 +295,15 @@ export interface CatalogUpdaterDeps {
   clearOrphan?(materialId: string, trashed: boolean): Promise<boolean>;
   /** Ask for the next tick now; true when one was sent. Only called with a backlog. */
   dispatchNext?(): Promise<boolean>;
+  /**
+   * Take Sheets reads from the Drive owner's minute (Google allows sixty a user): 0 when
+   * granted, otherwise the milliseconds until they would be — reserved when no more than
+   * maxWaitMs.
+   */
+  takeSheetsReads?(credentialId: string, reads: number, maxWaitMs: number): Promise<number>;
+  /** Hand the round back for later without counting a try or recording an error. */
+  defer?(catalogId: string, nextAttemptAt: Date): Promise<boolean>;
+  sleep?(ms: number): Promise<void>;
   now(): number;
   log(message: string, detail: string): void;
 }
@@ -818,6 +854,7 @@ async function updateOne(
     if (deps.authorizeLegacyVideoWrite && !(await deps.authorizeLegacyVideoWrite(item.catalogId))) {
       if (!deps.prepareNonVideoUpdate)
         throw new TeamFunctionError('CATALOG_PUBLICATION_PENDING', { retryable: false });
+      await takeSheetsReads(deps, item);
       nonVideo = await deps.prepareNonVideoUpdate(item);
       if (
         !nonVideo.contextToken ||
@@ -1073,7 +1110,30 @@ async function updateOne(
       await deps
         .finalizeImageUses?.(item.teamId, item.imageAttemptId, false)
         .catch(() => undefined);
-    const code = codeOf(error);
+    // Google's per-minute quota, before anything was written: the round waits and comes back,
+    // without a try counted or an error shown — it has not failed.
+    const pauseMs =
+      error instanceof SheetsBudgetSpent
+        ? error.waitMs
+        : !writeStarted && error instanceof TeamFunctionError && error.code === 'RATE_LIMITED'
+          ? Math.max(
+              RATE_LIMITED_PAUSE_MS,
+              typeof error.details?.retryAfterMs === 'number' ? error.details.retryAfterMs : 0
+            )
+          : null;
+    if (
+      pauseMs !== null &&
+      deps.defer &&
+      (await deps.defer(item.catalogId, new Date(deps.now() + pauseMs)).catch(() => false))
+    ) {
+      deps.log(
+        '[catalog-updater] update paused for the Sheets quota',
+        `${item.catalogId} ${pauseMs}`
+      );
+      summary.skipped += 1;
+      return;
+    }
+    const code = error instanceof SheetsBudgetSpent ? 'RATE_LIMITED' : codeOf(error);
     // The code of a failed try is kept nowhere once a later try succeeds; the log keeps it.
     deps.log(
       '[catalog-updater] update failed',
@@ -1118,42 +1178,50 @@ export async function runCatalogUpdaterTick(
   };
   summary.rounds = await deps.openRounds();
 
+  // A sheet is claimed when a place frees up, not when the slowest of three is done: one
+  // catalog of 400 rows no longer holds two finished places idle. Claims stay one at a
+  // time (the database lets one through at once) and only for places free right now, so no
+  // lease counts down on a sheet nobody is working on.
   let lastClaimFull = false;
-  while (deps.now() - startedAt < options.budgetMs) {
-    const rows = await deps.claim(CLAIM_LIMIT, LEASE_SECONDS);
-    lastClaimFull = rows.length >= CLAIM_LIMIT;
-    if (rows.length === 0) break;
-    const claimed: ClaimedCatalog[] = [];
-    for (const row of rows) {
-      let parsed: ClaimedCatalog | null;
-      try {
-        parsed = parseClaimedCatalog(row);
-      } catch {
-        parsed = null;
+  let drained = false;
+  const working = new Set<Promise<void>>();
+  for (;;) {
+    const want = PARALLEL - working.size;
+    if (want > 0 && !drained && deps.now() - startedAt < options.budgetMs) {
+      const rows = await deps.claim(want, LEASE_SECONDS);
+      lastClaimFull = rows.length >= want;
+      // Nothing at all: the queue is empty for now; the next tick looks again. Fewer than
+      // asked for is not that (the lease cap, a parked row), so the free places ask again.
+      if (rows.length === 0) drained = true;
+      for (const row of rows) {
+        let parsed: ClaimedCatalog | null;
+        try {
+          parsed = parseClaimedCatalog(row);
+        } catch {
+          parsed = null;
+        }
+        if (parsed) {
+          summary.claimed += 1;
+          const run: Promise<void> = updateOne(deps, parsed, summary).finally(() =>
+            working.delete(run)
+          );
+          working.add(run);
+          continue;
+        }
+        // Unreadable, but still leased: park it for a while rather than let it come back every tick.
+        const id = isRecord(row) ? text(row.catalog_material_id) : null;
+        deps.log('[catalog-updater] unreadable claimed row', id ?? 'unknown');
+        if (id) {
+          await deps
+            .retry(id, 'INVALID_RESPONSE', new Date(deps.now() + retryDelaySeconds(3) * 1000))
+            .catch(() => false);
+          summary.failed += 1;
+        }
       }
-      if (parsed) {
-        claimed.push(parsed);
-        continue;
-      }
-      // Unreadable, but still leased: park it for a while rather than let it come back every tick.
-      const id = isRecord(row) ? text(row.catalog_material_id) : null;
-      deps.log('[catalog-updater] unreadable claimed row', id ?? 'unknown');
-      if (id) {
-        await deps
-          .retry(id, 'INVALID_RESPONSE', new Date(deps.now() + retryDelaySeconds(3) * 1000))
-          .catch(() => false);
-        summary.failed += 1;
-      }
+      if (rows.length > 0 && working.size < PARALLEL) continue;
     }
-    summary.claimed += claimed.length;
-
-    const queue = [...claimed];
-    const runners = Array.from({ length: Math.min(PARALLEL, queue.length) }, async () => {
-      for (let item = queue.shift(); item; item = queue.shift()) {
-        await updateOne(deps, item, summary);
-      }
-    });
-    await Promise.all(runners);
+    if (working.size === 0) break;
+    await Promise.race(working);
   }
   // Production 2026-11: a manual run of six catalogs updated three, then the other three
   // waited for the next minute's schedule (30–60 s) with nothing else to do. A full last

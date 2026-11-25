@@ -1199,3 +1199,103 @@ describe('052 global update output', () => {
     expect(drive.updateConvertedFile).not.toHaveBeenCalled();
   });
 });
+
+describe('a run of many catalogs (2026-11-25)', () => {
+  it('claims a sheet as soon as a place frees up, not when the slowest of three is done', async () => {
+    const { deps, drive } = setup({
+      batches: [[claimedRow('a'), claimedRow('b'), claimedRow('c')], [claimedRow('d')], []]
+    });
+    let releaseSlow!: () => void;
+    const slow = new Promise<void>(resolve => (releaseSlow = resolve));
+    const write = drive.updateConvertedFile;
+    const order: string[] = [];
+    // a is written only after d: with a batch that waits for its slowest, d would never be
+    // claimed while a waits, and this tick would never finish.
+    drive.updateConvertedFile = vi.fn(async (input: { fileId: string; bytes: Uint8Array }) => {
+      if (input.fileId === 'drive-a') await slow;
+      order.push(input.fileId);
+      return write(input);
+    });
+    // Released once d is complete, so the fakes' single read-back slot is d's until then.
+    const complete = deps.complete;
+    deps.complete = vi.fn(async (...args: Parameters<typeof complete>) => {
+      const done = await complete(...args);
+      if (args[0] === 'd') releaseSlow();
+      return done;
+    });
+    deps.claim = vi.fn(async (limit: number) => {
+      const rows = [[claimedRow('a'), claimedRow('b'), claimedRow('c')], [claimedRow('d')], []][
+        vi.mocked(deps.claim).mock.calls.length - 1
+      ]!;
+      expect(rows.length).toBeLessThanOrEqual(limit);
+      return rows;
+    });
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary).toMatchObject({ claimed: 4, updated: 4 });
+    // Only the places free at the moment are claimed: three at first, and the claim that
+    // brought d asked for fewer, because a still held its place.
+    const limits = vi.mocked(deps.claim).mock.calls.map(([limit]) => limit);
+    expect(limits[0]).toBe(3);
+    expect(limits[1]).toBeLessThan(3);
+    // d was written while a was still waiting.
+    expect(order.indexOf('drive-d')).toBeLessThan(order.indexOf('drive-a'));
+  });
+
+  function nonVideo(waits: number[], prepare: () => Promise<never>) {
+    const ready = setup({ batches: [[claimedRow('a')]] });
+    ready.deps.authorizeLegacyVideoWrite = vi.fn(async () => false);
+    ready.deps.prepareNonVideoUpdate = vi.fn(prepare);
+    ready.deps.takeSheetsReads = vi.fn(async () => waits.shift() ?? 0);
+    ready.deps.defer = vi.fn(async () => true);
+    ready.deps.sleep = vi.fn(async () => undefined);
+    return ready;
+  }
+
+  it('hands a round back without a try or an error when the Drive owner’s Sheets minute is spent', async () => {
+    const { deps } = nonVideo([45_000], async () => {
+      throw new Error('must not read the sheet');
+    });
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary).toMatchObject({ updated: 0, failed: 0, skipped: 1 });
+    expect(deps.takeSheetsReads).toHaveBeenCalledWith('cred', 4, 25_000);
+    expect(deps.prepareNonVideoUpdate).not.toHaveBeenCalled();
+    expect(deps.defer).toHaveBeenCalledWith('a', new Date(45_000));
+    expect(deps.retry).not.toHaveBeenCalled();
+    expect(deps.unknown).not.toHaveBeenCalled();
+  });
+
+  it('sleeps through a reserved short wait for the reads, then works as usual', async () => {
+    const { deps } = nonVideo([11_000], async () => {
+      throw new TeamFunctionError('SOURCE_CHANGED');
+    });
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    // The wait was reserved: the reads are not asked for a second time.
+    expect(deps.takeSheetsReads).toHaveBeenCalledOnce();
+    expect(deps.sleep).toHaveBeenCalledExactlyOnceWith(11_000);
+    expect(deps.prepareNonVideoUpdate).toHaveBeenCalledOnce();
+    // A real refusal is still a failed try.
+    expect(deps.retry).toHaveBeenCalledWith('a', 'SOURCE_CHANGED', expect.any(Date));
+    expect(deps.defer).not.toHaveBeenCalled();
+  });
+
+  it('pauses a round Google told to slow down before anything was written', async () => {
+    const { deps } = nonVideo([], async () => {
+      throw new TeamFunctionError('RATE_LIMITED', { details: { retryAfterMs: 50_000 } });
+    });
+    const summary = await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(summary).toMatchObject({ failed: 0, skipped: 1 });
+    expect(deps.defer).toHaveBeenCalledWith('a', new Date(50_000));
+    expect(deps.retry).not.toHaveBeenCalled();
+  });
+
+  it('keeps «slow down» after the write an unknown result: a lost reply never proves no write', async () => {
+    const { deps } = setup({
+      batches: [[claimedRow('a')]],
+      failFor: { a: new TeamFunctionError('RATE_LIMITED') }
+    });
+    deps.defer = vi.fn(async () => true);
+    await runCatalogUpdaterTick(deps, { budgetMs: 8000 });
+    expect(deps.defer).not.toHaveBeenCalled();
+    expect(deps.unknown).toHaveBeenCalledWith('a', 'RATE_LIMITED');
+  });
+});

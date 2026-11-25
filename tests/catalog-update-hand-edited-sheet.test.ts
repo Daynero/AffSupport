@@ -140,7 +140,12 @@ function world(options: { desired?: number } = {}) {
         version += 1;
       }
     ),
-    readNativeSpreadsheetMarkers: vi.fn(async () => markers)
+    readNativeSpreadsheetMarkers: vi.fn(async () => markers),
+    // One Sheets read since 2026-11-25: the tabs and the spreadsheet's markers together.
+    getNativeSpreadsheetSheetsAndMarkers: vi.fn(async () => ({
+      sheets: await drive.getNativeSpreadsheetSheets(),
+      markers: [...markers]
+    }))
   };
   const rpc = vi.fn(async () => ({
     data: {
@@ -310,33 +315,32 @@ it('an untouched sheet is updated exactly as before, with nothing extra in the w
 it('sends the independent reads of an update together and reads the folders above once', async () => {
   // The owner, 2026-11-25: updating only the texts of a catalog takes long. Every catalog
   // asked Google a dozen questions one after another; the ones that do not depend on each
-  // other now go out together.
+  // other now go out together, and the tabs come with the marker in one Sheets read.
   const w = world();
   const getFile = w.drive.getFile.getMockImplementation()!;
-  w.drive.getFile.mockImplementation(async (id: string) => ({
-    ...(await getFile(id)),
-    parents: id === 'sheet' ? ['folder'] : ['root']
-  }));
-  let sheetsAsked!: () => void;
-  const asked = new Promise<void>(resolve => (sheetsAsked = resolve));
-  const sheets = w.drive.getNativeSpreadsheetSheets.getMockImplementation()!;
-  w.drive.getNativeSpreadsheetSheets.mockImplementation(async () => {
-    sheetsAsked();
-    return sheets();
+  let folderAsked!: () => void;
+  const asked = new Promise<void>(resolve => (folderAsked = resolve));
+  w.drive.getFile.mockImplementation(async (id: string) => {
+    if (id === 'folder') folderAsked();
+    return { ...(await getFile(id)), parents: id === 'sheet' ? ['folder'] : ['root'] };
   });
-  const markers = w.drive.readNativeSpreadsheetMarkers.getMockImplementation()!;
+  const tabs = w.drive.getNativeSpreadsheetSheetsAndMarkers.getMockImplementation()!;
   let first = true;
-  w.drive.readNativeSpreadsheetMarkers.mockImplementation(async () => {
-    // Before the write the marker lookup answers only once the tabs were asked for too:
+  w.drive.getNativeSpreadsheetSheetsAndMarkers.mockImplementation(async (...args) => {
+    // Before the write the tabs answer only once the folder proof is under way too:
     // one after the other, as before, this update would never finish.
     if (first) {
       first = false;
       await asked;
     }
-    return markers();
+    return tabs(...args);
   });
   const { rows } = await w.update();
   expect(filled(w.catalog.grid)).toEqual(rows);
+  // Before the write: one Sheets read for the tabs and the marker, none separately.
+  expect(w.drive.getNativeSpreadsheetSheetsAndMarkers).toHaveBeenCalledOnce();
+  expect(w.drive.getNativeSpreadsheetSheets).toHaveBeenCalledOnce(); // by the mock itself
+  expect(w.drive.readNativeSpreadsheetMarkers).toHaveBeenCalledOnce(); // the proof after it
   // The folder is read once for the whole update; the sheet itself every time it is asked.
   const reads = w.drive.getFile.mock.calls.map(([id]) => id);
   expect(reads.filter(id => id === 'folder')).toHaveLength(1);
@@ -346,7 +350,18 @@ it('sends the independent reads of an update together and reads the folders abov
 it('names a marker another writer left before anything the reads beside it found', async () => {
   const w = world();
   w.markers.push('someone-else');
-  w.drive.getNativeSpreadsheetSheets.mockRejectedValue(new Error('DRIVE_UNAVAILABLE'));
+  w.drive.getFile.mockImplementation(async (id: string) => {
+    if (id === 'folder') throw new Error('DRIVE_UNAVAILABLE');
+    return {
+      id,
+      version: '1',
+      mimeType: 'application/vnd.google-apps.spreadsheet',
+      parents: ['folder'],
+      trashed: false,
+      shortcutTargetId: null,
+      capabilities: { canModifyContent: true }
+    };
+  });
   await expect(w.update()).rejects.toThrow('PROCESS_RESULT_UNCERTAIN');
   expect(w.drive.writeNativeSpreadsheetCells).not.toHaveBeenCalled();
 });

@@ -348,6 +348,13 @@ export function redactForLog(value: unknown, depth = 0): unknown {
   return value;
 }
 
+/** A code the registry knows, as a database function raises it in its message; else null. */
+export function knownTeamErrorCode(value: unknown): TeamErrorCode | null {
+  return typeof value === 'string' && Object.hasOwn(STATUS_BY_CODE, value)
+    ? (value as TeamErrorCode)
+    : null;
+}
+
 export function mapUnknownError(error: unknown): TeamFunctionError {
   if (error instanceof TeamFunctionError) return error;
   if (error instanceof Error && error.message === 'AbortError') {
