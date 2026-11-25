@@ -67,7 +67,9 @@ describe('Soty product launcher', () => {
     expect(home).toMatch(/\.home-tile-trailing\s*\{[^}]*pointer-events:\s*none/);
     expect(home).toContain(':focus-visible');
     expect(home).toContain('@media (width > 768px)');
-    expect(home).toContain('@media (width > 1280px)');
+    // Three columns of tools from 1025px, as the owner's home had them (070, phase 9к): at
+    // 1280 the third group fell under the fold.
+    expect(home).toContain('@media (width > 1024px)');
     expect(home).toContain('@media (max-width: 480px)');
     // The legacy launcher is gone from the big sheet rather than shadowed.
     const legacy = await readFile('apps/web/src/styles.css', 'utf8');

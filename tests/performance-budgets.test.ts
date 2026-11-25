@@ -141,6 +141,16 @@ const RELEASE_070_SHARED_ALLOWANCE = 7_000;
  * tolerance; on the merged tree the growth is its own line, not 070's. Allowed as 700.
  */
 const RELEASE_163_SHARED_ALLOWANCE = 700;
+/*
+ * 070's owner pass on the beta (2026-11-25, phases 9в–9к): +4 348 B over the lines above on the
+ * shared chunks. It is the owner's own list — the catalog manager's schedule picker and row put
+ * back the way the owner had them, the explorer's video stage that opens at its final size and
+ * plays, the selection bar in the boards' strip, the tools' pages redrawn (`tools.css`), and the
+ * palette, sign-in, admin and task-editor sheets (`palette.css`, `auth.css`, `admin.css`,
+ * `task-editor.css`) that took rules out of the big sheet into their own. No dependency was
+ * added. Allowed as 4 500.
+ */
+const RELEASE_070_OWNER_PASS_SHARED_ALLOWANCE = 4_500;
 
 /**
  * How far the total may drift before this fails.
@@ -309,7 +319,8 @@ describeRequiring(
           RELEASE_159_SHARED_ALLOWANCE +
           RELEASE_162_SHARED_ALLOWANCE +
           RELEASE_070_SHARED_ALLOWANCE +
-          RELEASE_163_SHARED_ALLOWANCE
+          RELEASE_163_SHARED_ALLOWANCE +
+          RELEASE_070_OWNER_PASS_SHARED_ALLOWANCE
       );
       if (
         typeof manifest !== 'object' ||
@@ -337,7 +348,8 @@ describeRequiring(
           RELEASE_159_SHARED_ALLOWANCE +
           RELEASE_162_SHARED_ALLOWANCE +
           RELEASE_070_SHARED_ALLOWANCE +
-          RELEASE_163_SHARED_ALLOWANCE
+          RELEASE_163_SHARED_ALLOWANCE +
+          RELEASE_070_OWNER_PASS_SHARED_ALLOWANCE
       );
       // The allowances that used to stack on the 2026-10-09 total (045, 047+049, 053,
       // 1.5.9, 1.6.2) are inside the 070 T072 recalculation; what stays tight are the
