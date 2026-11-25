@@ -162,9 +162,9 @@ describe('a space’s re-stitching settings', () => {
     expect(screen.getByText(/this slot is off/)).toBeTruthy();
     expect(value.listRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'owner');
     // The form is the saved settings', not a library's: the stored fit is what is selected.
-    expect(
-      screen.getByRole('button', { name: 'Fit completely' }).getAttribute('aria-pressed')
-    ).toBe('true');
+    expect(screen.getByRole('radio', { name: 'Fit completely' }).getAttribute('aria-checked')).toBe(
+      'true'
+    );
   });
 
   it('says on the panel whether the save was kept, and keeps the choice when it was not', async () => {
@@ -176,10 +176,10 @@ describe('a space’s re-stitching settings', () => {
     });
     renderSection(value, owned, 'disconnected');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Fill and crop' }));
+    await user.click(await screen.findByRole('radio', { name: 'Fill and crop' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect((await screen.findByText('Could not save')).getAttribute('role')).toBe('alert');
-    expect(screen.getByRole('button', { name: 'Fill and crop' }).getAttribute('aria-pressed')).toBe(
+    expect(screen.getByRole('radio', { name: 'Fill and crop' }).getAttribute('aria-checked')).toBe(
       'true'
     );
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -190,7 +190,7 @@ describe('a space’s re-stitching settings', () => {
     const value = client();
     renderSection(value, owned, 'disconnected');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Fill and crop' }));
+    await user.click(await screen.findByRole('radio', { name: 'Fill and crop' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(value.setRestitchDefaults).toHaveBeenCalled());
     expect(vi.mocked(value.setRestitchDefaults).mock.calls[0]?.[1]).toMatchObject({

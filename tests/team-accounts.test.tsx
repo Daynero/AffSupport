@@ -1267,14 +1267,16 @@ describe('tags and counts as filters', () => {
     expect(screen.getByRole('button', { name: 'Collapse v31' })).toBeTruthy();
   });
 
-  it('keeps the free agents when the head’s free count is pressed', async () => {
-    const user = userEvent.setup();
+  it('says the head’s free count as a quiet mark — a dot and a number, the word for a reader', async () => {
     render(client());
     await waitForGroups();
     const v31 = screen.getByRole('rowgroup', { name: 'v31' });
-    await user.click(within(v31).getByRole('button', { name: /^1 free/ }));
-    expect(chip('Show ad accounts', /^Free/).getAttribute('aria-checked')).toBe('true');
-    expect(rows().every(row => row.getAttribute('data-free') === 'true')).toBe(true);
+    // Not a control (owner, beta 25.11): filtering by occupancy is the toolbar's job.
+    expect(within(v31).queryByRole('button', { name: /^1 free/ })).toBeNull();
+    const mark = v31.querySelector('.team-account-occupancy.is-free');
+    expect(mark?.querySelector('.team-account-occupancy-dot')).toBeTruthy();
+    expect(mark?.getAttribute('title')).toBe('1 free');
+    expect(within(v31).getByText('1 free').className).toContain('visually-hidden');
   });
 });
 
