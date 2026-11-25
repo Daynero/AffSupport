@@ -62,6 +62,7 @@ import { useLaunchGeneration } from './useLaunchGeneration';
 import { catalogComparable, withCatalogGenerationDefaults } from './catalogGenerationDefaults';
 import { useLaunchCopy } from './useLaunchCopy';
 import { useLaunchAutosave } from './useLaunchAutosave';
+import { useExitAfterUpload } from './useExitAfterUpload';
 import { LaunchAssignmentControls } from './LaunchAssignmentControls';
 
 /** The editor label of each field a parse or preview refusal can name. */
@@ -221,6 +222,8 @@ export function LaunchSession({
   const exitInFlight = useRef(false);
   const workingRef = useRef(false);
   const [uploading, setUploading] = useState(false);
+  const requestExitRef = useRef<(leave: () => void) => void>(() => {});
+  const waitForUpload = useExitAfterUpload(uploading, leave => requestExitRef.current(leave));
   const [dictionaryBusy, setDictionaryBusy] = useState(false);
   const dictionaryRequests = useRef(0);
   const [submitted, setSubmitted] = useState(false);
@@ -485,16 +488,15 @@ export function LaunchSession({
     if (initial.current) return;
     initial.current = true;
     if (!detail && defaults) {
-      const next = {
-        ...applyLaunchDefaultValues(newLaunchDraft(), resolvedLaunchDefaults(defaults)),
-        ...(initialMaterialId ? { materialId: initialMaterialId } : {})
-      };
-      if (next.buyerId && !buyers.some(buyer => buyer.id === next.buyerId)) {
-        delete next.buyerId;
+      const blank = applyLaunchDefaultValues(newLaunchDraft(), resolvedLaunchDefaults(defaults));
+      if (blank.buyerId && !buyers.some(buyer => buyer.id === blank.buyerId)) {
+        delete blank.buyerId;
         setError(t('launchesDefaultBuyerMissing'));
       }
-      draft.acknowledge(next);
-      draft.setConfig(next);
+      // The workspace defaults are the blank form; a creative chosen before the editor
+      // opened is the first edit, so autosave keeps it even if nothing else is touched.
+      draft.acknowledge(blank);
+      draft.setConfig(initialMaterialId ? { ...blank, materialId: initialMaterialId } : blank);
     }
   }, [detail, defaults, draft, buyers, t, initialMaterialId]);
   useEffect(() => {
@@ -519,12 +521,23 @@ export function LaunchSession({
         (route.query.revisionId ?? null) === revisionId
       )
         return;
+      // Another space, another tab or any page outside the space leaves this launch the
+      // same way: what is unsaved is saved first, then the navigation goes on. Only
+      // another revision of this same launch still asks.
       const leavingSection =
-        route?.kind === 'space' &&
-        route.spaceId === teamId &&
-        (route.section !== 'launches' || route.query.launchId !== (detail?.id ?? 'new'));
+        route?.kind !== 'space' ||
+        route.spaceId !== teamId ||
+        route.section !== 'launches' ||
+        route.query.launchId !== (detail?.id ?? 'new');
       if (leavingSection && (copying.busy || copying.hasUnresolvedRequest)) {
         event.preventDefault();
+        return;
+      }
+      if (leavingSection && uploading) {
+        // The creative being uploaded belongs in the draft: leave once it is there.
+        event.preventDefault();
+        const { path, replace, animate } = event.detail;
+        waitForUpload(() => navigateTo(path, replace, animate));
         return;
       }
       if (
@@ -551,6 +564,8 @@ export function LaunchSession({
     revisionId,
     t,
     autosaving,
+    uploading,
+    waitForUpload,
     copying.busy,
     copying.hasUnresolvedRequest
   ]);
@@ -1190,7 +1205,16 @@ export function LaunchSession({
     });
   };
   exitAction.current = saveAndLeave;
-  const close = () => {
+  /**
+   * Every way out — the close button, a click beside the dialog, Escape — keeps the
+   * launch: unsaved edits are saved before the dialog goes. A creative still uploading
+   * is waited for, since closing would drop it; the status line says it is uploading.
+   */
+  const requestExit = (leave: () => void) => {
+    if (uploading) {
+      waitForUpload(leave);
+      return;
+    }
     if (
       !draft.isDirty() &&
       !manual.isDirty() &&
@@ -1200,9 +1224,11 @@ export function LaunchSession({
       !copying.hasUnresolvedRequest &&
       !exitInFlight.current
     )
-      onClose();
-    else if (!exitInFlight.current) setPendingExit(() => onClose);
+      leave();
+    else if (!exitInFlight.current) setPendingExit(() => leave);
   };
+  requestExitRef.current = requestExit;
+  const close = () => requestExit(onClose);
   closeRequestRef.current = close;
   useEffect(() => {
     if (
