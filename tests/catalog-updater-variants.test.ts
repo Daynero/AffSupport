@@ -1,4 +1,4 @@
-import { expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   startCatalogUpdaterVariants,
   readCatalogUpdaterVariants
@@ -182,4 +182,122 @@ it('the existing cron consumer proves each distinct output once and attaches a p
   expect(rpc.mock.calls.map(call => call[0])).toContain(
     'service_attach_catalog_updater_variant_target'
   );
+});
+
+// 072: a round never retries a failure silently every minute; the server ends it or pauses it.
+describe('a failed round reaches the server', () => {
+  const unconfigured = {
+    request_id: id(4),
+    team_id: id(1),
+    actor_id: id(2),
+    catalog_material_id: id(3),
+    set_id: id(5),
+    attempt_id: id(6),
+    executor_id: id(7),
+    source_material_id: id(8),
+    requested_count: 1,
+    profile_version: 2,
+    recipe_row_ids: [id(9)],
+    child_request_ids: [id(10)],
+    assignment_seed: 'a'.repeat(64),
+    settings_snapshot: {},
+    provider_context: {},
+    canceled_at: null
+  };
+  const service = (answer: { error: { message: string } | null; data: unknown }) => {
+    const calls: Array<[string, Record<string, unknown>]> = [];
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      calls.push([name, args]);
+      if (name === 'service_resume_catalog_updater_variants')
+        return { error: null, data: unconfigured };
+      if (name === 'service_fail_catalog_updater_variant_admission') return answer;
+      return { error: null, data: null };
+    });
+    return { rpc, calls };
+  };
+
+  it('answers with the code the server ended the round with', async () => {
+    const { resumeCatalogUpdaterVariants } =
+      await import('../supabase/functions/drive-ops/updater-variants');
+    const { rpc, calls } = service({
+      error: null,
+      data: { outcome: 'blocked', failureCode: 'RESTITCH_INVALID', closed: true }
+    });
+    await expect(resumeCatalogUpdaterVariants({ rpc }, identity, vi.fn())).rejects.toThrow(
+      'RESTITCH_INVALID'
+    );
+    expect(
+      calls.find(([name]) => name === 'service_fail_catalog_updater_variant_admission')?.[1]
+    ).toEqual({ p_team: id(1), p_actor: id(2), p_request: id(4), p_code: 'RESTITCH_INVALID' });
+    expect(calls.map(([name]) => name)).not.toContain(
+      'service_note_catalog_updater_variant_admission'
+    );
+  });
+
+  it('stays uncertain while the server pauses the round', async () => {
+    const { resumeCatalogUpdaterVariants } =
+      await import('../supabase/functions/drive-ops/updater-variants');
+    const { rpc } = service({
+      error: null,
+      data: { outcome: 'retry', failureCode: 'RESTITCH_INVALID' }
+    });
+    await expect(resumeCatalogUpdaterVariants({ rpc }, identity, vi.fn())).rejects.toThrow(
+      'PROCESS_RESULT_UNCERTAIN'
+    );
+  });
+
+  it('writes the diagnostic note to a database that does not know the round yet', async () => {
+    const { resumeCatalogUpdaterVariants } =
+      await import('../supabase/functions/drive-ops/updater-variants');
+    const { rpc, calls } = service({ error: { message: 'PGRST202' }, data: null });
+    await expect(resumeCatalogUpdaterVariants({ rpc }, identity, vi.fn())).rejects.toThrow(
+      'PROCESS_RESULT_UNCERTAIN'
+    );
+    expect(
+      calls.find(([name]) => name === 'service_note_catalog_updater_variant_admission')?.[1]
+    ).toMatchObject({ p_stage: 'admitted', p_code: 'RESTITCH_INVALID' });
+  });
+
+  it('a ready set whose links cannot be attached reports its code instead of an endless unknown', async () => {
+    const { settleCatalogUpdaterVariantTargets } =
+      await import('../supabase/functions/drive-ops/updater-variants');
+    const { TeamFunctionError } = await import('../supabase/functions/_shared/errors');
+    const calls: string[] = [];
+    const codes: unknown[] = [];
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      calls.push(name);
+      if (name === 'service_fail_catalog_updater_variant_target') codes.push(args.p_code);
+      return {
+        error: null,
+        data:
+          name === 'service_list_catalog_updater_variant_targets'
+            ? [identity]
+            : name === 'service_read_catalog_updater_variants'
+              ? { state: 'ready', setId: id(5) }
+              : name === 'service_catalog_updater_variant_outputs'
+                ? [
+                    {
+                      rowId: id(20),
+                      ordinal: 1,
+                      materialId: id(8),
+                      connectionId: id(11),
+                      fileId: 'copy',
+                      credentialId: id(12),
+                      rootFolderId: 'root',
+                      sourceVersion: 'v'
+                    }
+                  ]
+                : { outcome: 'retry' }
+      };
+    });
+    const driveFor = vi.fn(async () => {
+      throw new TeamFunctionError('RATE_LIMITED');
+    });
+    expect(await settleCatalogUpdaterVariantTargets({ rpc }, driveFor)).toEqual({
+      attached: 0,
+      unknown: 1
+    });
+    expect(codes).toEqual(['RATE_LIMITED']);
+    expect(calls).not.toContain('service_note_catalog_updater_variant_admission');
+  });
 });

@@ -1,5 +1,8 @@
 import type { CatalogVideoForegroundExecutor } from '../../../packages/shared/dist/team/catalog-video-foreground.js';
-import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
+import {
+  TEAM_ERROR_CODES,
+  type TeamErrorCode
+} from '../../../packages/shared/dist/team/transport.js';
 import {
   parseTeamRestitchDefaults,
   type TeamRestitchDefaults
@@ -97,12 +100,53 @@ function rpcError(message: string): never {
     case 'SOURCE_CHANGED':
     case 'RESTITCH_INVALID':
     case 'AGENT_UPDATE_REQUIRED':
+    case 'SPACE_BLOCKED':
+    case 'NEEDS_REAUTH':
       throw new TeamFunctionError(message, { retryable: false });
     default:
       throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN', { retryable: false });
   }
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const isTeamErrorCode = (value: unknown): value is TeamErrorCode =>
+  typeof value === 'string' && (TEAM_ERROR_CODES as readonly string[]).includes(value);
+
+/**
+ * 072: a round's failure goes to the server, which decides — a code that will not pass by
+ * itself (RESTITCH_*, SOURCE_CHANGED, PERMISSION_DENIED, SHARE_NOT_ALLOWED, NEEDS_REAUTH…) ends
+ * the round at once; a passing one (DRIVE_UNAVAILABLE, RATE_LIMITED, an uncertain result) is
+ * tried again later, and ends the round when it lasts. The answer names the code the round ended
+ * with, or null while it is still to be tried again. A database without 072 answers with an
+ * error and the caller falls back to the diagnostic note it wrote before.
+ */
+async function reportRoundFailure(
+  service: ServiceRpcClient,
+  name:
+    | 'service_fail_catalog_updater_variant_admission'
+    | 'service_fail_catalog_updater_variant_target',
+  identity: { teamId: string; actorId: string; requestId: string },
+  code: TeamErrorCode
+): Promise<{ delivered: boolean; closedWith: TeamErrorCode | null }> {
+  try {
+    const result = await service.rpc(name, {
+      p_team: identity.teamId,
+      p_actor: identity.actorId,
+      p_request: identity.requestId,
+      p_code: code
+    });
+    if (result.error) return { delivered: false, closedWith: null };
+    const answer = result.data;
+    return {
+      delivered: true,
+      closedWith:
+        isRecord(answer) && answer.closed === true && isTeamErrorCode(answer.failureCode)
+          ? answer.failureCode
+          : null
+    };
+  } catch {
+    return { delivered: false, closedWith: null };
+  }
+}
 export interface CatalogUpdaterVariantIdentity {
   teamId: string;
   actorId: string;
@@ -331,6 +375,7 @@ export async function materializeCatalogUpdaterVariantRequest(
       'INVALID_RESPONSE',
       'SHARE_NOT_ALLOWED'
     ]);
+    // `known` is what a database without 072 accepts in its diagnostic note.
     // Production 2026-11-24: the person deleted the catalog's video while freeing Drive space;
     // Drive answered 404 and the round read «У вас немає дозволу». A source that is gone, in the
     // trash or outside the space's folder is a changed source, not a refused permission.
@@ -339,13 +384,23 @@ export async function materializeCatalogUpdaterVariantRequest(
       (cause.code === 'NOT_FOUND' ||
         cause.code === 'ROOT_ESCAPE' ||
         (cause.code === 'PERMISSION_DENIED' && cause.details?.notFound === true));
-    const code = sourceGone
+    const code: TeamErrorCode = sourceGone
       ? 'SOURCE_CHANGED'
-      : cause instanceof TeamFunctionError && known.has(cause.code)
+      : cause instanceof TeamFunctionError && isTeamErrorCode(cause.code)
         ? cause.code
         : 'PROCESS_RESULT_UNCERTAIN';
-    await note('admitted', code);
-    throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN', { retryable: false });
+    // 072: the code reaches the round, which ends or waits — never a silent retry every minute.
+    const reported = await reportRoundFailure(
+      service,
+      'service_fail_catalog_updater_variant_admission',
+      identity,
+      code
+    );
+    if (!reported.delivered)
+      await note('admitted', known.has(code) ? code : 'PROCESS_RESULT_UNCERTAIN');
+    throw new TeamFunctionError(reported.closedWith ?? 'PROCESS_RESULT_UNCERTAIN', {
+      retryable: false
+    });
   }
   return readCatalogUpdaterVariants(service, identity);
 }
@@ -607,19 +662,32 @@ export async function settleCatalogUpdaterVariantTargets(
       });
       if (released.error) rpcError(released.error.message ?? '');
       attached++;
-    } catch {
+    } catch (cause) {
       unknown++;
-      try {
-        await service.rpc('service_note_catalog_updater_variant_admission', {
-          p_team: identity.teamId,
-          p_actor: identity.actorId,
-          p_request: identity.requestId,
-          p_stage: 'set_admitted',
-          p_code: 'PROCESS_RESULT_UNCERTAIN'
-        });
-      } catch {
-        /* Existing unknown request remains durable. */
-      }
+      // 072 (#8): a ready set whose links cannot be attached ends with its code once that will
+      // not pass, and waits out a passing one with a pause instead of holding a slot every tick.
+      const code: TeamErrorCode =
+        cause instanceof TeamFunctionError && isTeamErrorCode(cause.code)
+          ? cause.code
+          : 'PROCESS_RESULT_UNCERTAIN';
+      const reported = await reportRoundFailure(
+        service,
+        'service_fail_catalog_updater_variant_target',
+        identity,
+        code
+      );
+      if (!reported.delivered)
+        try {
+          await service.rpc('service_note_catalog_updater_variant_admission', {
+            p_team: identity.teamId,
+            p_actor: identity.actorId,
+            p_request: identity.requestId,
+            p_stage: 'set_admitted',
+            p_code: 'PROCESS_RESULT_UNCERTAIN'
+          });
+        } catch {
+          /* Existing unknown request remains durable. */
+        }
     }
   }
   return { attached, unknown };
@@ -692,18 +760,40 @@ export async function prepareScheduledCatalogVideoSets(
     } catch (cause) {
       unknown++;
       if (!accepted) {
+        // 072: these end the round at once on the server; anything else waits with a limit.
         const code =
           cause instanceof TeamFunctionError &&
-          ['PERMISSION_DENIED', 'SOURCE_CHANGED', 'RESTITCH_INVALID'].includes(cause.code)
+          [
+            'PERMISSION_DENIED',
+            'SOURCE_CHANGED',
+            'RESTITCH_INVALID',
+            'SPACE_BLOCKED',
+            'NEEDS_REAUTH',
+            'AGENT_UPDATE_REQUIRED'
+          ].includes(cause.code)
             ? cause.code
             : 'PROCESS_RESULT_UNCERTAIN';
-        try {
-          await service.rpc('service_note_catalog_variant_round_failure', {
+        const noteFailure = async (reported: string) => {
+          const result = await service.rpc('service_note_catalog_variant_round_failure', {
             p_team: identity.teamId,
             p_actor: identity.actorId,
             p_attempt: identity.requestId,
-            p_code: code
+            p_code: reported
           });
+          return !result.error;
+        };
+        try {
+          // A database without 072 knows only the codes of the list before it.
+          if (
+            !(await noteFailure(code)) &&
+            ![
+              'PERMISSION_DENIED',
+              'SOURCE_CHANGED',
+              'RESTITCH_INVALID',
+              'PROCESS_RESULT_UNCERTAIN'
+            ].includes(code)
+          )
+            await noteFailure('PROCESS_RESULT_UNCERTAIN');
         } catch {
           /* Original attempt remains fenced and explicitly unknown. */
         }

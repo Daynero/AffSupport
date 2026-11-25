@@ -353,7 +353,12 @@ describe('an updater restitch round over several videos', () => {
     const { GoogleDriveClient } = await import('../supabase/functions/_shared/drive.js');
     const notes: unknown[] = [];
     const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
-      if (name === 'service_note_catalog_updater_variant_admission') notes.push(args.p_code);
+      // 072: the failure goes to the round (service_fail_…); a database without it gets the note.
+      if (
+        name === 'service_note_catalog_updater_variant_admission' ||
+        name === 'service_fail_catalog_updater_variant_admission'
+      )
+        notes.push(args.p_code);
       return { error: null, data: null };
     });
     const fetcher = vi.fn(async () =>
