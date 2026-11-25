@@ -1857,6 +1857,15 @@ button.team-task-label-chip:hover:not(:disabled),
 .team-task-picker-row .team-task-picker-check {
   flex: none;
 }
+/* The check sits in the middle of its ring (owner, 25.11). The row is the library's button, which
+   resizes any svg inside it to 1rem and nudges it with `margin: 4px -2px` — the tick drew 16px,
+   down and to the right of a 20px ring. It is drawn at its own 14px, with no nudge. */
+.team-task-picker-row .team-task-picker-check svg {
+  width: 14px;
+  height: 14px;
+  max-width: none;
+  margin: 0;
+}
 .team-task-picker-row .team-task-picker-item-copy {
   flex: 1 1 auto;
   min-width: 0;
