@@ -3575,3 +3575,9 @@ cancelled stay cancelled (restoring a catalog from the trash never resumed its v
 Additive: two expression indexes on `private.catalog_generation_intents` (created concurrently on
 production during the 1.6.3 release, so the heal of 20261224130000 fit the statement timeout).
 Dropping them is safe; finding a removed catalog's unfinished videos becomes slow again.
+
+## 20261224150000 — opening the assistant twice at once gives one dialog
+
+Replaces `private.assistant_latest_dialog` and `public.assistant_new_dialog` with the same bodies
+plus a transaction-scoped advisory lock per (space, person). No data changes. Undo by restoring the
+bodies from 20261223160000; concurrent opens can then make two dialogs again.

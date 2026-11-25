@@ -12,6 +12,8 @@ import {
   type AiCreditsStatus,
   type AssistantMessage
 } from '@video-compressor/shared';
+import { captureAuthSessionOwner } from '../auth/session-mutations.js';
+import { publicConfig } from '../lib/config.js';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase.js';
 import { invokeTeamFunction, TeamApiError, throwRpc } from './team.js';
 
@@ -101,13 +103,44 @@ function conversation(data: unknown): AssistantConversation {
   };
 }
 
+/** Changes when this browser signs in or out, so a shared open never crosses two logins. */
+function sessionRevision(): string {
+  try {
+    return publicConfig.ok
+      ? captureAuthSessionOwner(publicConfig.value.supabaseUrl, null).intentRevision
+      : '';
+  } catch {
+    return '';
+  }
+}
+
+async function openDialog(teamId: string, dialogId: string | null): Promise<AssistantConversation> {
+  const { data, error } = await withFreshSession(() =>
+    requireSupabaseClient().rpc('assistant_open_dialog', { p_team: teamId, p_dialog: dialogId })
+  );
+  throwRpc(error);
+  return conversation(data);
+}
+
+/*
+ * 070: two opens of the newest dialog at once (a remounted widget, a second mount) each found no
+ * dialog and each made one, so a message could go to one while the window showed the other. One
+ * open per space and login is in flight at a time; the others share it. The server serialises
+ * the same thing for two tabs (20261224150000).
+ */
+const opening = new Map<string, Promise<AssistantConversation>>();
+
 export const assistantApi = {
-  async open(teamId: string, dialogId: string | null = null): Promise<AssistantConversation> {
-    const { data, error } = await withFreshSession(() =>
-      requireSupabaseClient().rpc('assistant_open_dialog', { p_team: teamId, p_dialog: dialogId })
-    );
-    throwRpc(error);
-    return conversation(data);
+  open(teamId: string, dialogId: string | null = null): Promise<AssistantConversation> {
+    if (dialogId !== null) return openDialog(teamId, dialogId);
+    const key = `${teamId}\n${sessionRevision()}`;
+    const running = opening.get(key);
+    if (running) return running;
+    const started = openDialog(teamId, null).finally(() => {
+      if (opening.get(key) === started) opening.delete(key);
+    });
+    opening.set(key, started);
+    return started;
   },
   async newDialog(teamId: string): Promise<AssistantConversation> {
     const { data, error } = await withFreshSession(() =>
