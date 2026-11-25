@@ -80,6 +80,7 @@ import {
   Button,
   Checkbox,
   EmptyState,
+  IconButton,
   Progress,
   Spinner,
   useCompactToolbar
@@ -835,31 +836,26 @@ export default function TranscriptionPage() {
                   onCopy={() => void copyBatch()}
                   t={t}
                 />
+                {/* Housekeeping as icons beside the bar's verbs, as in the compressor (070, the
+                    tools pass). */}
                 {selected.size > 0 && (
-                  <Button
+                  <IconButton
                     color="error"
-                    variant="soft"
+                    label={t('removeSelected')}
                     disabled={!connected || removableSelected.length === 0}
-                    title={t('removeSelected')}
-                    aria-label={t('removeSelected')}
                     onClick={() => void removeSelected()}
                   >
                     <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
-                    <span className="action-label">{t('removeSelected')}</span>
-                  </Button>
+                  </IconButton>
                 )}
                 {finishedJobs.length > 0 && (
-                  <Button
-                    color="neutral"
-                    variant="ghost"
+                  <IconButton
+                    label={t('transcriptionClearFinished')}
                     disabled={!connected}
-                    title={t('transcriptionClearFinished')}
-                    aria-label={t('transcriptionClearFinished')}
                     onClick={() => void clearFinished()}
                   >
                     <Broom size={18} strokeWidth={1.75} aria-hidden="true" />
-                    <span className="action-label">{t('transcriptionClearFinished')}</span>
-                  </Button>
+                  </IconButton>
                 )}
               </div>
             </div>

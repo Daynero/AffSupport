@@ -1,6 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useIntakeHeight } from '../components/useIntakeHeight';
 import { SettingsPanelHeader } from '../components/SettingsPanelHeader';
-import { Ban, Broom, Pause, Trash2, Files, FolderOpen, Crown, Play, Sparkles } from 'lucide-react';
+import {
+  AlertTriangle,
+  Ban,
+  Broom,
+  Check,
+  Crown,
+  Files,
+  FolderOpen,
+  Loader,
+  Pause,
+  Play,
+  Sparkles,
+  Trash2
+} from 'lucide-react';
 import {
   LANDING_JOB_LIFECYCLE,
   canTransition,
@@ -54,6 +68,7 @@ import {
   Button,
   Checkbox,
   HelpTip,
+  IconButton,
   RadioGroup,
   Spinner,
   Switch,
@@ -74,6 +89,8 @@ interface UploadFile {
 const readLandingState = () => request<LandingState>('/api/landing/state', 'GET');
 
 export default function LandingOptimizerPage() {
+  // The batch bar pins itself right under the intake, by the intake's real height.
+  const intakeRef = useIntakeHeight();
   const { language, t } = useI18n();
   const { capabilities, connection, connectedOnce, reconnect } = useAgent();
   const multiplexed = capabilities.includes('event-stream');
@@ -483,7 +500,7 @@ export default function LandingOptimizerPage() {
             came to do, then the way it will be done. Nothing sits under the zone — the two
             pickers are the zone's own, because a landing arrives as either an archive or a
             folder and no system dialog offers both at once. */}
-        <section className="add-files-section" aria-label={t('landingDropTitle')}>
+        <section ref={intakeRef} className="add-files-section" aria-label={t('landingDropTitle')}>
           <DropZone
             disabled={!connected || importing || !state?.tools.ffmpeg}
             importing={importing}
@@ -547,22 +564,26 @@ export default function LandingOptimizerPage() {
                 <LandingChip
                   count={jobs.length}
                   phrase={t(landingCountKey(language, jobs.length), { count: jobs.length })}
+                  icon={<Files size={12} strokeWidth={2} aria-hidden="true" />}
                 />
                 {/* All four stay on screen — a zero is information too. */}
                 <LandingChip
                   className="is-processing"
                   count={counts.processing}
                   phrase={t('chipProcessing', { count: counts.processing })}
+                  icon={<Loader size={12} strokeWidth={2} aria-hidden="true" />}
                 />
                 <LandingChip
                   className="is-done"
                   count={counts.completed}
                   phrase={t('chipCompleted', { count: counts.completed })}
+                  icon={<Check size={12} strokeWidth={2} aria-hidden="true" />}
                 />
                 <LandingChip
                   className="is-failed"
                   count={counts.failed}
                   phrase={t('chipFailed', { count: counts.failed })}
+                  icon={<AlertTriangle size={12} strokeWidth={2} aria-hidden="true" />}
                 />
               </div>
               <div className="primary-actions">
@@ -587,9 +608,10 @@ export default function LandingOptimizerPage() {
                   </Button>
                 ) : (
                   <Button
-                    /* Ghost while there is nothing to run: a dimmed primary reads as broken,
-                       not as "nothing to do". */
-                    variant={runnable.length === 0 ? 'ghost' : 'primary'}
+                    /* Outlined while there is nothing to run: a dimmed primary reads as broken,
+                       not as "nothing to do"; a ghost read as a stray icon once the bar folded. */
+                    color={runnable.length === 0 ? 'neutral' : 'primary'}
+                    variant={runnable.length === 0 ? 'outline' : 'solid'}
                     disabled={!connected || runnable.length === 0}
                     title={selected.size ? t('landingOptimizeSelected') : t('landingOptimizeAll')}
                     onClick={() => void startSelected()}
@@ -613,25 +635,24 @@ export default function LandingOptimizerPage() {
                     <span className="action-label">{t('stopAll')}</span>
                   </Button>
                 )}
-                <Button
-                  variant="danger"
+                {/* Housekeeping as icons beside the run, as in the compressor (070, the tools
+                    pass). */}
+                <IconButton
+                  color="error"
+                  label={t('removeSelected')}
                   disabled={!connected || selected.size === 0}
-                  title={t('removeSelected')}
                   onClick={() => void removeSelected()}
                 >
                   <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
-                  <span className="action-label">{t('removeSelected')}</span>
-                </Button>
+                </IconButton>
                 {finishedJobs.length > 0 && (
-                  <Button
-                    variant="ghost"
+                  <IconButton
+                    label={t('landingClearFinished')}
                     disabled={!connected}
-                    title={t('landingClearFinished')}
                     onClick={() => void clearFinished()}
                   >
                     <Broom size={18} strokeWidth={1.75} aria-hidden="true" />
-                    <span className="action-label">{t('landingClearFinished')}</span>
-                  </Button>
+                  </IconButton>
                 )}
               </div>
             </div>
@@ -916,14 +937,18 @@ export function LandingSettingsPanel({
 function LandingChip({
   count,
   phrase,
+  icon,
   className = ''
 }: {
   count: number;
   phrase: string;
+  /** What stands in for the word once the bar folds it away (070, the tools pass). */
+  icon: ReactNode;
   className?: string;
 }) {
   return (
     <span className={`batch-chip ${className}`.trim()} title={phrase}>
+      <span className="chip-icon">{icon}</span>
       <b>{count}</b>
       <span className="chip-word"> {phrase.replace(String(count), '').trim()}</span>
     </span>

@@ -471,3 +471,170 @@
 .workspace > .result-summary dd {
   font-size: var(--text-label);
 }
+
+/* --- A transcription: the same two lines, its verbs in one row ---------------------------- */
+
+/* The status follows the name instead of standing at the far edge of the card (a wide card;
+   a narrow one puts it on its own line, as before). */
+@media (width > 1024px) {
+  .transcription-row .transcription-row-title {
+    flex: 0 1 auto;
+  }
+}
+.transcription-row .job-row-header > .status-badge {
+  min-height: var(--control-height-xs);
+  margin-left: 0;
+  font-size: var(--text-caption);
+}
+/* Two rows of buttons — three named, three more named under them — become one line: the
+   transcript's verbs with their words, the file's as icons (their names stay the buttons'
+   accessible names and hints). */
+.transcription-row-actions {
+  display: flex;
+  max-width: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+.transcription-row-actions-main,
+.transcription-row-quiet-actions {
+  gap: var(--space-1);
+}
+.transcription-row-quiet-actions {
+  margin-left: var(--space-1);
+}
+.transcription-row-actions .ui-button {
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+}
+.transcription-row-quiet-actions .action-label {
+  display: none;
+}
+.transcription-row-quiet-actions .ui-button {
+  width: var(--control-height-sm);
+  min-width: var(--control-height-sm);
+  padding: 0;
+  justify-content: center;
+}
+@media (max-width: 1024px) {
+  .transcription-row-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* --- The pinned pair: the intake, and the batch bar right under it ----------------------- */
+
+/* The bar's `top` reads the intake's measured height (`useIntakeHeight`); a guessed 108px left
+   a strip under the one-line intake where the list scrolled by in view, and the transcription's
+   band of page colour under its zone read as a stray black bar. */
+.workspace > .add-files-section {
+  padding-bottom: 0;
+  background: none;
+}
+.workspace .batch-toolbar {
+  top: calc(var(--topbar-h, 62px) + var(--intake-h, 108px));
+}
+
+/* --- The landing optimizer: the same panel, a card that reads like a file --------------- */
+
+/* The three switches lose their frames: the compressor's two sit bare in their cell. */
+.settings-panel .metadata-control {
+  min-height: var(--control-height-sm);
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.settings-panel .landing-switch-column .ui-switch-label strong {
+  font-size: var(--text-label);
+}
+.settings-panel .metadata-control .ui-switch:not([data-selected='true']) .ui-switch-track {
+  background: var(--color-neutral-surface-muted);
+}
+
+/* The header: a smaller source mark, the name at body size, the verbs on the name's line. */
+.landing-batch-header {
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+.landing-source-icon {
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  border-radius: var(--radius-md);
+}
+.landing-source-icon svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+.landing-batch-title-line > strong {
+  font-size: var(--text-body);
+  font-weight: 650;
+}
+.landing-batch-title-line .status-badge {
+  min-height: var(--control-height-xs);
+  font-size: var(--text-caption);
+}
+.landing-batch-subtitle,
+.landing-current-asset {
+  font-size: var(--text-caption);
+}
+.landing-batch-actions {
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.landing-batch-actions > .ui-button + .ui-icon-button {
+  margin-left: var(--space-1);
+}
+
+/* A phone keeps the verbs in one row under the name, not a column of three. */
+@media (max-width: 768px) {
+  .landing-batch-actions.landing-batch-actions {
+    display: flex;
+    padding-left: calc(var(--control-height-md) + var(--space-3));
+  }
+}
+
+/* A file of the landing: its name at the list's size. */
+.landing-asset-name-line h3 {
+  font-size: var(--text-label);
+  font-weight: 600;
+}
+.landing-asset-bytes {
+  font-size: var(--text-caption);
+}
+
+/* What it saved: one line, not a poster. */
+.landing-success-summary {
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+.landing-size-result > strong {
+  font-size: var(--text-section);
+}
+.landing-total-saving {
+  font-size: var(--text-caption);
+}
+.landing-success-metrics,
+.landing-heaviest,
+.landing-progress-copy,
+.landing-success-metrics dt {
+  font-size: var(--text-caption);
+}
+.landing-success-metrics :is(div, dt, dd) {
+  background: none;
+}
+
+/* A phone: the second way into the zone goes under its words instead of squeezing them into
+   a column four words wide. */
+@media (max-width: 640px) {
+  .workspace > .add-files-section .drop-zone {
+    flex-wrap: wrap;
+  }
+  .workspace > .add-files-section .drop-zone > div {
+    flex: 1 0 70%;
+  }
+  .workspace > .add-files-section .drop-zone .drop-zone-secondary {
+    margin-left: calc(var(--control-height-xs) + var(--space-3));
+  }
+}

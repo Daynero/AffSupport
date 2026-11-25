@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useIntakeHeight } from './components/useIntakeHeight';
 import { openNativeAppUpdate } from './updates/openNativeAppUpdate';
 import { AlertTriangle, Ban, Broom, Check, Files, Loader, Pause, Play, Trash2 } from 'lucide-react';
 import {
@@ -95,6 +96,8 @@ interface ToastMessage {
 }
 
 export default function CompressorPage() {
+  // The batch bar pins itself right under the intake, by the intake's real height.
+  const intakeRef = useIntakeHeight();
   const { language, t } = useI18n();
   const { state, setState, connection, connectedOnce, reconnect, capabilities, toolContracts } =
     useAgent();
@@ -625,7 +628,7 @@ export default function CompressorPage() {
           <BlockingMessage title={localizedAgentText(state.warning, t)} tone="warning" />
         )}
 
-        <section className="add-files-section" aria-label={t('chooseFiles')}>
+        <section ref={intakeRef} className="add-files-section" aria-label={t('chooseFiles')}>
           <DropZone
             disabled={!connected || importing || !state.tools.ffprobe}
             importing={importing}

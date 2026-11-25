@@ -11,6 +11,7 @@
  * which the compressor cannot) and the line that says what was found and what will come out.
  */
 
+import { useIntakeHeight } from '../components/useIntakeHeight';
 import { SettingsPanelHeader } from '../components/SettingsPanelHeader';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -95,6 +96,8 @@ export default function StitcherPage() {
  * same seam every other store in this app offers through its `*ContextOverride`.
  */
 export function Stitcher() {
+  // The batch bar pins itself right under the intake, by the intake's real height.
+  const intakeRef = useIntakeHeight();
   const { t, language } = useI18n();
   const { connection, capabilities, reconnect } = useAgent();
   const { state, applyState, stateError } = useStitcher();
@@ -335,7 +338,7 @@ export function Stitcher() {
         />
       )}
 
-      <section className="add-files-section" aria-label={t('stitcherChoose')}>
+      <section ref={intakeRef} className="add-files-section" aria-label={t('stitcherChoose')}>
         <DropZone
           disabled={!connected || busy}
           importing={busy}

@@ -20,6 +20,7 @@ import {
   Button,
   Checkbox,
   Collapse,
+  IconButton,
   Progress,
   SegmentedControl
 } from '../components/ui/index';
@@ -210,68 +211,87 @@ export function LandingJobCard({
         <div className="landing-batch-actions">
           {/* Same button, same place, same words as a compression: a landing is the same kind
               of long local work, and a person who has learned to hold one has learned both. */}
+          {/* One verb with its word — optimise, or open the result — and the rest by their
+              icon, each named for a reader and under the pointer (070, the tools pass): five
+              worded buttons made the card's header its widest and loudest part. */}
           {running && onPause && (
-            <Button variant="secondary" disabled={!connected} onClick={() => onPause(!job.paused)}>
+            <IconButton
+              variant="outline"
+              label={t(job.paused ? 'jobResume' : 'jobPause')}
+              disabled={!connected}
+              onClick={() => onPause(!job.paused)}
+            >
               {job.paused ? (
                 <Play size={16} strokeWidth={1.75} aria-hidden="true" />
               ) : (
                 <Pause size={16} strokeWidth={1.75} aria-hidden="true" />
               )}
-              <span className="action-label">{t(job.paused ? 'jobResume' : 'jobPause')}</span>
-            </Button>
+            </IconButton>
           )}
           {running && onStop && (
-            <Button variant="danger" disabled={!connected} onClick={onStop}>
+            <IconButton
+              color="error"
+              label={t('teamQueueStopNow')}
+              disabled={!connected}
+              onClick={onStop}
+            >
               <Ban size={16} strokeWidth={1.75} aria-hidden="true" />
-              <span className="action-label">{t('teamQueueStopNow')}</span>
-            </Button>
+            </IconButton>
           )}
           {/* Secondary inside a card: the page's one primary action is the
               toolbar's, and a grid of cards each raising a filled button leaves
               nothing leading anywhere (FR-022). */}
           {ready && (
             <Button
-              variant="secondary"
+              color="neutral"
+              variant="outline"
+              size="sm"
               disabled={!connected || job.assets.length === 0}
+              leading={<Play size={16} strokeWidth={1.75} aria-hidden="true" />}
               onClick={onStart}
             >
-              <Play size={16} strokeWidth={1.75} aria-hidden="true" />
-              <span className="action-label">{t('landingOptimizeButton')}</span>
-            </Button>
-          )}
-          {/* Including `preparing`. A landing whose upload died sat there with no action at
-              all, and the only way past it was restarting the local app. */}
-          {(ready || queued || job.status === 'preparing') && (
-            <Button variant="danger" disabled={!connected} onClick={onReset}>
-              <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
-              <span className="action-label">{t('landingRemove')}</span>
+              {t('landingOptimizeButton')}
             </Button>
           )}
           {completed && job.outputPath && (
             <>
-              <Button variant="secondary" disabled={!connected} onClick={() => onReveal('open')}>
-                <ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />
-                <span className="action-label">{t('landingOpenResult')}</span>
+              <Button
+                color="neutral"
+                variant="outline"
+                size="sm"
+                disabled={!connected}
+                leading={<ExternalLink size={16} strokeWidth={1.75} aria-hidden="true" />}
+                onClick={() => onReveal('open')}
+              >
+                {t('landingOpenResult')}
               </Button>
-              <Button variant="success" disabled={!connected} onClick={() => onReveal('reveal')}>
-                <FolderOpen size={16} strokeWidth={1.75} aria-hidden="true" />
-                <span className="action-label">{t('landingShowResult')}</span>
-              </Button>
+              <IconButton
+                label={t('landingShowResult')}
+                disabled={!connected}
+                onClick={() => onReveal('reveal')}
+              >
+                <FolderOpen size={18} strokeWidth={1.75} aria-hidden="true" />
+              </IconButton>
             </>
           )}
           {/* The compressor offers a repeat on anything that has finished; so does this, when
               the landing it came from is still on the machine. */}
           {(completed || failed || cancelled) && onRepeat && (
-            <Button variant="secondary" disabled={!connected} onClick={onRepeat}>
-              <RefreshCw size={16} strokeWidth={1.75} aria-hidden="true" />
-              <span className="action-label">{t('landingRepeat')}</span>
-            </Button>
+            <IconButton label={t('landingRepeat')} disabled={!connected} onClick={onRepeat}>
+              <RefreshCw size={18} strokeWidth={1.75} aria-hidden="true" />
+            </IconButton>
           )}
-          {(completed || failed || cancelled) && (
-            <Button variant="danger" disabled={!connected} onClick={onReset}>
-              <Trash2 size={16} strokeWidth={1.75} aria-hidden="true" />
-              <span className="action-label">{t('landingRemove')}</span>
-            </Button>
+          {/* Including `preparing`. A landing whose upload died sat there with no action at
+              all, and the only way past it was restarting the local app. */}
+          {(ready || queued || job.status === 'preparing' || completed || failed || cancelled) && (
+            <IconButton
+              color="error"
+              label={t('landingRemove')}
+              disabled={!connected}
+              onClick={onReset}
+            >
+              <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
+            </IconButton>
           )}
         </div>
       </div>
