@@ -940,6 +940,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchResultPreviewCreative: 'Переглянути {name}',
   launchResultCreativesLess: 'Згорнути',
   launchDistributionBalance: 'Порівну',
+  launchCreativesRemoveAll: 'Прибрати всі',
+  launchCreativesRemovedAll: 'Прибрано креативів: {count}',
   launchDistributionCopiesFor: 'Копій для {name}',
   launchDistributionVariationHint: 'Варіації роздаються відео по колу: {split}',
   launchVariationsAtLeastCreatives: 'Варіацій має бути щонайменше {count} — по одній на відео',

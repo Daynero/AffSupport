@@ -944,6 +944,8 @@ export const en = {
   launchResultPreviewCreative: 'Preview {name}',
   launchResultCreativesLess: 'Show less',
   launchDistributionBalance: 'Even',
+  launchCreativesRemoveAll: 'Remove all',
+  launchCreativesRemovedAll: 'Creatives removed: {count}',
   launchDistributionCopiesFor: 'Copies for {name}',
   launchDistributionVariationHint: 'Variations go to videos in turn: {split}',
   launchVariationsAtLeastCreatives: 'At least {count} variations — one per video',

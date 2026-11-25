@@ -34,6 +34,7 @@ import { creativeSelectKey, useI18n } from '../../i18n.js';
 import { useThumbnailSession } from '../explorer/useThumbnailSession.js';
 import { privateCacheEpoch, usePrivateCacheEpoch } from '../private-cache-scope.js';
 import { teamErrorMessageFor } from '../errors.js';
+import { useOptionalToasts } from '../../components/toast.js';
 import {
   completeTeamFileAttempt,
   startTeamFileAttempt,
@@ -296,6 +297,27 @@ export function LaunchCreativePicker({
     onChange(creativesPatch(draft, next, next.length ? kind : null));
   };
 
+  const toasts = useOptionalToasts();
+  /** Every creative at once (owner, 25.11): one by one was fourteen presses of «×». Undoable. */
+  const removeAll = () => {
+    const draft = latest.current;
+    const before = draftCreatives(draft);
+    if (before.length === 0) return;
+    setError(null);
+    onChange(creativesPatch(draft, [], null));
+    toasts?.push({
+      tone: 'info',
+      text: t('launchCreativesRemovedAll', { count: before.length }),
+      action: {
+        label: t('teamUndo'),
+        run: () => {
+          if (draftCreatives(latest.current).length > 0) return;
+          onChange(creativesPatch(latest.current, before, kind));
+        }
+      }
+    });
+  };
+
   const rename = (index: number, value: string) => {
     const draft = latest.current;
     const alias = value.replace(/\p{Zs}+/gu, '_');
@@ -447,6 +469,18 @@ export function LaunchCreativePicker({
               onClick={() => share(balanceCopies(draftCreatives(latest.current), n))}
             >
               {t('launchDistributionBalance')}
+            </Button>
+          )}
+          {catalogMode && creatives.length > 1 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              color="error"
+              className="shrink-0"
+              disabled={unavailable}
+              onClick={removeAll}
+            >
+              {t('launchCreativesRemoveAll')}
             </Button>
           )}
           <TaskAttachmentPicker

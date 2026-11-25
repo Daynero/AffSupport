@@ -146,6 +146,37 @@ it('removes a creative and gives its products back', () => {
   expect(patch.creatives?.map(c => [c.materialId, c.copies])).toEqual([['m1', 100]]);
 });
 
+it('removes every creative at once, and gives them back on undo', async () => {
+  const { ToastProvider } = await import('../apps/web/src/components/toast');
+  const onChange = vi.fn();
+  const draft: LaunchDraft = {
+    method: 'catalog',
+    catalog: catalog(),
+    materialId: 'm1',
+    creativeAlias: 'clip_1',
+    creativeKind: 'video',
+    creatives: [creative(1, 50), creative(2, 30), creative(3, 20)]
+  };
+  const view = (config: LaunchDraft) => (
+    <ToastProvider>
+      <LaunchCreativePicker teamId="team" config={config} disabled={false} onChange={onChange} />
+    </ToastProvider>
+  );
+  const { rerender } = render(view(draft));
+  fireEvent.click(screen.getByRole('button', { name: 'Remove all' }));
+  const cleared = onChange.mock.calls.at(-1)![0] as LaunchDraft;
+  expect(cleared.creatives ?? []).toEqual([]);
+  // The page hands the cleared draft back, as the editor does.
+  rerender(view({ ...draft, ...cleared }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Undo' }));
+  const back = onChange.mock.calls.at(-1)![0] as LaunchDraft;
+  expect(back.creatives?.map(c => [c.materialId, c.copies])).toEqual([
+    ['m1', 50],
+    ['m2', 30],
+    ['m3', 20]
+  ]);
+});
+
 it('shows the share of each creative in its own row and lets a typed share hold', () => {
   const change = picker({
     method: 'catalog',
