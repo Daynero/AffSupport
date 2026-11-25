@@ -385,7 +385,12 @@ describeRequiring(ffmpegBinaries, 'real files through the real decoder', () => {
     );
     expect(formatTags).toEqual([]);
     for (const stream of after.streams) {
-      expect(Object.keys(stream.tags ?? {}).filter(k => k !== 'language')).toEqual([]);
+      // Some FFmpeg builds (Windows CI) print the sample entry's vendor even once it is the four
+      // zero bytes the stripper leaves; only a named vendor ("FFMP", "appl") is metadata.
+      const named = Object.entries(stream.tags ?? {}).filter(
+        ([k, v]) => k !== 'language' && !(k === 'vendor_id' && v === '[0][0][0][0]')
+      );
+      expect(named.map(([k]) => k)).toEqual([]);
     }
     expect(after.streams[0]?.side_data_list?.[0]?.rotation).toBe(90);
     for (const gone of ['x264', 'Lavf', 'Phone Handler', 'Secret', '50.4501']) {
