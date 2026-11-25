@@ -239,7 +239,6 @@
     "apps/web/src/components/icons.tsx": 6.54,
     "apps/web/src/components/toast.tsx": 100,
     "apps/web/src/components/tool-icons.tsx": 0,
-    "apps/web/src/components/useCompactToolbar.ts": 100,
     "apps/web/src/components/ui/Alert.tsx": 100,
     "apps/web/src/components/ui/Badge.tsx": 96,
     "apps/web/src/components/ui/Button.tsx": 100,
@@ -282,7 +281,6 @@
     "apps/web/src/landing-viewer/internal/GalleryIconButton.tsx": 100,
     "apps/web/src/landing-viewer/internal/ViewerMenu.tsx": 78.51,
     "apps/web/src/landing-viewer/internal/phaseKey.ts": 100,
-    "apps/web/src/landing-viewer/internal/useToolbarStages.ts": 96.38,
     "apps/web/src/landing-viewer/sources/agentLandingSource.ts": 78.33,
     "apps/web/src/lib/browser.ts": 100,
     "apps/web/src/lib/config.ts": 80.5,
@@ -855,6 +853,16 @@
       "coverage": 100,
       "removed_in": "e9cd78d038cfbe8323361274e0745983e9972c4c",
       "reason": "070 US7: nothing rendered the members audit panel; the space history dialog is the one audit view."
+    },
+    "apps/web/src/components/useCompactToolbar.ts": {
+      "coverage": 100,
+      "removed_in": "508a1694bef98daa23a902480523d3d33c2dd8b2",
+      "reason": "070 T034: the toolbar's give-up-words measurement moved into the inventory (components/ui/useCompactToolbar.ts, one useToolbarStages for the tools and the landing viewer); the product-level copies were deleted. Global and remaining numeric floors unchanged."
+    },
+    "apps/web/src/landing-viewer/internal/useToolbarStages.ts": {
+      "coverage": 96.38,
+      "removed_in": "508a1694bef98daa23a902480523d3d33c2dd8b2",
+      "reason": "070 T034: the toolbar's give-up-words measurement moved into the inventory (components/ui/useCompactToolbar.ts, one useToolbarStages for the tools and the landing viewer); the product-level copies were deleted. Global and remaining numeric floors unchanged."
     }
   }
 }

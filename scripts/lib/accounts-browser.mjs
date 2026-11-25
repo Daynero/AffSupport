@@ -34,6 +34,14 @@ export function chromePath() {
  *
  * `path(teamId)` is the page to open once signed in; `ready` is a selector that is on screen
  * when the page has its content.
+ *
+ * @param {string[]} args
+ * @param {{
+ *   defaultTeam: string,
+ *   path: (teamId: string) => string,
+ *   ready: string,
+ *   viewport?: { width: number, height: number }
+ * }} options
  */
 export async function openLocalBrowser(args, { defaultTeam, path, ready, viewport }) {
   const site = args.find(arg => arg.startsWith('--site='))?.slice(7) ?? 'http://127.0.0.1:5175';
