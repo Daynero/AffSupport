@@ -43,9 +43,14 @@ select ok(
   public.service_take_google_sheets_reads('c0750000-0000-4000-8000-000000000001', 4) between 7800 and 8100,
   'the eighth is told to wait about eight seconds, and nothing is reserved for it'
 );
+-- One call per statement: the order of two calls inside one expression is not defined.
+create temp table reserved as
+  select public.service_take_google_sheets_reads('c0750000-0000-4000-8000-000000000001', 4, 25000) as first_wait;
+alter table reserved add column second_wait integer;
+update reserved set second_wait =
+  public.service_take_google_sheets_reads('c0750000-0000-4000-8000-000000000001', 4, 25000);
 select ok(
-  public.service_take_google_sheets_reads('c0750000-0000-4000-8000-000000000001', 4, 25000) between 7800 and 8100
-  and public.service_take_google_sheets_reads('c0750000-0000-4000-8000-000000000001', 4, 25000) between 15700 and 16100,
+  (select first_wait between 7800 and 8100 and second_wait between 15700 and 16100 from reserved),
   'a short wait is reserved: the next one queues behind it'
 );
 select is(
