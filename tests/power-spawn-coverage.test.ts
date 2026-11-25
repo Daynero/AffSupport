@@ -41,7 +41,12 @@ const SPAWN_ALLOWLIST = [
   'files/dropped-source.ts',
   // `ioreg`, once a second, under a two-second ceiling: it reads the GPU
   // figure the governor reports, and managing the reading would skew it.
-  'power/graphics.ts'
+  'power/graphics.ts',
+  // One resident PowerShell that answers a line of GPU Engine counters per
+  // request, for the header's load meter (machine-load): the Windows twin of
+  // the ioreg reading above. Suspending it under the limit would freeze the
+  // very figure that shows the limit at work.
+  'power/windows-graphics.ts'
 ];
 
 /** Only the governor may stop or resume a managed child. */
