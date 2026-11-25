@@ -1,27 +1,27 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.6.3",
-  "buildNumber": "105",
-  "buildId": "1.6.3+105",
+  "version": "1.7.0",
+  "buildNumber": "106",
+  "buildId": "1.7.0+106",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-24T00:00:00.000Z",
+  "publishedAt": "2026-11-25T00:00:00.000Z",
   "summary": {
-    "uk": "Помічник простору: пишіть звичайними словами — він робить у просторі те саме, що й ви, і показує картку до будь-якої зміни. Чарунки, переклад транскриптів, фонова робота без перезапусків.",
-    "en": "The space assistant: write in plain words and it does in the space what you do, with a card before any change. Credits, transcript translation, background work without restarts."
+    "uk": "Soty знову оновлюється сам. Новий вигляд простору, перезашивка з коробки, каталог без мовчазних зависань, файли без метаданих, кнопка навантаження комп'ютера.",
+    "en": "Soty updates itself again. A new space layout, re-stitching out of the box, catalogs that no longer hang silently, files without metadata, and a computer load meter."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.3/Soty-v1.6.3-macOS-arm64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.0/Soty-v1.7.0-macOS-arm64.dmg",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.3/Soty-v1.6.3-macOS-x64.dmg",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.0/Soty-v1.7.0-macOS-x64.dmg",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.6.3/Soty-v1.6.3-Windows-x64.exe",
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.0/Soty-v1.7.0-Windows-x64.exe",
       "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
@@ -48,5 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "I5DvlP96ZKKKXzGFyvBcUeNICYaxqCY4u-tHDbzNjdCpNq50Zo2zHAMHdSUsosCPXE8RnIjW2H6ggGqqaNt0Hg"
+  "signature": "U4nrf_wREW_pn_-qKnFNLlujitQc_n7nsJV68OadFWECr-Hy3gAG0ORBqZGWjZK4crYOHtkdW0WBeYHiAjrytw"
 }
