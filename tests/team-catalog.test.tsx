@@ -8,6 +8,13 @@ import { DEFAULT_ROLE_PERMISSIONS } from '@video-compressor/shared';
 import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TeamCatalog, type TeamCatalogClient } from '../apps/web/src/team/catalog/TeamCatalog';
 import { ToastProvider } from '../apps/web/src/components/toast';
+import { MaterialResults } from '../apps/web/src/team/catalog/MaterialResults';
+import { clearThumbnailSessions } from '../apps/web/src/team/explorer/useThumbnailSession';
+import type {
+  CatalogMaterialItem,
+  CatalogSearchResponse,
+  ThumbnailSession
+} from '@video-compressor/shared';
 
 const TEAM_ID = '22000000-0000-4000-8000-000000000001';
 const team = {
@@ -264,4 +271,257 @@ describe('team catalog search UI', () => {
     expect(await screen.findByText('Could not load catalog results.')).toBeTruthy();
     expect(screen.queryByText('Secret competitor creative')).toBeNull();
   }, 20_000);
+});
+
+/**
+ * The result list on its own: what each row says about the file it found, and
+ * the pager under fifty of them. Rendered directly, because the explorer's one
+ * search (070) answers most queries in the list's place and no longer reaches
+ * every corner of this component through the catalog page.
+ */
+describe('a page of search results', () => {
+  const SESSION: ThumbnailSession = {
+    token: 'session-token',
+    expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
+    teamId: TEAM_ID,
+    endpoint: 'https://thumbs.example/thumbnail'
+  };
+
+  afterEach(() => {
+    clearThumbnailSessions();
+  });
+
+  function item(overrides: Partial<CatalogMaterialItem>): CatalogMaterialItem {
+    return { ...(result().items[0] as CatalogMaterialItem), ...overrides };
+  }
+
+  function page(items: CatalogMaterialItem[], total = items.length): CatalogSearchResponse {
+    return result({ items, total }) as CatalogSearchResponse;
+  }
+
+  function renderResults(
+    props: Partial<React.ComponentProps<typeof MaterialResults>> & {
+      result: CatalogSearchResponse | null;
+    }
+  ) {
+    const handlers = {
+      onEditMetadata: vi.fn(),
+      onPreview: vi.fn(),
+      onEditText: vi.fn(),
+      onProcess: vi.fn(),
+      onShowProvenance: vi.fn(),
+      onChanged: vi.fn(),
+      onPageChange: vi.fn()
+    };
+    const view = render(
+      <TeamProvider initialTeams={[team]} realtime={false}>
+        <ToastProvider>
+          <MaterialResults
+            loading={false}
+            error={false}
+            canManageMetadata
+            permissions={team.permissions}
+            storageKind={null}
+            browseClient={client() as never}
+            page={1}
+            {...handlers}
+            {...props}
+          />
+        </ToastProvider>
+      </TeamProvider>
+    );
+    return { ...view, handlers };
+  }
+
+  it('says what each found file is, where the query hit it and what it carries', async () => {
+    const scrolled = vi.fn();
+    const scrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrolled;
+    const thumbnails = {
+      mintThumbnailSession: vi.fn().mockResolvedValue(SESSION),
+      thumbnailUrl: (session: ThumbnailSession, id: string) => `${session.endpoint}?material=${id}`
+    };
+    const onSetTag = vi.fn();
+    try {
+      renderResults({
+        query: 'hook',
+        activeIndex: 1,
+        thumbnails,
+        tagging: { canTag: true, onSetTag },
+        pathFor: material => (material.id === 'clip' ? 'Ads / Summer' : null),
+        result: page([
+          item({
+            id: 'clip',
+            name: 'hook-clip.mp4',
+            sizeBytes: 512,
+            matchedIn: 'transcript',
+            snippet: 'the hook lands here',
+            note: 'First line\n\n\nsecond line',
+            transcriptIngestState: 'full',
+            transcriptTruncated: true,
+            lineage: { hasSource: true, hasDerivatives: true, isVersion: true }
+          }),
+          item({
+            id: 'poster',
+            name: 'poster.png',
+            category: 'image',
+            fileExtension: 'png',
+            sizeBytes: 5 * 1024 * 1024,
+            matchedIn: 'note',
+            snippet: 'a hook in the note',
+            note: 'a hook in the note, in full',
+            transcriptIngestState: 'truncated'
+          }),
+          item({
+            id: 'link',
+            name: 'shortcut',
+            kind: 'shortcut',
+            category: null,
+            fileExtension: null,
+            sizeBytes: null,
+            matchedIn: 'tags',
+            snippet: 'not shown for tags',
+            transcriptIngestState: 'pending'
+          }),
+          item({
+            id: 'page',
+            name: 'offer.html',
+            category: 'landing',
+            fileExtension: 'html',
+            sizeBytes: 3 * 1024,
+            transcriptIngestState: 'invalid_encoding'
+          }),
+          item({
+            id: 'text',
+            name: 'clip.txt',
+            category: 'transcript',
+            fileExtension: 'txt',
+            transcriptIngestState: 'unavailable'
+          }),
+          item({
+            id: 'zip',
+            name: 'pack.zip',
+            category: 'archive',
+            fileExtension: 'zip',
+            // A state a newer server may send before this client knows its name.
+            transcriptIngestState: 'reindexing' as CatalogMaterialItem['transcriptIngestState']
+          }),
+          item({ id: 'doc', name: 'brief.pdf', category: 'other', fileExtension: 'pdf' }),
+          item({ id: 'dir', name: 'Sources', kind: 'folder', category: null })
+        ])
+      });
+
+      const rows = screen.getAllByRole('listitem');
+      const row = (id: number) => within(rows[id]!);
+      expect(screen.getByText('8 files')).toBeTruthy();
+
+      // The thumbnail, once the space's one session is minted; never for a file without a picture.
+      await waitFor(() => expect(rows[0]!.querySelector('img')).not.toBeNull());
+      expect(rows[0]!.querySelector('img')!.getAttribute('src')).toBe(
+        `${SESSION.endpoint}?material=clip`
+      );
+      expect(rows[1]!.querySelector('img')!.getAttribute('src')).toBe(
+        `${SESSION.endpoint}?material=poster`
+      );
+      expect(rows[3]!.querySelector('img')).toBeNull();
+      expect(thumbnails.mintThumbnailSession).toHaveBeenCalledTimes(1);
+
+      // Found in the transcript: said so, with the words around the hit, marked.
+      expect(row(0).getByText('in the transcript')).toBeTruthy();
+      // Marked in the name and in the snippet both.
+      expect(row(0).getAllByText('hook', { selector: 'mark' })).toHaveLength(2);
+      expect(row(0).getByText('Ads / Summer')).toBeTruthy();
+      expect(row(0).getByText(/· MP4 · 512 B$/)).toBeTruthy();
+      // The note is shown in one paragraph, blank lines folded.
+      expect(rows[0]!.querySelector('.team-catalog-material-note')!.textContent).toBe(
+        'First line\nsecond line'
+      );
+      expect(row(0).getByText('Transcript ready')).toBeTruthy();
+      expect(row(0).getByText('transcript truncated')).toBeTruthy();
+      expect(row(0).getByText('derived')).toBeTruthy();
+      expect(row(0).getByText('version')).toBeTruthy();
+
+      // Found in the note: the snippet stands for the note, which is not repeated.
+      expect(row(1).getByText('in the note')).toBeTruthy();
+      expect(rows[1]!.querySelector('.team-catalog-material-note')).toBeNull();
+      expect(row(1).getByText(/Image · PNG · 5\.0 MB$/)).toBeTruthy();
+      expect(row(1).getByText('transcript truncated')).toBeTruthy();
+
+      // A tag match says where, but a tag is not a snippet.
+      expect(row(2).getByText('in the tags')).toBeTruthy();
+      expect(row(2).queryByText('not shown for tags')).toBeNull();
+      expect(row(2).getByText('Shortcut')).toBeTruthy();
+      expect(row(2).getByText('Transcript is being prepared')).toBeTruthy();
+
+      expect(row(3).getByText(/Landing · HTML · 3 KB$/)).toBeTruthy();
+      expect(row(3).getByText('Transcript has an unsupported encoding')).toBeTruthy();
+      expect(rows[3]!.querySelector('.team-catalog-material-glyph')!.textContent).toBe('◇');
+      expect(row(4).getByText(/^Transcript · TXT/)).toBeTruthy();
+      expect(row(4).getByText('Transcript is unavailable')).toBeTruthy();
+      expect(rows[4]!.querySelector('.team-catalog-material-glyph')!.textContent).toBe('≡');
+      expect(row(5).getByText(/^Archive · ZIP/)).toBeTruthy();
+      expect(row(5).getByText('Transcript is not available')).toBeTruthy();
+      expect(rows[5]!.querySelector('.team-catalog-material-glyph')!.textContent).toBe('▦');
+      expect(row(6).getByText(/^File · PDF/)).toBeTruthy();
+      expect(rows[6]!.querySelector('.team-catalog-material-glyph')!.textContent).toBe('▤');
+      expect(rows[2]!.querySelector('.team-catalog-material-glyph')!.textContent).toBe('↗');
+      expect(rows[7]!.querySelector('.team-catalog-material-glyph')!.textContent).toBe('▰');
+
+      // The row the keyboard is on is marked and brought into view.
+      expect(rows[1]!.className).toContain('is-active');
+      expect(scrolled).toHaveBeenCalledWith({ block: 'nearest' });
+
+      // A tag set from a result holds until the next search answers with it.
+      fireEvent.click(row(0).getByRole('button', { name: 'Tag of hook-clip.mp4: No tag' }));
+      fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Red' }));
+      expect(onSetTag).toHaveBeenCalledWith(expect.objectContaining({ id: 'clip' }), 'red');
+      expect(row(0).getByRole('button', { name: 'Tag of hook-clip.mp4: Red' })).toBeTruthy();
+    } finally {
+      HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    }
+  });
+
+  it('pages past the first fifty, and goes nowhere from either end', () => {
+    const { handlers, rerender } = renderResults({ page: 2, result: page([item({})], 120) });
+    expect(screen.getByText('120 files')).toBeTruthy();
+    const pager = within(screen.getByRole('navigation', { name: 'Result pages' }));
+    expect(pager.getByText('Page 2 of 3')).toBeTruthy();
+    fireEvent.click(pager.getByRole('button', { name: 'Previous' }));
+    expect(handlers.onPageChange).toHaveBeenLastCalledWith(1);
+    fireEvent.click(pager.getByRole('button', { name: 'Next' }));
+    expect(handlers.onPageChange).toHaveBeenLastCalledWith(3);
+
+    rerender(
+      <TeamProvider initialTeams={[team]} realtime={false}>
+        <ToastProvider>
+          <MaterialResults
+            loading={false}
+            error={false}
+            canManageMetadata
+            permissions={team.permissions}
+            storageKind={null}
+            browseClient={client() as never}
+            page={3}
+            {...handlers}
+            result={page([item({})], 120)}
+          />
+        </ToastProvider>
+      </TeamProvider>
+    );
+    expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows the wait, the failure and a caller-given empty answer in the list place', () => {
+    const loading = renderResults({ result: null, loading: true });
+    expect(screen.getByText('Searching files…')).toBeTruthy();
+    loading.unmount();
+
+    const failed = renderResults({ result: page([item({})]), error: true });
+    expect(screen.getByText('Could not load catalog results.')).toBeTruthy();
+    failed.unmount();
+
+    renderResults({ result: page([], 0), empty: <p>Try the other layout</p> });
+    expect(screen.getByText('Try the other layout')).toBeTruthy();
+    expect(screen.queryByRole('navigation')).toBeNull();
+  });
 });

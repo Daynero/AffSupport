@@ -15,6 +15,12 @@ import { TeamProvider } from '../apps/web/src/team/TeamContext';
 import { TaskCard } from '../apps/web/src/team/tasks/TaskCard';
 import { TaskEditor, type TaskEditorClient } from '../apps/web/src/team/tasks/TaskEditor';
 import { TaskSpace, type TaskSpaceClient } from '../apps/web/src/team/tasks/TaskSpace';
+import { TaskAgentTagList } from '../apps/web/src/team/tasks/TaskAgentTags';
+import { translate, type TranslationKey } from '../apps/web/src/i18n';
+import { agentCountKey } from '../apps/web/src/team/accounts/plural';
+
+const t = (key: TranslationKey, values?: Record<string, string | number>) =>
+  translate('en', key, values);
 
 /**
  * Accounts inside tasks (017, part 2): the tag row on a card, the picker and
@@ -297,6 +303,46 @@ describe('a card', () => {
   });
 });
 
+describe('a chip on a card', () => {
+  // 070, T048: the chip is the way to the agent's row in Accounts, not a press on the card.
+  it('leads to the agent in Accounts without opening the task', async () => {
+    const onOpen = vi.fn();
+    const user = userEvent.setup();
+    wrap(<TaskCard task={task([tagFor(A434)])} canEdit onOpen={onOpen} onUpdate={vi.fn()} />);
+    await user.click(screen.getByRole('link', { name: 'v31-434 — open in Accounts' }));
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(location.pathname).toContain('/accounts');
+    expect(new URLSearchParams(location.search).get('agent')).toBe(A434);
+    history.replaceState(null, '', '/');
+  });
+
+  it('is only a label where no space is open to lead into', () => {
+    renderRaw(<TaskAgentTagList tags={[tagFor(A434)]} />);
+    const chip = document.querySelector('.team-task-agent-chip')!;
+    expect(chip.tagName).toBe('SPAN');
+    expect(chip.textContent).toBe('v31-434');
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('says when the agent is held by launches, and when its state is not confirmed', () => {
+    const unknown: TeamTaskAgentTag = {
+      ...tagFor(A401),
+      availability: { status: 'unknown', assignmentCount: 0, legacyCount: 0 }
+    };
+    const assigned: TeamTaskAgentTag = {
+      ...tagFor(A211),
+      availability: { status: 'busy', assignmentCount: 2, legacyCount: 0 }
+    };
+    renderRaw(<TaskAgentTagList tags={[unknown, assigned]} />);
+    expect(screen.getByText('v31-401').getAttribute('title')).toBe(
+      'Account: v31\nID: 1000098765401\nAvailability unconfirmed'
+    );
+    expect(screen.getByText('v3-211').getAttribute('title')).toBe(
+      'Account: v3\nID: 1000011122211\nBusy\nCurrent launch assignments: 2'
+    );
+  });
+});
+
 describe('the editor', () => {
   function openEditor(api: TaskEditorClient, tags: TeamTaskAgentTag[] = []) {
     const onTagsChange = vi.fn();
@@ -551,6 +597,141 @@ describe('the editor', () => {
     expect(screen.getByText('v31-434')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Ad account' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^v31-434/ })).toBeNull();
+  });
+
+  it('names the agent state in the panel and leads to the agent in Accounts', async () => {
+    const unknown: TeamTaskAgentTag = {
+      ...tagFor(A401),
+      availability: { status: 'unknown', assignmentCount: 0, legacyCount: 0 }
+    };
+    const assigned: TeamTaskAgentTag = {
+      ...tagFor(A211),
+      availability: { status: 'busy', assignmentCount: 3, legacyCount: 0 }
+    };
+    const api = client([unknown, assigned]);
+    const user = userEvent.setup();
+    openEditor(api, [unknown, assigned]);
+
+    await user.click(screen.getByRole('button', { name: 'v31-401 — Availability unconfirmed' }));
+    expect(
+      within(screen.getByRole('region', { name: 'v31-401' })).getByText('Availability unconfirmed')
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /^v3-211/ }));
+    const panel = screen.getByRole('region', { name: 'v3-211' });
+    expect(within(panel).getByText('Current launch assignments: 3')).toBeTruthy();
+    await user.click(within(panel).getByRole('link', { name: 'In Accounts' }));
+    expect(new URLSearchParams(location.search).get('agent')).toBe(A211);
+    history.replaceState(null, '', '/');
+  });
+
+  it('writes the run onto every agent chosen, and says how many', async () => {
+    const api = client();
+    const user = userEvent.setup();
+    const onTagsChange = openEditor(api);
+    await user.click(screen.getByRole('button', { name: 'Ad account' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ad account' });
+    await user.click(within(dialog).getByText('v31', { selector: 'strong' }).closest('button')!);
+    await user.click(within(dialog).getByRole('button', { name: /v31-434/ }));
+    await user.click(within(dialog).getByRole('button', { name: /v31-401/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Launch on it (2)' }));
+
+    await waitFor(() => expect(api.addAgentRun).toHaveBeenCalledTimes(2));
+    expect(
+      await screen.findByText(
+        t('teamTaskRunsWritten', { agents: t(agentCountKey('en', 2), { count: 2 }) })
+      )
+    ).toBeTruthy();
+    expect(onTagsChange).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('the editor, when a write does not land', () => {
+  const unknownError = () => t('teamErrorUnknown');
+
+  function openEditor(api: TaskEditorClient, tags: TeamTaskAgentTag[]) {
+    wrap(
+      <TaskEditor
+        teamId={TEAM_ID}
+        task={task(tags)}
+        members={[]}
+        canEdit
+        client={api}
+        onClose={() => {}}
+        onChanged={() => {}}
+        onTagsChange={vi.fn()}
+      />
+    );
+  }
+
+  it('says so when tagging fails, and keeps the row as it was', async () => {
+    const api = client();
+    vi.mocked(api.attachTaskAgent).mockRejectedValueOnce(new Error('offline'));
+    const user = userEvent.setup();
+    openEditor(api, []);
+    await user.click(screen.getByRole('button', { name: 'Ad account' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ad account' });
+    await user.click(within(dialog).getByText('v31', { selector: 'strong' }).closest('button')!);
+    await user.click(within(dialog).getByRole('button', { name: /v31-401/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Only tag (1)' }));
+    expect(await screen.findByText(unknownError())).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^v31-401/ })).toBeNull();
+  });
+
+  it('says so when undoing a removed tag fails', async () => {
+    const api = client([tagFor(A434)]);
+    const user = userEvent.setup();
+    openEditor(api, [tagFor(A434)]);
+    await user.click(screen.getByRole('button', { name: /^v31-434/ }));
+    await user.click(screen.getByRole('button', { name: 'Remove from the task' }));
+    vi.mocked(api.attachTaskAgent).mockRejectedValueOnce(new Error('offline'));
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    expect(await screen.findByText(unknownError())).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^v31-434/ })).toBeNull();
+  });
+
+  it('says so when undoing a deleted run fails', async () => {
+    const api = client([tagFor(A434)]);
+    const user = userEvent.setup();
+    openEditor(api, [tagFor(A434)]);
+    await user.click(screen.getByRole('button', { name: /^v31-434/ }));
+    const panel = screen.getByRole('region', { name: 'v31-434' });
+    await user.click(
+      within(panel).getByRole('button', { name: 'Delete the run: Pro Caps | TR 02/09' })
+    );
+    await waitFor(() => expect(within(panel).queryByText('Pro Caps | TR 02/09')).toBeNull());
+    vi.mocked(api.addAgentRun).mockRejectedValueOnce(new Error('offline'));
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    expect(await screen.findByText(unknownError())).toBeTruthy();
+    expect(within(panel).queryByText('Pro Caps | TR 02/09')).toBeNull();
+  });
+
+  it('refuses an empty run and keeps the field when a save fails', async () => {
+    const api = client([tagFor(A434)]);
+    const user = userEvent.setup();
+    openEditor(api, [tagFor(A434)]);
+    await user.click(screen.getByRole('button', { name: /^v31-434/ }));
+    const panel = screen.getByRole('region', { name: 'v31-434' });
+    await user.click(
+      within(panel).getByRole('button', { name: 'Edit the run: Pro Caps | TR 02/09' })
+    );
+    const field = screen.getByRole('textbox', { name: 'Run to write onto the ad account' });
+    await user.clear(field);
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText(t('teamAgentNoteInvalid'))).toBeTruthy();
+    expect(api.updateAgentRun).not.toHaveBeenCalled();
+
+    vi.mocked(api.updateAgentRun).mockRejectedValueOnce(new Error('offline'));
+    await user.type(field, 'Pro Caps | TR 04/09{Enter}');
+    expect(await screen.findByText(unknownError())).toBeTruthy();
+    // Still open with what was typed: nothing is lost to a failed write.
+    expect(
+      (
+        screen.getByRole('textbox', {
+          name: 'Run to write onto the ad account'
+        }) as HTMLInputElement
+      ).value
+    ).toBe('Pro Caps | TR 04/09');
   });
 });
 

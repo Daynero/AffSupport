@@ -186,6 +186,26 @@ describe('the reconnect action', () => {
     view.rerender(<ReconnectAction surface="power" />);
     expect(screen.getByRole('status').textContent).toBe(t('linkReasonPairingRejected'));
   });
+
+  // 070: the header on a phone keeps the word as the arrow's name, and the arrow does what the word did.
+  it('as a bare arrow keeps the word as its name, shows the attempt and answers it', () => {
+    const view = render(<ReconnectAction surface="header_badge" iconOnly />);
+    const arrow = screen.getByRole('button', { name: RECONNECT });
+    expect(arrow.textContent).toBe('');
+    fireEvent.click(arrow);
+    expect(current.value.reconnect).toHaveBeenCalledWith('header_badge');
+
+    current.value = lost({
+      attempt: { id: 'a4', startedAt: 1, trigger: 'manual', stage: 'probe', joined: false }
+    });
+    view.rerender(<ReconnectAction surface="header_badge" iconOnly />);
+    expect(screen.getByRole('button', { name: RECONNECTING })).toBeTruthy();
+
+    // Nothing better known than "it did not come back": the not-running sentence.
+    current.value = lost({ reason: null });
+    view.rerender(<ReconnectAction surface="header_badge" iconOnly />);
+    expect(screen.getByRole('status').textContent).toBe(t('linkReasonNotRunning'));
+  });
 });
 
 describe('the header badge', () => {

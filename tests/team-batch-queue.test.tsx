@@ -15,6 +15,8 @@ import { clearThumbnailSessions } from '../apps/web/src/team/explorer/useThumbna
 import type { MaterialActionsClient } from '../apps/web/src/team/catalog/material-actions-client';
 import { makeTeam } from './team-space-fixtures';
 import type { AgentQueue } from '../apps/web/src/team/explorer/useAgentQueue';
+import { AgentQueuePanel } from '../apps/web/src/team/processing/AgentQueueProvider';
+import { translate, type TranslationKey } from '../apps/web/src/i18n';
 
 /**
  * The team batch queue: what it starts, what it holds, and what it names.
@@ -374,5 +376,44 @@ describe('what the batch names its output', () => {
         }
       ])
     );
+  });
+});
+
+describe('what the corner panel calls the run', () => {
+  const t = (key: TranslationKey, values?: Record<string, string | number>) =>
+    translate('en', key, values);
+  function running(tool: 'transcription' | 'compressor' | 'restitch'): AgentQueue {
+    const active = {
+      id: 'id-1',
+      name: 'clip-1.mp4',
+      folderId: 'root',
+      tool,
+      outputName: 'clip-1-out.mp4',
+      operationId: 'op-1'
+    } as AgentQueue['active'];
+    return {
+      active,
+      queued: [],
+      done: 0,
+      total: 1,
+      paused: false,
+      held: false,
+      activeProgress: 10,
+      enqueue: vi.fn(),
+      enqueueTranscriptions: vi.fn(),
+      pause: vi.fn(),
+      clearQueued: vi.fn(),
+      stopNow: vi.fn()
+    };
+  }
+
+  // 070: a drop of videos can ask to trim the stitching; the panel names that run, not a transcript.
+  it.each([
+    ['compressor', 'Compression'],
+    ['restitch', 'Trimming the stitching'],
+    ['transcription', t('teamTranscribeQueueTitle')]
+  ] as const)('names a %s run by its tool', (tool, title) => {
+    render(<AgentQueuePanel queue={running(tool)} t={t} />);
+    expect(screen.getByText(title)).toBeTruthy();
   });
 });
