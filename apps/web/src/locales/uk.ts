@@ -4922,7 +4922,8 @@ export const uk: Record<keyof typeof en, string> = {
   creditsOf: '{value} з {grant}',
   creditsBonus: 'Бонусні',
   creditsBonusNote: 'Не згорають і витрачаються після щоденних',
-  creditsWhere: 'Чарунки витрачають помічник і переклад. Ціна завжди на кнопці, ще до натискання.',
+  creditsWhere:
+    'Чарунки витрачаються на функції зі штучним інтелектом. Ціна завжди на кнопці, ще до натискання.',
   creditsTitle: 'Чарунки',
   creditsResets: 'Поновляться о {time} за Києвом',
   creditsFeatureTranslation: 'Переклад',

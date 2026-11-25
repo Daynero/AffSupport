@@ -4955,8 +4955,7 @@ export const en = {
   creditsOf: '{value} of {grant}',
   creditsBonus: 'Bonus',
   creditsBonusNote: 'Don’t expire; spent after the daily ones',
-  creditsWhere:
-    'The assistant and translation spend credits. The price is on the button before you press it.',
+  creditsWhere: 'Credits pay for the AI features. The price is on the button before you press it.',
   creditsTitle: 'Credits',
   creditsResets: 'Renew at {time} Kyiv time',
   creditsFeatureTranslation: 'Translation',
