@@ -8,10 +8,7 @@ import {
   isCatalogUpdaterVariantsSnapshot,
   type CatalogUpdaterVariantsSnapshot
 } from './catalog-updater-variants';
-import {
-  parseCatalogManagerRuntime,
-  type CatalogManagerRuntime
-} from './catalog-manager-runtime';
+import { parseCatalogManagerRuntime, type CatalogManagerRuntime } from './catalog-manager-runtime';
 import {
   parseCatalogVideoRowProgress,
   type CatalogVideoRowProgress
@@ -266,10 +263,6 @@ function catalogMutationActor(options?: CatalogMutationOptions): string {
   return actor.toLowerCase();
 }
 
-export interface TeamContextSnapshot {
-  id: string;
-  name: string;
-  role: TeamRole;
 /** 072 — the answer of `retry_team_catalog_publication`. */
 export type CatalogPublicationRetryOutcome = 'requeued' | 'queued' | 'settled' | 'republish';
 
@@ -284,6 +277,10 @@ export interface CatalogCreationPreflight {
   backgroundExecutor: boolean;
 }
 
+export interface TeamContextSnapshot {
+  id: string;
+  name: string;
+  role: TeamRole;
   permissions: TeamPermissions;
   connectionState:
     'none' | 'pending' | 'connected' | 'needs_reauth' | 'unavailable' | 'detached' | 'root_missing';
@@ -3642,12 +3639,6 @@ export const teamApi = {
     );
   },
 
-  async startCatalogUpdaterVariants(
-    input: {
-      teamId: string;
-      catalogMaterialId: string;
-      sourceMaterialId?: string;
-      requestId: string;
   /**
    * 072 — «Опублікувати ще раз» for a blocked publication. `requeued`: the same job is back in
    * the queue; `queued`/`settled`: nothing to do; `republish`: the writer already touched the
@@ -3721,6 +3712,12 @@ export const teamApi = {
     };
   },
 
+  async startCatalogUpdaterVariants(
+    input: {
+      teamId: string;
+      catalogMaterialId: string;
+      sourceMaterialId?: string;
+      requestId: string;
       requestedCount: number;
       profileVersion: number;
       expectedExecutorId?: string;
