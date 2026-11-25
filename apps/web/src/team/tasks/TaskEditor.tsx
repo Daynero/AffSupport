@@ -1760,6 +1760,7 @@ export function TaskEditor({
                           t('teamExplorerRootLabel')
                         )
                       }
+                      trailTo={attachmentFolders.trailTo}
                       onAdd={addAttachments}
                     />
                   )}

@@ -105,6 +105,7 @@ export function TaskAttachmentPicker({
   onAdd,
   startTrail,
   pathOf,
+  trailTo,
   accept,
   trigger,
   title,
@@ -120,6 +121,8 @@ export function TaskAttachmentPicker({
   startTrail?: { id: string; name: string }[];
   /** A found file's folder path, so same-named results say where each lives. */
   pathOf?: (parentFolderId: string | null | undefined) => string;
+  /** The folders above a found folder, top down, so opening it from a search lands at its place. */
+  trailTo?: (folderId: string | null | undefined) => { id: string; name: string }[];
   /** Only these files are offered (folders are always there to open). */
   accept?: (material: TeamMaterialSummary) => boolean;
   /** Draws the control that opens the picker, instead of the attachment tile. */
@@ -270,6 +273,9 @@ export function TaskAttachmentPicker({
 
   const close = () => {
     setOpen(false);
+    // The next opening starts where it should (the task's folder, or the root), not inside
+    // whatever was walked into this time.
+    setPath([]);
     setSelected(new Map());
     setSearch('');
     setFound(null);
@@ -417,10 +423,23 @@ export function TaskAttachmentPicker({
                           disabled={isAttached || unavailable !== null}
                           onClick={() => {
                             if (isFolder) {
-                              setPath(current => [
-                                ...current,
-                                { id: material.providerId ?? material.id, name: material.name }
-                              ]);
+                              const entry = {
+                                id: material.providerId ?? material.id,
+                                name: material.name
+                              };
+                              if (found) {
+                                /* A folder found by name opens at its own place and leaves the
+                                   search (owner, 25.11): the search kept answering over it, so
+                                   each press stacked the same folder onto the trail again —
+                                   «Туреччина / Туреччина / Туреччина…» — and nothing opened. */
+                                setPath([...(trailTo?.(material.parentFolderId) ?? []), entry]);
+                                setSearch('');
+                                setFound(null);
+                              } else {
+                                setPath(current =>
+                                  current.at(-1)?.id === entry.id ? current : [...current, entry]
+                                );
+                              }
                             } else {
                               toggle(material);
                             }

@@ -71,6 +71,18 @@ export function useAttachmentFolders({
     parentOf: (materialId: string) => parents.get(materialId),
     pathOf: (materialId: string) =>
       parents.has(materialId) ? folderPathLabel(parents.get(materialId), folders, rootLabel) : null,
+    /** The folders from the top down to and including a folder, for the picker's trail. */
+    trailTo: (folderId: string | null | undefined): { id: string; name: string }[] => {
+      const trail: { id: string; name: string }[] = [];
+      const seen = new Set<string>();
+      let at = folderId ? folders.get(folderId) : undefined;
+      while (at && !seen.has(at.driveFileId)) {
+        seen.add(at.driveFileId);
+        trail.unshift({ id: at.driveFileId, name: at.name });
+        at = at.parentFolderId ? folders.get(at.parentFolderId) : undefined;
+      }
+      return trail;
+    },
     /** The folders from the top down to a file's own, for the picker's trail. */
     trailOf: (materialId: string): { id: string; name: string }[] => {
       const trail: { id: string; name: string }[] = [];
