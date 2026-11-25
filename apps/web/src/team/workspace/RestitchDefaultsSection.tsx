@@ -63,11 +63,6 @@ import {
 import { RestitchSlotPanel } from './restitch/RestitchSlotPanel';
 import { RestitchFitPicker } from './restitch/RestitchFitPicker';
 import { RestitchPrepareCard } from './restitch/RestitchPrepareCard';
-import {
-  useAutoPrepare,
-  useRestitchBackground,
-  writeAutoPrepare
-} from '../restitch/restitch-background';
 import { useRestitchReadiness } from './restitch/useRestitchReadiness';
 
 export interface RestitchDefaultsClient {
@@ -130,7 +125,7 @@ export function RestitchDefaultsSection({
 }) {
   const { t, language } = useI18n();
   const { push } = useToasts();
-  const { activeTeam, can } = useTeam();
+  const { activeTeam, can, revision: spaceRevision } = useTeam();
   const agent = useOptionalAgent();
   const connected = agent?.connection === 'connected';
   const isOwner = activeTeam?.role === 'owner';
@@ -145,19 +140,18 @@ export function RestitchDefaultsSection({
   const [useOwner, setUseOwner] = useState(true);
   const [switching, setSwitching] = useState(false);
   const preparation = useRestitchPreparation(teamId);
-  // 071: the space prepares itself while Soty is free (mounted in the application shell).
-  const background = useRestitchBackground();
-  const autoPrepare = useAutoPrepare(teamId);
   // Preparation touches the space's drive; without one there is nothing to prepare, and the
   // way forward is the connection panel one section down rather than a button that would fail.
   const driveConnected = activeTeam?.connectionState === 'connected';
-  // How much of the space is ready now; read again whenever a run settles (071).
+  // How much of the space is ready now; read again whenever a run settles, and while the card is
+  // open whenever the space reports a change — a re-stitch anywhere counts (071).
   const readiness = useRestitchReadiness(
     teamId,
     driveConnected && editable && can('process'),
     preparation.state.phase === 'running'
       ? 'running'
-      : `${preparation.state.phase}:${preparation.state.done}:${background.teamId === teamId ? background.prepared : 0}`
+      : `${preparation.state.phase}:${preparation.state.done}`,
+    spaceRevision
   );
   const scope: 'owner' | 'self' = isOwner || useOwner ? 'owner' : 'self';
   const poolsEditable = editable && (isOwner || !useOwner) && !saving;
@@ -624,9 +618,6 @@ export function RestitchDefaultsSection({
           off={off}
           onStart={() => void preparation.prepare()}
           onPause={() => void preparation.cancel()}
-          background={background.teamId === teamId ? background : null}
-          auto={autoPrepare}
-          onAutoChange={enabled => writeAutoPrepare(teamId, enabled)}
         />
       )}
     </SettingsSection>

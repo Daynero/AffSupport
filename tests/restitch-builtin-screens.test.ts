@@ -5,8 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AGENT_TOOL_CONTRACTS,
-  restitchBuiltinScreensSupported,
-  restitchPrepareBackgroundSupported
+  restitchBuiltinScreensSupported
 } from '../packages/shared/src/release.js';
 import {
   RESTITCH_BUILTIN_SCREENS,
@@ -101,8 +100,6 @@ describe('the standard pictures the agent carries', () => {
     expect(
       restitchBuiltinScreensSupported({ ...AGENT_TOOL_CONTRACTS, teamRestitchBuiltinScreens: 0 })
     ).toBe(false);
-    expect(restitchPrepareBackgroundSupported(AGENT_TOOL_CONTRACTS)).toBe(true);
-    expect(restitchPrepareBackgroundSupported({})).toBe(false);
   });
 
   it('undoes exactly the compatibility fields the server wrote, for the version it carries', () => {

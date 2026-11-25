@@ -412,8 +412,7 @@ describe('preparing a space', () => {
       phase: 'downloading',
       currentBytes: 400,
       currentBytesTotal: 1_000,
-      currentProgress: 0.2,
-      background: false
+      currentProgress: 0.2
     });
     // The channel stays content-free: a stage and a percentage.
     expect(events.update).toHaveBeenLastCalledWith('bytes', {
@@ -424,63 +423,6 @@ describe('preparing a space', () => {
     release();
     const report = await settle(bridge, 'bytes');
     expect(report).toMatchObject({ state: 'finished', done: 2, currentBytes: 0 });
-  });
-
-  it('a background run gives way to other work and keeps nothing half-read (071)', async () => {
-    let busy = false;
-    let reached!: () => void;
-    const started = new Promise<void>(r => {
-      reached = r;
-    });
-    const bridge = new RestitchPrepareBridge({
-      transfer: {
-        downloadSource: vi.fn(async (_request, signal: AbortSignal) => {
-          reached();
-          return new Promise<never>((_resolve, reject) => {
-            signal.addEventListener('abort', () => reject(new Error('PROCESS_CANCELED')), {
-              once: true
-            });
-          });
-        })
-      },
-      yieldTo: () => busy,
-      yieldPollMs: 5
-    });
-    expect(bridge.backgroundAllowed()).toBe(true);
-    bridge.start({
-      operationId: 'quiet',
-      teamId: 'team',
-      transferUrl: 'https://transfer.example',
-      materials: [material('a'), material('b')],
-      audio: null,
-      background: true
-    });
-    await started;
-    // Never counted as busy: an update or a person's task does not wait for it.
-    expect(bridge.busy()).toBe(false);
-    expect(bridge.backgroundAllowed()).toBe(false);
-    busy = true;
-    const report = await settle(bridge, 'quiet');
-    expect(report).toMatchObject({ state: 'yielded', done: 0, background: true, findings: [] });
-  });
-
-  it('a background run does not start while Soty is busy (071)', async () => {
-    const downloadSource = vi.fn();
-    const bridge = new RestitchPrepareBridge({
-      transfer: { downloadSource },
-      yieldTo: () => true
-    });
-    expect(bridge.backgroundAllowed()).toBe(false);
-    bridge.start({
-      operationId: 'busy',
-      teamId: 'team',
-      transferUrl: 'https://transfer.example',
-      materials: [material('a')],
-      audio: null,
-      background: true
-    });
-    expect(await settle(bridge, 'busy')).toMatchObject({ state: 'yielded', done: 0 });
-    expect(downloadSource).not.toHaveBeenCalled();
   });
 });
 

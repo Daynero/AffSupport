@@ -239,15 +239,6 @@ export function registerTeamBridgeRoutes(
   });
 
   /*
-   * 071: whether the space may prepare itself now — nothing else running in Soty, the machine
-   * not loaded, no update waiting. Asked by the page before it starts a background run; the run
-   * itself keeps asking and gives way the moment the answer changes.
-   */
-  app.get('/api/team/restitch/prepare/background', async () => ({
-    allowed: acceptingNewTasks() && restitch.backgroundAllowed()
-  }));
-
-  /*
    * What the run found, read rather than pushed.
    *
    * A finding names a file and describes its shape, and the event channel next door is a
@@ -669,8 +660,7 @@ function restitchPrepareRequest(value: unknown): RestitchPrepareRequest | null {
     teamId: value.teamId,
     transferUrl: value.transferUrl,
     materials,
-    audio,
-    ...(value.background === true ? { background: true } : {})
+    audio
   };
 }
 

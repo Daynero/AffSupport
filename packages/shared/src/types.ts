@@ -66,7 +66,6 @@ export {
   releaseArtifactName,
   historicalReleasePlatforms,
   restitchBuiltinScreensSupported,
-  restitchPrepareBackgroundSupported,
   restitchSourcesSupported,
   teamPosterFrameSupported,
   teamProcessPauseSupported,

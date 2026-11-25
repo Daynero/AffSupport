@@ -158,9 +158,6 @@ export const AGENT_TOOL_CONTRACTS = {
   // compatibility fields the server writes for older agents (no start, the video's own last
   // frame as the end). A capability read from the contract, like the ones above.
   teamRestitchBuiltinScreens: 1,
-  // 071: a space prepares itself while Soty is free (`background: true` on a preparation run,
-  // GET /api/team/restitch/prepare/background), and a run reports progress inside a file.
-  teamRestitchPrepareBackground: 1,
   // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
   // that map is the set of user-facing *tool pages*, and it is byte-compared
   // against the signed, published stable.json by verify-release.mjs. The power
@@ -376,14 +373,6 @@ export function restitchSourcesSupported(contracts: ToolContracts | null): boole
 export function restitchBuiltinScreensSupported(contracts: ToolContracts | null): boolean {
   return (
     (contracts?.teamRestitchBuiltinScreens ?? 0) >= AGENT_TOOL_CONTRACTS.teamRestitchBuiltinScreens
-  );
-}
-
-/** Whether this agent can prepare a space in the background, giving way to other work (071). */
-export function restitchPrepareBackgroundSupported(contracts: ToolContracts | null): boolean {
-  return (
-    (contracts?.teamRestitchPrepareBackground ?? 0) >=
-    AGENT_TOOL_CONTRACTS.teamRestitchPrepareBackground
   );
 }
 

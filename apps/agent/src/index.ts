@@ -75,7 +75,7 @@ import { StitchQueue } from './stitcher/queue.js';
 import { loadStitcherState, saveStitcherState, stitcherStatePath } from './stitcher/store.js';
 import { TeamPreviewBridge } from './team-bridge/preview.js';
 import { TeamOperationEvents, type TeamOperationEvent } from './team-bridge/events.js';
-import { RestitchPrepareBridge, machineLoaded } from './team-bridge/restitch-prepare.js';
+import { RestitchPrepareBridge } from './team-bridge/restitch-prepare.js';
 import { TeamDownloadBridge } from './team-bridge/download.js';
 import { TeamLandingRenderBridge } from './team-bridge/landing-gallery.js';
 import { createTeamProcessDelegates, TeamProcessBridge } from './team-bridge/process.js';
@@ -733,21 +733,7 @@ const teamDownloadBridge = new TeamDownloadBridge({
  */
 const teamRestitchPrepareBridge = new RestitchPrepareBridge({
   transfer: teamTransfer,
-  events: teamOperationEvents,
-  // 071: a background preparation gives way to any other work in Soty — a person's task, a
-  // catalog round, a launch — and to a machine already loaded by something else. Previews and
-  // poster frames are left out: they are light, come and go while somebody browses, and
-  // abandoning a long download for a thumbnail would waste more than it spares.
-  yieldTo: () =>
-    modules.some(module => module.id !== 'team-workspace' && module.busy()) ||
-    teamProcessBridge.busy() ||
-    teamDownloadBridge.busy() ||
-    teamLandingRenderBridge.busy() ||
-    creativeLibraryProcessBridge.busy() ||
-    (nativeRestitchController?.busy() ?? false) ||
-    (catalogForeground?.busy() ?? false) ||
-    teamRecoveryWorker.busyForUpdate() ||
-    machineLoaded()
+  events: teamOperationEvents
 });
 const nativeRestitchController = hasCapability('team-background-recovery-actor-bound')
   ? new NativeRestitchController({

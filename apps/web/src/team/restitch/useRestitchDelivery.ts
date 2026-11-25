@@ -35,6 +35,7 @@ import { teamErrorMessageFor } from '../errors';
 import { ensureRestitchImages } from './images';
 import { prepareRestitchScreens } from './screens';
 import { nativeManualRestitchSupported, runNativeManualRestitch } from './native-delivery';
+import { announceRestitchPrep } from '../workspace/restitch/useRestitchReadiness';
 
 export type RestitchDeliveryPhase =
   /** Waiting for the person to say where it goes — asked once per space, then remembered. */
@@ -365,6 +366,8 @@ export function useRestitchDelivery(teamId: string) {
               unsupportedReason: null,
               preparedAt: new Date().toISOString()
             })
+            // The space's «N of M ready» counts it at once, if the settings are open (071).
+            .then(() => announceRestitchPrep(teamId))
             .catch(() => {
               // Storing it is an optimisation for next time, never a reason to fail a file
               // the member already has.

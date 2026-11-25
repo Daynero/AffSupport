@@ -22,7 +22,6 @@ import { PowerProvider } from './lib/power';
 import { TeamProvider } from './team/TeamContext';
 import { parseTeamRoute } from './team/routes';
 import { useSpaceOffersReconnect } from './components/ReconnectAction';
-import { RestitchBackgroundPreparation } from './team/restitch/restitch-background';
 
 const teamSpace = recoverableLazy(() => import('./team/TeamSpace').then(module => module.default));
 const TeamSpace = teamSpace.Component;
@@ -82,8 +81,6 @@ function ApplicationShell({ path, route }: { path: string; route: string }) {
   return (
     <div className="app-shell">
       <HintLayer />
-      {/* 071: the open space prepares its videos for re-stitching while Soty is free. */}
-      <RestitchBackgroundPreparation />
       <Header connection={connection} t={t} reconnect={!spaceReconnects} />
       <div className="page-viewport">
         <ProtectedApplication path={path} route={route} />

@@ -56,6 +56,10 @@ describe('the preparation card', () => {
     const { onStart } = renderCard();
     expect(screen.getByRole('heading', { name: 'Re-stitched videos in seconds' })).toBeTruthy();
     expect(screen.getByText('0 of 256 videos ready')).toBeTruthy();
+    // A video re-stitched anywhere counts without the button (071).
+    expect(
+      screen.getByText('Videos you have already re-stitched count on their own.')
+    ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Speed up the space' }));
     expect(onStart).toHaveBeenCalled();
   });
@@ -134,52 +138,5 @@ describe('the preparation card', () => {
       }
     });
     expect(screen.getByRole('status').textContent).toBe('Downloading “BG 12.mp4” · 400 MB of 1 GB');
-  });
-
-  it('shows the space preparing itself, and lets it be switched off (071)', () => {
-    const onAutoChange = vi.fn();
-    renderCard({
-      readiness: { total: 256, ready: 10, lastPreparedAt: null },
-      auto: true,
-      onAutoChange,
-      background: {
-        teamId: 'team',
-        status: 'running',
-        current: { name: 'BG 13.mp4', since: Date.now() },
-        phase: 'downloading',
-        progress: 0.1,
-        bytes: 0,
-        bytesTotal: null,
-        prepared: 0
-      }
-    });
-    expect(screen.getByRole('status').textContent).toBe(
-      'In the background · Downloading “BG 13.mp4”'
-    );
-    const toggle = screen.getByRole('switch', { name: 'Prepare automatically' });
-    expect((toggle as HTMLInputElement).checked).toBe(true);
-    fireEvent.click(toggle);
-    expect(onAutoChange).toHaveBeenCalledWith(false);
-  });
-
-  it('says the rest waits for a free Soty while background preparation is on (071)', () => {
-    renderCard({
-      readiness: { total: 256, ready: 10, lastPreparedAt: null },
-      auto: true,
-      onAutoChange: () => {},
-      background: {
-        teamId: 'team',
-        status: 'waiting',
-        current: null,
-        phase: null,
-        progress: 0,
-        bytes: 0,
-        bytesTotal: null,
-        prepared: 0
-      }
-    });
-    expect(screen.getByRole('status').textContent).toBe(
-      'The rest will be prepared in the background as soon as Soty is free.'
-    );
   });
 });

@@ -37,7 +37,6 @@ import {
   normalizeToolContracts,
   parseTeamAgentPreviewResult,
   parseTeamFileOperationResult,
-  restitchPrepareBackgroundSupported,
   restitchSourcesSupported,
   type RestitchScreen,
   teamPosterFrameSupported,
@@ -752,8 +751,6 @@ export async function prepareTeamRestitchMaterials(input: {
     transferGrant: TeamTransferGrant;
   }[];
   audio?: { sampleRate: number; channels: number } | null;
-  /** 071: the space preparing itself — low priority, gives way to any other work. */
-  background?: boolean;
 }): Promise<{ accepted: true }> {
   const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
   const contracts = health.toolContracts ?? {};
@@ -768,44 +765,17 @@ export async function prepareTeamRestitchMaterials(input: {
     teamId: input.teamId,
     transferUrl: input.transferUrl,
     materials: input.materials,
-    ...(input.audio ? { audio: input.audio } : {}),
-    ...(input.background ? { background: true } : {})
+    ...(input.audio ? { audio: input.audio } : {})
   });
   if (value.accepted !== true) throw new Error('INVALID_RESPONSE');
   return { accepted: true };
-}
-
-/**
- * 071: whether this computer's Soty may prepare the space in the background right now — an app
- * that can, with nothing else to do and a machine that is not loaded. `unsupported` is an app
- * that predates it; any other doubt (unreachable, a refused read) answers `busy`.
- */
-export async function teamRestitchBackgroundAllowed(): Promise<'allowed' | 'busy' | 'unsupported'> {
-  try {
-    const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
-    const contracts = health.toolContracts ?? {};
-    if (
-      !toolContractCompatible('teamWorkspace', contracts) ||
-      !toolContractCompatible('stitcher', contracts) ||
-      !restitchPrepareBackgroundSupported(contracts)
-    )
-      return 'unsupported';
-    const value = await request<{ allowed?: unknown }>(
-      '/api/team/restitch/prepare/background',
-      'GET'
-    );
-    return value.allowed === true ? 'allowed' : 'busy';
-  } catch {
-    return 'busy';
-  }
 }
 
 export type TeamRestitchPreparationPhase =
   'downloading' | 'inspecting' | 'converting' | 'verifying';
 
 export interface TeamRestitchPreparationReport {
-  /** `yielded`: a background run gave way to other work; the file in hand was not recorded. */
-  state: 'running' | 'finished' | 'canceled' | 'yielded';
+  state: 'running' | 'finished' | 'canceled';
   done: number;
   total: number;
   current: string | null;
@@ -839,7 +809,7 @@ export async function readTeamRestitchPreparation(
   }
   const state = value.state;
   if (
-    (state !== 'running' && state !== 'finished' && state !== 'canceled' && state !== 'yielded') ||
+    (state !== 'running' && state !== 'finished' && state !== 'canceled') ||
     typeof value.done !== 'number' ||
     typeof value.total !== 'number' ||
     !Array.isArray(value.findings)

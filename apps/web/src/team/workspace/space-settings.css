@@ -555,19 +555,6 @@
   color: var(--color-neutral-text-muted);
   font-size: var(--text-caption);
 }
-/* «Готувати автоматично» (071): the switch, and one muted line on what it does. */
-.team-space-settings .team-restitch-boost-auto {
-  display: grid;
-  gap: var(--space-1);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-neutral-border);
-}
-.team-space-settings .team-restitch-boost-auto p {
-  max-width: 70ch;
-  margin: 0;
-  color: var(--color-neutral-text-muted);
-  font-size: var(--text-caption);
-}
 @media (max-width: 640px) {
   .team-space-settings .team-restitch-boost {
     padding: var(--space-4);

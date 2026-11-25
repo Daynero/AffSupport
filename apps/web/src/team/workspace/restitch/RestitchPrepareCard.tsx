@@ -11,21 +11,19 @@
  * Pause is the old stop: everything finished is stored as it lands, and the next run skips it,
  * so "continue" picks up at the next video rather than at the first.
  *
- * 071 (owner 2026-11-25): the video in hand moves — its download is shown by the byte — and the
- * space prepares itself in the background while Soty is free («Готувати автоматично», on by
- * default; see restitch-background.ts). The card shows that run the same way when no manual one
- * goes.
+ * 071 (owner 2026-11-25): the video in hand moves — its download is shown by the byte. And a video
+ * Soty has re-stitched anywhere (a download, a catalog round, a launch) is ready from then on: the
+ * count says so, and grows while the card is open (useRestitchReadiness).
  */
 
 import { useEffect, useState } from 'react';
 import { CircleCheck, Clock, Zap } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from '../../../components/icons';
-import { Alert, Button, Progress, Switch } from '../../../components/ui/index';
+import { Alert, Button, Progress } from '../../../components/ui/index';
 import type { TeamRestitchPreparationPhase } from '../../../api/client';
 import { formatSize } from '../../../format';
 import { useI18n } from '../../../i18n';
 import { teamErrorMessageFor } from '../../errors';
-import type { RestitchBackgroundState } from '../../restitch/restitch-background';
 import type { RestitchPreparationState } from '../../restitch/useRestitchPreparation';
 import type { RestitchReadiness } from './useRestitchReadiness';
 
@@ -54,10 +52,7 @@ export function RestitchPrepareCard({
   driveConnected,
   off,
   onStart,
-  onPause,
-  background = null,
-  auto = false,
-  onAutoChange
+  onPause
 }: {
   state: RestitchPreparationState;
   readiness: RestitchReadiness | null;
@@ -68,17 +63,10 @@ export function RestitchPrepareCard({
   off: boolean;
   onStart: () => void;
   onPause: () => void;
-  /** 071: the background preparation of this space, when one is mounted. */
-  background?: RestitchBackgroundState | null;
-  auto?: boolean;
-  onAutoChange?: (enabled: boolean) => void;
 }) {
   const { t, language } = useI18n();
   const working = busy(state.phase);
-  // The background run is shown only while no manual one goes; the manual one always wins.
-  const quiet =
-    !working && background?.status === 'running' && background.current ? background : null;
-  const now = useNow(working || quiet !== null);
+  const now = useNow(working);
 
   // The run's own count while it runs or has just run; the space's otherwise.
   const fromRun = state.phase !== 'idle' && state.total > 0;
@@ -91,16 +79,7 @@ export function RestitchPrepareCard({
 
   const fraction =
     total > 0
-      ? Math.min(
-          1,
-          (done +
-            (working
-              ? Math.min(0.95, state.mediaProgress ?? 0)
-              : quiet
-                ? Math.min(0.95, quiet.progress)
-                : 0)) /
-            total
-        )
+      ? Math.min(1, (done + (working ? Math.min(0.95, state.mediaProgress ?? 0) : 0)) / total)
       : 0;
 
   /** The video in hand, in the words of its step; the download by the byte (071). */
@@ -169,20 +148,8 @@ export function RestitchPrepareCard({
     }
     if (state.phase === 'failed')
       return teamErrorMessageFor(new Error(state.errorCode ?? 'PREPARE_FAILED'), t);
-    if (quiet?.current)
-      return t('teamRestitchBoostInBackground', {
-        detail: fileDetail(
-          quiet.current.name,
-          quiet.phase,
-          quiet.progress,
-          quiet.bytes,
-          quiet.bytesTotal
-        )
-      });
     if (state.phase === 'canceled') return t('teamRestitchBoostPaused');
     if (known && total === 0) return t('teamRestitchBoostEmpty');
-    if (auto && connected && known && remaining > 0 && background?.status === 'waiting')
-      return t('teamRestitchBoostBackgroundWaiting');
     return '';
   })();
 
@@ -250,7 +217,7 @@ export function RestitchPrepareCard({
             ) : (
               <strong>{t('teamRestitchBoostReady', { ready: done, total })}</strong>
             )}
-            {!complete && ready > 0 && <span>{t('teamRestitchBoostIncludesManual')}</span>}
+            {!complete && <span>{t('teamRestitchBoostIncludesManual')}</span>}
             {state.failed > 0 && (
               <span>{t('teamRestitchBoostFailed', { count: state.failed })}</span>
             )}
@@ -261,7 +228,7 @@ export function RestitchPrepareCard({
           <Progress
             value={fraction * 100}
             color={complete ? 'success' : 'primary'}
-            flowing={(working && state.phase === 'running') || quiet !== null}
+            flowing={working && state.phase === 'running'}
             label={t('teamRestitchBoostReady', { ready: done, total })}
           />
         </div>
@@ -277,19 +244,6 @@ export function RestitchPrepareCard({
         <div className="team-restitch-boost-foot">
           <p role="status">{status}</p>
           {action}
-        </div>
-      )}
-
-      {onAutoChange && !blocked && (
-        <div className="team-restitch-boost-auto">
-          <Switch
-            size="sm"
-            checked={auto}
-            onChange={onAutoChange}
-            label={t('teamRestitchBoostAuto')}
-            aria-describedby="team-restitch-boost-auto-hint"
-          />
-          <p id="team-restitch-boost-auto-hint">{t('teamRestitchBoostAutoHint')}</p>
         </div>
       )}
     </section>

@@ -25,7 +25,6 @@ import {
 } from '../../api/client';
 import { teamApi } from '../../api/team';
 import { completeTeamWorkflow, startTeamWorkflow } from '../../analytics/service';
-import { setManualPreparation } from './restitch-background';
 
 /** Issue each grant just before its work: a long HEVC conversion must not age the next grant. */
 const BATCH = 1;
@@ -130,8 +129,6 @@ export function useRestitchPreparation(teamId: string) {
     running.current = controller;
     const signal = controller.signal;
     setState({ ...IDLE, phase: 'folder' });
-    // The background preparation (071) stands aside while the person's own run goes.
-    setManualPreparation(teamId, true);
     // How long preparing a space actually takes, and how it ends. Cold by definition: it is
     // the run that makes everything after it warm.
     const flow = startTeamWorkflow({ category: 'video', cacheState: 'cold', stage: 'processing' });
@@ -233,7 +230,6 @@ export function useRestitchPreparation(teamId: string) {
       }));
     } finally {
       operation.current = null;
-      if (running.current === controller) setManualPreparation(teamId, false);
     }
   }, [teamId]);
 
