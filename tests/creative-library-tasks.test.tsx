@@ -413,6 +413,13 @@ describe('Creative Library task workflows', () => {
     const anchorClick = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(() => undefined);
+    // 073: the browser fetches the file and saves a clean copy, so the test serves a movie
+    // whose user data names a place, and reads back what was handed to the save.
+    const movie = Uint8Array.from([
+      ...[0, 0, 0, 16, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 0, 0, 2, 0],
+      ...[0, 0, 0, 28, 0x6d, 0x6f, 0x6f, 0x76, 0, 0, 0, 20, 0x75, 0x64, 0x74, 0x61],
+      ...new TextEncoder().encode('GPS 50.45 30')
+    ]);
     render(<TaskAttachmentTile teamId={TEAM_ID} attachment={attachment} client={api} />);
 
     await screen.findByLabelText('Video preview for launch.mp4 at one second');
@@ -420,12 +427,28 @@ describe('Creative Library task workflows', () => {
     expect(await screen.findByRole('dialog')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(new Response(movie, { headers: { 'content-type': 'video/mp4' } }))
+      );
+    const saved: Blob[] = [];
+    const createObjectURL = vi.fn((blob: Blob) => {
+      saved.push(blob);
+      return 'blob:clean';
+    });
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
     fireEvent.click(screen.getByRole('button', { name: /^Actions for / }));
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Download' }));
     await waitFor(() =>
       expect(api.requestDownload).toHaveBeenCalledWith(TEAM_ID, ASSET_ID, 'browser')
     );
-    expect(anchorClick).toHaveBeenCalledOnce();
+    await waitFor(() => expect(anchorClick).toHaveBeenCalledOnce());
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const clean = new Uint8Array(await saved[0]!.arrayBuffer());
+    expect(clean.length).toBe(movie.length);
+    expect(new TextDecoder().decode(clean)).not.toContain('GPS');
+    fetchMock.mockRestore();
 
     fireEvent.click(screen.getByRole('button', { name: 'Copy link' }));
     await waitFor(() =>

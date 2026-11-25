@@ -4,12 +4,12 @@ import type {
   TeamMaterialTagColor,
   TeamPermissions
 } from '@video-compressor/shared';
-import { teamApi, TeamApiError } from '../../api/team';
+import { teamApi } from '../../api/team';
 import { downloadTeamFileWithAgent } from '../../api/client';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
-import { handoffBrowserDownload } from '../materials/browser-download';
+import { downloadMaterial } from '../materials/download-material';
 import { createRestoreBatch } from '../materials/restore-batch';
 import { captureCatalogMutationOwner } from '../catalog-updater/captureCatalogMutationOwner';
 import { trashMaterialWithTail, type TailClient } from '../materials/tail';
@@ -174,22 +174,19 @@ export function useExplorerFileOps({
   const downloadOriginal = useCallback(
     async (row: TeamMaterialRow) => {
       try {
-        const grant = await teamApi.requestDownload(teamId, row.id, 'browser').catch(cause => {
-          if (cause instanceof TeamApiError && cause.code === 'AGENT_REQUIRED') {
-            return teamApi.requestDownload(teamId, row.id, 'agent');
-          }
-          throw cause;
+        // Clean, like every other everyday download (073): the one door decides browser or
+        // Soty by size and removes the metadata on whichever side holds the bytes.
+        const delivery = await downloadMaterial({
+          teamId,
+          materialId: row.id,
+          fileName: row.name,
+          metadata: 'clean',
+          requestDownload: (team, id, consumer) => teamApi.requestDownload(team, id, consumer),
+          downloadWithAgent: input => downloadTeamFileWithAgent(input)
         });
-        if (grant.kind === 'agent') {
-          await downloadTeamFileWithAgent({
-            transferUrl: grant.transferUrl,
-            transferGrant: grant.grant,
-            fileName: row.name
-          });
+        if (delivery === 'agent_saved') {
           push({ tone: 'success', text: t('teamRestitchDelivered', { name: row.name }) });
-          return;
         }
-        handoffBrowserDownload(grant.rangeUrl, row.name);
       } catch (cause) {
         push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
       }

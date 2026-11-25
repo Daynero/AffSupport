@@ -1,3 +1,5 @@
+// @deno-types="../../../packages/shared/dist/media-metadata.d.ts"
+import { stripMediaMetadata } from '../../../packages/shared/dist/media-metadata.js';
 import { TeamFunctionError } from './errors.ts';
 import { validateCatalogImage, type ValidatedCatalogImage } from './catalog-image-validation.ts';
 
@@ -404,8 +406,8 @@ async function optimizePng(bytes: Uint8Array, signal?: AbortSignal): Promise<Uin
     )
       fail('IMAGE_CONTENT_INVALID');
   }
-  // Only textual/time metadata is removed. ICC, gamma, chromaticities, bit depth,
-  // alpha, EXIF and unknown ancillary rendering information remain byte-identical.
+  // Textual/time metadata goes here; EXIF and unknown ancillary chunks go in the 073 pass
+  // after it. ICC, gamma, chromaticities, bit depth and alpha remain byte-identical.
   const retained = parts.filter(part => !['tEXt', 'zTXt', 'iTXt', 'tIME'].includes(part.type));
   let compressed: Uint8Array | null;
   try {
@@ -607,6 +609,12 @@ export async function optimizeCatalogImage(
         : source.mime === 'image/png'
           ? await optimizePng(bytes, signal)
           : await webpPng(bytes, source, signal);
+    // 073: a picture that reaches a public catalog says nothing about the camera, the place or
+    // the author. The steps above already left only what renders; this removes the EXIF, XMP,
+    // IPTC and vendor blocks they kept, keeping the colour profile and the orientation.
+    const clean = stripMediaMetadata(output);
+    if (!clean.supported) fail('IMAGE_CONTENT_INVALID');
+    output = clean.bytes;
     if (source.mime === 'image/jpeg') {
       try {
         const { assertCatalogJpegDecodes } = await import('./catalog-jpeg/index.ts');

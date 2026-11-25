@@ -38,6 +38,8 @@ export interface MaterialActionsClient {
     transferUrl: string;
     transferGrant: Extract<TeamDownloadGrantResult, { kind: 'agent' }>['grant'];
     fileName: string;
+    /** 073: clean unless "Download with metadata" was chosen. */
+    metadata?: 'clean' | 'original';
   }): Promise<unknown>;
   renameMaterial(input: {
     teamId: string;

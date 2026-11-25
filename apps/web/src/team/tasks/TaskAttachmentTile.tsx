@@ -1,4 +1,4 @@
-import { handoffBrowserDownload } from '../materials/browser-download';
+import { downloadMaterial } from '../materials/download-material';
 import { useEffect, useRef, useState } from 'react';
 import type {
   LibraryShareCopyRequest,
@@ -424,17 +424,23 @@ export function TaskAttachmentTile({
     setAction('download');
     setActionFailed(false);
     try {
-      const grant = await client.requestDownload(teamId, attachment.materialId, 'browser');
-      if (grant.kind !== 'browser') {
-        // Too large for the browser (FR-082): the local app takes it, the same
-        // way a folder row's download does, instead of a sentence about failure.
-        if (browseClient && host.handlers.download) {
-          host.handlers.download();
-          return;
+      // Clean, through the one door (073). Anything only the local app may fetch goes through
+      // the row's own download, which owns the app's dialogs, instead of a sentence about failure.
+      await downloadMaterial({
+        teamId,
+        materialId: attachment.materialId,
+        fileName: attachment.name,
+        metadata: 'clean',
+        requestDownload: (team, id) => client.requestDownload(team, id, 'browser'),
+        downloadWithAgent: () => Promise.reject(new Error('AGENT_REQUIRED')),
+        takeOverAgentPath: async () => {
+          if (browseClient && host.handlers.download) {
+            host.handlers.download();
+            return;
+          }
+          throw new Error('AGENT_REQUIRED');
         }
-        throw new Error('AGENT_REQUIRED');
-      }
-      handoffBrowserDownload(grant.rangeUrl, attachment.name);
+      });
     } catch {
       setActionFailed(true);
     } finally {

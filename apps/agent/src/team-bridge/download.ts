@@ -1,8 +1,13 @@
 import { constants } from 'node:fs';
-import { copyFile, lstat, realpath } from 'node:fs/promises';
+import { copyFile, lstat, realpath, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { TeamTransferGrant } from '@video-compressor/shared';
 import { selectOutputFolder } from '../files/picker.js';
+import { MetadataStripError, stripMetadataInPlace } from '../files/strip-metadata.js';
+import {
+  UPLOADED_VIDEO_OUTPUT_FOLDER,
+  writableUploadedOutputDir
+} from '../files/output-destination.js';
 import { sanitizeFileName, showInFileManager } from '../platform/platform.js';
 import type { TeamOperationEvents } from './events.js';
 import type { TeamProcessDelegate } from './process.js';
@@ -43,9 +48,21 @@ export interface TeamAgentDownloadRequest {
    * exists to remove.
    */
   destination?: string | null;
+  /**
+   * 073: a batch from the explorer's selection names a folder instead of asking for one — the
+   * files land in `Downloads/Soty/<saveInto>` (or the visible fallback when macOS refuses
+   * Downloads), and the answer comes back as `destination` for the rest of the batch.
+   */
+  saveInto?: string | null;
   process?: TeamAgentDownloadProcess | null;
   /** 013 (B5)'s spelling, still accepted so a web and an agent build may differ by one step. */
   compress?: { embed: boolean; suffix: string } | null;
+  /**
+   * 073: `strip` (the default, and what an older web that does not send the field gets) removes
+   * every tag from a picture or video before it is saved; `keep` is "Download with metadata",
+   * the original byte for byte.
+   */
+  metadata?: 'strip' | 'keep';
   /**
    * Whether to show the saved file in the file manager. On unless the caller says otherwise:
    * a batch of twenty compressed videos asks for it once, not twenty times, because every
@@ -81,6 +98,10 @@ export interface TeamDownloadBridgeOptions {
   beforeSave?: () => Promise<void>;
   /** Trusted diagnostic seam; receives no file content or paths. */
   onFailureStage?: (stage: TeamDownloadFailureStage) => void;
+  /** 073: how a saved file is cleaned; a test substitutes it. */
+  stripMetadata?: (file: string, signal: AbortSignal) => Promise<unknown>;
+  /** 073: resolves a named batch folder under Downloads; a test points it somewhere disposable. */
+  outputFolder?: (folder: string) => Promise<string>;
 }
 
 /** Saves an agent-only download after an explicit native destination choice. */
@@ -94,6 +115,8 @@ export class TeamDownloadBridge {
   #closing = false;
   readonly #beforeSave: () => Promise<void>;
   readonly #onFailureStage: TeamDownloadBridgeOptions['onFailureStage'];
+  readonly #stripMetadata: (file: string, signal: AbortSignal) => Promise<unknown>;
+  readonly #outputFolder: (folder: string) => Promise<string>;
 
   constructor(options: TeamDownloadBridgeOptions) {
     this.#transfer = options.transfer;
@@ -106,6 +129,19 @@ export class TeamDownloadBridge {
     this.#reveal = options.reveal ?? (target => void showInFileManager(target, { reveal: true }));
     this.#events = options.events ?? null;
     this.#beforeSave = options.beforeSave ?? (async () => {});
+    this.#stripMetadata =
+      options.stripMetadata ?? ((file, signal) => stripMetadataInPlace(file, { signal }));
+    this.#outputFolder = options.outputFolder ?? (folder => writableUploadedOutputDir(folder));
+  }
+
+  /** `Downloads/Soty/<name>`, created; a name that sanitizes to nothing is "Soty" itself. */
+  async #namedFolder(name: string): Promise<string> {
+    const safe = sanitizeFileName(name).slice(0, 120);
+    const folder =
+      safe && safe !== '.' && safe !== '..'
+        ? path.join(UPLOADED_VIDEO_OUTPUT_FOLDER, safe)
+        : UPLOADED_VIDEO_OUTPUT_FOLDER;
+    return this.#outputFolder(folder);
   }
 
   /** Bound per run, so a delegate reports without knowing who is listening. */
@@ -174,7 +210,10 @@ export class TeamDownloadBridge {
     try {
       const remembered = request.destination ? await existingDirectory(request.destination) : null;
       checkCanceled();
-      const destination = remembered ?? (await this.#chooseDestination(controller.signal));
+      const named =
+        remembered ?? (request.saveInto ? await this.#namedFolder(request.saveInto) : null);
+      checkCanceled();
+      const destination = named ?? (await this.#chooseDestination(controller.signal));
       checkCanceled();
       if (!destination) throw new Error('DOWNLOAD_CANCELED');
       const destinationRoot = await realpath(destination);
@@ -242,6 +281,19 @@ export class TeamDownloadBridge {
         await this.#beforeSave();
         checkCanceled();
         const target = await copyWithoutOverwrite(produced, destinationRoot, finalName);
+        if (request.metadata !== 'keep') {
+          // Cleaned where it landed: the copy is Soty's own file, the source in the
+          // workspace stays as fetched, and an MP4 is patched in place rather than rewritten.
+          try {
+            await this.#stripMetadata(target, controller.signal);
+          } catch (error) {
+            // Never leave a file that still says where it was shot under a clean name.
+            await unlink(target).catch(() => undefined);
+            throw error instanceof MetadataStripError || controller.signal.aborted
+              ? error
+              : new MetadataStripError('unknown');
+          }
+        }
         if (request.reveal !== false) this.#reveal(target);
         const written = await lstat(target);
         this.#events?.update(request.operationId, { state: 'succeeded', stage: 'completed' });

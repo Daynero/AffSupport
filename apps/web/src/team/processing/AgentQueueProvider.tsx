@@ -69,7 +69,9 @@ export function AgentQueuePanel({
           ? 'teamCompressQueueTitle'
           : queue.active?.tool === 'restitch'
             ? 'teamTrimQueueTitle'
-            : 'teamTranscribeQueueTitle'
+            : queue.active?.tool === 'download'
+              ? 'teamDownloadQueueTitle'
+              : 'teamTranscribeQueueTitle'
       )}
       detail={
         queue.active

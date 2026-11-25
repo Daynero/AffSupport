@@ -183,6 +183,7 @@ export function useMaterialActionHost({
     copyText: () => void copyText(),
     share: () => void link.open('share'),
     download: () => void actions.download(),
+    downloadWithMetadata: () => void actions.downloadWithMetadata(),
     rename: () => {
       setNewName(material.name);
       setPrompt('rename');

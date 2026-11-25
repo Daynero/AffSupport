@@ -13,6 +13,9 @@ import {
   type MaterialRef
 } from '../materials/actions';
 import type { ProcessOrigin, ProcessableFolder, ScopeFile } from '../processing/processScope';
+import { useOptionalAgent } from '../../AgentContext';
+import LocalAppDialog from '../../components/LocalAppDialog';
+import { useSelectionDownload } from './useSelectionDownload';
 
 /**
  * The little a selection needs to know about each thing in it — met in a folder (a row) or in
@@ -92,6 +95,14 @@ export function ExplorerSelection<T extends SelectedMaterial>({
     [items]
   );
   const { permissions } = acts;
+  /* 073: the selection's own download — files only; a checked folder is skipped and said so. */
+  const files = useMemo(() => items.filter(item => item.kind !== 'folder'), [items]);
+  const [appDialog, setAppDialog] = useState(false);
+  const agent = useOptionalAgent();
+  const selectionDownload = useSelectionDownload({
+    folderName: acts.currentFolder?.name ?? null,
+    onNeedsApp: () => setAppDialog(true)
+  });
   if (items.length === 0) return null;
 
   const context: ActionContext = {
@@ -160,6 +171,16 @@ export function ExplorerSelection<T extends SelectedMaterial>({
       />
     );
   }
+  if (permissions?.download && files.length > 0) {
+    bar.push(
+      <SelectionAct
+        key="download"
+        label={t('teamSelectionDownload', { count: files.length })}
+        icon={icon('download')}
+        onPress={() => void selectionDownload.download(items, 'clean')}
+      />
+    );
+  }
   if (offers('trash')) {
     bar.push(
       <SelectionAct
@@ -207,6 +228,14 @@ export function ExplorerSelection<T extends SelectedMaterial>({
         })
     });
   }
+  if (permissions?.download && files.length > 0) {
+    more.push({
+      id: 'download-with-metadata',
+      label: t('teamSelectionDownloadWithMetadata', { count: files.length }),
+      icon: icon('downloadWithMetadata'),
+      onSelect: () => void selectionDownload.download(items, 'original')
+    });
+  }
   if (permissions?.download && offers('downloadRestitched', videos)) {
     more.push({
       id: 'download-restitched',
@@ -217,31 +246,40 @@ export function ExplorerSelection<T extends SelectedMaterial>({
   }
 
   return (
-    <SelectionBar
-      className="team-explorer-selection-bar"
-      count={items.length}
-      toolbarLabel={t('teamExplorerSelectionRegion')}
-      label={
-        <>
-          {t('teamExplorerSelectedCount', { count: items.length })}
-          {/* The selection survives walking into another folder (and out of a search), which
+    <>
+      <SelectionBar
+        className="team-explorer-selection-bar"
+        count={items.length}
+        toolbarLabel={t('teamExplorerSelectionRegion')}
+        label={
+          <>
+            {t('teamExplorerSelectedCount', { count: items.length })}
+            {/* The selection survives walking into another folder (and out of a search), which
               is what makes it useful and what makes the bin a surprise. */}
-          {elsewhere > 0 && (
-            <span className="team-explorer-selection-elsewhere">
-              {t(elsewhereKey, { count: elsewhere })}
-            </span>
-          )}
-        </>
-      }
-      actions={
-        <>
-          {bar}
-          {more.length > 0 && <SelectionMore label={t('teamTaskCardMore')} items={more} />}
-        </>
-      }
-      clearLabel={t('teamExplorerClearSelectionCount', { count: items.length })}
-      onClear={onClear}
-    />
+            {elsewhere > 0 && (
+              <span className="team-explorer-selection-elsewhere">
+                {t(elsewhereKey, { count: elsewhere })}
+              </span>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {bar}
+            {more.length > 0 && <SelectionMore label={t('teamTaskCardMore')} items={more} />}
+          </>
+        }
+        clearLabel={t('teamExplorerClearSelectionCount', { count: items.length })}
+        onClear={onClear}
+      />
+      {appDialog && (
+        <LocalAppDialog
+          tool="teamWorkspace"
+          connection={agent?.connection ?? 'disconnected'}
+          onClose={() => setAppDialog(false)}
+        />
+      )}
+    </>
   );
 }
 

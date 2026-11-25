@@ -148,6 +148,11 @@ export const AGENT_TOOL_CONTRACTS = {
   // Revision 1 (1.2.6) advertised this but its download route dropped screens.
   // Revision 2 preserves them end to end, including ordinary re-stitched downloads.
   teamRestitchSources: 2,
+  // 073: a team download is saved without metadata unless the caller sends
+  // `metadata: 'keep'`. A capability read from the contract, like the ones above: an
+  // older agent saves the original, so the web refuses to send it a clean download of a
+  // picture or video and asks for an update instead.
+  teamCleanDelivery: 1,
   // Server-wide power throttle. Deliberately absent from WEB_TOOL_REQUIREMENTS:
   // that map is the set of user-facing *tool pages*, and it is byte-compared
   // against the signed, published stable.json by verify-release.mjs. The power
@@ -357,6 +362,11 @@ export function teamPosterFrameSupported(contracts: ToolContracts | null): boole
  */
 export function restitchSourcesSupported(contracts: ToolContracts | null): boolean {
   return (contracts?.teamRestitchSources ?? 0) >= AGENT_TOOL_CONTRACTS.teamRestitchSources;
+}
+
+/** Whether this agent removes metadata from what it saves for a team download (073). */
+export function cleanDeliverySupported(contracts: ToolContracts | null): boolean {
+  return (contracts?.teamCleanDelivery ?? 0) >= AGENT_TOOL_CONTRACTS.teamCleanDelivery;
 }
 
 export function toolContractCompatible(

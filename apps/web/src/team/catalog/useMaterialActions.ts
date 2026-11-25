@@ -1,4 +1,4 @@
-import { handoffBrowserDownload } from '../materials/browser-download';
+import { downloadMaterial, type DownloadMetadata } from '../materials/download-material';
 import { requireCompletedFileOperation } from '../materials/file-operation-outcome';
 import { captureCatalogMutationOwner } from '../catalog-updater/captureCatalogMutationOwner';
 import { WorkspaceMutationJournal } from '../workspace/mutationJournal';
@@ -289,37 +289,27 @@ export function useMaterialActions(input: {
     ]
   );
 
-  const download = useCallback(
-    () =>
-      run('download', async () => {
-        try {
-          const grant = await client.requestDownload(teamId, material.id, 'browser');
-          if (grant.kind === 'agent') {
-            await client.downloadWithAgent({
-              transferUrl: grant.transferUrl,
-              transferGrant: grant.grant,
-              fileName: grant.fileName ?? material.name
-            });
-            return 'agent_saved';
-          }
-          handoffBrowserDownload(grant.rangeUrl, grant.fileName ?? material.name);
-          return 'browser_handoff';
-        } catch (caught) {
-          // A browser grant can be refused for a file only the local agent can
-          // fetch; ask again for the agent path before giving up.
-          if (errorCodeOf(caught) !== 'AGENT_REQUIRED') throw caught;
-          const grant = await client.requestDownload(teamId, material.id, 'agent');
-          if (grant.kind !== 'agent') throw new Error('INVALID_RESPONSE', { cause: caught });
-          await client.downloadWithAgent({
-            transferUrl: grant.transferUrl,
-            transferGrant: grant.grant,
-            fileName: grant.fileName ?? material.name
-          });
-          return 'agent_saved';
-        }
-      }),
+  /*
+   * Clean by default; "Download with metadata" is the original, byte for byte (073). Both go
+   * through the one door that picks the browser or Soty by size and cleans on whichever side
+   * holds the bytes.
+   */
+  const deliver = useCallback(
+    (metadata: DownloadMetadata) =>
+      run('download', () =>
+        downloadMaterial({
+          teamId,
+          materialId: material.id,
+          fileName: material.name,
+          metadata,
+          requestDownload: (team, id, consumer) => client.requestDownload(team, id, consumer),
+          downloadWithAgent: input => client.downloadWithAgent(input)
+        })
+      ),
     [client, material.id, material.name, run, teamId]
   );
+  const download = useCallback(() => deliver('clean'), [deliver]);
+  const downloadWithMetadata = useCallback(() => deliver('original'), [deliver]);
 
   // Rename, move and trash all take the material's tail with them, and all of
   // them ask the same module how (012 T008/T009, generalized 2026-09-02): the
@@ -436,6 +426,7 @@ export function useMaterialActions(input: {
     clearConflict: useCallback(() => setConflictFile(null), []),
     upload,
     download,
+    downloadWithMetadata,
     rename,
     move,
     trash,

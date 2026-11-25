@@ -5,6 +5,7 @@ import {
   ClipboardPaste,
   Copy,
   Eye,
+  FileDown,
   FileText,
   FolderOpen,
   GitBranch,
@@ -22,6 +23,7 @@ import {
   Undo2,
   Upload
 } from 'lucide-react';
+import { isMetadataBearingFileName } from '@video-compressor/shared';
 import type { MaterialKind, TeamPermissionFlag, TeamPermissions } from '@video-compressor/shared';
 import type { Availability as LinkAvailability } from '../../AgentContext';
 import type { TranslationKey } from '../../i18n';
@@ -63,6 +65,7 @@ export const MATERIAL_ACTION_IDS = [
   'copyLink',
   'share',
   'download',
+  'downloadWithMetadata',
   'downloadRestitched',
   'copyText',
   // make
@@ -225,6 +228,10 @@ const isFolder = (m: MaterialRef) => m.kind === 'folder';
 const isFile = (m: MaterialRef) => m.kind !== 'folder';
 const isVideo = (m: MaterialRef) => m.category === 'video';
 const isLanding = (m: MaterialRef) => m.category === 'landing';
+/** A picture or a video: what "Download" cleans and "Download with metadata" does not (073). */
+const carriesMetadata = (m: MaterialRef) =>
+  isFile(m) &&
+  (m.category === 'video' || m.category === 'image' || isMetadataBearingFileName(m.name));
 const isText = (m: MaterialRef) => m.category === 'transcript' || m.category === 'text';
 /** The explorer's own surfaces: the folder it is showing is already on screen. */
 const inExplorer = (c: ActionContext) =>
@@ -345,6 +352,19 @@ export const MATERIAL_ACTIONS: readonly MaterialAction[] = [
     icon: ArrowDownToLine,
     inlinePriority: 65,
     applies: isFile,
+    available: (material, context) => all(ready(material), may(context, 'download'))
+  },
+  {
+    // 073: the original, tags and all — kept one level down, in the menu only, because the
+    // everyday download is the clean one.
+    id: 'downloadWithMetadata',
+    group: 'get',
+    order: 3.5,
+    labelKey: 'materialActionDownloadWithMetadata',
+    icon: FileDown,
+    inlinePriority: null,
+    applies: (material, context) =>
+      carriesMetadata(material) && !material.draft && context.host !== 'palette',
     available: (material, context) => all(ready(material), may(context, 'download'))
   },
   {

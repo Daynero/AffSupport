@@ -5,6 +5,8 @@ import type {
   TeamDownloadGrantResult
 } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
+import { downloadTeamFileWithAgent } from '../../api/client';
+import { downloadMaterial } from '../materials/download-material';
 import { Modal } from '../../components/Modal';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
@@ -123,9 +125,18 @@ export function LibraryShareActions({
     setBusy('download');
     setError(null);
     try {
-      const result = await client.requestDownload(teamId, materialId, 'browser');
-      if (result.kind !== 'browser') throw new Error('INVALID_RESPONSE');
-      window.location.assign(result.rangeUrl);
+      // Clean, through the one door (073); a file too large for the browser goes to the app.
+      await downloadMaterial({
+        teamId,
+        materialId,
+        fileName: '',
+        metadata: 'clean',
+        requestDownload: (team, id, consumer) =>
+          consumer === 'browser'
+            ? client.requestDownload(team, id, 'browser')
+            : teamApi.requestDownload(team, id, consumer),
+        downloadWithAgent: input => downloadTeamFileWithAgent(input)
+      });
     } catch (cause) {
       report(cause);
     } finally {

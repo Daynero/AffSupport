@@ -26,6 +26,7 @@ import { PreparedBodyCache } from './body-cache.js';
 import { buildScreenSegment } from './segments.js';
 import { ensureSilenceBank } from './silence.js';
 import { runTool, toolSucceeded } from './run.js';
+import { stripMetadataInPlace } from '../files/strip-metadata.js';
 import { measureSegment, verifyOutput } from './verify.js';
 import { diagnostics, durationBucket } from '../server/diagnostics-log.js';
 /**
@@ -287,6 +288,20 @@ export const runStitchPipeline: StitchPipeline = async context => {
   if (!verification) return { ok: false, error: 'STITCH_VERIFICATION_FAILED' };
   if (!verification.withinTolerance)
     return { ok: false, error: 'STITCH_VERIFICATION_FAILED', verification };
+  /*
+   * 073: a re-stitched video goes to Facebook, a catalog or somebody's disk, and the body was
+   * copied with its source's tags — the phone, the date it was shot, sometimes where. Cleaned
+   * after the verification and in place: the patch blanks boxes and the encoder's signature
+   * without moving a byte, so what was just measured is exactly what ships, and the frame
+   * timing (the held screen's constant rate) is untouched.
+   */
+  try {
+    await stripMetadataInPlace(staged, { signal: context.signal });
+  } catch (error) {
+    // A missing file is the next step's to report (it is what installs the output).
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+      return { ok: false, error: 'STITCH_JOIN_FAILED' };
+  }
   completedPhase();
   return { ok: true, stagedPath: staged, verification };
 };

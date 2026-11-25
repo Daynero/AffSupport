@@ -56,6 +56,7 @@ export {
 
 export {
   imageSelectionSupported,
+  cleanDeliverySupported,
   compareProductVersions,
   isPinnedReleaseArtifact,
   isSotySiteOrigin,
@@ -95,6 +96,7 @@ export {
 export type { AppEnvironment, ParsedAppEnvironment } from './environment-runtime.js';
 export * from './environment.js';
 export * from './lifecycle.js';
+export * from './media-metadata.js';
 export * from './stitcher.js';
 export * from './totp.js';
 

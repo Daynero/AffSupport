@@ -252,8 +252,88 @@ describe('team file operations', () => {
     );
   });
 
+  it('downloads the original, metadata and all, from “Download with metadata” (073)', async () => {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    // A movie whose user data names a place: the original keeps it byte for byte.
+    const movie = Uint8Array.from([
+      ...[0, 0, 0, 16, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 0, 0, 2, 0],
+      ...[0, 0, 0, 28, 0x6d, 0x6f, 0x6f, 0x76, 0, 0, 0, 20, 0x75, 0x64, 0x74, 0x61],
+      ...new TextEncoder().encode('GPS 50.45 30')
+    ]);
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(new Response(movie)));
+    const saved: Blob[] = [];
+    Object.assign(URL, {
+      createObjectURL: vi.fn((blob: Blob) => {
+        saved.push(blob);
+        return 'blob:original';
+      }),
+      revokeObjectURL: vi.fn()
+    });
+    const client = actionsClient();
+    await openMenu(
+      <MaterialSurface
+        teamId={TEAM_ID}
+        material={material()}
+        permissions={permissions()}
+        client={client}
+        browseClient={browseClient}
+        onChanged={vi.fn()}
+      />
+    );
+    await clickMaterialAction('Download with metadata');
+    await waitFor(() => expect(saved).toHaveLength(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://project.supabase.co/download',
+      expect.anything()
+    );
+    expect(new Uint8Array(await saved[0]!.arrayBuffer())).toEqual(movie);
+    fetchMock.mockRestore();
+  });
+
+  it('asks the app for the original when “Download with metadata” is too large for the browser (073)', async () => {
+    const client = actionsClient();
+    client.requestDownload = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('AGENT_REQUIRED'))
+      .mockResolvedValueOnce({
+        kind: 'agent',
+        transferUrl: 'https://project.supabase.co/functions/v1/drive-transfer',
+        grant: {
+          ticket: 'opaque-download-ticket-with-enough-entropy',
+          purpose: 'download_range',
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          maxRangeBytes: 32 * 1024 * 1024,
+          maxUses: 8
+        }
+      });
+    await openMenu(
+      <MaterialSurface
+        teamId={TEAM_ID}
+        material={material({ sizeBytes: 101 * 1024 * 1024 })}
+        permissions={permissions()}
+        client={client}
+        browseClient={browseClient}
+        onChanged={vi.fn()}
+      />
+    );
+    await clickMaterialAction('Download with metadata');
+    await waitFor(() => expect(client.downloadWithAgent).toHaveBeenCalledOnce());
+    expect(client.downloadWithAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ fileName: 'creative.mp4', metadata: 'original' })
+    );
+  });
+
   it('emits only bucketed file-attempt analytics from a real action', async () => {
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    // 073: a browser download is fetched and saved clean; a minimal movie stands in for it.
+    const movie = Uint8Array.from([
+      ...[0, 0, 0, 16, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d, 0, 0, 2, 0],
+      ...[0, 0, 0, 8, 0x6d, 0x6f, 0x6f, 0x76]
+    ]);
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(movie));
+    Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:clean'), revokeObjectURL: vi.fn() });
     const track = vi.spyOn(analytics, 'track');
     const client = actionsClient();
     await openMenu(
@@ -285,6 +365,7 @@ describe('team file operations', () => {
     );
     const payload = JSON.stringify(track.mock.calls);
     expect(payload).not.toMatch(/material-1|creative\.mp4|team_id|material_id|filename|path/i);
+    fetchMock.mockRestore();
   });
 
   it('does not attribute a late file failure to the replacement analytics actor', async () => {

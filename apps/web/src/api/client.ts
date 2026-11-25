@@ -41,7 +41,9 @@ import {
   type RestitchScreen,
   teamPosterFrameSupported,
   teamProcessPauseSupported,
-  toolContractCompatible
+  toolContractCompatible,
+  cleanDeliverySupported,
+  isMetadataBearingFileName
 } from '@video-compressor/shared';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
 import { configuredAgentOrigin, publicConfig, servedByAgent } from '../lib/config';
@@ -637,6 +639,13 @@ export async function downloadTeamFileWithAgent(input: {
   compress?: { embed: boolean; suffix: string };
   /** Show the saved file in the file manager; a batch asks for it once. Defaults to yes. */
   reveal?: boolean;
+  /**
+   * 073: `clean` (the default) saves a picture or video without metadata; `original` is
+   * "Download with metadata", byte for byte.
+   */
+  metadata?: 'clean' | 'original';
+  /** 073: a selection's batch lands in `Downloads/Soty/<saveInto>` instead of asking. */
+  saveInto?: string;
   /** 015: re-stitch after downloading, with the space's defaults. */
   process?:
     | { tool: 'compressor'; embed: boolean; suffix: string }
@@ -677,6 +686,15 @@ export async function downloadTeamFileWithAgent(input: {
     // original's name — a "compressed" file that is not. Refused here instead.
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
+  if (
+    input.metadata !== 'original' &&
+    !cleanDeliverySupported(health.toolContracts ?? {}) &&
+    (input.process || input.compress || isMetadataBearingFileName(input.fileName))
+  ) {
+    // The same reasoning for 073: an older app would save the picture with its camera,
+    // place and date still in it. "Download with metadata" still works with it.
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
   const value = await requestBody<{
     saved?: unknown;
     fileName?: unknown;
@@ -689,9 +707,11 @@ export async function downloadTeamFileWithAgent(input: {
     transferGrant: input.transferGrant,
     fileName: input.fileName,
     ...(input.destination ? { destination: input.destination } : {}),
+    ...(input.saveInto ? { saveInto: input.saveInto } : {}),
     ...(input.process ? { process: input.process } : {}),
     ...(input.compress ? { compress: input.compress } : {}),
-    ...(input.reveal === false ? { reveal: false } : {})
+    ...(input.reveal === false ? { reveal: false } : {}),
+    metadata: input.metadata === 'original' ? 'keep' : 'strip'
   });
   if (
     value.saved !== true ||

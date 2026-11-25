@@ -1,5 +1,6 @@
 import { rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
+import { stripMetadataInPlace } from '../files/strip-metadata.js';
 import { ffmpegPath } from '../ffmpeg/tools.js';
 import { runCommand } from './workspace.js';
 
@@ -18,6 +19,20 @@ import { runCommand } from './workspace.js';
  * place only once FFmpeg has succeeded, so a failure leaves the file exactly as it was.
  */
 export async function stripFileMetadata(absPath: string): Promise<boolean> {
+  /* 073: pictures and MP4/MOV go through the shared stripper first. FFmpeg's image2 stream copy
+     writes a JPEG's packet back unchanged — APP1 and all — so a skipped photo kept its EXIF and
+     GPS under a switch that said otherwise. Anything the shared code does not know (audio, an
+     odd container) still gets the stream copy below. */
+  try {
+    const outcome = await stripMetadataInPlace(absPath);
+    if (outcome !== 'not-media') return true;
+  } catch {
+    return false;
+  }
+  return streamCopyWithoutTags(absPath);
+}
+
+async function streamCopyWithoutTags(absPath: string): Promise<boolean> {
   const parsed = path.parse(absPath);
   const temporary = path.join(parsed.dir, `.${parsed.name}.soty-meta${parsed.ext}`);
   await unlink(temporary).catch(() => {});

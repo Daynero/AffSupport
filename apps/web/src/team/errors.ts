@@ -304,7 +304,9 @@ const LOCAL_RUN: Record<string, TranslationKey> = {
   // (production 2026-11-12, Windows): «something went wrong» told nobody to restart it.
   UPDATE_PENDING: 'teamErrorAgentUpdatePending',
   // Stitching was asked for and the compressor's library has no pictures (013 B5).
-  EMBED_IMAGES_REQUIRED: 'embeddingNeedsImage'
+  EMBED_IMAGES_REQUIRED: 'embeddingNeedsImage',
+  // 073: the app would not save a picture or video it could not clean.
+  METADATA_STRIP_FAILED: 'teamErrorMetadataStripFailed'
 };
 
 /**

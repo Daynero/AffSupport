@@ -102,7 +102,7 @@ describe('lossless canonical catalog images', () => {
     expect(parts(a.bytes).find(p => p.type === 'gAMA')?.data).toEqual(gamma);
     expect(parts(a.bytes).find(p => p.type === 'sRGB')?.data).toEqual(Buffer.from([0]));
   });
-  it('retains WebP ICC and orientation-one EXIF in the canonical PNG without changing RGBA', async () => {
+  it('retains WebP ICC and drops an orientation-one EXIF from the canonical PNG without changing RGBA (073)', async () => {
     const original = readFileSync('tests/fixtures/catalog-images/garment.webp');
     const profile = Buffer.alloc(128);
     profile.writeUInt32BE(128);
@@ -139,10 +139,34 @@ describe('lossless canonical catalog images', () => {
     const separator = icc.indexOf(0);
     expect(icc[separator + 1]).toBe(0);
     expect(inflateSync(icc.subarray(separator + 2))).toEqual(profile);
-    expect(pngParts.find(p => p.type === 'eXIf')!.data).toEqual(tiff);
+    // 073: nothing but rendering survives into a public catalog; orientation one is the default.
+    expect(pngParts.find(p => p.type === 'eXIf')).toBeUndefined();
   });
-  it('strips JPEG comments without changing any quantized scan, ICC or EXIF bytes', async () => {
+  it('drops a JPEG’s camera, place and editor along with its EXIF (073)', async () => {
     const original = readFileSync('tests/fixtures/catalog-images/garment.jpg');
+    // IFD0: Make "Apple", Orientation 1 (catalogs refuse any other orientation before this).
+    const tiff = Buffer.from(
+      '4d4d002a000000080002010f000200000006000000260112000300000001000100000000000000004170706c6500',
+      'hex'
+    );
+    const payload = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), tiff]);
+    const segment = Buffer.alloc(payload.length + 4);
+    segment[0] = 255;
+    segment[1] = 225;
+    segment.writeUInt16BE(payload.length + 2, 2);
+    segment.set(payload, 4);
+    const source = Buffer.concat([original.subarray(0, 2), segment, original.subarray(2)]);
+    const bytes = Buffer.from((await optimizeCatalogImage(source, 'image/jpeg')).bytes);
+    for (const gone of ['Apple', 'Exif', 'Photoshop']) {
+      expect(bytes.includes(Buffer.from(gone, 'latin1')), gone).toBe(false);
+    }
+  });
+  it('strips JPEG comments and EXIF without changing any quantized scan or ICC bytes', async () => {
+    const fixture = readFileSync('tests/fixtures/catalog-images/garment.jpg');
+    // The fixture's metadata is an EXIF APP1 and a Photoshop/IPTC APP13 between JFIF and the
+    // frame header at 156; 073 removes both.
+    expect([fixture[21], fixture[99]]).toEqual([0xe1, 0xed]);
+    const original = Buffer.concat([fixture.subarray(0, 20), fixture.subarray(156)]);
     const comment = Buffer.from('removable'.repeat(200));
     const segment = Buffer.alloc(comment.length + 4);
     segment[0] = 255;
@@ -173,7 +197,11 @@ describe('lossless canonical catalog images', () => {
     segment.writeUInt16BE(payload.length + 2, 2);
     segment.set(payload, 4);
     const source = Buffer.concat([original.subarray(0, 2), segment, original.subarray(2)]);
-    expect((await optimizeCatalogImage(source)).bytes).toEqual(new Uint8Array(source));
+    // 073: JFIF stays first, the ICC follows it untouched, and the fixture's EXIF and IPTC go.
+    const withoutExif = original.subarray(156);
+    expect((await optimizeCatalogImage(source)).bytes).toEqual(
+      new Uint8Array(Buffer.concat([original.subarray(0, 20), segment, withoutExif]))
+    );
   });
   it('converts real lossless WebP to PNG preserving every RGBA component including transparent RGB', async () => {
     const source = readFileSync('tests/fixtures/catalog-images/garment.webp');

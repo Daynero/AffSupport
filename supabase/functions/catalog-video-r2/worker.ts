@@ -18,6 +18,14 @@ import { Md5 } from '../_shared/md5.ts';
 // @deno-types="../../../packages/shared/dist/team/catalog-publication-source.d.ts"
 import { catalogPublicationSourceIdentity } from '../../../packages/shared/dist/team/catalog-publication-source.js';
 import type { DriveFileMetadata } from '../_shared/drive.ts';
+// @deno-types="../../../packages/shared/dist/media-metadata.d.ts"
+import {
+  applyMediaMetadataPatchesToWindow,
+  detectMediaMetadataFormat,
+  mediaMetadataPatchesInWindow,
+  planIsoBmffMetadataPatchesRemote,
+  type MediaMetadataPatch
+} from '../../../packages/shared/dist/media-metadata.js';
 import {
   CATALOG_VIDEO_MIME,
   CATALOG_VIDEO_OBJECT_KEY,
@@ -229,6 +237,39 @@ async function readRange(
   return out;
 }
 
+/**
+ * The source's bytes for one staged part: where the plan blanked something and the staged part
+ * holds exactly that blank, the Drive bytes are put back; anything else is the staged byte. A part
+ * uploaded before 073 (raw) therefore verifies too, and a part that is neither raw nor the planned
+ * blank fails the final MD5.
+ */
+async function sourceView(
+  staged: Uint8Array,
+  start: number,
+  patches: readonly MediaMetadataPatch[],
+  readSource: (start: number, end: number) => Promise<Uint8Array>
+): Promise<Uint8Array> {
+  const inside = mediaMetadataPatchesInWindow(start, start + staged.byteLength, patches);
+  if (inside.length === 0) return staged;
+  const blanked = inside.filter(patch => {
+    const local = staged.subarray(patch.offset - start, patch.offset - start + patch.length);
+    return patch.data ? sameBytes(local, patch.data) : local.every(byte => byte === 0);
+  });
+  if (blanked.length === 0) return staged;
+  // One Drive read across the blanked span of this part rather than one per region.
+  const from = Math.min(...blanked.map(patch => patch.offset));
+  const to = Math.max(...blanked.map(patch => patch.offset + patch.length));
+  const original = await readSource(from, to - 1);
+  const view = new Uint8Array(staged);
+  for (const patch of blanked) {
+    view.set(
+      original.subarray(patch.offset - from, patch.offset - from + patch.length),
+      patch.offset - start
+    );
+  }
+  return view;
+}
+
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.byteLength !== b.byteLength) return false;
   for (let i = 0; i < a.byteLength; i += 1) if (a[i] !== b[i]) return false;
@@ -285,6 +326,24 @@ async function copyOne(
     // A complete staging proof no longer depends on Drive being online.
     let drive: CatalogVideoDriveReader | undefined;
     const getDrive = async () => (drive ??= await deps.driveFor(claim.credentialId, signal));
+    /*
+     * 073: the public copy carries no metadata. The plan says which bytes of the Drive file are
+     * tags, dates, names or non-media tracks; each part is uploaded with those bytes blanked in
+     * place, so sizes and offsets — and the multipart layout — stay exactly the source's. The
+     * plan depends only on the source's bytes, so every invocation of a resumed copy computes
+     * the same one, and the final MD5 below still proves the copy came from this source.
+     */
+    let patches: readonly MediaMetadataPatch[] | null = null;
+    const metadataPatches = async (): Promise<readonly MediaMetadataPatch[]> => {
+      if (patches) return patches;
+      const reader = await getDrive();
+      const plan = await planIsoBmffMetadataPatchesRemote(claim.sizeBytes, (offset, length) =>
+        readRange(reader, claim, offset, offset + length - 1, signal)
+      );
+      // Not an MP4/MOV the stripper walks: copied as it is, as before.
+      patches = plan.supported ? plan.patches : [];
+      return patches;
+    };
     let sourceMd5 = claim.sourceMd5;
     if (sourceMd5 === null) {
       const metadata = await (await getDrive()).getFile(claim.fileId, claim.resourceKey);
@@ -327,7 +386,11 @@ async function copyOne(
           const start = (n - 1) * claim.partBytes;
           const end = Math.min(claim.sizeBytes, n * claim.partBytes) - 1;
           const partStarted = now();
-          const bytes = await readRange(await getDrive(), claim, start, end, signal);
+          const bytes = applyMediaMetadataPatchesToWindow(
+            await readRange(await getDrive(), claim, start, end, signal),
+            start,
+            await metadataPatches()
+          );
           const sha256 = await sha256Hex(bytes);
           const uploaded = await deps.r2.uploadPart(key, uploadId, n, bytes, sha256, signal);
           const verifiedBy = uploaded.verifiedBy ?? 'readback';
@@ -392,6 +455,23 @@ async function copyOne(
     } catch {
       throw new TeamFunctionError('INVALID_RESPONSE');
     }
+    /*
+     * 073: the staged object differs from the source exactly where the plan blanked it. The MD5
+     * is still the source's: each blanked region is checked to hold what the plan wrote and is
+     * fed to the hash as the source's own bytes, read back from Drive. Only an MP4/MOV needs
+     * this; anything else was copied untouched and verifies without Drive, as before.
+     */
+    let verifyPatches: readonly MediaMetadataPatch[] | null = null;
+    const patchesFor = async (firstPart: Uint8Array | null) => {
+      if (verifyPatches) return verifyPatches;
+      // From the first part when this invocation reads it; a resumed one reads the head alone.
+      const head =
+        firstPart ??
+        (await deps.r2.readStagingRange(key, 0, Math.min(claim.sizeBytes, 64) - 1, signal, staged));
+      const format = detectMediaMetadataFormat(head);
+      verifyPatches = format === 'isobmff' || format === 'heif' ? await metadataPatches() : [];
+      return verifyPatches;
+    };
     for (let n = checked + 1; n <= totalParts; n += 1) {
       const part = claim.parts.get(n);
       if (!part) throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
@@ -408,7 +488,11 @@ async function copyOne(
       );
       if ((await sha256Hex(bytes)) !== part.sha256)
         throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
-      md5.update(bytes);
+      md5.update(
+        await sourceView(bytes, offset, await patchesFor(n === 1 ? bytes : null), (start, end) =>
+          getDrive().then(reader => readRange(reader, claim, start, end, signal))
+        )
+      );
       offset += part.sizeBytes;
       const digest = n === totalParts ? md5.digest() : null;
       if (digest !== null && digest !== sourceMd5)

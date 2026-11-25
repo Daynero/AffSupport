@@ -3151,6 +3151,19 @@ export const en = {
   catalogUpdaterChipCatalogsMany: '{count} catalogs',
   catalogUpdaterChipAttention: 'needs attention',
   catalogUpdaterChipOpen: 'Open the catalog manager',
+  teamSelectionDownload: 'Download ({count})',
+  teamSelectionDownloadWithMetadata: 'Download with metadata ({count})',
+  teamSelectionDownloadFoldersSkipped:
+    'Folders are not downloaded: {count} skipped. Open the folder and select the files in it.',
+  teamSelectionDownloadFolderFallback: 'Selected',
+  teamSelectionDownloadProgress: 'Downloading: {done} of {total}',
+  teamSelectionDownloadSaved: 'Files downloaded: {count}.',
+  teamSelectionDownloadNeedsApp:
+    'Files larger than 32 MB: {count} — Soty on your computer downloads those.',
+  teamSelectionDownloadGetApp: 'Open Soty',
+  teamDownloadQueueTitle: 'Downloading',
+  teamDownloadQueueDone: 'Files downloaded: {count} — in Downloads/Soty',
+  teamDownloadQueueDoneSome: 'Downloaded: {count}, failed: {failed}',
   teamRestitchDownloadRestitched: 'Download re-stitched',
   teamRestitchPhaseTransferring: 'Fetching the video…',
   teamRestitchPhaseInspecting: 'Looking at the video…',
@@ -3486,6 +3499,7 @@ export const en = {
   materialActionCopyLink: 'Copy link',
   materialActionShare: 'Share',
   materialActionDownload: 'Download',
+  materialActionDownloadWithMetadata: 'Download with metadata',
   materialActionDownloadRestitched: 'Download re-stitched',
   materialActionCopyText: 'Copy the text',
   materialActionProductCatalog: 'Product catalog',
@@ -4342,6 +4356,8 @@ export const en = {
     'The task from this link is in a space you are not in. Ask whoever shared it to add you.',
   teamSpaceNoAccessAction: 'Go to my spaces',
   teamErrorUnknown: 'Something went wrong. Try again in a moment.',
+  teamErrorMetadataStripFailed:
+    'The metadata could not be removed from this file, so no clean copy was saved. The original is under “Download with metadata”.',
   teamErrorProcessFailed: 'This file could not be processed on this computer.',
   teamErrorAgentUpdatePending:
     'Soty on this computer is waiting to restart after an update. Quit Soty and open it again, then try once more.',

@@ -591,6 +591,14 @@ function downloadRequest(value: unknown): TeamAgentDownloadRequest | null {
     destination,
     process: step,
     compress,
+    // 073: a download is clean unless the caller asks for the original by name.
+    metadata: value.metadata === 'keep' ? 'keep' : 'strip',
+    // 073: a selection's batch names its folder under Downloads/Soty; the bridge sanitizes it.
+    ...(typeof value.saveInto === 'string' &&
+    value.saveInto.length > 0 &&
+    value.saveInto.length <= 255
+      ? { saveInto: value.saveInto }
+      : {}),
     ...(value.reveal === false ? { reveal: false } : {})
   };
 }
@@ -748,6 +756,8 @@ function safeErrorCode(
       'PROCESS_TIMEOUT',
       'PROCESS_FAILED',
       'AGENT_UPDATE_REQUIRED',
+      // 073: a picture or video that could not be cleaned is not saved with its metadata.
+      'METADATA_STRIP_FAILED',
       // Stitching asked for with no pictures in the library: the person can fix that, and
       // "the download failed" would send them looking at the network instead.
       'EMBED_IMAGES_REQUIRED',

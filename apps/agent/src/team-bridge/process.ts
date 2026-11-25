@@ -24,6 +24,7 @@ import type { LandingOptimizer } from '../landing/optimizer.js';
 import type { JobQueue } from '../queue/queue.js';
 import { activeGovernorOrNull } from '../power/spawn.js';
 import type { TranscriptionQueue } from '../queue/transcription-queue.js';
+import { stripMetadataInPlace } from '../files/strip-metadata.js';
 import { audioFingerprint } from './audio-fingerprint.js';
 import type { TeamOperationEvents } from './events.js';
 import { TeamSourceIntegrityError } from './transfer.js';
@@ -405,6 +406,12 @@ export class TeamProcessBridge {
 
       await execution?.authorize();
       throwIfAborted(controller.signal);
+      // 073: what a tool makes lands in the space and from there in catalogs and on Facebook,
+      // so it is uploaded clean whatever the person's local compressor switch says. Soty's own
+      // file, patched in place in milliseconds; the size is read again because an image or a
+      // re-mux can change it.
+      const cleanSize = await cleanForUpload(output.file, output.sizeBytes, controller.signal);
+      throwIfAborted(controller.signal);
       this.#events.update(request.operationId, {
         stage: 'uploading',
         progress: 70
@@ -417,7 +424,7 @@ export class TeamProcessBridge {
           finalizeGrant: request.finalizeGrant,
           file: output.file,
           mimeType: output.mimeType,
-          sizeBytes: output.sizeBytes,
+          sizeBytes: cleanSize,
           ...(output.audioFingerprint ? { audioFingerprint: output.audioFingerprint } : {}),
           onProgress: (completed, total) => {
             const ratio = total > 0 ? completed / total : 0;
@@ -872,6 +879,21 @@ function validateRequest(request: TeamProcessRequest) {
     typeof request.cloudBaseUrl !== 'string'
   ) {
     throw new Error('INVALID_INPUT');
+  }
+}
+
+/**
+ * 073: cleans a tool's output in place and returns the size to upload. A file that is not there
+ * is not this step's failure to report — the upload that follows names it with its own code —
+ * so it keeps the size the delegate reported; any other problem stops the upload.
+ */
+async function cleanForUpload(file: string, reportedSize: number, signal: AbortSignal) {
+  try {
+    await stripMetadataInPlace(file, { signal });
+    return (await stat(file)).size;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return reportedSize;
+    throw error;
   }
 }
 

@@ -171,10 +171,12 @@ function harness(
     retire?: unknown[];
     purges?: unknown[];
     claimNull?: boolean;
+    /** 073: a real movie layout instead of the patterned bytes. */
+    source?: Uint8Array;
   } = {}
 ) {
-  const size = options.size ?? PART * 3 + 100;
-  const source = video(size);
+  const size = options.source?.length ?? options.size ?? PART * 3 + 100;
+  const source = options.source ?? video(size);
   const memory = options.proofMemory ?? {};
   const store: Store = {
     staging: null,
@@ -567,6 +569,84 @@ describe('catalog video R2 worker', () => {
   });
 });
 
+/** ftyp, two parts of media, then a `moov` whose user data names a place (073). */
+function placeTaggedMovie(): { movie: Uint8Array; tagAt: number } {
+  const box = (type: string, payload: Uint8Array) => {
+    const out = new Uint8Array(8 + payload.length);
+    new DataView(out.buffer).setUint32(0, out.length);
+    out.set(new TextEncoder().encode(type), 4);
+    out.set(payload, 8);
+    return out;
+  };
+  const ftyp = box('ftyp', new TextEncoder().encode('isom\0\0\u0002\0isom'));
+  const mdat = box('mdat', video(PART * 2));
+  const udta = box('udta', new TextEncoder().encode('\u00a9xyz+50.4501+030.5234/ GPS'));
+  const moov = box('moov', udta);
+  const movie = new Uint8Array(ftyp.length + mdat.length + moov.length);
+  movie.set(ftyp, 0);
+  movie.set(mdat, ftyp.length);
+  movie.set(moov, ftyp.length + mdat.length);
+  return { movie, tagAt: ftyp.length + mdat.length + 8 };
+}
+
+describe('catalog video R2 copies carry no metadata (073)', () => {
+  it('blanks the movie’s user data in the public copy and still proves the Drive source', async () => {
+    const { movie, tagAt } = placeTaggedMovie();
+    const h = harness({ source: movie, sourceMd5: 'match' });
+    expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({
+      outcome: 'ready',
+      fullHashVerified: true
+    });
+    const published = Buffer.from(h.store.publicBytes!);
+    expect(published.length).toBe(movie.length);
+    expect(published.includes(Buffer.from('50.4501'))).toBe(false);
+    expect(published.subarray(tagAt + 4, tagAt + 8).toString('latin1')).toBe('free');
+    // Everything before the user data is the source byte for byte.
+    expect(published.subarray(0, tagAt).equals(Buffer.from(movie.subarray(0, tagAt)))).toBe(true);
+  });
+
+  it('still verifies a copy whose parts were uploaded raw before 073', async () => {
+    const { movie } = placeTaggedMovie();
+    const parts = [];
+    for (let n = 1; n * PART - PART < movie.length; n++) {
+      const bytes = movie.slice((n - 1) * PART, n * PART);
+      parts.push({
+        partNumber: n,
+        sizeBytes: bytes.length,
+        sha256: await sha256Hex(bytes),
+        etag: `"e${n}"`,
+        verifiedBy: 'readback' as const
+      });
+    }
+    const h = harness({ source: movie, state: 'verifying', parts });
+    h.store.staging = movie;
+    expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({ outcome: 'ready' });
+  });
+
+  it('refuses a staged part that is neither the source nor its planned blank', async () => {
+    const { movie, tagAt } = placeTaggedMovie();
+    const tampered = movie.slice();
+    tampered[tagAt + 12] = 0x21;
+    const parts = [];
+    for (let n = 1; n * PART - PART < tampered.length; n++) {
+      const bytes = tampered.slice((n - 1) * PART, n * PART);
+      parts.push({
+        partNumber: n,
+        sizeBytes: bytes.length,
+        sha256: await sha256Hex(bytes),
+        etag: `"e${n}"`,
+        verifiedBy: 'readback' as const
+      });
+    }
+    const h = harness({ source: movie, state: 'verifying', parts });
+    h.store.staging = tampered;
+    expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({
+      outcome: 'failed',
+      code: 'VIDEO_R2_CHECKSUM_MISMATCH'
+    });
+  });
+});
+
 describe('catalog video ready acknowledgement recovery', () => {
   it.each(['before-commit', 'after-commit'] as const)(
     'retains staging when the ready acknowledgement is lost %s',
@@ -829,7 +909,9 @@ describe('catalog video resumable integrity acceptance', () => {
     const reads: number[][] = [];
     const outcomes: unknown[] = [];
     const proofMemory: ProofMemory = {};
-    for (let attempt = 0; attempt < 3; attempt++) {
+    // 073: a resumed verification first reads the staged object's head (is it a movie the
+    // copy patched?), one more bounded read per invocation — so a fourth invocation may finish.
+    for (let attempt = 0; attempt < 4; attempt++) {
       const h = harness({ state: 'verifying', parts, budgetMs: 12_050, proofMemory });
       h.store.staging = source;
       const ranges: number[] = [];

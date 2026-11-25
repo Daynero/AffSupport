@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { stripMetadataInPlace } from '../files/strip-metadata.js';
 import { access, mkdir, rm, statfs, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -2303,7 +2304,15 @@ export class JobQueue {
     if (this.current.kind === 'encoding')
       this.setActivity({ ...this.current, child: operation.child });
     void this.runPrioritizedEstimates();
-    return operation.done;
+    return operation.done.then(async result => {
+      // 073: FFmpeg's three switches leave the muxer's own name, the default handler names and
+      // the x264 signature in the first picture. With "Remove metadata" on (the default), the
+      // finished file is patched in place — same size, same frames — so nothing says which
+      // tool made it either. A failure here keeps FFmpeg's already tag-free file.
+      if (result.code === 0 && !result.cancelled && job.encoding.stripMetadata)
+        await stripMetadataInPlace(job.outputPath).catch(() => undefined);
+      return result;
+    });
   }
 }
 

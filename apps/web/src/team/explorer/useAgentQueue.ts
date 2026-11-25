@@ -50,7 +50,7 @@ export type AgentQueueItem = {
    * `restitch` is the space's re-stitch run with `unstitch`: the trim a drop asks about (070),
    * always written over the upload it trims (`versionOf`).
    */
-  tool: 'transcription' | 'compressor' | 'restitch';
+  tool: 'transcription' | 'compressor' | 'restitch' | 'download';
   outputName: string;
   /** Overwrite-the-original: upload as a new version of this material. */
   versionOf?: string;
@@ -60,6 +60,12 @@ export type AgentQueueItem = {
    * rest of the batch follows the answer.
    */
   local?: { embed: boolean; suffix: string; folder?: string | null };
+  /**
+   * 073: a plain download from the selection — the agent saves the file into
+   * `Downloads/Soty/<saveInto>`, clean unless `metadata` is `original`. Nothing is written to the
+   * space; the first file's folder is where the rest of the batch goes.
+   */
+  deliver?: { saveInto: string; metadata: 'clean' | 'original' };
   /**
    * The task this run was started from (024, FR-078). What it writes is put on
    * that task when it finishes, so a performer never has to go and find the
@@ -122,6 +128,8 @@ export function queueDoneMessages(tools: ReadonlySet<AgentQueueItem['tool']>) {
     return ['teamTranscribeQueueDone', 'teamTranscribeQueueDoneSome'] as const;
   if (tools.size === 1 && tools.has('restitch'))
     return ['teamTrimQueueDone', 'teamTrimQueueDoneSome'] as const;
+  if (tools.size === 1 && tools.has('download'))
+    return ['teamDownloadQueueDone', 'teamDownloadQueueDoneSome'] as const;
   return ['teamProcessQueueDone', 'teamProcessQueueDoneSome'] as const;
 }
 
@@ -132,6 +140,14 @@ export function queueDoneMessages(tools: ReadonlySet<AgentQueueItem['tool']>) {
  * the folder — and a bar that runs to the end and starts over twice reads as the work being
  * redone. The encode is most of the wait, so it gets most of the bar.
  */
+/** A plain download (073) is one transfer and a short save: the transfer is the bar. */
+export function localDownloadProgress(stage: string, progress: number): number {
+  const share = Math.max(0, Math.min(100, progress)) / 100;
+  if (stage === 'downloading') return Math.round(share * 95);
+  if (stage === 'finalizing' || stage === 'completed') return Math.max(95, Math.round(progress));
+  return 0;
+}
+
 export function localCompressProgress(stage: string, progress: number): number {
   const share = Math.max(0, Math.min(100, progress)) / 100;
   if (stage === 'downloading') return Math.round(share * 15);
@@ -255,14 +271,41 @@ export function useAgentQueue({
     void (async () => {
       let started: string | null = null;
       // The trim is the stitcher's work, and analytics knows it by that name.
-      const analyticsTool = next.tool === 'restitch' ? 'stitcher' : next.tool;
+      // A plain download (073) is no operation in the space, so it never names a tool.
+      const analyticsTool =
+        next.tool === 'restitch' ? 'stitcher' : next.tool === 'download' ? undefined : next.tool;
       const workflow = startTeamWorkflow({
-        category: next.tool === 'transcription' ? 'other' : 'video',
+        category: next.tool === 'transcription' || next.tool === 'download' ? 'other' : 'video',
         stage: 'downloading'
       });
       let outcome: TeamAnalyticsOutcome = 'success';
       let stage: TeamAnalyticsStage = 'downloading';
       try {
+        if (next.deliver) {
+          // 073: the selection's download — the original fetched by the app, cleaned unless the
+          // person chose metadata, saved beside the rest of the batch.
+          const grant = await teamApi.requestDownload(teamId, next.id, 'agent');
+          checkStopped();
+          if (grant.kind !== 'agent') throw new Error('AGENT_UPDATE_REQUIRED');
+          const localOperationId = crypto.randomUUID();
+          run.localOperationId = localOperationId;
+          setTActive(current =>
+            current && current.id === next.id ? { ...current, localOperationId } : current
+          );
+          const batch = localBatch.current;
+          const saved = await downloadTeamFileWithAgent({
+            operationId: localOperationId,
+            transferUrl: grant.transferUrl,
+            transferGrant: grant.grant,
+            fileName: grant.fileName ?? next.name,
+            ...(batch.folder ? { destination: batch.folder } : { saveInto: next.deliver.saveInto }),
+            metadata: next.deliver.metadata,
+            reveal: !batch.revealed
+          });
+          batch.revealed = true;
+          if (saved.destination) batch.folder = saved.destination;
+          return;
+        }
         if (next.local) {
           // 013 (B5): no team operation — the agent downloads the source,
           // compresses it locally and saves into a folder on this computer.
@@ -317,6 +360,8 @@ export function useAgentQueue({
           }
         }
         checkStopped();
+        // Only the download branch above runs a `download`; nothing else may reach the space.
+        if (next.tool === 'download') throw new Error('INVALID_INPUT');
         const result = await teamApi.startProcess({
           teamId,
           materialId: next.id,
@@ -409,12 +454,13 @@ export function useAgentQueue({
           setTStopped(current => current + 1);
           // A local run refused at the folder picker (or stopped) takes the rest of its
           // batch with it: each of them would open the same picker again.
-          if (next.local) {
-            const dropped = queueRef.current.slice(1).filter(job => job.local).length;
+          if (next.local || next.deliver) {
+            const localJob = (job: AgentQueueItem) => Boolean(job.local || job.deliver);
+            const dropped = queueRef.current.slice(1).filter(localJob).length;
             if (dropped > 0) {
               setTQueue(current => [
                 ...current.slice(0, 1),
-                ...current.slice(1).filter(job => !job.local)
+                ...current.slice(1).filter(job => !localJob(job))
               ]);
               setTTotal(current => current - dropped);
             }
@@ -606,7 +652,10 @@ export function useAgentQueue({
       if (event.type !== 'team:operations' || !localOperationId) return;
       const local = event.operations.find(item => item.operationId === localOperationId);
       if (!local) return;
-      const next = localCompressProgress(local.stage, local.progress);
+      const next =
+        tActive?.tool === 'download'
+          ? localDownloadProgress(local.stage, local.progress)
+          : localCompressProgress(local.stage, local.progress);
       // Forwards only: a late event from an earlier stage must not pull the bar back.
       setLocalProgress(current => Math.max(current, next));
     }
