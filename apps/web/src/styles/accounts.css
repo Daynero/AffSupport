@@ -244,23 +244,13 @@
  * it.
  */
 .team-account-head:not(.is-editing) {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--team-account-colour) 15%, transparent) 0,
-      transparent 240px
-    ),
-    var(--team-account-head-surface);
+  /* One even tint from edge to edge (owner, beta 25.11): the wash that faded out 240px in made
+     the band look as if it stopped short of the rows under it. */
+  background: color-mix(in srgb, var(--team-account-colour) 7%, var(--team-account-head-surface));
 }
 
 .team-account-head:not(.is-editing):hover {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--team-account-colour) 20%, transparent) 0,
-      transparent 240px
-    ),
-    color-mix(in oklab, var(--color-accent) 12%, var(--team-account-head-surface));
+  background: color-mix(in srgb, var(--team-account-colour) 12%, var(--team-account-head-surface));
 }
 
 /* What ties the rows to their account is the grid they share with its head —
@@ -296,12 +286,21 @@
 }
 
 .team-account-head {
-  box-shadow: inset var(--team-agent-rail) 0 0 0 var(--team-account-colour);
+  position: relative;
 }
 
-.team-account-mark {
-  background: color-mix(in srgb, var(--team-account-colour) 22%, transparent);
-  color: var(--team-account-colour);
+/* The rail, drawn over the head's bottom edge so it meets the first row's rail without a seam:
+   an inset shadow stops at the border, and a 1px notch in the rail at every account read as a
+   break between the account and its agents. */
+.team-account-head::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: -1px;
+  left: 0;
+  width: var(--team-agent-rail);
+  background: var(--team-account-colour);
+  pointer-events: none;
 }
 
 /* The head is the social account: a mark, the name, how it stands — and the
@@ -342,21 +341,17 @@
   /* Where the account ends and its agents begin. Without it the head, the id
      and the run read as three floors of one thing. Stronger than the hairline
      between two agent rows, because this is the bigger of the two joints. */
-  border-bottom: 1px solid var(--color-border-strong);
+  border-bottom: 1px solid var(--color-border);
   min-height: 48px;
   /* The same right inset as the agent rows, so the head's actions sit over
      the rows'. */
   padding: var(--space-1) var(--space-2) var(--space-1) 0;
 }
 
-/* Shape here, colour above: the mark carries the account's own hue. */
+/* The account's icon rides in the disclosure's plate, in the account's own hue. */
 .team-account-mark {
-  display: grid;
-  width: 26px;
-  height: 26px;
   flex: 0 0 auto;
-  place-items: center;
-  border-radius: var(--radius-sm);
+  color: var(--team-account-colour);
 }
 
 .team-account-title {
@@ -368,32 +363,50 @@
   gap: var(--space-1) var(--space-2);
 }
 
-/* The disclosure is the account mark's size and lightens under the pointer. A 32px plate going
-   near-black on hover sat beside the 26px tinted mark as a hole in the head (owner, beta 25.11). */
-.team-account-toggle {
+/* The disclosure and the account's icon are one plate (owner, beta 25.11): the height of every
+   other control on the head, the small radius of the rows' chips, tinted with the account's hue
+   at rest and a step stronger under the pointer. It starts the rail's width plus the rows' gap
+   in from the edge, exactly where the agents' chips start, so its hover never touches the rail. */
+.team-account-toggle.ui-icon-button {
   display: inline-flex;
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
+  width: auto;
+  min-width: 0;
+  height: var(--account-input-height);
+  min-height: var(--account-input-height);
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  gap: 2px;
+  padding: 0 var(--space-1);
   border: 0;
   border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--team-account-colour) 18%, transparent);
+  color: var(--team-account-colour);
   cursor: pointer;
-  transition:
-    transform var(--dur-control) var(--ease-standard),
-    background-color var(--dur-control) var(--ease-standard);
+  transition: background-color var(--dur-control) var(--ease-standard);
 }
 
-.team-account-toggle.ui-icon-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-text) 10%, transparent);
+.team-account-toggle.ui-icon-button:hover:not(:disabled),
+.team-account-head:hover .team-account-toggle.ui-icon-button {
+  background: color-mix(in srgb, var(--team-account-colour) 28%, transparent);
+}
+
+.team-account-toggle.ui-icon-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.team-account-toggle-chevron {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  transition: transform var(--dur-control) var(--ease-standard);
+}
+
+.team-account-toggle.ui-icon-button:hover .team-account-toggle-chevron {
   color: var(--color-text);
 }
 
-.team-account.is-collapsed .team-account-toggle {
+.team-account.is-collapsed .team-account-toggle-chevron {
   transform: rotate(-90deg);
 }
 
@@ -748,21 +761,21 @@
 }
 
 /*
- * A run is a band, not a line of text: it is the thing pressed to mark it, so
- * it has the height of a target and the shape of one. The marker is a wash
- * across the whole band — a highlighter's stripe, the way a person would go
- * down this column with a pen — with a bar of the same colour at its start,
- * which is what survives on a screen too bright to read a 16% tint on.
+ * One line of the Launch column: a launch held on the agent, or a note written on it by hand.
+ * Both start with a 24px slot — a rocket for a launch, the colour dot for a note — so the two
+ * kinds read apart at a glance and their text starts on one line. A marked note keeps its wash
+ * across the band, a highlighter's stripe; the bar of colour at its start is now the dot, which
+ * is also the control that changes it (owner, beta 25.11: pressing the whole line to cycle the
+ * colour was a hidden control, and the bar looked like the account's rail).
  */
 .team-agent-run {
-  cursor: pointer;
   position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
   min-height: 38px;
-  padding-left: var(--space-2);
+  padding-left: var(--space-1);
   border-radius: var(--radius-sm);
   transition: background-color var(--dur-control) var(--ease-standard);
 }
@@ -771,43 +784,62 @@
   background: color-mix(in oklab, var(--color-text) 6%, transparent);
 }
 
-/*
- * The press target: the band itself, as a button laid under its own contents.
- * Around them it cannot go — the pencil, the bin and the tasks link are
- * buttons and links, and a button holding a button is not a thing the browser
- * will render. So it is the layer at the back, and everything else sits above
- * it.
- */
-.team-agent-run-mark {
-  position: absolute;
-  z-index: 0;
-  border: 0;
-  border-radius: inherit;
-  background: none;
-  cursor: pointer;
-  inset: 0;
-}
-
-.team-agent-run-mark:disabled {
-  cursor: default;
-}
-
-.team-agent-run-mark:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: -2px;
-}
-
-.team-agent-run > *:not(.team-agent-run-mark) {
-  position: relative;
-  z-index: 1;
-}
-
 /* The three colours. Named by what they look like, not by what a team decides
    they mean — the product never says what green is for. */
 .team-agent-run.is-marked {
   --team-run-marker: var(--color-text-muted);
   background: color-mix(in srgb, var(--team-run-marker) 16%, transparent);
-  box-shadow: inset 3px 0 0 var(--team-run-marker);
+}
+
+/* The line's kind, in a slot of its own: the note's colour dot (a button for an editor) or the
+   launch's rocket. */
+.team-agent-note-marker,
+.team-agent-run-kind {
+  display: inline-flex;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.team-agent-note-marker.ui-icon-button {
+  min-height: 24px;
+  padding: 0;
+  border-radius: var(--radius-full);
+}
+
+.team-agent-note-marker.ui-icon-button:hover:not(:disabled) .team-accounts-marker-dot {
+  transform: scale(1.25);
+}
+
+.team-agent-note-marker .team-accounts-marker-dot {
+  width: 10px;
+  height: 10px;
+  transition: transform var(--dur-control) var(--ease-standard);
+}
+
+.team-agent-run-kind {
+  color: var(--color-accent);
+}
+
+/* Nothing written on the agent yet: the way to write the first note, in words, where it will
+   stand. Quiet at rest; the row's pointer brings it to full contrast. */
+.team-agent-note-add.ui-button {
+  justify-self: start;
+  min-height: var(--account-input-height);
+  height: var(--account-input-height);
+  padding-inline: var(--space-2);
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-label);
+  font-weight: 600;
+}
+
+.team-agent-row:hover .team-agent-note-add.ui-button,
+.team-agent-note-add.ui-button:focus-visible {
+  color: var(--color-text);
 }
 
 .team-agent-run.is-marked:hover {
@@ -853,6 +885,12 @@
 
 .team-accounts-marker-dot.is-red {
   background: var(--color-error);
+}
+
+/* No colour yet: a hollow ring, so the dot still says "a colour goes here". */
+.team-accounts-marker-dot.is-none {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted);
 }
 
 /* --- The marker filter ------------------------------------------------------ */
@@ -2406,6 +2444,30 @@ button.team-task-agent-chip.is-selected {
 .team-account-space.is-unified .team-account-head {
   min-height: var(--account-row-height);
   padding-block: var(--space-1);
+  /* The head's first plate starts where the rows' chips start: past the rail and the rows' gap. */
+  padding-inline-start: calc(var(--team-agent-rail) + var(--space-2));
+}
+
+/* The rail runs the full height of the row, through its padding and over its top edge, so the
+   rails of an account's head and agents are one unbroken line. */
+.team-account-space.is-unified .team-agent-row > .team-agent-rail {
+  margin-block: calc(-1 * var(--space-1) - 1px) calc(-1 * var(--space-1));
+}
+
+/* One line between the head and its first agent — the head's own edge — not two stacked. */
+.team-account-agents > .team-agent-row:first-child {
+  border-top-color: transparent;
+}
+
+/* A folded account is only its head: nothing hangs under it, so no edge either. */
+.team-account.is-collapsed .team-account-head {
+  border-bottom-color: transparent;
+}
+
+/* The list's own gap already parts two accounts; a rule on top of the next head as well drew a
+   bright rim along it (owner, beta 25.11: "lines above and below"). */
+.team-account-space.is-unified .team-account + .team-account {
+  border-top: 0;
 }
 .team-account-space.is-unified
   :is(.team-agent-row, .team-account):is([data-dnd-dragging], [data-dnd-dropping]) {
@@ -2449,7 +2511,7 @@ button.team-task-agent-chip.is-selected {
 }
 .team-account-space.is-unified .team-agent-run:not(.is-editing) {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content max-content;
+  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
   width: 100%;
   max-width: 100%;
   min-height: var(--account-input-height);
@@ -2460,13 +2522,6 @@ button.team-task-agent-chip.is-selected {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.team-account-space.is-unified .team-agent-run-mark {
-  min-width: 0;
-  min-height: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
 }
 .team-account-space.is-unified
   :is(.team-account-actions, .team-agent-actions-stack, .team-agent-menu, .team-agent-run-actions) {
@@ -2614,39 +2669,17 @@ button.team-task-agent-chip.is-selected {
   }
 }
 
-/* Linked Launch and manual entry share the same row geometry and left inset. */
-.account-linked-launch-row {
-  cursor: default;
-}
-.account-linked-launch-row .account-linked-launch {
-  text-align: left;
-}
-
-/* Assignment explanations belong below the title: they can be longer than
-   the entire launch column, especially in Ukrainian. Keep actions alongside. */
+/* Linked Launch and manual note share the same row geometry and left inset: the kind's slot,
+   the text, the actions. */
 .team-account-space.is-unified .account-linked-launch-row:not(.is-editing) {
-  grid-template-columns: minmax(0, 1fr) max-content;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
 }
 .account-linked-launch-row .account-linked-launch {
-  grid-column: 1;
-  grid-row: 1;
-}
-.account-linked-launch-row .team-agent-run-age {
-  grid-column: 1;
-  grid-row: 2;
   min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.account-linked-launch-row .team-agent-run-age::before {
-  content: none;
-}
-.account-linked-launch-row .team-agent-run-actions {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-}
-.account-linked-launch-row > [aria-hidden='true'] {
-  display: none;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /*
@@ -2795,17 +2828,6 @@ button.team-task-agent-chip.is-selected {
 
 .team-agent-tag > .ui-button-label {
   min-width: 0;
-}
-
-/* The run's mark lies under the run's own text, the whole run its target: nothing of the
-   button's box may show — no floor, no padding, no press scale shifting the text above it. */
-.team-agent-run-mark.ui-button {
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: inherit;
-  background: none;
-  transform: none;
 }
 
 /* «2FA»: the chip is the account head's, the inventory's button under it. */

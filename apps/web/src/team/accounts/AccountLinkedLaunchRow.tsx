@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react';
-import { Check, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Rocket, Unlink } from 'lucide-react';
 import type {
   LaunchAssignmentReceipt,
   TeamAccountLaunchAssignment
 } from '@video-compressor/shared';
 import { IconButton } from '../../components/ui/index';
-import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { ICON_STROKE } from '../../components/icons';
+
+const ICON_SMALL = 16;
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { internalLink, navigateTo } from '../../lib/navigation';
@@ -24,14 +26,12 @@ export function AccountLinkedLaunchRow({
   teamId,
   launch,
   canEdit,
-  canAssign = canEdit,
   onChanged,
   canMutate
 }: {
   teamId: string;
   launch: TeamAccountLaunchAssignment;
   canEdit: boolean;
-  canAssign?: boolean;
   canMutate?: () => boolean;
   onChanged: (
     receipt: LaunchAssignmentReceipt,
@@ -133,57 +133,54 @@ export function AccountLinkedLaunchRow({
       setBusy(false);
     }
   };
+  /*
+   * A launch held on the agent reads as one: a rocket where a note has its colour dot, and the
+   * launch's name as a link to it (owner, beta 25.11 — the hand-written notes under it were taken
+   * for launches). A link carried over from before assignments were recorded is the same link:
+   * the agent is busy or free, never "unconfirmed", so nothing is asked of it here.
+   */
   return (
     <div
       className="team-agent-run account-linked-launch-row"
       data-launch-assignment-id={launch.id}
       aria-busy={busy}
     >
+      <span className="team-agent-run-kind" aria-hidden="true">
+        <Rocket size={ICON_SMALL} strokeWidth={ICON_STROKE} />
+      </span>
       <a
         className="team-agent-run-text account-linked-launch"
         href={href}
         onClick={event => internalLink(event, href)}
-        title={title}
+        title={`${t('launchesTitle')}: ${title}`}
       >
         {title}
       </a>
-      {launch.assignmentState === 'legacy_unknown' ? (
-        <span className="team-agent-run-age">{t('teamAgentAvailabilityUnknown')}</span>
-      ) : (
-        <span aria-hidden="true" />
-      )}
       {canEdit && (
         <span className="team-agent-run-actions">
-          {launch.assignmentState === 'legacy_unknown' && (
-            <IconButton
-              label={`${t('launchesAssignmentAssign')}: ${title}`}
-              className="team-agent-action is-small"
-              disabled={busy || uncertain || !canAssign}
-              onClick={() => void change(launch.agentRowId)}
-            >
-              <Check size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-            </IconButton>
-          )}
           <IconButton
+            size="xs"
             label={`${t('launchesAssignmentEdit')}: ${title}`}
+            title={t('launchesAssignmentEdit')}
             className="team-agent-action is-small"
             disabled={busy}
             onClick={() => {
               navigateTo(href);
             }}
           >
-            <Pencil size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+            <Pencil size={ICON_SMALL} strokeWidth={ICON_STROKE} />
           </IconButton>
           <IconButton
-            label={`${t(uncertain ? (retryAllowed ? 'retry' : 'launchesAssignmentCheck') : launch.assignmentState === 'legacy_unknown' ? 'launchesAssignmentHistoryOnly' : 'launchesAssignmentRelease')}: ${title}`}
+            size="xs"
+            label={`${t(uncertain ? (retryAllowed ? 'retry' : 'launchesAssignmentCheck') : 'launchesAssignmentRelease')}: ${title}`}
             className="team-agent-action is-small is-danger"
             disabled={busy}
-            title={t('launchesAssignmentProcessing')}
+            title={`${t('launchesAssignmentRelease')} · ${t('launchesAssignmentProcessing')}`}
             onClick={() =>
               void change(null, launch.assignmentVersion, false, uncertain && !retryAllowed)
             }
           >
-            <Trash2 size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+            <Unlink size={ICON_SMALL} strokeWidth={ICON_STROKE} />
           </IconButton>
         </span>
       )}

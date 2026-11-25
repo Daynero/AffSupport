@@ -514,3 +514,54 @@ it('anchors a middle social to its flow placeholder while peers fold and restore
   expect(accountsWorkspaceApi.reorder).not.toHaveBeenCalled();
   proxy.remove();
 });
+
+it('keeps a dropped social where it was let go, and no earlier focus pulls the list to its end', async () => {
+  const view = start();
+  await screen.findByRole('button', { name: 'Collapse one' });
+  vi.mocked(accountsWorkspaceApi.reorder).mockReturnValue(new Promise(() => {}));
+  const table = view.container.querySelector<HTMLElement>('.team-accounts-table');
+  const group = drag.elements.get('three');
+  const heading = group?.querySelector<HTMLElement>('.team-account-head');
+  if (!table || !group || !heading) throw new Error('Missing middle social');
+  const rectangle = (top: number, height = 54) => ({
+    top,
+    left: 0,
+    width: 900,
+    height,
+    bottom: top + height,
+    right: 900,
+    x: 0,
+    y: top,
+    toJSON: () => ({})
+  });
+  vi.spyOn(table, 'getBoundingClientRect').mockImplementation(() => rectangle(100, 333));
+  Object.defineProperty(table, 'clientHeight', { configurable: true, value: 333 });
+  // The head sits 600px into the folded list and 1400px into the unfolded one.
+  const folded = () =>
+    view.container.querySelector('[data-account-id="one"]')?.classList.contains('is-collapsed');
+  vi.spyOn(heading, 'getBoundingClientRect').mockImplementation(() =>
+    rectangle((folded() ? 600 : 1400) - table.scrollTop)
+  );
+  // Something far down the list held the focus before the drag (a figure typed earlier).
+  const far = [...table.querySelectorAll<HTMLInputElement>('input')].at(-1);
+  if (!far) throw new Error('Missing a control to focus');
+  vi.spyOn(far, 'getBoundingClientRect').mockImplementation(() =>
+    rectangle(5000 - table.scrollTop, 30)
+  );
+  far.focus();
+  table.scrollTop = 1000;
+
+  capture('three');
+  // Dragged up the folded list: it settles 50px under the table's top edge.
+  table.scrollTop = 450;
+  finish();
+
+  // Unfolded, the head is still 50px under the top — where it was let go.
+  expect(table.scrollTop).toBe(1250);
+  expect(heading.getBoundingClientRect().top - 100).toBe(50);
+  // And stays there: no reveal of the old focus runs the list to its end.
+  await act(async () => {
+    await new Promise(resolve => setTimeout(resolve, 80));
+  });
+  expect(table.scrollTop).toBe(1250);
+});

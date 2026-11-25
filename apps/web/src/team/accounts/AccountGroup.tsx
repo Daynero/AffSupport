@@ -65,6 +65,8 @@ import { ArchivedAccountActions } from './AccountArchiveDrawer';
 import { agentCountKey, busyCountKey, freeCountKey, taskCountKey } from './plural';
 
 const ICON = 18;
+/** The disclosure plate's two glyphs, sized to sit in one 30px plate with room around them. */
+const TOGGLE_ICON = 16;
 
 /**
  * The hues an account can be known by.
@@ -391,6 +393,8 @@ export function AccountGroup({
   );
   const rowFocus = (agentRowId: string) => [
     `[data-agent-row-id="${agentRowId}"] .team-agent-run-add`,
+    // An agent with nothing on it offers its first note in words, in the Launch column.
+    `[data-agent-row-id="${agentRowId}"] .team-agent-note-add`,
     // The tag is text now, so the copy beside it is the row's first focusable.
     `[data-agent-row-id="${agentRowId}"] .team-agent-copy`
   ];
@@ -472,9 +476,12 @@ export function AccountGroup({
         >
           <span hidden ref={reorder.handleRef} />
           <div className="team-account-title" role="rowheader" aria-colspan={3}>
-            {/* The account's disclosure (070, T044): a real button with `aria-expanded`,
-                reached by Tab and pressed with Enter or Space. A press elsewhere on the
-                head folds too, for a pointer; the head lets a press on this go. */}
+            {/* The account's disclosure (070, T044) and its mark, as one plate: a real button
+                with `aria-expanded`, reached by Tab and pressed with Enter or Space. The chevron
+                and the account's icon were two plates of different sizes and colours side by side,
+                read as two buttons, and the chevron's hover plate sat on the account's rail (owner,
+                beta 25.11). The icon still tells the social account from the ad accounts under
+                it; a press elsewhere on the head folds too, for a pointer. */}
             <IconButton
               size="sm"
               className="team-account-toggle"
@@ -485,23 +492,24 @@ export function AccountGroup({
               title=""
               onClick={() => onCollapsedChange(open)}
             >
-              <ChevronDown size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
+              <ChevronDown
+                className="team-account-toggle-chevron"
+                size={TOGGLE_ICON}
+                strokeWidth={ICON_STROKE}
+                aria-hidden="true"
+              />
+              <UserRound
+                className="team-account-mark"
+                size={TOGGLE_ICON}
+                strokeWidth={ICON_STROKE}
+                aria-hidden="true"
+              />
             </IconButton>
-            {/* The social account: an icon and the name. The icon is what
-                tells it apart from the ad accounts listed under it. */}
-            <span className="team-account-mark" aria-hidden="true">
-              <UserRound size={ICON} strokeWidth={ICON_STROKE} />
-            </span>
             <h3 className="team-account-name" id={nameId} title={account.name}>
               {account.name}
             </h3>
             <span className="team-account-meta">
               {account.archivedAt && <span>{t('accountsArchived')}</span>}
-              {!!counts.unknown && (
-                <span>
-                  {t('teamAgentAvailabilityUnknown')} · {counts.unknown}
-                </span>
-              )}
               {counts.agents === 0 ? (
                 <span>
                   {t(account.agents.length ? 'accountsNoActiveAgents' : 'teamAccountAgentsNone')}

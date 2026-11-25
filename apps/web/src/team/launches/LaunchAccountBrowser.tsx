@@ -66,15 +66,8 @@ export function LaunchAccountBrowser({
   const rows = socialId ? shown.filter(account => account.id === socialId) : shown;
   const hasResults =
     socialId || search.trim() ? rows.some(account => account.agents.length > 0) : rows.length > 0;
-  const totals = {
-    all: counts.agents,
-    free: counts.free,
-    busy: counts.busy,
-    unknown: counts.unknown ?? 0
-  };
-  const filters: readonly TeamAccountOccupancyFilter[] = counts.unknown
-    ? ['all', 'free', 'busy', 'unknown']
-    : ['all', 'free', 'busy'];
+  const totals = { all: counts.agents, free: counts.free, busy: counts.busy };
+  const filters: readonly TeamAccountOccupancyFilter[] = ['all', 'free', 'busy'];
   return (
     <Modal
       layout="search"
@@ -94,7 +87,7 @@ export function LaunchAccountBrowser({
           value={search}
           onChange={event => setSearch(event.target.value)}
         />
-        {/* One of three or four, so the inventory's segmented control (070, T080). */}
+        {/* One of three, so the inventory's segmented control (070, T080). */}
         <SegmentedControl<TeamAccountOccupancyFilter>
           className="team-task-account-picker-occupancy"
           size="xs"
@@ -104,13 +97,11 @@ export function LaunchAccountBrowser({
           options={filters.map(filter => ({
             value: filter,
             label: `${t(
-              filter === 'unknown'
-                ? 'teamAgentAvailabilityUnknown'
-                : filter === 'all'
-                  ? 'teamAccountsFilterAll'
-                  : filter === 'free'
-                    ? 'teamAccountsFilterFree'
-                    : 'teamAccountsFilterBusy'
+              filter === 'all'
+                ? 'teamAccountsFilterAll'
+                : filter === 'free'
+                  ? 'teamAccountsFilterFree'
+                  : 'teamAccountsFilterBusy'
             )} · ${totals[filter]}`
           }))}
         />
@@ -161,14 +152,6 @@ export function LaunchAccountBrowser({
                               <span className="text-warning-text">
                                 {t('teamAccountsFilterBusy')} · {total.busy}
                               </span>
-                              {(total.unknown ?? 0) > 0 && (
-                                <>
-                                  {' · '}
-                                  <span className="text-muted">
-                                    {t('teamAgentAvailabilityUnknown')} · {total.unknown}
-                                  </span>
-                                </>
-                              )}
                             </>
                           )}
                         </small>
@@ -203,13 +186,7 @@ export function LaunchAccountBrowser({
                             />
                             <small className="font-mono">ID {agent.agentId}</small>
                             <small className={free ? 'text-success-text' : 'text-warning-text'}>
-                              {t(
-                                availability === 'unknown'
-                                  ? 'teamAgentAvailabilityUnknown'
-                                  : free
-                                    ? 'teamAgentFree'
-                                    : 'teamAgentBusy'
-                              )}
+                              {t(free ? 'teamAgentFree' : 'teamAgentBusy')}
                             </small>
                             {(agent.availability?.assignmentCount ?? 0) > 0 && (
                               <small>

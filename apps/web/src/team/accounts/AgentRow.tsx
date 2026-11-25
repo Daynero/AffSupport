@@ -4,15 +4,16 @@ import { TEAM_ACCOUNT_NAME_COLORS, type TeamAccountNameColor } from '@video-comp
  * One agent under an account, in whichever of its states it is in.
  *
  * Reading it, left to right: the agent as `v31-434`, the one word that says
- * whether it is free or running, the runs written on it — one line each,
- * dated — its money, and one thing to do to it: write a run, or free it.
+ * whether it is busy or free, what holds it — the launches linked to it, then
+ * the notes written on it by hand, one line each, dated — its money, and the
+ * things done to the agent itself: another note, or free it.
  *
- * Everything else is behind the row's "…" (070, T041/T042; 024 US14): copying
- * the full id, the money's history, correcting or deleting a run, and the
- * agent's own edit, move, order, archive and delete. A pencil and a bin on
- * every run line and a copy button beside every id were nine small controls
- * on a row that has one job; the menu's entries come from one registry,
- * `agentActions.tsx`, so a run's delete can never sit next to the agent's.
+ * A note carries its own colour dot, "Edit" and "Delete" (`AgentRunNote`, owner
+ * 25.11: a whole line that silently cycled a colour was read as a launch that
+ * could not be deleted). Everything about the agent itself is behind the row's
+ * "…" (070, T041/T042): copying the full id, the money's history, the notes
+ * again, and the agent's own edit, move, order, archive and delete; its entries
+ * come from one registry, `agentActions.tsx`.
  *
  * Being corrected: the same row. The id is edited as a field in place of the
  * chip; a run is edited as a field in place of its line; a new run is a field
@@ -22,7 +23,6 @@ import { TEAM_ACCOUNT_NAME_COLORS, type TeamAccountNameColor } from '@video-comp
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Check, CircleCheck, MoreHorizontal, Plus, X } from 'lucide-react';
 import {
-  nextTeamAgentRunMarker,
   getTeamAgentAvailability,
   normalizeTeamAgentId,
   normalizeTeamAgentNote,
@@ -38,7 +38,7 @@ import { useToasts } from '../../components/toast';
 import { useI18n, type Language, type TranslationKey } from '../../i18n';
 import { internalLink } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
-import { Marked } from './Marked';
+import { AgentRunNote } from './AgentRunNote';
 import { AgentIdentity } from './AgentIdentity';
 import { AgentLabels } from './AgentLabels';
 import { AgentTasksPeek } from './AgentTasksPeek';
@@ -94,14 +94,6 @@ export function runAgeLabel(createdAt: string, language: Language): string | nul
   );
 }
 
-/** What the run's marker is called, for the press's own label. */
-function markerLabelKey(marker: TeamAgentRunMarker | null): TranslationKey {
-  if (marker === 'green') return 'teamAgentRunMarkerGreen';
-  if (marker === 'amber') return 'teamAgentRunMarkerAmber';
-  if (marker === 'red') return 'teamAgentRunMarkerRed';
-  return 'teamAgentRunMarkerNone';
-}
-
 /** The codes the row explains itself; everything else goes through the shared copy. */
 function agentErrorKey(error: unknown): TranslationKey {
   if (error && typeof error === 'object' && 'code' in error) {
@@ -124,15 +116,7 @@ export function agentTooltip(
   ];
   for (const run of agent.runs) lines.push(t('teamAgentTooltipRun', { note: run.note }));
   const availability = getTeamAgentAvailability(agent);
-  lines.push(
-    t(
-      availability === 'unknown'
-        ? 'teamAgentAvailabilityUnknown'
-        : availability === 'free'
-          ? 'teamAgentFree'
-          : 'teamAgentBusy'
-    )
-  );
+  lines.push(t(availability === 'free' ? 'teamAgentFree' : 'teamAgentBusy'));
   if (agent.availability?.assignmentCount)
     lines.push(t('launchesAssignmentCount', { count: agent.availability.assignmentCount }));
   return lines.join('\n');
@@ -283,6 +267,20 @@ export function AgentRow({
 
   const editingNew = runEditing !== null && runEditing.runId === null;
   /**
+   * Nothing at all in the Launch column — no launch held, no note: the way to write the first
+   * note is said there, in words. Once the column holds anything, the plus in the buttons'
+   * column adds the next note and the row keeps its height.
+   */
+  const holdsLaunch =
+    (agent.availability?.assignmentCount ?? 0) + (agent.availability?.legacyCount ?? 0) > 0;
+  const inlineAdd =
+    canEdit &&
+    agent.runs.length === 0 &&
+    !holdsLaunch &&
+    !editingNew &&
+    !agent.archivedAt &&
+    !parentArchived;
+  /**
    * While a run of this row is being written, the buttons that would throw it
    * away wait: freeing the agent or deleting the line under the caret is never
    * what the press meant.
@@ -295,16 +293,16 @@ export function AgentRow({
     }
   )}`;
   /**
-   * Writing a run is the point of the row, so the control says so in words.
-   * On a free agent it is the row's own call to action, in place of the runs
-   * it does not have; on a busy one it is a quiet "+ Run" after the last line.
+   * One more note on an agent that already carries one. The first note is offered in words in
+   * the Launch column (`inlineAdd`); once there are notes, this plus in the buttons' column adds
+   * the next, and its hint says it is a note — not a launch.
    */
   const addRunButton = (
     <IconButton
       size="sm"
       className="team-agent-run-add"
       label={named('teamAgentRunAdd')}
-      title={t('teamAgentRunAddShort')}
+      title={named('teamAgentRunAdd')}
       disabled={waiting || editingNew}
       onClick={() => onRunEditingChange({ runId: null })}
     >
@@ -334,27 +332,6 @@ export function AgentRow({
         }
       />
     ) : null;
-
-  /*
-   * The same control on a free agent, filled rather than outlined: nothing
-   * else in its row competes with it. It says the same short word as the busy
-   * row's, because the two now sit in one column of buttons and a column whose
-   * items are different widths reads as a mistake; which of the two it is, is
-   * said by the label a screen reader hears and by the Status column beside
-   * it.
-   */
-  const assignRunButton = (
-    <IconButton
-      size="sm"
-      className="team-agent-run-add is-assign"
-      label={named('teamAgentRunAssign')}
-      title={t('teamAgentRunAddShort')}
-      disabled={waiting || editingNew}
-      onClick={() => onRunEditingChange({ runId: null })}
-    >
-      <Plus size={ICON} strokeWidth={ICON_STROKE} aria-hidden="true" />
-    </IconButton>
-  );
 
   return (
     <TableRow
@@ -426,15 +403,7 @@ export function AgentRow({
           className={`team-agent-state${agent.archivedAt ? ' is-archived' : free ? ' is-free' : ' is-busy'}`}
         >
           <span className="team-agent-state-dot" aria-hidden="true" />
-          {agent.archivedAt
-            ? t('accountsArchived')
-            : t(
-                availability === 'unknown'
-                  ? 'teamAgentAvailabilityUnknown'
-                  : free
-                    ? 'teamAgentFree'
-                    : 'teamAgentBusy'
-              )}
+          {agent.archivedAt ? t('accountsArchived') : t(free ? 'teamAgentFree' : 'teamAgentBusy')}
         </span>
         {/* Under the state, the same place on every row (024). On the last run's line it
             pushed that run's age out of line with the others, and on a free agent it stood
@@ -458,44 +427,40 @@ export function AgentRow({
               onSaved={() => onRunEditingChange(null)}
             />
           ) : (
-            <div
+            <AgentRunNote
               key={item.id}
-              className={`team-agent-run${item.marker ? ` is-marked is-${item.marker}` : ''}`}
-              data-run-id={item.id}
-              data-marker={item.marker ?? 'none'}
-              onClick={event => {
-                const target = event.target;
-                if (!(target instanceof HTMLElement)) return;
-                if (target.closest('button, a, input, textarea, select, [role="button"]')) return;
-                if (waiting || editingRun) return;
-                void run(() => onSetRunMarker(item, nextTeamAgentRunMarker(item.marker)));
-              }}
-            >
-              {/*
-               * The whole run is the target, as a button laid under its own
-               * text rather than around it: the pencil, the bin and the tasks
-               * link inside it are buttons and links of their own, and one
-               * cannot be nested in another. A press cycles the colour —
-               * unmarked, green, amber, red — so marking costs no menu, and
-               * four presses always put the run back where it was.
-               */}
-              {canEdit && (
-                <Button
-                  variant="ghost"
-                  className="team-agent-run-mark"
-                  aria-label={`${t('teamAgentRunMark')}: ${item.note} · ${t(markerLabelKey(item.marker))}`}
-                  disabled={waiting || editingRun}
-                  onClick={() =>
-                    void run(() => onSetRunMarker(item, nextTeamAgentRunMarker(item.marker)))
-                  }
-                />
-              )}
-              <span className="team-agent-run-text" title={item.note}>
-                <Marked text={item.note} term={search} />
-              </span>
-              <RunAge createdAt={item.createdAt} />
-            </div>
+              run={item}
+              canEdit={canEdit}
+              search={search}
+              disabled={editingRun}
+              busy={waiting}
+              age={<RunAge createdAt={item.createdAt} />}
+              onSetMarker={marker => void run(() => onSetRunMarker(item, marker))}
+              onEdit={() => onRunEditingChange({ runId: item.id })}
+              // The line and its bin are gone once the write lands; the row's "…" takes the
+              // focus, so a keyboard is not dropped back to the top of the page.
+              onDelete={() =>
+                void run(() => onDeleteRun(item)).then(() =>
+                  requestAnimationFrame(() => menuTrigger.current?.focus())
+                )
+              }
+            />
           )
+        )}
+        {/* An agent with nothing written on it says, in words, what can be written: a note.
+            "+" alone in the buttons' column read as "add a launch" (owner, beta 25.11). */}
+        {inlineAdd && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="team-agent-note-add"
+            aria-label={named('teamAgentRunAdd')}
+            leading={<Plus size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+            disabled={waiting}
+            onClick={() => onRunEditingChange({ runId: null })}
+          >
+            {t('teamAgentRunAddShort')}
+          </Button>
         )}
         {editingNew && (
           <RunField
@@ -521,7 +486,7 @@ export function AgentRow({
              * press it. Here the eye runs down one column and finds both.
              */}
             <div className="team-agent-actions-stack">
-              {free ? assignRunButton : addRunButton}
+              {!inlineAdd && addRunButton}
               {/* Freeing an agent is the one thing done to the agent itself
                   often enough to be worth a word and a place of its own. */}
               {availability === 'busy' && (

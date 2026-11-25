@@ -102,34 +102,30 @@ export function LaunchCard({
     assignment?.state === 'assigned' &&
     assignment.agentRowId !== null &&
     assignment.agentRowId === assignment.sourceAgentRowId;
-  const accountStatus: 'free' | 'busy' | 'unknown' | 'historical' = assignment
-    ? assignment.state === 'legacy_unknown'
-      ? 'unknown'
-      : !matchingCurrentAssignment
-        ? 'historical'
-        : value.agentFree === false
-          ? 'busy'
-          : 'unknown' // A confirmed assignment and "free" contradict each other.
+  /*
+   * Busy or free, nothing in between (owner, beta 25.11): a launch held on the account — confirmed
+   * or carried over from before assignments were recorded — makes it busy. "historical" is not an
+   * occupancy but this launch's own story (it ran on an account it no longer holds); "neutral" is
+   * only a page that has not been told yet, and says nothing rather than guess.
+   */
+  const accountStatus: 'free' | 'busy' | 'historical' | 'neutral' = assignment
+    ? assignment.state === 'legacy_unknown' || matchingCurrentAssignment
+      ? 'busy'
+      : 'historical'
     : value.agentFree === true
       ? 'free'
       : value.agentFree === false
         ? 'busy'
-        : 'unknown';
+        : 'neutral';
   const accountTooltip = [
     t('teamAgentTooltipAccount', { name: accountLabel }),
     t('teamAgentTooltipId', { id: value.agentId || value.agentSuffix || '' }),
     ...(matchingCurrentAssignment ? [t('launchesAssignmentCurrentAccount')] : []),
-    accountStatus === 'historical'
-      ? t('launchesAssignmentOriginalAccount')
-      : assignment?.state === 'legacy_unknown'
-        ? t('launchesAssignmentLegacy')
-        : t(
-            accountStatus === 'unknown'
-              ? 'teamAgentAvailabilityUnknown'
-              : accountStatus === 'busy'
-                ? 'teamAgentBusy'
-                : 'teamAgentFree'
-          )
+    ...(accountStatus === 'historical'
+      ? [t('launchesAssignmentOriginalAccount')]
+      : accountStatus === 'neutral'
+        ? []
+        : [t(accountStatus === 'busy' ? 'teamAgentBusy' : 'teamAgentFree')])
   ].join('\n');
   // 062: the first creative names the launch; the others show as a count — unless several
   // creatives were given a name of their own, which then names them here as everywhere.
@@ -193,7 +189,7 @@ export function LaunchCard({
         </Button>
         {accountChipLabel && (
           <span
-            className={`team-task-agent-chip${accountStatus === 'free' ? ' is-free' : accountStatus === 'unknown' || accountStatus === 'historical' ? ' is-neutral' : ''}`}
+            className={`team-task-agent-chip${accountStatus === 'free' ? ' is-free' : accountStatus === 'neutral' || accountStatus === 'historical' ? ' is-neutral' : ''}`}
             data-availability={accountStatus}
             title={accountTooltip}
           >

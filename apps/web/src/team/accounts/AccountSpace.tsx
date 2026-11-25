@@ -80,7 +80,7 @@ import { financeToday } from '@video-compressor/shared';
 
 export type AccountSpaceClient = AccountsClient & TaskLabelsClient;
 
-const OCCUPANCY: readonly TeamAccountOccupancyFilter[] = ['all', 'free', 'busy', 'unknown'];
+const OCCUPANCY: readonly TeamAccountOccupancyFilter[] = ['all', 'free', 'busy'];
 
 /** Which editor is open: the new-account row, or one row inside one account. */
 type Editor = { kind: 'create' } | { kind: 'account'; accountId: string; state: AgentEditing };
@@ -662,23 +662,15 @@ function AccountSpaceContent({
   const allCollapsed = visible.length > 0 && visible.every(account => collapsed.has(account.id));
 
   const occupancyCount = (value: TeamAccountOccupancyFilter) =>
-    value === 'all'
-      ? counts.agents
-      : value === 'unknown'
-        ? (counts.unknown ?? 0)
-        : value === 'free'
-          ? counts.free
-          : counts.busy;
+    value === 'all' ? counts.agents : value === 'free' ? counts.free : counts.busy;
 
   const occupancyLabel = (value: TeamAccountOccupancyFilter) =>
     t(
       value === 'all'
         ? 'teamAccountsFilterAll'
-        : value === 'unknown'
-          ? 'teamAgentAvailabilityUnknown'
-          : value === 'free'
-            ? 'teamAccountsFilterFree'
-            : 'teamAccountsFilterBusy'
+        : value === 'free'
+          ? 'teamAccountsFilterFree'
+          : 'teamAccountsFilterBusy'
     );
 
   const panel = useRef<HTMLElement>(null);
@@ -1069,7 +1061,10 @@ function AccountSpaceContent({
     });
   };
 
-  /** Deleting one run gets the same undo. */
+  /**
+   * Deleting one note gets the same undo, and the undo brings its colour back too: a red note
+   * restored as an unmarked one is not the note that was deleted.
+   */
   const deleteRun = async (agent: TeamAccountAgentSummary, run: TeamAgentRun) => {
     await accounts.deleteRun(run.id);
     push({
@@ -1080,7 +1075,11 @@ function AccountSpaceContent({
         run: async () => {
           markPending(agent.id, true);
           try {
-            await accounts.addRun(agent, run.note);
+            const restored = await accounts.addRun(agent, run.note);
+            // Runs come oldest first, so the note just written back is the last one.
+            const added = restored.runs.at(-1);
+            if (added?.note === run.note && run.marker)
+              await accounts.setRunMarker(added.id, run.marker);
           } catch (cause) {
             push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
           } finally {
@@ -1265,23 +1264,14 @@ function AccountSpaceContent({
                   label={t('teamAccountsFilterLabel')}
                   value={occupancy}
                   onChange={setOccupancy}
-                  options={OCCUPANCY.filter(
-                    value => value !== 'unknown' || counts.unknown || occupancy === 'unknown'
-                  ).map(value => ({
+                  options={OCCUPANCY.map(value => ({
                     value,
-                    /* "Occupancy not confirmed" is four words in a row of one-word
-                       segments: it says "?" there, and its whole name in the hint and
-                       to a screen reader. */
-                    title:
-                      value === 'unknown'
-                        ? `${occupancyLabel(value)} · ${occupancyCount(value)}`
-                        : undefined,
                     label: (
                       <span className={`team-accounts-occupancy-option is-${value}`}>
                         {value !== 'all' && (
                           <span className="team-accounts-occupancy-dot" aria-hidden="true" />
                         )}
-                        <span>{value === 'unknown' ? '?' : occupancyLabel(value)}</span>
+                        <span>{occupancyLabel(value)}</span>
                         <b className="numeric">{occupancyCount(value)}</b>
                       </span>
                     )
@@ -1481,7 +1471,6 @@ function AccountSpaceContent({
                               teamId={teamId}
                               launch={launch}
                               canEdit={canEdit}
-                              canAssign={canEdit && !account.archivedAt && !agent.archivedAt}
                               canMutate={() =>
                                 assignmentScope.current.alive &&
                                 assignmentScope.current.canEdit &&

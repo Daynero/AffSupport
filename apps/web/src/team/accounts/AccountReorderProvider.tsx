@@ -25,6 +25,7 @@ import { useI18n } from '../../i18n';
 import { accountFlowId, emitAccountSignal } from './analytics';
 import { accountCenterCollision } from './accountCollision';
 import { afterAccountDrop } from './afterAccountDrop';
+import { releaseAccountFocusAnchor } from './accountFocusAnchor';
 import { AccountHoldConstraint, AccountHoldProgress, type HoldPoint } from './AccountHoldProgress';
 
 type Kind = 'social' | 'agent';
@@ -121,6 +122,9 @@ export function AccountReorderProvider({
     left: number;
     canvas: HTMLElement | null;
     minimumHeight: string;
+    keyboard: boolean;
+    /** Measured where the account settled after a drop (not a cancel). */
+    settled?: boolean;
   } | null>(null);
   useLayoutEffect(() => {
     const anchor = viewportAnchor.current;
@@ -143,12 +147,28 @@ export function AccountReorderProvider({
     if (heading) {
       const captions =
         anchor.table.querySelector('.team-accounts-columns')?.getBoundingClientRect().height ?? 0;
-      const offset = active ? anchor.offset : Math.max(anchor.offset, captions);
+      // After the drop the head stays where it was let go, and always inside the view: under
+      // the captions, and not past the bottom edge.
+      const offset = active
+        ? anchor.offset
+        : !anchor.settled
+          ? Math.max(anchor.offset, captions)
+          : Math.min(
+              Math.max(anchor.offset, captions),
+              Math.max(captions, anchor.table.clientHeight - heading.getBoundingClientRect().height)
+            );
       anchor.table.scrollTop +=
         heading.getBoundingClientRect().top - anchor.table.getBoundingClientRect().top - offset;
       anchor.table.scrollLeft = anchor.left;
     }
-    if (!active) viewportAnchor.current = null;
+    if (!active) {
+      // The view was just placed on purpose. A guard re-created as the accounts unfold must not
+      // pull it to whatever was focused before the drag (owner, beta 25.11: every drop ran the
+      // list to its end). A keyboard drop keeps its focus on the moved account, which is on
+      // screen, so it loses nothing here.
+      if (!anchor.keyboard) releaseAccountFocusAnchor(anchor.table);
+      viewportAnchor.current = null;
+    }
   }, [active]);
   const latest = useRef(items);
   latest.current = items;
@@ -312,7 +332,8 @@ export function AccountReorderProvider({
                 minimumHeight:
                   preparedCanvas.current?.element === canvas
                     ? preparedCanvas.current.minimumHeight
-                    : (canvas?.style.minHeight ?? '')
+                    : (canvas?.style.minHeight ?? ''),
+                keyboard: event.operation.activatorEvent instanceof KeyboardEvent
               };
           }
           setPreparingSocial(null);
@@ -334,6 +355,24 @@ export function AccountReorderProvider({
           if (before?.kind === 'social') {
             setFinishingSocial(true);
             dropCleanup.current = afterAccountDrop(event.operation.source?.element, () => {
+              /*
+               * Where the account settled, with every account still folded: the place the
+               * person let it go. The unfold keeps it there rather than at the place it was
+               * picked up from, which after a long drag was a screen or more away.
+               */
+              const anchor = viewportAnchor.current;
+              if (anchor && !event.canceled) {
+                const settled = [
+                  ...anchor.table.querySelectorAll<HTMLElement>(
+                    '.team-account-head[data-reorder-id]'
+                  )
+                ].find(element => element.dataset.reorderId === anchor.id);
+                if (settled?.isConnected) {
+                  anchor.offset =
+                    settled.getBoundingClientRect().top - anchor.table.getBoundingClientRect().top;
+                  anchor.settled = true;
+                }
+              }
               preparedCanvas.current = null;
               setFinishingSocial(false);
               setActive(null);

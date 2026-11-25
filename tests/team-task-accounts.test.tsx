@@ -294,7 +294,7 @@ describe('a card', () => {
     expect(chips[1]?.classList.contains('is-free')).toBe(false);
     // The tooltip spells out what the chip abbreviates: account, full id, runs.
     expect(chips[1]?.getAttribute('title')).toBe(
-      'Account: v31\nID: 1000098765434\nRun: Pro Caps | TR 02/09\nBusy'
+      'Account: v31\nID: 1000098765434\nNote: Pro Caps | TR 02/09\nBusy'
     );
     unmount();
 
@@ -324,7 +324,7 @@ describe('a chip on a card', () => {
     expect(screen.queryByRole('link')).toBeNull();
   });
 
-  it('says when the agent is held by launches, and when its state is not confirmed', () => {
+  it('says when the agent is held by launches, and reads an unconfirmed state as busy', () => {
     const unknown: TeamTaskAgentTag = {
       ...tagFor(A401),
       availability: { status: 'unknown', assignmentCount: 0, legacyCount: 0 }
@@ -335,7 +335,7 @@ describe('a chip on a card', () => {
     };
     renderRaw(<TaskAgentTagList tags={[unknown, assigned]} />);
     expect(screen.getByText('v31-401').getAttribute('title')).toBe(
-      'Account: v31\nID: 1000098765401\nAvailability unconfirmed'
+      'Account: v31\nID: 1000098765401\nBusy'
     );
     expect(screen.getByText('v3-211').getAttribute('title')).toBe(
       'Account: v3\nID: 1000011122211\nBusy\nCurrent launch assignments: 2'
@@ -448,7 +448,7 @@ describe('the editor', () => {
         note: 'Pro Caps | TR 05/09'
       })
     );
-    await waitFor(() => expect(screen.getByText('Runs:')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Notes:')).toBeTruthy());
     expect(screen.getByText('Run written onto v31-401')).toBeTruthy();
     // The chip's dot follows: no longer free.
     expect(screen.getByRole('button', { name: /^v31-401/ }).classList.contains('is-free')).toBe(
@@ -476,7 +476,7 @@ describe('the editor', () => {
     expect(within(panel).getByText('Pro Caps | TR 02/09')).toBeTruthy();
 
     await user.click(
-      within(panel).getByRole('button', { name: 'Edit the run: Pro Caps | TR 02/09' })
+      within(panel).getByRole('button', { name: 'Edit the note: Pro Caps | TR 02/09' })
     );
     const edit = screen.getByRole('textbox', { name: 'Run to write onto the ad account' });
     expect((edit as HTMLInputElement).value).toBe('Pro Caps | TR 02/09');
@@ -490,7 +490,7 @@ describe('the editor', () => {
     await waitFor(() => expect(within(panel).getByText('Pro Caps | TR 03/09')).toBeTruthy());
 
     await user.click(
-      within(panel).getByRole('button', { name: 'Delete the run: Keto | PL 06/09' })
+      within(panel).getByRole('button', { name: 'Delete the note: Keto | PL 06/09' })
     );
     await waitFor(() => expect(within(panel).queryByText('Keto | PL 06/09')).toBeNull());
     await user.click(await screen.findByRole('button', { name: 'Undo' }));
@@ -612,10 +612,8 @@ describe('the editor', () => {
     const user = userEvent.setup();
     openEditor(api, [unknown, assigned]);
 
-    await user.click(screen.getByRole('button', { name: 'v31-401 — Availability unconfirmed' }));
-    expect(
-      within(screen.getByRole('region', { name: 'v31-401' })).getByText('Availability unconfirmed')
-    ).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'v31-401 — Busy' }));
+    expect(within(screen.getByRole('region', { name: 'v31-401' })).getByText('Busy')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: /^v3-211/ }));
     const panel = screen.getByRole('region', { name: 'v3-211' });
@@ -697,7 +695,7 @@ describe('the editor, when a write does not land', () => {
     await user.click(screen.getByRole('button', { name: /^v31-434/ }));
     const panel = screen.getByRole('region', { name: 'v31-434' });
     await user.click(
-      within(panel).getByRole('button', { name: 'Delete the run: Pro Caps | TR 02/09' })
+      within(panel).getByRole('button', { name: 'Delete the note: Pro Caps | TR 02/09' })
     );
     await waitFor(() => expect(within(panel).queryByText('Pro Caps | TR 02/09')).toBeNull());
     vi.mocked(api.addAgentRun).mockRejectedValueOnce(new Error('offline'));
@@ -713,7 +711,7 @@ describe('the editor, when a write does not land', () => {
     await user.click(screen.getByRole('button', { name: /^v31-434/ }));
     const panel = screen.getByRole('region', { name: 'v31-434' });
     await user.click(
-      within(panel).getByRole('button', { name: 'Edit the run: Pro Caps | TR 02/09' })
+      within(panel).getByRole('button', { name: 'Edit the note: Pro Caps | TR 02/09' })
     );
     const field = screen.getByRole('textbox', { name: 'Run to write onto the ad account' });
     await user.clear(field);

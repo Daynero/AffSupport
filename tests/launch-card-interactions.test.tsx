@@ -138,8 +138,9 @@ it('does not show a missing availability observation as a green Free source chip
   const chip = screen.getByText('g1-892').closest<HTMLElement>('.team-task-agent-chip')!;
   expect(chip.classList.contains('is-free')).toBe(false);
   expect(chip.classList.contains('is-neutral')).toBe(true);
-  expect(chip.dataset.availability).toBe('unknown');
-  expect(chip.title).toContain('Availability unconfirmed');
+  // Not told yet is not a third state: the chip simply says nothing about occupancy.
+  expect(chip.dataset.availability).toBe('neutral');
+  expect(chip.title).not.toMatch(/unconfirmed|Free|Busy/);
 });
 
 it.each(['unassigned', 'released', 'reassigned'] as const)(
@@ -170,7 +171,7 @@ it.each(['unassigned', 'released', 'reassigned'] as const)(
   }
 );
 
-it('shows legacy unconfirmed assignment as unknown rather than busy or free', () => {
+it('shows a launch linked before assignments were recorded as busy: no third state', () => {
   render(
     <LaunchCard
       value={summary({
@@ -188,9 +189,10 @@ it('shows legacy unconfirmed assignment as unknown rather than busy or free', ()
     />
   );
   const chip = screen.getByText('g1-892').closest<HTMLElement>('.team-task-agent-chip')!;
-  expect(chip.dataset.availability).toBe('unknown');
-  expect(chip.title).toContain('Historical link · current assignment unconfirmed');
-  expect(chip.title).not.toContain('Busy');
+  expect(chip.dataset.availability).toBe('busy');
+  expect(chip.classList.contains('is-neutral')).toBe(false);
+  expect(chip.title).toContain('Busy');
+  expect(chip.title).not.toMatch(/unconfirmed/);
 });
 
 it('shows a confirmed assignment on its original source RK as busy', () => {
@@ -216,7 +218,7 @@ it('shows a confirmed assignment on its original source RK as busy', () => {
   expect(chip.title).toContain('Busy');
 });
 
-it('does not label contradictory assigned-and-free observations as known Free', () => {
+it('reads an assignment as busy even when a stale observation says free', () => {
   render(
     <LaunchCard
       value={summary({
@@ -234,7 +236,7 @@ it('does not label contradictory assigned-and-free observations as known Free', 
     />
   );
   const chip = screen.getByText('g1-892').closest<HTMLElement>('.team-task-agent-chip')!;
-  expect(chip.dataset.availability).toBe('unknown');
+  expect(chip.dataset.availability).toBe('busy');
   expect(chip.classList.contains('is-free')).toBe(false);
 });
 

@@ -95,14 +95,17 @@ it('keeps an uncertain request key and version for readback/retry rather than ma
     vi.mocked(launchAssignmentsApi.set).mock.calls[0][0]
   );
 });
-it('lets an editor confirm legacy links as current or history without deleting the Launch', () => {
+it('reads a link carried over from before assignments as a plain launch: no third state', () => {
   mount({ ...launch, assignmentState: 'legacy_unknown' });
+  expect(document.body.textContent).not.toMatch(/unconfirmed/i);
   expect(
-    screen.getByRole('button', { name: 'Assign ad account: TR_12 · 2026-10-26' })
-  ).toBeTruthy();
+    screen.queryByRole('button', { name: 'Assign ad account: TR_12 · 2026-10-26' })
+  ).toBeNull();
   expect(
-    screen.getByRole('button', { name: 'Keep as history only: TR_12 · 2026-10-26' })
+    screen.getByRole('button', { name: 'Detach from ad account: TR_12 · 2026-10-26' })
   ).toBeTruthy();
+  // A rocket marks it as a launch, where a note carries its colour dot.
+  expect(document.querySelector('.team-agent-run-kind svg')).toBeTruthy();
 });
 it('keeps navigation but offers no mutation controls to a reader', () => {
   mount(launch, false);

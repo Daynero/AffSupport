@@ -71,15 +71,7 @@ function chipTooltip(
   ];
   for (const run of tag.runs) lines.push(t('teamAgentTooltipRun', { note: run.note }));
   const availability = getTeamAgentAvailability(tag);
-  lines.push(
-    t(
-      availability === 'unknown'
-        ? 'teamAgentAvailabilityUnknown'
-        : availability === 'free'
-          ? 'teamAgentFree'
-          : 'teamAgentBusy'
-    )
-  );
+  lines.push(t(availability === 'free' ? 'teamAgentFree' : 'teamAgentBusy'));
   if ((tag.availability?.assignmentCount ?? 0) > 0)
     lines.push(t('launchesAssignmentCount', { count: tag.availability!.assignmentCount }));
   return lines.join('\n');
@@ -141,7 +133,7 @@ function TagChip({
       className={className}
       title={title}
       aria-pressed={selected}
-      aria-label={`${label} — ${availability === 'unknown' ? t('teamAgentAvailabilityUnknown') : free ? t('teamAgentFree') : teamAgentRunsSummary(tag) || t('teamAgentBusy')}`}
+      aria-label={`${label} — ${free ? t('teamAgentFree') : teamAgentRunsSummary(tag) || t('teamAgentBusy')}`}
       onClick={onSelect}
     >
       <span className="team-task-agent-chip-dot" aria-hidden="true" />
@@ -403,13 +395,13 @@ export function TaskAgentTagsEditor({
             />
             <strong className="team-task-agent-panel-tag">{teamTaskAgentTagLabel(openTag)}</strong>
             <span className="team-task-agent-panel-state">
-              {getTeamAgentAvailability(openTag) === 'unknown'
-                ? t('teamAgentAvailabilityUnknown')
-                : isTeamAgentFree(openTag)
-                  ? t('teamTaskAgentIsFree')
-                  : (openTag.availability?.assignmentCount ?? 0) > 0
-                    ? t('launchesAssignmentCount', { count: openTag.availability!.assignmentCount })
-                    : t('teamTaskAgentRuns')}
+              {isTeamAgentFree(openTag)
+                ? t('teamTaskAgentIsFree')
+                : (openTag.availability?.assignmentCount ?? 0) > 0
+                  ? t('launchesAssignmentCount', { count: openTag.availability!.assignmentCount })
+                  : openTag.runs.length > 0
+                    ? t('teamTaskAgentRuns')
+                    : t('teamAgentBusy')}
             </span>
             {teamId && (
               <a

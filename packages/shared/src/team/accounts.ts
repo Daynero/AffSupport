@@ -315,16 +315,30 @@ export interface TeamAccountSummary extends TeamAccountWorkspaceMetadata {
   agents: TeamAccountAgentSummary[];
 }
 
-/** Missing wire authority is unknown; in-memory legacy fixtures retain their old contract. */
+/**
+ * Whether an agent is taken, in the only two words a person reads it in: busy or free (owner,
+ * beta 25.11 — "it is either taken or it is not"). Anything holding it makes it busy: a run
+ * written by hand, a launch assigned to it, or a launch linked to it before assignments were
+ * recorded (`legacyCount`) — a linked launch is a linked launch, however old the link. Nothing
+ * holding it is free. The wire's own `unknown` (an older server; a payload that did not say) is
+ * not a third state on the screen either: it reads busy, because a busy agent shown as free is
+ * one a launch gets put on twice, and a free one shown as busy costs only a look.
+ */
+export type TeamAgentOccupancy = 'free' | 'busy';
+
 export function getTeamAgentAvailability(agent: {
   runs: readonly TeamAgentRun[];
   availability?: TeamAgentAvailability;
-}): TeamAgentAvailabilityStatus {
-  if (agent.runs.length > 0 || (agent.availability?.assignmentCount ?? 0) > 0) return 'busy';
-  if (!agent.availability) return 'free';
-  if (agent.availability.status === 'busy') return 'busy';
-  if (agent.availability.legacyCount > 0 || agent.availability.status === 'unknown')
-    return 'unknown';
+}): TeamAgentOccupancy {
+  if (agent.runs.length > 0) return 'busy';
+  const availability = agent.availability;
+  if (!availability) return 'free';
+  if (
+    availability.status !== 'free' ||
+    availability.assignmentCount > 0 ||
+    availability.legacyCount > 0
+  )
+    return 'busy';
   return 'free';
 }
 
@@ -490,7 +504,7 @@ export function sortTeamAgents<
   });
 }
 
-export type TeamAccountOccupancyFilter = 'all' | 'free' | 'busy' | 'unknown';
+export type TeamAccountOccupancyFilter = 'all' | 'free' | 'busy';
 
 /** The marker filter: every agent, or only those carrying a run of one colour. */
 export type TeamAccountMarkerFilter = 'all' | TeamAgentRunMarker;
@@ -574,8 +588,6 @@ export interface TeamAccountCounts {
   agents: number;
   free: number;
   busy: number;
-  /** Missing authority is separate from both free and busy. Omitted when zero. */
-  unknown?: number;
   /**
    * Agents, not runs: the number on a marker chip is how many rows pressing it
    * leaves on screen, which is the only figure a filter chip can promise.
@@ -588,7 +600,6 @@ export function countTeamAccounts(accounts: readonly TeamAccountSummary[]): Team
   let agents = 0;
   let free = 0;
   let busy = 0;
-  let unknown = 0;
   const markers: Record<TeamAgentRunMarker, number> = { green: 0, amber: 0, red: 0 };
   for (const account of accounts) {
     if (account.archivedAt) continue;
@@ -596,16 +607,14 @@ export function countTeamAccounts(accounts: readonly TeamAccountSummary[]): Team
     for (const agent of account.agents) {
       if (agent.archivedAt) continue;
       agents += 1;
-      const availability = getTeamAgentAvailability(agent);
-      if (availability === 'free') free += 1;
-      else if (availability === 'busy') busy += 1;
-      else unknown += 1;
+      if (getTeamAgentAvailability(agent) === 'free') free += 1;
+      else busy += 1;
       for (const marker of TEAM_AGENT_RUN_MARKERS) {
         if (teamAgentHasMarker(agent, marker)) markers[marker] += 1;
       }
     }
   }
-  return { accounts: activeAccounts, agents, free, busy, ...(unknown ? { unknown } : {}), markers };
+  return { accounts: activeAccounts, agents, free, busy, markers };
 }
 
 function parseWorkspaceMetadata(

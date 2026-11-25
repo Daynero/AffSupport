@@ -28,6 +28,9 @@ export function scheduleAccountFocusReveal(table: HTMLElement): void {
       table.querySelector('.team-accounts-columns')?.getBoundingClientRect().height ?? 0;
     const top = box.top + captions;
     const bottom = box.top + table.clientHeight;
+    // A target taller than the view is a container — a whole account, the list — never a
+    // control. "Revealing" it meant scrolling to its bottom edge: after a drop, the list's end.
+    if (field.height > bottom - top) return;
     if (field.top < top) table.scrollTop += field.top - top;
     else if (field.bottom > bottom) table.scrollTop += field.bottom - bottom;
     // Native focus scrolling can preserve a former identity-column inset.
@@ -42,14 +45,33 @@ export function scheduleAccountFocusReveal(table: HTMLElement): void {
   });
 }
 
+/**
+ * Whether the focused control is on screen in the table now. Only then does a guard created
+ * later adopt it: a control focused long ago and scrolled away is not what the person is looking
+ * at, and pulling the view back to it is the jump the owner saw after dropping an account (beta
+ * 25.11 — the groups fold for the drag, their guards go, and the new ones found the old focus).
+ */
+function visibleFocus(table: HTMLElement): HTMLElement | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || !table.contains(active)) return null;
+  const box = table.getBoundingClientRect();
+  const field = active.getBoundingClientRect();
+  const bottom = box.top + (table.clientHeight || box.height);
+  return field.bottom > box.top && field.top < bottom ? active : null;
+}
+
+/** The view was just placed on purpose (a drop): nothing focused earlier may pull it away. */
+export function releaseAccountFocusAnchor(table: HTMLElement): void {
+  const guard = guards.get(table);
+  if (guard) guard.target = null;
+}
+
 export function retainAccountFocusAnchor(table: HTMLElement): () => void {
   let guard = guards.get(table);
   if (!guard) {
     const next: Guard = {
       refs: 0,
-      target: table.contains(document.activeElement)
-        ? (document.activeElement as HTMLElement)
-        : null,
+      target: visibleFocus(table),
       frame: null,
       dispose: () => {}
     };

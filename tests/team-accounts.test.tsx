@@ -384,21 +384,49 @@ describe('filtering', () => {
   });
 });
 
-describe('marking a run', () => {
-  const markButton = () => screen.getByRole('button', { name: /^Mark the run: Pro Caps/ });
+describe('marking a note', () => {
+  const markButton = () => screen.getByRole('button', { name: /^Mark the note: Pro Caps/ });
+  /** The colour is chosen from the dot's own menu (owner, beta 25.11), never by pressing the line. */
+  const mark = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
+    await user.click(markButton());
+    await user.click(await screen.findByRole('menuitemradio', { name }));
+  };
 
-  it('cycles green, amber, red and back to none on four presses', async () => {
+  it('colours a note from its dot, and a press on the note itself changes nothing', async () => {
     const api = client();
     const user = userEvent.setup();
     render(api);
     await waitForGroups();
-    for (const marker of ['green', 'amber', 'red', null]) {
-      await user.click(markButton());
+    const note = () => document.querySelector<HTMLElement>('.team-agent-run.is-note')!;
+    await user.click(note().querySelector('.team-agent-run-text')!);
+    expect(api.setAgentRunMarker).not.toHaveBeenCalled();
+
+    for (const [name, marker] of [
+      ['Green', 'green'],
+      ['Amber', 'amber'],
+      ['Red', 'red'],
+      ['No marker', null]
+    ] as const) {
+      await mark(user, name);
       await waitFor(() =>
         expect(api.setAgentRunMarker).toHaveBeenLastCalledWith(expect.objectContaining({ marker }))
       );
     }
     expect(api.setAgentRunMarker).toHaveBeenCalledTimes(4);
+    // The dot says what the colour is and that it is a control, before the press.
+    expect(markButton().getAttribute('aria-haspopup')).toBe('menu');
+    expect(markButton().getAttribute('title')).toBe(
+      'Marker: No marker. Press to change the colour'
+    );
+  });
+
+  it('choosing the colour a note already has writes nothing', async () => {
+    const api = client();
+    const user = userEvent.setup();
+    render(api);
+    await waitForGroups();
+    await mark(user, 'No marker');
+    expect(api.setAgentRunMarker).not.toHaveBeenCalled();
   });
 
   it('paints the run and counts it in the marker menu, which appears with the first marker', async () => {
@@ -407,7 +435,7 @@ describe('marking a run', () => {
     await waitForGroups();
     // No run carries a marker: there is nothing to filter by, so no filter (024, FR-092).
     expect(screen.queryByRole('button', { name: /^Markers/ })).toBeNull();
-    await user.click(markButton());
+    await mark(user, 'Green');
     await waitFor(() =>
       expect(document.querySelector('.team-agent-run[data-marker="green"]')).toBeTruthy()
     );
@@ -420,7 +448,7 @@ describe('marking a run', () => {
     const user = userEvent.setup();
     render(client());
     await waitForGroups();
-    await user.click(markButton());
+    await mark(user, 'Green');
     await waitFor(() =>
       expect(document.querySelector('.team-agent-run[data-marker="green"]')).toBeTruthy()
     );
@@ -437,7 +465,7 @@ describe('marking a run', () => {
     const user = userEvent.setup();
     render(api);
     await waitForGroups();
-    await user.click(markButton());
+    await mark(user, 'Green');
     await waitFor(() =>
       expect(document.querySelector('.team-agent-run[data-marker="green"]')).toBeTruthy()
     );
@@ -462,7 +490,7 @@ describe('marking a run', () => {
   it('gives a viewer no marker to press and nothing to clear', async () => {
     render(client(), 'viewer');
     await waitForGroups();
-    expect(screen.queryByRole('button', { name: /^Mark the run/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Mark the note/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Markers/ })).toBeNull();
   });
 });
@@ -474,9 +502,9 @@ describe('writing a run', () => {
     render(api);
     await waitForGroups();
     const freeRow = rows().find(row => row.getAttribute('data-free') === 'true')!;
-    await user.click(within(freeRow).getByRole('button', { name: 'Assign a run to v31-401' }));
+    await user.click(within(freeRow).getByRole('button', { name: 'Add a note to v31-401' }));
 
-    const field = screen.getByRole('textbox', { name: /^Run,/ });
+    const field = screen.getByRole('textbox', { name: /^Note,/ });
     expect(document.activeElement).toBe(field);
     // The id is not editable on this path: the quick path is the run alone.
     expect(screen.queryByRole('textbox', { name: 'Full ad account ID' })).toBeNull();
@@ -495,7 +523,7 @@ describe('writing a run', () => {
     // Focus comes back to the button that opened the field, not to the page —
     // which now says "Add a run", the agent no longer being free.
     await waitFor(() =>
-      expect(document.activeElement?.getAttribute('aria-label')).toBe('Add a run to v31-401')
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Add a note to v31-401')
     );
   });
 
@@ -505,17 +533,17 @@ describe('writing a run', () => {
     render(api);
     await waitForGroups();
     const busyRow = rows().find(row => row.textContent?.includes('Pro Caps'))!;
-    await user.click(within(busyRow).getByRole('button', { name: 'Add a run to v31-434' }));
-    await user.type(screen.getByRole('textbox', { name: /^Run,/ }), 'Keto | PL 06/09{Enter}');
+    await user.click(within(busyRow).getByRole('button', { name: 'Add a note to v31-434' }));
+    await user.type(screen.getByRole('textbox', { name: /^Note,/ }), 'Keto | PL 06/09{Enter}');
     await waitFor(() => expect(within(busyRow).getByText('Keto | PL 06/09')).toBeTruthy());
     expect(within(busyRow).getByText('Pro Caps | TR 02/09')).toBeTruthy();
 
     // A run's edit and delete are in the row's "…" (070, T041), under the run's own heading.
     await user.click(within(busyRow).getByRole('button', { name: /^More actions for/ }));
     await user.click(
-      await screen.findByRole('menuitem', { name: 'Edit the run: Pro Caps | TR 02/09' })
+      await screen.findByRole('menuitem', { name: 'Edit the note: Pro Caps | TR 02/09' })
     );
-    const field = screen.getByRole('textbox', { name: /^Run,/ });
+    const field = screen.getByRole('textbox', { name: /^Note,/ });
     await user.clear(field);
     await user.type(field, 'Pro Caps | TR 03/09{Enter}');
     await waitFor(() =>
@@ -526,12 +554,58 @@ describe('writing a run', () => {
 
     await user.click(within(busyRow).getByRole('button', { name: /^More actions for/ }));
     await user.click(
-      await screen.findByRole('menuitem', { name: 'Delete the run: Keto | PL 06/09' })
+      await screen.findByRole('menuitem', { name: 'Delete the note: Keto | PL 06/09' })
     );
     await waitFor(() => expect(api.deleteAgentRun).toHaveBeenCalled());
     expect(within(busyRow).queryByText('Keto | PL 06/09')).toBeNull();
     await user.click(await screen.findByRole('button', { name: 'Undo' }));
     await waitFor(() => expect(within(busyRow).getByText('Keto | PL 06/09')).toBeTruthy());
+  });
+
+  it('edits and deletes a note from its own line, and the undo brings its colour back', async () => {
+    const api = client();
+    const user = userEvent.setup();
+    render(api);
+    await waitForGroups();
+    const busyRow = rows().find(row => row.textContent?.includes('Pro Caps'))!;
+    const note = () => busyRow.querySelector<HTMLElement>('.team-agent-run.is-note')!;
+    // A note is told apart from a launch: it carries a colour dot, and says it is a note.
+    expect(note().querySelector('.team-agent-run-text')?.getAttribute('title')).toBe(
+      'Hand-written note: Pro Caps | TR 02/09'
+    );
+
+    await user.click(within(note()).getByRole('button', { name: /^Mark the note: Pro Caps/ }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Red' }));
+    await waitFor(() => expect(note().dataset.marker).toBe('red'));
+
+    await user.click(
+      within(note()).getByRole('button', { name: 'Edit the note: Pro Caps | TR 02/09' })
+    );
+    const field = screen.getByRole('textbox', { name: /^Note,/ });
+    expect(document.activeElement).toBe(field);
+    await user.keyboard('{Escape}');
+
+    await user.click(
+      within(note()).getByRole('button', { name: 'Delete the note: Pro Caps | TR 02/09' })
+    );
+    await waitFor(() => expect(api.deleteAgentRun).toHaveBeenCalled());
+    expect(await screen.findByText('Note deleted: Pro Caps | TR 02/09')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() =>
+      expect(api.setAgentRunMarker).toHaveBeenLastCalledWith(
+        expect.objectContaining({ marker: 'red' })
+      )
+    );
+    await waitFor(() => expect(note().dataset.marker).toBe('red'));
+  }, 20_000);
+
+  it('says "+ Note" in words where an agent with nothing on it would show its notes', async () => {
+    render(client());
+    await waitForGroups();
+    const freeRow = rows().find(row => row.getAttribute('data-free') === 'true')!;
+    const add = within(freeRow).getByRole('button', { name: 'Add a note to v31-401' });
+    expect(add.textContent).toBe('Note');
+    expect(add.closest('.team-agent-runs')).toBeTruthy();
   });
 
   it('frees a busy agent with one press', async () => {
@@ -572,14 +646,14 @@ describe('writing a run', () => {
     render(api);
     await waitForGroups();
     const freeRow = rows().find(row => row.getAttribute('data-free') === 'true')!;
-    await user.click(within(freeRow).getByRole('button', { name: 'Assign a run to v31-401' }));
-    await user.type(screen.getByRole('textbox', { name: /^Run,/ }), 'half a thou');
+    await user.click(within(freeRow).getByRole('button', { name: 'Add a note to v31-401' }));
+    await user.type(screen.getByRole('textbox', { name: /^Note,/ }), 'half a thou');
     const busyRow = rows().find(row => row.textContent?.includes('Slim Fit'))!;
     await openAgentMenu(user, busyRow);
     await user.click(screen.getByRole('menuitem', { name: /^Edit ad account/ }));
     // Still one editor, still holding the typing, now with the reason.
-    expect(screen.getAllByRole('textbox', { name: /^Run,/ })).toHaveLength(1);
-    expect((screen.getByRole('textbox', { name: /^Run,/ }) as HTMLInputElement).value).toBe(
+    expect(screen.getAllByRole('textbox', { name: /^Note,/ })).toHaveLength(1);
+    expect((screen.getByRole('textbox', { name: /^Note,/ }) as HTMLInputElement).value).toBe(
       'half a thou'
     );
     expect(
@@ -600,12 +674,12 @@ describe('writing a run', () => {
     render(api);
     await waitForGroups();
     const freeRow = rows().find(row => row.getAttribute('data-free') === 'true')!;
-    await user.click(within(freeRow).getByRole('button', { name: 'Assign a run to v31-401' }));
-    await user.type(screen.getByRole('textbox', { name: /^Run,/ }), 'oops{Escape}');
-    expect(screen.queryByRole('textbox', { name: /^Run,/ })).toBeNull();
+    await user.click(within(freeRow).getByRole('button', { name: 'Add a note to v31-401' }));
+    await user.type(screen.getByRole('textbox', { name: /^Note,/ }), 'oops{Escape}');
+    expect(screen.queryByRole('textbox', { name: /^Note,/ })).toBeNull();
     expect(api.addAgentRun).not.toHaveBeenCalled();
     await waitFor(() =>
-      expect(document.activeElement?.getAttribute('aria-label')).toBe('Assign a run to v31-401')
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Add a note to v31-401')
     );
   });
 });
@@ -813,7 +887,7 @@ describe('the row menu', () => {
     expect(items[0]).toBe(copy);
     expect(items.at(-1)).toBe(remove);
     expect(screen.getByRole('menuitem', { name: /^Edit ad account/ })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: /^Edit the run: Pro Caps/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /^Edit the note: Pro Caps/ })).toBeTruthy();
     expect(document.activeElement).toBe(copy);
 
     await user.keyboard('{ArrowDown}');
@@ -1028,8 +1102,8 @@ describe('a viewer', () => {
     await waitForGroups();
     expect(screen.queryByRole('button', { name: 'Add account' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Add ad account' })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Add a run to/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Assign a run to/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Add a note to/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Add a note to/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Make free/ })).toBeNull();
     // Copying stays: a viewer still needs the id — the row's "…" holds that and nothing
     // that writes (070, T049).

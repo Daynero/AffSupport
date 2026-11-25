@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
+  releaseAccountFocusAnchor,
   retainAccountFocusAnchor,
   scheduleAccountFocusReveal
 } from '../apps/web/src/team/accounts/accountFocusAnchor';
@@ -120,4 +121,37 @@ it('removes the shared guard and queued frame after the last mounted group leave
   f.input.blur();
   f.input.focus();
   expect(frames.size).toBe(0);
+});
+
+it('does not adopt a control focused earlier and scrolled away, nor reveal one after a release', () => {
+  const f = fixture();
+  // Focused before any guard existed, and now far below the view (a drag folded the accounts).
+  f.expandAbove(2500);
+  f.input.focus();
+  const release = retainAccountFocusAnchor(f.table);
+  paint();
+  expect(f.table.scrollTop).toBe(0);
+  release();
+
+  // Focused while on screen: adopted — until a drop places the view on purpose.
+  const g = fixture();
+  g.input.focus();
+  const again = retainAccountFocusAnchor(g.table);
+  releaseAccountFocusAnchor(g.table);
+  g.expandAbove(2500);
+  scheduleAccountFocusReveal(g.table);
+  paint();
+  expect(g.table.scrollTop).toBe(0);
+  again();
+});
+
+it('never scrolls to reveal a container taller than the view', () => {
+  const f = fixture();
+  const release = retainAccountFocusAnchor(f.table);
+  f.input.focus();
+  f.input.getBoundingClientRect = () => new DOMRect(0, 900 - f.table.scrollTop, 1000, 3000);
+  scheduleAccountFocusReveal(f.table);
+  paint();
+  expect(f.table.scrollTop).toBe(0);
+  release();
 });

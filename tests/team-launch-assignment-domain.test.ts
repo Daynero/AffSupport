@@ -105,7 +105,8 @@ describe('authoritative current RK availability', () => {
     expect(getTeamAgentAvailability(agent(busy))).toBe('busy');
     expect(isTeamAgentFree(agent(busy))).toBe(false);
     expect(getTeamAgentAvailability(agent(free))).toBe('free');
-    expect(getTeamAgentAvailability(agent(unknown))).toBe('unknown');
+    // A launch linked before assignments were recorded holds the agent: busy, never a third state.
+    expect(getTeamAgentAvailability(agent(unknown))).toBe('busy');
     expect(isTeamAgentFree(agent(unknown))).toBe(false);
   });
   it('does not confuse date-filtered or truncated launch display with complete current availability', () => {
@@ -143,7 +144,7 @@ describe('authoritative current RK availability', () => {
   it('never reads missing or malformed wire authority as confirmed free', () => {
     const row = parseTeamAccountAgent(rawAgent());
     expect(row).not.toBeNull();
-    expect(getTeamAgentAvailability(row!)).toBe('unknown');
+    expect(getTeamAgentAvailability(row!)).toBe('busy');
     expect(
       parseTeamAccountAgent(rawAgent({ status: 'free', assignmentCount: 2, legacyCount: 0 }))
     ).toBeNull();
@@ -158,19 +159,29 @@ describe('authoritative current RK availability', () => {
     ).toBeNull();
     expect(parseTeamAccountAgent(rawAgent(free))?.availability).toEqual(free);
   });
-  it('keeps unknown separate from both free and busy in shared counts and filters', () => {
+  it('counts every agent as free or busy, so the two always add up to the total', () => {
     const rows = [
       account([
         { ...agent(free), id: 'free' },
         { ...agent(busy), id: 'busy' },
-        { ...agent(unknown), id: 'unknown' }
+        { ...agent(unknown), id: 'legacy' }
       ])
     ];
-    expect(countTeamAccounts(rows)).toMatchObject({ agents: 3, free: 1, busy: 1, unknown: 1 });
-    for (const occupancy of ['free', 'busy', 'unknown'] as const)
-      expect(
-        filterTeamAccounts(rows, { occupancy, search: '' })[0]?.agents.map(row => row.id)
-      ).toEqual([occupancy]);
+    const counts = countTeamAccounts(rows);
+    expect(counts).toEqual({
+      accounts: 1,
+      agents: 3,
+      free: 1,
+      busy: 2,
+      markers: { green: 0, amber: 0, red: 0 }
+    });
+    expect(counts.free + counts.busy).toBe(counts.agents);
+    expect(
+      filterTeamAccounts(rows, { occupancy: 'free', search: '' })[0]?.agents.map(row => row.id)
+    ).toEqual(['free']);
+    expect(
+      filterTeamAccounts(rows, { occupancy: 'busy', search: '' })[0]?.agents.map(row => row.id)
+    ).toEqual(expect.arrayContaining(['busy', 'legacy']));
     expect(filterTeamAccounts(rows, { occupancy: 'all', search: '' })[0]?.agents).toHaveLength(3);
   });
   it('does not claim availability from legacy task tags without authority', () => {
@@ -183,7 +194,7 @@ describe('authoritative current RK availability', () => {
       runs: []
     });
     expect(tag).not.toBeNull();
-    expect(getTeamAgentAvailability(tag!)).toBe('unknown');
+    expect(getTeamAgentAvailability(tag!)).toBe('busy');
   });
   it('keeps empty active socials available under Free without fabricating a free RK', () => {
     const rows = [account([])];
