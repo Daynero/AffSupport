@@ -9916,6 +9916,155 @@ body {
   text-align: center;
 }
 
+/* ── The load meter inside the power button ───────────────────────────────
+   While the computer is busy the button shows how busy: bands that rise and fall
+   behind the figure, the bolt shrunk above it. `--load-heat` (0–1, set by the
+   component) runs the colour from Soty's calm violet into the warning colour, by
+   the same road the throttle's lever takes. Idle, every piece is collapsed and
+   transparent and the button is the bolt it always was — same footprint either
+   way, so the bar never shifts. Only transform and opacity move. */
+.power-throttle {
+  --load-color: color-mix(
+    in oklch,
+    var(--color-secondary-solid),
+    var(--color-warning-solid) calc(var(--load-heat, 0) * 100%)
+  );
+}
+
+.power-toggle__icon {
+  position: relative;
+  transition: transform var(--motion-base) var(--ease-out-curve);
+}
+
+.power-meter {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+.power-meter__band {
+  display: block;
+  width: 4px;
+  height: 100%;
+  transform: scaleY(var(--band-level, 0));
+  transform-origin: 50% 100%;
+  transition: transform var(--motion-progress) var(--ease-out-curve);
+}
+
+.power-meter__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: linear-gradient(
+    to top,
+    color-mix(in oklch, var(--load-color) 46%, transparent),
+    color-mix(in oklch, var(--load-color) 22%, transparent)
+  );
+  transform-origin: 50% 100%;
+}
+
+.power-toggle__load {
+  position: absolute;
+  inset-inline: 0;
+  top: 50%;
+  color: var(--color-text);
+  font-size: var(--text-micro);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity var(--motion-base) var(--ease-out-curve),
+    transform var(--motion-base) var(--ease-out-curve);
+  pointer-events: none;
+}
+
+.power-toggle__unit {
+  margin-inline-start: -0.04em;
+  opacity: 0.72;
+}
+
+.ui-icon-button.power-toggle[data-meter='on'] {
+  color: var(--load-color);
+  border-color: color-mix(in oklch, var(--load-color) 55%, var(--color-border));
+}
+
+.ui-icon-button.power-toggle[data-meter='on'] .power-toggle__icon {
+  transform: translateY(-7px) scale(0.5);
+}
+
+.ui-icon-button.power-toggle[data-meter='on'] .power-toggle__load {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* The limit's own badge steps aside while the figure is up: two numbers in one
+   small circle read as neither. The limit is still named in the tooltip, and the
+   badge is back the moment the machine is idle. */
+.ui-icon-button.power-toggle[data-meter='on'] .power-toggle__badge {
+  opacity: 0;
+  transform: scale(0.6);
+}
+
+.power-toggle__badge {
+  transition:
+    opacity var(--motion-base) var(--ease-out-curve),
+    transform var(--motion-base) var(--ease-out-curve);
+}
+
+/* Breathing between readings: a small dip below the true height, never a rise
+   above it, each band on its own beat. */
+.ui-icon-button.power-toggle[data-meter='on'] .power-meter__fill {
+  animation: power-meter-breathe var(--motion-meter-breath) var(--ease-in-out-curve) infinite
+    alternate;
+}
+
+.power-meter__band:nth-child(2) .power-meter__fill {
+  animation-duration: calc(var(--motion-meter-breath) * 0.82);
+  animation-delay: calc(var(--motion-meter-breath) * -0.4);
+}
+
+.power-meter__band:nth-child(3) .power-meter__fill {
+  animation-duration: calc(var(--motion-meter-breath) * 1.18);
+  animation-delay: calc(var(--motion-meter-breath) * -0.7);
+}
+
+.power-meter__band:nth-child(4) .power-meter__fill {
+  animation-duration: calc(var(--motion-meter-breath) * 0.94);
+  animation-delay: calc(var(--motion-meter-breath) * -0.2);
+}
+
+@keyframes power-meter-breathe {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0.86);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .power-meter__band,
+  .power-toggle__icon,
+  .power-toggle__load,
+  .power-toggle__badge {
+    transition: none;
+  }
+  .ui-icon-button.power-toggle[data-meter='on'] .power-meter__fill {
+    animation: none;
+  }
+}
+
 .power-panel {
   position: absolute;
   top: calc(100% + 10px);

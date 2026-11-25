@@ -163,7 +163,11 @@ export const AGENT_TOOL_CONTRACTS = {
   // against the signed, published stable.json by verify-release.mjs. The power
   // control is not a tool page, so support is detected by reading this contract
   // directly (see powerThrottleSupported in apps/web).
-  power: 1
+  power: 1,
+  // The whole computer's load (CPU and GPU, the larger shown) on the `machine-load` stream
+  // channel, for the header's power button. A capability read from the contract: an older
+  // agent publishes no such channel, and the button stays the plain bolt it was.
+  machineLoad: 1
 } as const;
 
 export const WEB_TOOL_REQUIREMENTS = {

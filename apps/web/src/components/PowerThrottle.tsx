@@ -3,7 +3,9 @@ import { POWER_LIMIT_MAX, POWER_LIMIT_MIN } from '@video-compressor/shared';
 import { analytics } from '../analytics/service';
 import { useI18n } from '../i18n';
 import { usePower } from '../lib/power';
+import { useMachineLoad } from '../lib/machine-load';
 import { PowerLever } from './PowerLever';
+import { PowerLoadMeter, useLoadMeter } from './PowerLoadMeter';
 import { PowerReadout, PowerThrottleNotice } from './PowerReadout';
 import { IconButton } from './ui/index';
 
@@ -22,6 +24,8 @@ export function PowerThrottle() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const panelId = useId();
+  const load = useMachineLoad();
+  const meter = useLoadMeter(load);
 
   const limited = limitPercent < POWER_LIMIT_MAX;
   const disabled = status === 'unsupported';
@@ -32,7 +36,8 @@ export function PowerThrottle() {
   const powerHue = 258 + powerTravel * 140;
   const powerLightness = 62 - powerTravel * 9;
   const powerStyle = {
-    '--power-level-color': `hsl(${powerHue} 82% ${powerLightness}%)`
+    '--power-level-color': `hsl(${powerHue} 82% ${powerLightness}%)`,
+    ...meter.style
   } as CSSProperties;
 
   const close = useCallback(() => {
@@ -68,8 +73,21 @@ export function PowerThrottle() {
         ref={buttonRef}
         className="power-toggle"
         data-limited={limited ? 'true' : undefined}
+        data-meter={meter.showing ? 'on' : undefined}
         label={t('powerControl')}
-        title={t('powerLimitAt', { percent: limitPercent })}
+        title={
+          load?.availability === 'ok'
+            ? t('powerLoadTitle', {
+                usage: [
+                  t('powerLoadCpu', { percent: load.cpuPercent }),
+                  ...(load.gpuPercent === null
+                    ? []
+                    : [t('powerLoadGpu', { percent: load.gpuPercent })])
+                ].join(' · '),
+                limit: limitPercent
+              })
+            : t('powerLimitAt', { percent: limitPercent })
+        }
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? panelId : undefined}
@@ -79,6 +97,7 @@ export function PowerThrottle() {
           if (next) analytics.track('power_panel_opened', {});
         }}
       >
+        <PowerLoadMeter meter={meter} />
         <PowerIcon />
         {limited ? <span className="power-toggle__badge">{limitPercent}</span> : null}
       </IconButton>

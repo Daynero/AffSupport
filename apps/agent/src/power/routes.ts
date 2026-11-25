@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
-import { parsePowerLimitRequest, type PowerEvent } from '@video-compressor/shared';
+import {
+  MACHINE_LOAD_CHANNEL,
+  parsePowerLimitRequest,
+  type MachineLoad,
+  type PowerEvent
+} from '@video-compressor/shared';
 import { EventChannel, type ChannelHub } from '../server/sse.js';
 import type { PowerGovernor } from './governor.js';
+import { MachineLoadMonitor } from './machine-load.js';
 
 /**
  * What the routes need from a sampler, expressed structurally so the HTTP layer
@@ -12,6 +18,13 @@ export interface PowerSamplerHandle {
   watch(): () => void;
 }
 
+/** What the routes need from the machine-load monitor; structural for the same reason. */
+export interface MachineLoadHandle {
+  watch(): () => void;
+  snapshot(): MachineLoad;
+  onChange(listener: (load: MachineLoad) => void): () => void;
+}
+
 export interface PowerRoutesDeps {
   governor: PowerGovernor;
   allowedOrigins: ReadonlySet<string>;
@@ -20,6 +33,8 @@ export interface PowerRoutesDeps {
   onError?: (error: unknown, message: string) => void;
   /** The multiplexed fan-out, when one is wired. */
   channelHub?: ChannelHub;
+  /** The whole computer's load; a real monitor when absent and a hub is wired. */
+  machineLoad?: MachineLoadHandle;
 }
 
 /**
@@ -52,6 +67,10 @@ export function registerPowerRoutes(
       stopSampling?.();
       stopSampling = undefined;
     });
+    publishMachineLoad(
+      channelHub,
+      deps.machineLoad ?? new MachineLoadMonitor({ onError: deps.onError })
+    );
   }
 
   // Any state change — a new limit, a child starting or finishing, a fresh
@@ -84,4 +103,31 @@ export function registerPowerRoutes(
   });
 
   return events;
+}
+
+/**
+ * The machine's load, on the stream only.
+ *
+ * No per-tool endpoint: every agent that has this has the multiplexed stream, and the
+ * header asks for it only where `machineLoad` is in the contract. Refcounted to the
+ * channel's subscribers like the consumption sampler above — measured while somebody is
+ * looking, and not otherwise.
+ */
+function publishMachineLoad(hub: ChannelHub, monitor: MachineLoadHandle): void {
+  let stopWatching: (() => void) | undefined;
+  hub.register({
+    name: MACHINE_LOAD_CHANNEL,
+    snapshot: () => monitor.snapshot(),
+    onActive: active => {
+      if (active) {
+        stopWatching ??= monitor.watch();
+        return;
+      }
+      stopWatching?.();
+      stopWatching = undefined;
+    }
+  });
+  monitor.onChange(load => {
+    if (hub.hasListeners(MACHINE_LOAD_CHANNEL)) hub.publish(MACHINE_LOAD_CHANNEL, load);
+  });
 }

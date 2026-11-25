@@ -98,6 +98,7 @@ export type { AppEnvironment, ParsedAppEnvironment } from './environment-runtime
 export * from './environment.js';
 export * from './lifecycle.js';
 export * from './media-metadata.js';
+export * from './machine-load.js';
 export * from './stitcher.js';
 export * from './totp.js';
 
