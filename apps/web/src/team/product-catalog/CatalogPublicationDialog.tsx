@@ -17,6 +17,7 @@ import { Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { resolveCatalogPublicationDraft } from './catalogPublicationDraft';
+import { CatalogPublicationBlockedNote } from './CatalogPublicationBlockedNote';
 
 /** How often «Публікуємо…» reads the publication until the write is verified. */
 export const CATALOG_PUBLISH_NOW_POLL_MS = 3_000;
@@ -152,16 +153,29 @@ export function CatalogPublicationDialog({
   // After «Опублікувати зараз» the dialog said only «Налаштування публікації збережено»
   // and never showed the link going out (1.4.3 QA, 87 s later): follow it to «Опубліковано».
   const publishReads = useRef(0);
+  // 072: the follow used to stop after its last read and leave «Публікуємо посилання…» on
+  // screen for good — a blocked write looked exactly like one in progress. A blocked job ends
+  // the follow (the note under the fields says why and what to press); a follow that ran out
+  // says so and offers to check again.
+  const [publishStalled, setPublishStalled] = useState(false);
   useEffect(() => {
     if (publishing !== 'publishing') {
       publishReads.current = 0;
+      setPublishStalled(false);
       return;
     }
     if (snapshot?.job?.state === 'published') {
       setPublishing('published');
       return;
     }
-    if (publishReads.current >= CATALOG_PUBLISH_NOW_MAX_READS) return;
+    if (snapshot?.job?.state === 'blocked') {
+      setPublishing(null);
+      return;
+    }
+    if (publishReads.current >= CATALOG_PUBLISH_NOW_MAX_READS) {
+      setPublishStalled(true);
+      return;
+    }
     const timer = setTimeout(() => {
       publishReads.current += 1;
       void read();
@@ -390,7 +404,34 @@ export function CatalogPublicationDialog({
             {t('catalogPublicationVerify')}
           </Button>
         )}
-      {publishing === 'publishing' ? (
+      {snapshot && !unknown && !verification.unknown && (
+        <CatalogPublicationBlockedNote
+          teamId={teamId}
+          catalogId={catalogId}
+          snapshot={snapshot}
+          onRetried={() => {
+            onChanged();
+            // Follow only once the requeued job is read: the blocked snapshot still on screen
+            // would end the follow at once.
+            void read().then(() => setPublishing('publishing'));
+          }}
+        />
+      )}
+      {publishing === 'publishing' && publishStalled ? (
+        <>
+          <p role="status">{t('catalogPublicationStillPending')}</p>
+          <Button
+            color="neutral"
+            onClick={() => {
+              publishReads.current = 0;
+              setPublishStalled(false);
+              void read();
+            }}
+          >
+            {t('catalogPublicationCheck')}
+          </Button>
+        </>
+      ) : publishing === 'publishing' ? (
         <p role="status">{t('catalogPublicationPublishing')}</p>
       ) : publishing === 'published' ? (
         <p role="status">{t('catalogPublicationPublished')}</p>

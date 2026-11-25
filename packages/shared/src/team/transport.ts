@@ -56,6 +56,13 @@ export const TEAM_TRANSLATION_ERROR_CODES = [
  */
 export const TEAM_DRIVE_STORAGE_ERROR_CODES = ['DRIVE_STORAGE_FULL'] as const;
 
+/**
+ * 072 — a catalog never hangs in silence. DISK_FULL: the computer running Soty ran out of disk
+ * (the agent reported it as PROCESS_FAILED or not at all); AGENT_STALLED: background work exists
+ * and never ran a round. Seeded by 20261224260000_catalog_hang_error_codes.sql.
+ */
+export const TEAM_CATALOG_HANG_ERROR_CODES = ['DISK_FULL', 'AGENT_STALLED'] as const;
+
 export const TEAM_ASSISTANT_ERROR_CODES = [
   'INSUFFICIENT_CREDITS',
   'AI_MONTH_EXHAUSTED',
@@ -181,6 +188,7 @@ export const TEAM_ERROR_CODES = [
   'RATE_LIMITED',
   'DRIVE_UNAVAILABLE',
   ...TEAM_DRIVE_STORAGE_ERROR_CODES,
+  ...TEAM_CATALOG_HANG_ERROR_CODES,
   'NEEDS_REAUTH',
   ...TEAM_COMMERCIAL_ERROR_CODES,
   'DELIVERY_UNAVAILABLE',

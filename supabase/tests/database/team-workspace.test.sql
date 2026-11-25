@@ -211,7 +211,10 @@ select is_empty(
           'list_team_drive_selections', 'add_team_drive_selection',
           'remove_team_drive_selection', 'team_material_kind',
           'admin_revoke_tariff_invitation',
-          'admin_preview_drive_account', 'admin_approve_drive_account'
+          'admin_preview_drive_account', 'admin_approve_drive_account',
+          -- 072: what creating a catalog would refuse, asked before Create. Caller-checked:
+          -- auth.uid() must be a member; it answers only booleans and the Drive state.
+          'team_catalog_creation_preflight'
         ))
       )
   $$,

@@ -266,6 +266,20 @@ export interface TeamContextSnapshot {
   id: string;
   name: string;
   role: TeamRole;
+/** 072 — the answer of `retry_team_catalog_publication`. */
+export type CatalogPublicationRetryOutcome = 'requeued' | 'queued' | 'settled' | 'republish';
+
+/** 072 — what catalog creation would refuse, read before it is started. */
+export interface CatalogCreationPreflight {
+  spaceAllowed: boolean;
+  /** The space's Drive connection: `connected`, `needs_reauth`, `detached`, `none`, … */
+  driveState: string;
+  canCreate: boolean;
+  canRestitch: boolean;
+  /** Some computer of this person's has live background work in the space. */
+  backgroundExecutor: boolean;
+}
+
   permissions: TeamPermissions;
   connectionState:
     'none' | 'pending' | 'connected' | 'needs_reauth' | 'unavailable' | 'detached' | 'root_missing';
@@ -3607,6 +3621,79 @@ export const teamApi = {
       catalogMaterialId: string;
       sourceMaterialId?: string;
       requestId: string;
+  /**
+   * 072 — «Опублікувати ще раз» for a blocked publication. `requeued`: the same job is back in
+   * the queue; `queued`/`settled`: nothing to do; `republish`: the writer already touched the
+   * job, so the caller saves a new immediate revision (`changeCatalogPublication('add_now')`).
+   */
+  async retryCatalogPublication(
+    teamId: string,
+    catalogId: string,
+    jobId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogPublicationRetryOutcome> {
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('retry_team_catalog_publication', {
+            p_team: teamId,
+            p_catalog: catalogId,
+            p_job: jobId
+          }),
+          options ?? {}
+        ),
+      options
+    );
+    if (error?.code === 'PGRST202') throw new TeamApiError('CATALOG_COMMAND_UNSUPPORTED', false);
+    throwRpc(error);
+    const outcome = (data as { outcome?: unknown } | null)?.outcome;
+    if (
+      outcome !== 'requeued' &&
+      outcome !== 'queued' &&
+      outcome !== 'settled' &&
+      outcome !== 'republish'
+    )
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    return outcome;
+  },
+
+  /**
+   * 072 — what creating a catalog would refuse, asked before it starts. `null` on a database
+   * without the question: the form then behaves as it did before.
+   */
+  async catalogCreationPreflight(
+    teamId: string,
+    options?: { signal?: AbortSignal }
+  ): Promise<CatalogCreationPreflight | null> {
+    const { data, error } = await withFreshSession(
+      () =>
+        abortable(
+          requireSupabaseClient().rpc('team_catalog_creation_preflight', { p_team: teamId }),
+          options ?? {}
+        ),
+      options
+    );
+    if (error?.code === 'PGRST202') return null;
+    throwRpc(error);
+    const row = data as Record<string, unknown> | null;
+    if (
+      !row ||
+      typeof row.spaceAllowed !== 'boolean' ||
+      typeof row.driveState !== 'string' ||
+      typeof row.canCreate !== 'boolean' ||
+      typeof row.canRestitch !== 'boolean' ||
+      typeof row.backgroundExecutor !== 'boolean'
+    )
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    return {
+      spaceAllowed: row.spaceAllowed,
+      driveState: row.driveState,
+      canCreate: row.canCreate,
+      canRestitch: row.canRestitch,
+      backgroundExecutor: row.backgroundExecutor
+    };
+  },
+
       requestedCount: number;
       profileVersion: number;
       expectedExecutorId?: string;

@@ -10023,6 +10023,10 @@ export type GeneratedDatabase = {
         Args: { p_catalog: string; p_source_attempt: string; p_team: string };
         Returns: number;
       };
+      retry_team_catalog_publication: {
+        Args: { p_catalog: string; p_job: string; p_team: string };
+        Returns: Json;
+      };
       retry_workspace_recovery: { Args: { p_recovery: string }; Returns: boolean };
       revoke_invitation: { Args: { p_invitation: string }; Returns: boolean };
       revoke_team_recovery: { Args: { p_installation: string; p_team: string }; Returns: boolean };
@@ -13765,6 +13769,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       stop_team_catalog_updater: { Args: { p_team: string }; Returns: Json };
+      team_catalog_creation_preflight: { Args: { p_team: string }; Returns: Json };
       team_material_kind: {
         Args: { p_category: string; p_kind: string; p_mime_type: string };
         Returns: string;

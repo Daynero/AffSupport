@@ -34,10 +34,13 @@ import {
   type TeamRestitchDefaults
 } from '@video-compressor/shared';
 import type {
+  CatalogCreationPreflight,
   ProductCatalogCreateResult,
   ProductCatalogSettings,
   ProductCatalogSummary
 } from '../../api/team';
+import { CatalogFixButton, catalogCodeMessage } from '../catalogFixActions';
+import { CatalogBackgroundStalledNote } from '../catalog-updater/CatalogBackgroundStalledNote';
 import { Modal } from '../../components/Modal';
 import {
   Button,
@@ -80,6 +83,8 @@ import { prepareRestitchScreens } from '../restitch/screens';
 
 export interface CreateProductCatalogClient {
   readCatalogPublication?: typeof teamApi.readCatalogPublication;
+  /** 072: what creation would refuse, asked before Create can be pressed. */
+  catalogCreationPreflight?: typeof teamApi.catalogCreationPreflight;
   createProductCatalogVideo?: typeof teamApi.createProductCatalogVideo;
   readProductCatalogVideo?: typeof teamApi.readProductCatalogVideo;
   cancelProductCatalogVideo?: typeof teamApi.cancelProductCatalogVideo;
@@ -420,6 +425,14 @@ export function CreateProductCatalogDialog({
     [teamId, video.id]
   );
   const [failure, setFailure] = useState<string | null>(null);
+  /** The door beside a failure, for as long as that failure is the one on screen (072). */
+  const [failureFix, setFailureFix] = useState<{ text: string; code: string } | null>(null);
+  /*
+   * 072: what creation would refuse, read before it starts. A paused space, a Drive the space
+   * lost, or a restitch with no computer to do it used to be found out by pressing Create — and
+   * said as «the source changed» or «no permission», or not at all while «0 з N» sat there.
+   */
+  const [preflight, setPreflight] = useState<CatalogCreationPreflight | null>(null);
   /*
    * The name the sheet will have, up front (024): it is what the owner types on Meta, and the
    * form used to show it only after the catalog existed. Re-creating keeps its number.
@@ -439,6 +452,20 @@ export function CreateProductCatalogDialog({
     };
   }, [client, replaces, teamId, video.id]);
   const plannedName = plannedVariant ? productCatalogNameFor(video.name, plannedVariant) : null;
+  useEffect(() => {
+    if (!client.catalogCreationPreflight) return;
+    let active = true;
+    void client
+      .catalogCreationPreflight(teamId)
+      .then(value => {
+        if (active) setPreflight(value);
+      })
+      // A failed read keeps what was known: Create still meets the server's own checks.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [client, teamId, workspaceRevision, agent?.connection]);
 
   useEffect(() => {
     if (!durationPreference.current || durationPreference.current.key !== preferenceKey) {
@@ -544,7 +571,26 @@ export function CreateProductCatalogDialog({
       Number.isInteger(customSeconds) &&
       customSeconds >= 60 &&
       customSeconds <= 3600);
+  const blocker: { code: string; text: string } | null = !preflight
+    ? null
+    : !preflight.spaceAllowed
+      ? { code: 'SPACE_BLOCKED', text: t('productCatalogPreflightSpaceBlocked') }
+      : preflight.driveState !== 'connected'
+        ? { code: 'NEEDS_REAUTH', text: t('productCatalogPreflightDrive') }
+        : !preflight.canCreate
+          ? { code: 'PERMISSION_DENIED', text: t('teamErrorPermissionDenied') }
+          : restitch && !preflight.canRestitch
+            ? { code: 'PERMISSION_DENIED', text: t('productCatalogPreflightNoRestitch') }
+            : // Nobody to make the videos: no background work anywhere, and this computer's
+              // Soty is not reachable to make them in the foreground.
+              restitch &&
+                videoProtocol &&
+                !preflight.backgroundExecutor &&
+                agent?.connection !== 'connected'
+              ? { code: 'AGENT_REQUIRED', text: t('launchesCatalogExecutorRequired') }
+              : null;
   const canConfirm =
+    !blocker &&
     linkCheck.ok &&
     countCheck.ok &&
     (!restitch ||
@@ -766,13 +812,18 @@ export function CreateProductCatalogDialog({
         videoFlow.current?.fail(teamErrorCodeOf(error) ?? 'PROCESS_RESULT_UNCERTAIN');
       }
       const key = errorKey(error);
-      setFailure(
+      const text =
         refused && !localPreparationFailure
           ? t('launchesCatalogExecutorRequired')
           : key
             ? t(key)
-            : teamErrorMessageFor(error, t)
-      );
+            : teamErrorMessageFor(error, t);
+      setFailure(text);
+      const code =
+        refused && !localPreparationFailure
+          ? 'AGENT_REQUIRED'
+          : (teamErrorCodeOf(error) ?? (error instanceof Error ? error.message : null));
+      setFailureFix(code ? { text, code } : null);
       setPhase({ kind: 'form' });
     }
   };
@@ -1440,6 +1491,23 @@ export function CreateProductCatalogDialog({
               )}
             </p>
           )}
+          {/* 072: a creation nobody has picked up says why, and where it is fixed — it used to
+              be «0 з N» and nothing else. */}
+          {videoPending &&
+            (videoPending.state === 'preparing' || videoPending.state === 'unknown') &&
+            videoPending.registeredCount < videoPending.requestedCount &&
+            (videoPending.waitReason ? (
+              <div className="product-catalog-dialog-missing" role="status">
+                <p className="team-inline-note">{catalogCodeMessage(videoPending.waitReason, t)}</p>
+                <CatalogFixButton
+                  teamId={teamId}
+                  code={videoPending.waitReason}
+                  onRepaired={() => void checkVideo()}
+                />
+              </div>
+            ) : videoPending.backgroundStalled ? (
+              <CatalogBackgroundStalledNote teamId={teamId} onRetried={() => void checkVideo()} />
+            ) : null)}
           {/* Only while a video is still owed by the computer: once every video
               is registered the server assembles the catalog on its own. */}
           {(videoPending?.agentSilent || videoPending?.agentUnreachable) &&
@@ -1486,10 +1554,19 @@ export function CreateProductCatalogDialog({
               )}
             </div>
           )}
+          {blocker && !videoTracked && (
+            <div className="product-catalog-dialog-missing" role="status">
+              <p className="team-inline-note">{blocker.text}</p>
+              <CatalogFixButton teamId={teamId} code={blocker.code} />
+            </div>
+          )}
           {failure && (
             <p className="team-inline-error" role="alert">
               {failure}
             </p>
+          )}
+          {failure && failureFix?.text === failure && !blocker && (
+            <CatalogFixButton teamId={teamId} code={failureFix.code} />
           )}
         </div>
         {!videoTracked && (

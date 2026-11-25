@@ -154,6 +154,55 @@ export const uk: Record<keyof typeof en, string> = {
   catalogPublicationAddNowConfirmAction: 'Опублікувати',
   catalogPublicationPublishing: 'Публікуємо посилання…',
   catalogPublicationPublished: 'Посилання опубліковано.',
+  catalogPublicationBlockedDrive:
+    'Посилання не записано в таблицю: простір утратив підключення до Google Drive. Підключіть Drive знову — запис продовжиться сам.',
+  catalogPublicationBlockedTarget:
+    'Посилання не записано в таблицю: Google Drive не відповідав понад годину. Опублікуйте ще раз.',
+  catalogPublicationBlockedStale:
+    'Запис посилань у таблицю зупинився й не завершився. Опублікуйте ще раз.',
+  catalogPublicationBlockedGeneric: 'Запис посилань у таблицю зупинено. Опублікуйте ще раз.',
+  catalogPublicationBlockedInvalidDue: 'Час публікації недійсний. Оберіть новий час і збережіть.',
+  catalogPublicationRetryWait:
+    'Запис у таблицю не вдався з першого разу — повторимо автоматично за хвилину.',
+  catalogPublicationVerifyingWrite: 'Перевіряємо, чи посилання записались у таблицю…',
+  catalogPublicationStillPending:
+    'Посилання ще не записано в таблицю. Перевірте стан трохи згодом.',
+  catalogPublicationRetry: 'Опублікувати ще раз',
+  catalogPublicationRetried: 'Запис повернуто в чергу — посилання з’являться в таблиці за хвилину.',
+  catalogWaitAgentRequired:
+    'Відео нікому готувати: для цього простору немає комп’ютера з Soty і фоновою роботою. Відкрийте Soty і під’єднайте його.',
+  catalogWaitAgentIdConflict:
+    'Фонову роботу простору налаштовано на кількох комп’ютерах, і жоден не взявся за відео. Налаштуйте її заново на комп’ютері, де працює Soty.',
+  catalogWaitAgentStalled:
+    'Soty з фоновою роботою давно не відповідає — комп’ютер вимкнено або Soty зупинився. Відкрийте Soty або налаштуйте фонову роботу заново.',
+  catalogWaitNeedsReauth:
+    'Простір утратив підключення до Google Drive — відео не готуються, доки власник не підключить Drive знову.',
+  catalogWaitSpaceBlocked: 'Простір призупинено — відео не готуються, доки тариф не продовжено.',
+  catalogWaitAgentUpdateRequired:
+    'Soty на комп’ютері з фоновою роботою застарів — оновіть його, і відео почнуть готуватися.',
+  catalogFixReconnectDrive: 'Підключити Drive знову',
+  catalogFixOpenTariff: 'Відкрити тариф',
+  teamErrorDiskFull:
+    'На комп’ютері, де працює Soty, закінчилось місце. Звільніть місце на диску й спробуйте ще раз.',
+  catalogFixOpenGoogleStorage: 'Звільнити місце в Google Drive',
+  catalogFixChooseDriveFolder: 'Обрати теку Drive',
+  catalogFixOpenCatalog: 'Відкрити каталог',
+  catalogFixAskOwner: 'Виправити це може власник простору.',
+  catalogErrorVideoPreparing:
+    'Відео каталогу ще готуються — таблиця з’явиться, щойно вони будуть готові.',
+  catalogErrorNotEligible:
+    'Це відео не можна прив’язати до каталогу: його переміщено, видалено або це не відео.',
+  teamErrorDriveFileMissing:
+    'Файл зник із Google Drive — його видалили або перемістили за межі простору.',
+  teamErrorAgentIdConflict: 'Агент із таким ID уже є в цьому акаунті.',
+  teamRestitchDefaultsInvalid:
+    'Перезашивку в просторі не налаштовано або налаштування неповні. Відкрийте налаштування перезашивки.',
+  productCatalogPreflightSpaceBlocked:
+    'Простір призупинено — створити каталог можна буде після продовження тарифу.',
+  productCatalogPreflightDrive:
+    'Простір не підключено до Google Drive — каталогу нікуди зберегтися. Підключіть Drive знову.',
+  productCatalogPreflightNoRestitch:
+    'Перезашивати відео може лише учасник із правом обробки. Зніміть позначку перезашивки або попросіть власника простору.',
   catalogRowPublicationToday: 'Посилання о {time}',
   catalogRowPublicationOn: 'Посилання {date} о {time}',
   catalogRowPublicationWaiting: 'Посилання чекає на відео',

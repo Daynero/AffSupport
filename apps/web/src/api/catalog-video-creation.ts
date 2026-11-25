@@ -37,6 +37,14 @@ export interface CatalogVideoPreparingResult {
    * reached when this read was handed to it. The server state is still current.
    */
   agentUnreachable?: true;
+  /**
+   * 072: why the videos have not started — AGENT_REQUIRED (no live background work for the
+   * computer the set was handed to), NEEDS_REAUTH (the source's Drive is gone). Advisory: any
+   * code is shown through `catalogCodeMessage`, an unknown one in general words.
+   */
+  waitReason?: string;
+  /** 072: background work exists but has not taken this set since it was accepted. */
+  backgroundStalled?: true;
 }
 /** Pending work is an acknowledged operation, never a completed catalog. */
 export function isCatalogVideoPreparingResult(

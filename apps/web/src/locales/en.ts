@@ -154,6 +154,58 @@ export const en = {
   catalogPublicationAddNowConfirmAction: 'Publish',
   catalogPublicationPublishing: 'Publishing the link…',
   catalogPublicationPublished: 'The link is published.',
+  catalogPublicationBlockedDrive:
+    'The links were not written to the sheet: the space lost its Google Drive connection. Reconnect Drive and the write continues by itself.',
+  catalogPublicationBlockedTarget:
+    'The links were not written to the sheet: Google Drive did not respond for over an hour. Publish again.',
+  catalogPublicationBlockedStale:
+    'Writing the links to the sheet stopped and did not finish. Publish again.',
+  catalogPublicationBlockedGeneric: 'Writing the links to the sheet is stopped. Publish again.',
+  catalogPublicationBlockedInvalidDue:
+    'The publication time is not valid. Choose a new time and save.',
+  catalogPublicationRetryWait:
+    'The write to the sheet did not succeed the first time — we retry automatically in a minute.',
+  catalogPublicationVerifyingWrite: 'Checking whether the links reached the sheet…',
+  catalogPublicationStillPending:
+    'The links are not in the sheet yet. Check the status a little later.',
+  catalogPublicationRetry: 'Publish again',
+  catalogPublicationRetried:
+    'The write is back in the queue — the links appear in the sheet within a minute.',
+  catalogWaitAgentRequired:
+    'Nothing can prepare the videos: no computer runs Soty with background work for this space. Open Soty and connect it.',
+  catalogWaitAgentIdConflict:
+    'Background work for this space is set up on several computers and none took the videos. Set it up again on the computer where Soty runs.',
+  catalogWaitAgentStalled:
+    'Soty with background work has not answered for a long time — the computer is off or Soty stopped. Open Soty or set background work up again.',
+  catalogWaitNeedsReauth:
+    'The space lost its Google Drive connection — the videos are not prepared until the owner reconnects Drive.',
+  catalogWaitSpaceBlocked:
+    'The space is paused — the videos are not prepared until the tariff is renewed.',
+  catalogWaitAgentUpdateRequired:
+    'Soty on the computer with background work is out of date — update it and the videos start.',
+  catalogFixReconnectDrive: 'Reconnect Drive',
+  catalogFixOpenTariff: 'Open the tariff',
+  teamErrorDiskFull:
+    'The computer running Soty is out of disk space. Free some space and try again.',
+  catalogFixOpenGoogleStorage: 'Free up space in Google Drive',
+  catalogFixChooseDriveFolder: 'Choose the Drive folder',
+  catalogFixOpenCatalog: 'Open the catalog',
+  catalogFixAskOwner: 'The space owner can fix this.',
+  catalogErrorVideoPreparing:
+    'The catalog videos are still being prepared — the sheet appears as soon as they are ready.',
+  catalogErrorNotEligible:
+    'This video cannot be linked to the catalog: it was moved, deleted or is not a video.',
+  teamErrorDriveFileMissing:
+    'The file is gone from Google Drive — it was deleted or moved out of the space.',
+  teamErrorAgentIdConflict: 'An agent with this ID is already in this account.',
+  teamRestitchDefaultsInvalid:
+    'Restitching is not set up in this space, or its settings are incomplete. Open the restitch settings.',
+  productCatalogPreflightSpaceBlocked:
+    'The space is paused — a catalog can be created once the tariff is renewed.',
+  productCatalogPreflightDrive:
+    'The space is not connected to Google Drive — the catalog has nowhere to be saved. Reconnect Drive.',
+  productCatalogPreflightNoRestitch:
+    'Only a member allowed to process files can restitch videos. Untick restitching or ask the space owner.',
   catalogRowPublicationToday: 'Link at {time}',
   catalogRowPublicationOn: 'Link on {date} at {time}',
   catalogRowPublicationWaiting: 'Link waits for videos',

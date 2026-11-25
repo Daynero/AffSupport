@@ -118,7 +118,9 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   LEGACY_TARGET_OCCUPIED: 'financeConflict',
   PLACEMENT_CONFLICT: 'financePlacementConflict',
   TRANSFER_DATE_INVALID: 'financeTransferDateInvalid',
-  AGENT_ID_CONFLICT: 'teamErrorNameConflict',
+  // The accounts' meaning (an agent ID already in the target account); it named a file before.
+  // A catalog round waiting on several background executors reads `catalogCodeMessage` instead.
+  AGENT_ID_CONFLICT: 'teamErrorAgentIdConflict',
   FUTURE_FINANCE_DATE: 'financeFutureDate',
   DATE_BEFORE_AGENT: 'financeBeforeAgent',
   AUTH_REQUIRED: 'teamErrorAuthRequired',
@@ -143,6 +145,9 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   RATE_LIMITED: 'teamErrorRateLimited',
   DRIVE_UNAVAILABLE: 'teamErrorDriveUnavailable',
   DRIVE_STORAGE_FULL: 'teamErrorDriveStorageFull',
+  // 072 — the computer running Soty is out of disk; background work never ran a round.
+  DISK_FULL: 'teamErrorDiskFull',
+  AGENT_STALLED: 'catalogWaitAgentStalled',
   NEEDS_REAUTH: 'teamErrorNeedsReauth',
   GOOGLE_ACCOUNT_NOT_APPROVED: 'teamErrorGoogleAccountNotApproved',
   DELIVERY_UNAVAILABLE: 'teamErrorDeliveryUnavailable',
@@ -204,7 +209,6 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);
 
 const SYNC_COPY: Record<string, TranslationKey> = {
-  DISK_FULL: 'errorDiskFull',
   MEDIA_TOOL_UNAVAILABLE: 'errorToolUnavailable',
   STITCH_PLAN_VIDEO_CODEC: 'stitcherUnsupportedVideoCodec',
   STITCH_PLAN_AUDIO_CODEC: 'stitcherUnsupportedAudioCodec',
@@ -224,7 +228,15 @@ const SYNC_COPY: Record<string, TranslationKey> = {
   RETRY_EXHAUSTED: 'teamErrorDriveUnavailable',
   CURSOR_PROVENANCE_RESET: 'teamErrorDriveUnavailable',
   SYNC_UNAVAILABLE: 'teamErrorDriveUnavailable',
-  DRIVE_NOT_CONNECTED: 'teamErrorWrongState'
+  DRIVE_NOT_CONNECTED: 'teamErrorWrongState',
+  // 072 — codes that reached people as «щось пішло не так» because nothing translated them.
+  RESTITCH_DEFAULTS_INVALID: 'teamRestitchDefaultsInvalid',
+  CATALOG_VIDEO_PREPARING: 'catalogErrorVideoPreparing',
+  NOT_ELIGIBLE: 'catalogErrorNotEligible',
+  TRANSPORT_UNKNOWN: 'teamTransportUnavailable',
+  DRIVE_FILE_MISSING: 'teamErrorDriveFileMissing',
+  CONNECTION_DETACHED: 'teamSyncErrorDetached',
+  LEASE_LOST_EXHAUSTED: 'teamSyncErrorLeaseLost'
 };
 
 function syncErrorCopy(code: string): TranslationKey | undefined {

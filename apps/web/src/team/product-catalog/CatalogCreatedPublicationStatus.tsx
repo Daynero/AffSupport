@@ -11,6 +11,7 @@ import {
 import { useOptionalTeam } from '../TeamContext';
 import { withReadDeadline } from '../readCoordinator';
 import { catalogTimeZoneCity } from './catalogTimeZones';
+import { CatalogPublicationBlockedNote } from './CatalogPublicationBlockedNote';
 
 /** How often an unsettled publication is read again while the line is on screen. */
 export const CATALOG_PUBLICATION_STATUS_POLL_MS = 15_000;
@@ -43,9 +44,15 @@ export function forgetCatalogPublications() {
   rememberedPublications.clear();
 }
 
-/** Nothing more will change on its own: published, held, or no job at all. */
+/** Nothing more will change on its own: published, held, blocked, or no job at all. A blocked
+ * job waits for a person (072): its note offers the way on, and a press reads again. */
 function settled(snapshot: CatalogPublicationSnapshot): boolean {
-  return snapshot.job === null || snapshot.job.state === 'published' || snapshot.mode === 'held';
+  return (
+    snapshot.job === null ||
+    snapshot.job.state === 'published' ||
+    snapshot.job.state === 'blocked' ||
+    snapshot.mode === 'held'
+  );
 }
 
 /** A created table and its video-link publication are separate receipts.
@@ -212,6 +219,21 @@ export function CatalogCreatedPublicationStatus({
   );
   const overdue =
     reached && snapshot.job?.state !== 'applying' && graceFrom + PUBLICATION_GRACE_MS <= serverNow;
+  const note = (
+    <CatalogPublicationBlockedNote
+      teamId={teamId}
+      catalogId={catalogId}
+      snapshot={snapshot}
+      onRetried={() => setPoll(value => value + 1)}
+    />
+  );
+  // A stopped write is the whole news: its note replaces the «publishing» line (072).
+  if (
+    snapshot.job?.state === 'blocked' &&
+    snapshot.job.blockedReason !== 'legacy_adoption_required' &&
+    !held
+  )
+    return note;
   return (
     <>
       <p role="status" className="catalog-publication-line">
@@ -232,6 +254,7 @@ export function CatalogCreatedPublicationStatus({
           { date }
         )}
       </p>
+      {note}
       {snapshot.providerCas === 'unsupported' &&
         snapshot.writerMode !== 'video_columns' &&
         !published && (

@@ -3606,3 +3606,56 @@ NEEDS_REAUTH, DRIVE_STORAGE_FULL are closure codes). Undo by restoring the three
 20261224100000 / 20261207180000 / 20261207168000 and dropping the helper and the columns. Desktops
 that send the field keep working (an unpatched probe ignores it; a refused closure code falls back to
 PROCESS_FAILED on the desktop).
+
+## 20261224200000 — a catalog round ends with its code or waits with a limit (072, server П1)
+
+Adds `retry_at`, `first_error_at` (timestamptz) to `private.catalog_updater_variant_requests`, widens
+the failure-code checks of the request and of `private.catalog_variant_round_snapshots`, adds
+`private.catalog_round_failure_kind`, `private.close_catalog_variant_round`,
+`private.pause_catalog_variant_request`, `public.service_fail_catalog_updater_variant_admission`,
+`public.service_fail_catalog_updater_variant_target`, `private.settle_catalog_round_limits` and the cron
+job `soty-catalog-round-limits`; redefines `public.service_note_catalog_updater_variant_admission`,
+`public.service_list_catalog_variant_rounds`, `public.service_list_catalog_updater_variant_targets`;
+patches `private.catalog_registry_video_generation` (`waitCode`, `agent_block_code`). Undo:
+`cron.unschedule('soty-catalog-round-limits')`, drop the new functions, restore the three bodies from
+20261207172000 / 20261207175000 and the registry from 20261207390000. The columns and the wider checks
+may stay. drive-ops falls back to the old diagnostic note when the service functions are missing.
+Rounds already ended stay ended.
+
+## 20261224220000 — runs that cannot run are refused; waiting for a computer has a limit (072, server П2)
+
+Adds `private.catalog_run_preflight` and one `perform` line at the top of
+`public.run_team_catalog_update_now`, `public.retry_team_catalog_update` and
+`public.request_team_catalog_update_command` (through `pg_get_functiondef`, failing if the replaced
+text is missing); redefines `private.note_catalog_variant_round_wait` (final codes end the round,
+AGENT_REQUIRED/AGENT_ID_CONFLICT wait 2 hours with a growing pause) and
+`private.settle_catalog_round_limits` (sets no computer took up: 6 hours, or 1 hour after the computer
+reported a stop). Undo by removing the three preflight lines, dropping the helper, restoring
+`note_catalog_variant_round_wait` from 20261207175000 and `settle_catalog_round_limits` from
+20261224200000.
+
+## 20261224210000 — publish again, Drive coming back, creation preflight (072, П3/П6)
+
+Adds `public.retry_team_catalog_publication` (a blocked, undispatched job goes back to `retry_wait`;
+a dispatched one answers `republish`), `private.requeue_catalog_publications_for_connection`, the
+trigger `team_drive_connections_requeue_catalog_publications` with
+`private.team_drive_connection_requeue_catalog_publications`, and `public.team_catalog_creation_preflight`;
+requeues once the `target_unavailable` jobs whose connection is already connected; redefines
+`public.service_read_initial_catalog_video` (adds `waitReason`/`backgroundStalled`). No table or column.
+Undo: drop the trigger and the four functions, restore `service_read_initial_catalog_video` from
+20261207240000. Requeued jobs simply publish or block again; the web hides
+«Опублікувати ще раз» and the preflight when the functions are missing (PGRST202).
+
+## 20261224260000 — DISK_FULL and AGENT_STALLED codes (072, П6)
+
+Inserts two rows into `public.team_error_codes`. Forward-only vocabulary: leave the rows; a web without
+them shows the general sentence.
+
+## 20261224250000 — the catalog updater dispatches its next tick when rounds are waiting
+
+Adds `public.service_continue_catalog_updater()` (service_role only): it calls
+`private.invoke_catalog_updater_worker()`, the minute's dispatcher with its own gate (due work, the
+lease cap), and answers null when nothing is sent. The catalog-updater function calls it when its
+time budget ran out on a full claim it made progress on. No table, column or cron change. Undo by
+dropping the function; the worker logs «continuation not dispatched» and the rest waits for the
+minute's schedule, as before.
