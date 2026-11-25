@@ -447,7 +447,10 @@ async function foregroundCatalogFixture() {
     insert into public.team_restitch_sources(team_id,slot,material_id,kind,sort_order,added_by)values('${team}','end','${image}','file',1,'${owner}');
     select public.service_prepare_catalog_video_foreground('${team}','${owner}','${session}','${source}','create','${key}',null,'${enrollment}','${native}',decode('${proof}','hex'),decode('${token}','hex'));
     commit;`);
+  // Every space joins the picture pool on creation (20261223320000); the web client declares the
+  // pool contract on every catalog create, so the intent is begun the same way.
   const payload = {
+    catalogImageContractVersion: 3,
     catalogVideoProtocolVersion: 1,
     foregroundExecutor: {
       protocolVersion: 1,

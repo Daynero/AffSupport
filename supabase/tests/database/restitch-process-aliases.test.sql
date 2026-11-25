@@ -20,9 +20,11 @@ insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_
 
 insert into public.team_restitch_sources(team_id,slot,material_id,kind,sort_order,added_by)
  values('c1700000-0000-4000-8000-000000000011','end','c1700000-0000-4000-8000-000000000042','file',1,'c1700000-0000-4000-8000-000000000001');
+-- Every space joins the picture pool on creation (20261223320000), so the intent is begun the way
+-- the web client begins it in a pooled space: declaring the pool contract.
 create temp table process_alias_catalog as select public.service_begin_catalog_intent(
  'c1700000-0000-4000-8000-000000000011','c1700000-0000-4000-8000-000000000041','c1700000-0000-4000-8000-000000000001',
- 'native-alias-original-catalog','{}','c1700000-0000-4000-8000-000000000090') receipt;
+ 'native-alias-original-catalog','{"catalogImageContractVersion":3}','c1700000-0000-4000-8000-000000000090') receipt;
 select public.service_accept_catalog_video_set('c1700000-0000-4000-8000-000000000011','c1700000-0000-4000-8000-000000000001','c1700000-0000-4000-8000-000000000090',
  jsonb_build_object('setId','c1700000-0000-4000-8000-000000000080','catalogIntentId',(select receipt->>'id' from process_alias_catalog),'sourceMaterialId','c1700000-0000-4000-8000-000000000041','sourceVersion','1',
  'settings','{"configured":true,"operation":"restitch","sourceMode":"drive","fitMode":"cover","startEnabled":false,"endEnabled":true,"startDurationMode":"one-frame","customStartDurationMs":1,"finalDurationMode":"random-40-50","customFinalDurationSeconds":2700}'::jsonb,

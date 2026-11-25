@@ -413,6 +413,8 @@ describe.skipIf(!container)(
       insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values('${actor}','authenticated','authenticated','${actor}@draw.test.invalid','{}','{}');
       insert into public.admin_users(user_id) values('${actor}');
       insert into public.teams(id,name,owner_id) values('${space}','Concurrent draws','${actor}');
+      -- This race is about the space's own pictures: keep it out of the shared pool it joins on creation (20261223320000).
+      delete from private.catalog_global_pilot_teams where team_id='${space}';
       insert into public.team_members(team_id,user_id,base_role) values('${space}','${actor}','admin');
       insert into private.catalog_image_config(team_id,mode,import_enabled) values('${space}','v2',true);
       with publications as (

@@ -99,9 +99,11 @@ async function catalogVariantOperation() {
     values('${video}','${team}','${connection}','${video}','Variant source','file','video','video/mp4',16,repeat('a',32),'1');
     insert into private.team_recovery_delegations(id,team_id,actor_id,installation_id,refresh_hash)values('${delegation}','${team}','${owner}','${installation}',decode(md5('${request}:refresh')||md5('${request}:refresh2'),'hex'));
     insert into private.team_recovery_credentials(hash,delegation_id,version,audience,expires_at)values(${hash},'${delegation}',1,'claim',clock_timestamp()+interval '1 hour');`);
+  // Every space joins the picture pool on creation (20261223320000), so the intent declares the
+  // pool contract the way the web client does.
   const intent = JSON.parse(
     await sql(
-      `select public.service_begin_catalog_intent('${team}','${video}','${owner}','variant-concurrency:${set}','{}','${installation}')`
+      `select public.service_begin_catalog_intent('${team}','${video}','${owner}','variant-concurrency:${set}','{"catalogImageContractVersion":3}','${installation}')`
     )
   ) as { id: string };
   const payload = {
