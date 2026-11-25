@@ -15673,15 +15673,7 @@ a.history-subject {
   scrollbar-gutter: stable;
 }
 
-/* Paint the table row itself: WebKit does not consistently use a positioned
-   table row as the containing block of an absolutely positioned cell pseudo. */
-.catalog-compact-table .catalog-progress-row {
-  background-image: linear-gradient(
-    to right,
-    var(--color-success-soft) calc(var(--catalog-row-progress, 0) * 100%),
-    transparent calc(var(--catalog-row-progress, 0) * 100%)
-  );
-}
+/* The row's progress bar lives in team/catalog-updater/catalog-manager-activity.css (072, П5). */
 .catalog-progress-row.is-update-complete {
   animation: catalog-row-complete var(--motion-catalog-success) var(--ease-in-out-curve);
 }

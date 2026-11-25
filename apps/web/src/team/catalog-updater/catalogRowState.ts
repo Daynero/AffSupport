@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { CatalogRegistryRow } from '../../api/team';
 import { matchesCatalogCreatedAt } from './catalogCreatedDate';
 import { filterCatalogRows } from './useCatalogUpdater';
+import { catalogRowActivity, needsVideo } from './catalogRowActivity';
 
 /**
  * What a row of the catalog manager says about itself, out of the dialog (070, T056) so the
@@ -14,22 +15,14 @@ export function lastSuccess(row: CatalogRegistryRow): string | null {
     : row.profile.lastSuccessfulAt;
 }
 
-/** Profile options configure the next run; the current stage belongs to the accepted run. */
-export function needsVideo(row: CatalogRegistryRow) {
-  if (row.updatePending && row.updateStage) {
-    return row.updateStage === 'waiting_video' || row.updateStage === 'restitching';
-  }
-  return Boolean(row.profile?.restitch);
-}
+export { needsVideo };
 
-export function needsAttention(row: CatalogRegistryRow) {
+export function needsAttention(row: CatalogRegistryRow, now = Date.now()) {
   if (row.profile?.reconciliationRequired) return row.profile.lastResult !== 'running';
-  if (row.updatePending)
-    return Boolean(
-      needsVideo(row) &&
-      row.profile?.restitchStatus === 'blocked' &&
-      row.profile?.restitchBlockedCode
-    );
+  // Work under way needs a person only when it stands on something (072, П5: an error between
+  // retries, a computer that never took the round, a refused re-stitch).
+  const activity = catalogRowActivity(row, now);
+  if (activity.active) return activity.motion === 'problem' || activity.motion === 'stalled';
   return Boolean(
     row.lastUpdateError ||
     ['failed', 'partial', 'unknown'].includes(row.profile?.lastResult ?? '') ||

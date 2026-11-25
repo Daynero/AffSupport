@@ -81,3 +81,14 @@ it('moves past the video stage once every video of the round is made (1.4.3 next
     'catalogUpdaterStageVerifying'
   );
 });
+
+it('does not call a queued round without re-stitching «building» because its first videos are ready (072)', () => {
+  const queued = {
+    catalogId: 'c',
+    updatePending: true,
+    updateStage: 'preparing',
+    profile: { restitch: false },
+    videoGeneration: { setId: 's', requestedCount: 1, registeredCount: 1, state: 'ready' }
+  };
+  expect(catalogRowProgress(queued as never).label).toBe('catalogUpdaterStagePreparing');
+});

@@ -18,6 +18,19 @@
   inherits: false;
   initial-value: 1.7778;
 }
+/* A catalog row's progress, 0…1 (072, П5): registered so the bar grows on a curve from where it
+   was instead of jumping a stage at a time. */
+@property --catalog-row-progress {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
+/* Where the sheen of live work is along the filled part of that bar, 0…1. */
+@property --catalog-row-sheen {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0;
+}
 
 /*
  * The five widths a layout may change at (070, FR-040).

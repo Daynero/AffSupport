@@ -35,6 +35,8 @@ const labels: RestitchTimelineLabels = {
   builtin: 'Soty',
   random: count => `one of ${count}`,
   axisBreak: 'not to scale',
+  videoNote: 'the video, untouched',
+  toggle: (part, enabled) => `${enabled ? 'turn off' : 'turn on'} ${part}`,
   sliderLow: 'Shortest',
   sliderHigh: 'Longest',
   valueText: (value, handle) => `${handle} ${spanText(value)} min`,
@@ -54,13 +56,13 @@ function Harness({
   start = slot(),
   end = slot(),
   disabled = false,
-  onSelect = () => {}
+  onToggle = () => {}
 }: {
   initial: FinalDuration;
   start?: RestitchTimelineSlot;
   end?: RestitchTimelineSlot;
   disabled?: boolean;
-  onSelect?: (part: 'start' | 'video' | 'end') => void;
+  onToggle?: (part: 'start' | 'end', enabled: boolean) => void;
 }) {
   const [duration, setDuration] = useState(initial);
   return (
@@ -69,8 +71,7 @@ function Harness({
       end={end}
       duration={duration}
       onDurationChange={setDuration}
-      selected="end"
-      onSelect={onSelect}
+      onToggle={onToggle}
       disabled={disabled}
       labels={labels}
     />
@@ -147,20 +148,27 @@ describe('the timeline', () => {
     expect(handle.getAttribute('aria-valuenow')).toBe('45');
   });
 
-  it('opens a clip’s panel, and shows a slot that is off as off', () => {
-    const onSelect = vi.fn();
+  it('switches each end right on its clip, and shows one that is off as off', () => {
+    const onToggle = vi.fn();
     render(
       <Harness
         initial={{ low: 45, high: 45 }}
         start={slot({ enabled: false })}
         end={slot({ enabled: false })}
-        onSelect={onSelect}
+        onToggle={onToggle}
       />
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Start · Off' }));
-    expect(onSelect).toHaveBeenCalledWith('start');
-    expect(screen.getByRole('button', { name: 'Final · Off' })).toBeTruthy();
+    const start = screen.getByRole('switch', { name: 'Start' });
+    expect(start.getAttribute('aria-checked')).toBe('false');
+    expect(start.getAttribute('title')).toBe('turn on start');
+    fireEvent.click(start);
+    expect(onToggle).toHaveBeenCalledWith('start', true);
+    expect(screen.getByRole('switch', { name: 'Final' }).getAttribute('aria-checked')).toBe(
+      'false'
+    );
+    // Nothing to drag when there is no final picture, and the video is never a control.
     expect(screen.queryByRole('slider')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 
   it('marks Soty’s picture, and a slot that draws from several', () => {

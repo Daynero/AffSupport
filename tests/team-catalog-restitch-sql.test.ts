@@ -331,7 +331,8 @@ describe('who prepares', () => {
       teamId,
       [sheet]
     ]);
-    await setRestitch([sheet], false);
+    // 072 П5: a running catalog's settings are not changed mid-round at all.
+    await expect(setRestitch([sheet], false)).rejects.toThrow(/WRONG_STATE/);
     const rows = await harness.root<{ wanted: boolean }>(
       'select private.catalog_wants_restitch($1) wanted',
       [sheet]
@@ -1173,11 +1174,14 @@ describe('rounds', () => {
     await save([sheet], true);
     const spare = await prepareSpare(device, sheet, 'https://drive.google.com/file/d/revive/view');
     const item = await round(sheet);
-    // Disabling affects the next round; the accepted round keeps its frozen spare.
-    await save([sheet], false);
+    // The accepted round keeps its frozen spare; turning re-stitching off waits for it to end
+    // (072 П5: the catalog's own setting is refused mid-round).
+    await expect(save([sheet], false)).rejects.toThrow(/WRONG_STATE/);
     expect((await copies(sheet))[0]!.role).toBe('spare');
     expect(await completeRound(sheet, item.update_count + 1, spare)).toBe(true);
     expect(await copies(sheet)).toMatchObject([{ material_id: spare, role: 'in_use' }]);
+    // Once the round is over the setting can change, and nothing is prepared for the next one.
+    await save([sheet], false);
     expect(await jobs(sheet)).toHaveLength(0);
     await stop();
   }, 60_000);

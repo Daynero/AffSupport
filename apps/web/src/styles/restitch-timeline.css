@@ -8,6 +8,9 @@
  * only the bubble fades.
  */
 .restitch-timeline {
+  /* Handles and switches stack above the clips, never above the dialog that scrolls them. */
+  position: relative;
+  isolation: isolate;
   --timeline-start: calc(var(--space-6) * 3);
   --timeline-video: clamp(calc(var(--space-6) * 3), 18%, calc(var(--space-6) * 7));
   --timeline-break: var(--space-5);
@@ -46,19 +49,70 @@
   background: var(--color-neutral-surface-muted);
   color: var(--color-neutral-text-muted);
   font: inherit;
-  cursor: pointer;
-}
-.restitch-timeline-clip[aria-pressed='true'] {
-  border-color: var(--color-secondary-solid);
-  box-shadow: 0 0 0 2px var(--color-secondary-solid);
-}
-.restitch-timeline-clip:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 3px;
 }
 .restitch-timeline-clip.is-off {
   border-style: dashed;
   background: transparent;
+}
+
+/* An end switched off gives its room back: the strip shows what the video will be. */
+.restitch-timeline.is-start-off {
+  --timeline-start: calc(var(--space-6) * 2.75);
+}
+
+/* Each end's own switch, in its corner: on is the accent, off is a hollow track. */
+.restitch-timeline-toggle {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: calc(var(--space-5) * 1.8);
+  min-width: 0;
+  height: var(--space-5);
+  min-height: 0;
+  padding: var(--space-px);
+  line-height: 0;
+  border: 1px solid var(--color-neutral-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+.restitch-timeline-toggle[aria-checked='true'] {
+  border-color: var(--color-secondary-solid);
+  background: var(--color-secondary-solid);
+}
+.restitch-timeline-toggle-knob {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-text-muted);
+  transition: transform var(--motion-fast) var(--ease-out-curve);
+}
+.restitch-timeline-toggle[aria-checked='true'] .restitch-timeline-toggle-knob {
+  background: var(--color-white);
+  transform: translateX(var(--space-4));
+}
+.restitch-timeline-toggle:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.restitch-timeline-toggle:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.restitch-timeline-clip.is-end .restitch-timeline-toggle {
+  right: auto;
+  left: var(--space-1-5);
+}
+.restitch-timeline-clip.is-start.is-off .restitch-timeline-toggle {
+  top: 50%;
+  right: 50%;
+  transform: translate(50%, -50%);
 }
 
 .restitch-timeline-picture {
@@ -320,6 +374,9 @@
     --timeline-video: calc(var(--space-6) * 2.75);
     --timeline-break: var(--space-3);
     --timeline-height: calc(var(--space-6) * 2.75);
+  }
+  .restitch-timeline.is-start-off {
+    --timeline-start: calc(var(--space-6) * 2.25);
   }
   .restitch-timeline-strip,
   .restitch-timeline-captions {

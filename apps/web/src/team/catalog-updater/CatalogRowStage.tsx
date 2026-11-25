@@ -51,10 +51,13 @@ function roundReportsStage(row: CatalogRegistryRow): boolean {
  */
 export function CatalogRowStage({
   row,
-  fallback
+  fallback,
+  suffix = null
 }: {
   row: CatalogRegistryRow;
   fallback: TranslationKey;
+  /** What standing work adds to its stage: «waiting its turn», «next try at 12:40» (072). */
+  suffix?: string | null;
 }) {
   const { t } = useI18n();
   const live = catalogRowProgress(row);
@@ -70,5 +73,10 @@ export function CatalogRowStage({
     `${row.catalogId}:${identity}`,
     live.active && roundReportsStage(row) ? live.label : fallback
   );
-  return <span className="catalog-row-stage">{t(label)}</span>;
+  return (
+    <span className="catalog-row-stage">
+      <span>{t(label)}</span>
+      {suffix && <span className="catalog-row-stage-suffix"> · {suffix}</span>}
+    </span>
+  );
 }

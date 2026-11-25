@@ -11,6 +11,7 @@ export function CatalogIdentity({
   context,
   sheetUrl,
   onConfigure,
+  configureLocked,
   onRename,
   previousNames = []
 }: {
@@ -19,6 +20,8 @@ export function CatalogIdentity({
   context: string;
   sheetUrl: string;
   onConfigure: () => void;
+  /** Why the settings cannot open now: the catalog is updating (072, П5). */
+  configureLocked?: string;
   onRename?: () => void;
   previousNames?: string[];
 }) {
@@ -87,6 +90,8 @@ export function CatalogIdentity({
             className="catalog-identity-action"
             size="sm"
             variant="ghost"
+            disabled={Boolean(configureLocked)}
+            title={configureLocked}
             onClick={() => {
               setOpen(false);
               onConfigure();

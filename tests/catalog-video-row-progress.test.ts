@@ -32,7 +32,7 @@ it('rejects malformed counts and child identities rather than inventing progress
     expect(parseCatalogVideoRowProgress({ ...progress, ...patch })).toBeNull();
 });
 
-it('keeps a known wait reason for an accepted round and rejects an unknown one', () => {
+it('keeps a wait reason, known or newer, and drops only a malformed one (072)', () => {
   expect(
     parseCatalogVideoRowProgress({
       ...progress,
@@ -41,6 +41,19 @@ it('keeps a known wait reason for an accepted round and rejects an unknown one',
       waitReason: 'AGENT_REQUIRED'
     })
   ).toMatchObject({ state: 'accepted', waitReason: 'AGENT_REQUIRED' });
-  expect(parseCatalogVideoRowProgress({ ...progress, waitReason: 'SOMETHING_ELSE' })).toBeNull();
+  // A code a newer server adds must not take the row's whole progress with it.
+  expect(parseCatalogVideoRowProgress({ ...progress, waitReason: 'SOMETHING_ELSE' })).toMatchObject(
+    { waitReason: 'SOMETHING_ELSE' }
+  );
+  expect(
+    parseCatalogVideoRowProgress({
+      ...progress,
+      waitReason: 'not a code',
+      waitCode: 'AGENT_STALLED'
+    })
+  ).toMatchObject({ setId: progress.setId, waitCode: 'AGENT_STALLED' });
+  expect(
+    parseCatalogVideoRowProgress({ ...progress, waitReason: 'not a code' })
+  ).not.toHaveProperty('waitReason');
   expect(parseCatalogVideoRowProgress(progress)).not.toHaveProperty('waitReason');
 });

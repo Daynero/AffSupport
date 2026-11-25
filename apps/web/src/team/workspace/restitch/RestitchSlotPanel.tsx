@@ -48,8 +48,15 @@ export function RestitchSlotPanel({
   const builtin = builtinSlot(enabled, pool);
 
   return (
-    <div className={`team-restitch-slot team-restitch-slot-${slot}`}>
+    <section
+      className={`team-restitch-slot team-restitch-slot-${slot}${enabled ? '' : ' is-off'}`}
+      aria-labelledby={`team-restitch-slot-${slot}`}
+    >
+      {/* The name the strip uses, and the same switch it carries. */}
       <div className="team-restitch-slot-head">
+        <h3 id={`team-restitch-slot-${slot}`}>
+          {t(slot === 'start' ? 'teamRestitchPartStart' : 'teamRestitchPartEnd')}
+        </h3>
         <Switch
           className="feature-switch"
           checked={enabled}
@@ -59,16 +66,14 @@ export function RestitchSlotPanel({
               slot === 'start' ? { ...form, startEnabled: next } : { ...form, endEnabled: next }
             )
           }
-          label={
-            <strong>
-              {t(slot === 'start' ? 'teamRestitchStartSwitch' : 'teamRestitchEndSwitch')}
-            </strong>
-          }
+          label={t(slot === 'start' ? 'teamRestitchStartSwitch' : 'teamRestitchEndSwitch')}
         />
-        <span className="team-restitch-hint">
-          {t(slot === 'start' ? 'teamRestitchStartHint' : 'teamRestitchEndHint')}
-        </span>
       </div>
+      <span className="team-restitch-hint">
+        {enabled
+          ? t(slot === 'start' ? 'teamRestitchStartHint' : 'teamRestitchEndHint')
+          : t(slot === 'start' ? 'teamRestitchStartOffHint' : 'teamRestitchEndOffHint')}
+      </span>
       <Collapse open={enabled}>
         <div className="team-restitch-slot-body">
           {pool && (
@@ -91,7 +96,7 @@ export function RestitchSlotPanel({
           {slot === 'start' && <StartLength form={form} onForm={onForm} disabled={!formEditable} />}
         </div>
       </Collapse>
-    </div>
+    </section>
   );
 }
 

@@ -43,7 +43,7 @@ import {
   RestitchTimeline,
   spanText,
   type FinalDuration,
-  type RestitchTimelinePart
+  type RestitchTimelineEnd
 } from '../../components/ui/index';
 import { SaveStateWord, useSaveState } from './SaveStateWord';
 import type { RestitchSourcePoolClient } from './RestitchSourcePool';
@@ -134,7 +134,6 @@ export function RestitchDefaultsSection({
   const [defaults, setDefaults] = useState<TeamRestitchDefaults | null>(null);
   const [listing, setListing] = useState<RestitchSourcesListing | null>(null);
   const [form, setForm] = useState<RestitchForm>(FORM_DEFAULTS);
-  const [part, setPart] = useState<RestitchTimelinePart>('end');
   const [saving, setSaving] = useState(false);
   const saveState = useSaveState();
   const [loaded, setLoaded] = useState(false);
@@ -517,8 +516,13 @@ export function RestitchDefaultsSection({
           end={endClip}
           duration={duration}
           onDurationChange={changeDuration}
-          selected={part}
-          onSelect={setPart}
+          onToggle={(end: RestitchTimelineEnd, enabled: boolean) =>
+            setForm(current =>
+              end === 'start'
+                ? { ...current, startEnabled: enabled }
+                : { ...current, endEnabled: enabled }
+            )
+          }
           disabled={!formEditable}
           labels={{
             start: t('teamRestitchPartStart'),
@@ -534,6 +538,17 @@ export function RestitchDefaultsSection({
             builtin: t('teamRestitchBuiltinShort'),
             random: count => t('teamRestitchRandomPick', { count }),
             axisBreak: t('teamRestitchAxisBreak'),
+            videoNote: t('teamRestitchVideoExplain'),
+            toggle: (end, enabled) =>
+              t(
+                end === 'start'
+                  ? enabled
+                    ? 'teamRestitchStartTurnOff'
+                    : 'teamRestitchStartTurnOn'
+                  : enabled
+                    ? 'teamRestitchEndTurnOff'
+                    : 'teamRestitchEndTurnOn'
+              ),
             sliderLow: t('teamRestitchSliderLow'),
             sliderHigh: t('teamRestitchSliderHigh'),
             valueText: value =>
@@ -551,35 +566,24 @@ export function RestitchDefaultsSection({
         )}
       </div>
 
-      {/* What the picked clip opens — the inspector of an editor, one clip at a time. */}
-      <div
-        className="team-restitch-inspector"
-        role="region"
-        aria-label={t(
-          part === 'start'
-            ? 'teamRestitchPartStart'
-            : part === 'video'
-              ? 'teamRestitchPartVideo'
-              : 'teamRestitchPartEnd'
-        )}
-      >
-        {part === 'video' ? (
-          <p className="team-inline-note prose">{t('teamRestitchVideoExplain')}</p>
-        ) : (
+      {/* Both ends side by side, each under its own name and the same switch as on the strip:
+          nothing to open, nothing to remember about which one is being edited. */}
+      <div className="team-restitch-slots">
+        {(['start', 'end'] as const).map(slot => (
           <RestitchSlotPanel
-            key={part}
+            key={slot}
             teamId={teamId}
-            slot={part}
+            slot={slot}
             form={form}
             onForm={setForm}
             formEditable={formEditable}
-            pool={listing?.pools[part] ?? null}
+            pool={listing?.pools[slot] ?? null}
             poolsEditable={poolsEditable}
             poolClient={poolClient}
-            onPoolChange={(slot, items) => void changePool(slot, items)}
+            onPoolChange={(changed, items) => void changePool(changed, items)}
             thumbnailFor={thumbnails ? thumbnailFor : undefined}
           />
-        )}
+        ))}
       </div>
 
       <RestitchFitPicker

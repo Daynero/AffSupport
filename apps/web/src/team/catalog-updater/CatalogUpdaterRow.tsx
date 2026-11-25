@@ -9,8 +9,14 @@ import type { CatalogRegistryRow, CatalogUpdaterInterval } from '../../api/team'
 import { Alert, Button, Checkbox, IconButton } from '../../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
-import { teamErrorMessage, teamErrorMessageFor } from '../errors';
+import { teamErrorMessageFor } from '../errors';
+import { CatalogFixButton, catalogCodeMessage } from '../catalogFixActions';
 import { CatalogBackgroundStalledNote } from './CatalogBackgroundStalledNote';
+import {
+  catalogDriveStanding,
+  catalogRowActivity,
+  catalogSettingsLock
+} from './catalogRowActivity';
 import { CatalogIconControls } from './CatalogIconControls';
 import { CatalogIdentity } from './CatalogIdentity';
 import { CatalogProgressRow } from './CatalogProgressRow';
@@ -122,6 +128,22 @@ export function CatalogUpdaterRow({
   };
   const busy = ctx.busyIds.has(row.catalogId) || ctx.inline.blocked(row.catalogId);
   const restitchOff = ctx.restitchOff(row);
+  // 072 П5: one answer for the button, the lock, the bar and its motion.
+  const activity = catalogRowActivity(row, Date.now() + ctx.clockOffsetMs);
+  const lock = catalogSettingsLock(row, Date.now() + ctx.clockOffsetMs);
+  const runningLock =
+    lock === 'running'
+      ? t('catalogLockedWhileRunning')
+      : lock === 'checking'
+        ? t('catalogLockedWhileChecking')
+        : undefined;
+  const otherFolder =
+    catalogDriveStanding(row) === 'other_folder'
+      ? t('catalogOtherFolderRunHint', { folder: row.driveConnection?.folderName ?? '' })
+      : undefined;
+  const nextTry = activity.retryAt
+    ? t('catalogNextTryAt', { time: ctx.shortWhen(activity.retryAt) })
+    : null;
   const successfulAt = lastSuccess(row);
   const result = row.profile?.lastResult;
   const requiresReview = row.lastUpdateError === 'CATALOG_ATTEMPT_STATE_INCONSISTENT';
@@ -143,14 +165,12 @@ export function CatalogUpdaterRow({
     : t('catalogIconsNextUnknown');
   const disabledReason = !ctx.mayRun
     ? t('catalogIconsReadOnly')
-    : busy
-      ? t('catalogIconsPendingRun')
-      : ctx.editorPending
-        ? t('catalogIconsPendingRun')
-        : undefined;
+    : (runningLock ?? (busy || ctx.editorPending ? t('catalogIconsPendingRun') : undefined));
+  const showStop = activity.active;
   return (
     <CatalogProgressRow
       row={row}
+      motion={activity.motion}
       data-catalog-id={row.catalogId}
       onClick={event => {
         if (!ctx.mayRun || !(event.target instanceof Element)) return;
@@ -185,6 +205,7 @@ export function CatalogUpdaterRow({
               context={`${row.videoName} · ${row.folderName ?? t('catalogUpdaterSpaceRoot')}`}
               sheetUrl={row.sheetUrl}
               onConfigure={actions.configure}
+              configureLocked={runningLock}
               onRename={ctx.permissions?.edit ? actions.rename : undefined}
             />
             <span
@@ -254,41 +275,30 @@ export function CatalogUpdaterRow({
                 ? ` · ${t('catalogUpdaterVideoUnknownStop')}`
                 : row.videoGeneration.state === 'cancel_requested'
                   ? ` · ${t('catalogVideoCreationCanceling')}`
-                  : row.videoGeneration.waitReason === 'AGENT_REQUIRED'
-                    ? ` · ${t('catalogVideoCreationWaitingAgent')}`
-                    : row.videoGeneration.waitReason
-                      ? ` · ${teamErrorMessage(row.videoGeneration.waitReason, t)}`
-                      : ''}
-              {row.videoGeneration.state === 'accepted' &&
-                row.videoGeneration.backgroundStalled && (
-                  <CatalogBackgroundStalledNote teamId={ctx.teamId} onRetried={actions.reload} />
-                )}
+                  : ''}
             </small>
           )}
-        {row.videoPublication && <CatalogRowPublicationNote publication={row.videoPublication} />}
+        {row.videoPublication && (
+          <CatalogRowPublicationNote
+            publication={row.videoPublication}
+            onOpen={ctx.mayRun ? actions.publication : undefined}
+          />
+        )}
         <span
           // The running stage is shown, not only announced: with it hidden the row
           // said only «Готово відео: 0 з 1» while the round stitched (1.4.3).
           className="catalog-row-feedback"
           role="status"
         >
-          {restitchOff ? null : requiresReview ? (
+          {restitchOff ? null : activity.motion === 'problem' ||
+            activity.motion === 'stalled' ? null : requiresReview ? (
             <OutcomeButton
               title={teamErrorMessageFor({ code: row.lastUpdateError }, t)}
               onClick={actions.history}
             >
               {t('catalogRunNeedsReview')}
             </OutcomeButton>
-          ) : row.updatePending &&
-            !row.profile?.reconciliationRequired &&
-            needsVideo(row) &&
-            row.profile?.restitchStatus === 'blocked' &&
-            row.profile?.restitchBlockedCode ? (
-            <OutcomeButton onClick={actions.configure}>
-              {t('catalogRunVideoRetryWaiting')}
-            </OutcomeButton>
-          ) : (row.updatePending && !row.profile?.reconciliationRequired) ||
-            (row.profile?.reconciliationRequired && row.profile.lastResult === 'running') ? (
+          ) : activity.active ? (
             // One stage, one place: the delivery check that follows the
             // round goes through the same forward-only stage, so the row
             // no longer steps back from «Зберігаємо…» to «Перевіряємо
@@ -303,6 +313,17 @@ export function CatalogUpdaterRow({
                       ? 'catalogRunPreparingVideo'
                       : 'catalogRunVideoWaiting'
                     : 'catalogUpdaterUpdatingNow'
+              }
+              // Standing work says it stands: queued, or when it is tried next.
+              suffix={
+                activity.motion !== 'waiting'
+                  ? null
+                  : (nextTry ??
+                    // «Waiting its turn» only before the round has started anything.
+                    (activity.stop === 'round' &&
+                    (!row.updateStage || row.updateStage === 'preparing')
+                      ? t('catalogWorkQueued')
+                      : null))
               }
             />
           ) : row.profile?.reconciliationRequired ? (
@@ -321,6 +342,11 @@ export function CatalogUpdaterRow({
                   : 'catalogDeliveryUncertain'
               )}
             </OutcomeButton>
+          ) : otherFolder ? (
+            // Not an error to fix by reconnecting: the history says what it is and what helps.
+            <OutcomeButton quiet title={otherFolder} onClick={actions.history}>
+              {t('catalogOtherFolderRow')}
+            </OutcomeButton>
           ) : row.lastUpdateError ||
             ['failed', 'partial', 'unknown'].includes(row.profile?.lastResult ?? '') ? (
             <OutcomeButton onClick={actions.history}>
@@ -338,6 +364,31 @@ export function CatalogUpdaterRow({
             </OutcomeButton>
           ) : null}
         </span>
+        {!restitchOff && (activity.motion === 'problem' || activity.motion === 'stalled') && (
+          // 072 П5: work that stands says why in the row, with the way on — also between the
+          // tries of a round whose last try failed, not only after it ended.
+          <div className="catalog-row-problem" role="status">
+            <span className="catalog-row-problem-text">
+              {row.videoGeneration?.state === 'unknown'
+                ? t('catalogUpdaterVideoUnknownStop')
+                : catalogCodeMessage(activity.code, t)}
+              {nextTry ? ` · ${nextTry}` : ''}
+            </span>
+            {activity.motion === 'stalled' ? (
+              <CatalogBackgroundStalledNote teamId={ctx.teamId} onRetried={actions.reload} />
+            ) : (
+              <CatalogFixButton
+                teamId={ctx.teamId}
+                code={activity.code}
+                onRepaired={actions.reload}
+                catalogUrl={row.sheetUrl}
+              />
+            )}
+            <OutcomeButton quiet onClick={actions.history}>
+              {t('catalogUpdaterHistory')}
+            </OutcomeButton>
+          </div>
+        )}
         {restitchOff && (
           <Alert
             color="warning"
@@ -384,8 +435,8 @@ export function CatalogUpdaterRow({
             state={state}
             disabledReason={disabledReason}
             onChange={(field, value) => ctx.changeField(row, field, value)}
-            onReadiness={actions.configure}
-            videoR2={ctx.videoR2For(row.catalogId, undefined, row.profile?.creativeKind)}
+            onReadiness={runningLock ? undefined : actions.configure}
+            videoR2={ctx.videoR2For(row.catalogId, runningLock, row.profile?.creativeKind)}
           />
         ) : (
           <small>{t('catalogUpdaterProfileUnknown')}</small>
@@ -426,10 +477,10 @@ export function CatalogUpdaterRow({
             <IconButton
               // Run and stop are different buttons: a native tooltip already on
               // screen would go on saying "Stop this update" over the run button.
-              key={row.updatePending && !row.profile?.reconciliationRequired ? 'stop' : 'run'}
-              color={
-                row.updatePending && !row.profile?.reconciliationRequired ? 'error' : 'success'
-              }
+              // Stop shows for any work the row shows (072, П5): a catalog whose videos or
+              // delivery check were under way showed progress beside «run».
+              key={showStop ? 'stop' : 'run'}
+              color={showStop ? 'error' : 'success'}
               variant="soft"
               data-setting-save={
                 state?.phase === 'pending' &&
@@ -439,21 +490,25 @@ export function CatalogUpdaterRow({
                   ? 'true'
                   : undefined
               }
-              label={t(
-                row.updatePending && !row.profile?.reconciliationRequired
-                  ? 'catalogUpdaterCancelUpdate'
-                  : 'catalogUpdaterNowFor',
-                { name: row.name }
-              )}
+              label={
+                !showStop
+                  ? (otherFolder ?? t('catalogUpdaterNowFor', { name: row.name }))
+                  : activity.stop === 'round'
+                    ? t('catalogUpdaterCancelUpdate', { name: row.name })
+                    : activity.stop === 'verifying'
+                      ? t('catalogStopVerifyingHint')
+                      : t('catalogStopVideosHint')
+              }
               disabled={
                 busy ||
                 ctx.editorPending ||
-                Boolean(row.profile?.reconciliationRequired) ||
-                (row.updatePending && !ctx.client.cancelCatalogUpdate)
+                (showStop
+                  ? activity.stop !== 'round' || !ctx.client.cancelCatalogUpdate
+                  : Boolean(row.profile?.reconciliationRequired) || Boolean(otherFolder))
               }
-              onClick={() => (row.updatePending ? void actions.stop() : void actions.run())}
+              onClick={() => (showStop ? void actions.stop() : void actions.run())}
             >
-              {row.updatePending && !row.profile?.reconciliationRequired ? (
+              {showStop ? (
                 <Square size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               ) : (
                 <RefreshCw size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
@@ -466,6 +521,7 @@ export function CatalogUpdaterRow({
               row={row}
               teamId={ctx.teamId}
               permissions={ctx.permissions}
+              lockedReason={runningLock}
               onVideoVariations={ctx.mayRun ? actions.videoVariations : undefined}
               onPublication={ctx.mayRun ? actions.publication : undefined}
               onChanged={actions.reload}

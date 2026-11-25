@@ -9,8 +9,14 @@ export interface CatalogVideoRowProgress {
   state: 'accepted' | 'preparing' | 'ready' | 'cancel_requested' | 'canceled' | 'unknown';
   activeChildOperationId?: string | null;
   executor?: CatalogVideoForegroundProgressExecutor;
-  /** Why an accepted variant round has not started: the manager says it instead of a bare "0 of N". */
-  waitReason?: CatalogVideoRowWaitReason;
+  /**
+   * Why an accepted variant round has not started: the manager says it instead of a bare "0 of N".
+   * Usually one of CATALOG_VIDEO_ROW_WAIT_REASONS; a code a newer server adds is kept as it came
+   * (072): the manager says it in general words instead of losing the whole row's progress.
+   */
+  waitReason?: CatalogVideoRowWaitReason | (string & {});
+  /** The raw code behind a waiting round, when the server reads one it may not name (072, П1). */
+  waitCode?: string;
   /**
    * This computer's background work exists but has not picked the round up
    * since it was accepted (1.4.3): the manager offers to restart it instead of
@@ -31,6 +37,10 @@ export const CATALOG_VIDEO_ROW_WAIT_REASONS = [
 ] as const;
 export type CatalogVideoRowWaitReason = (typeof CATALOG_VIDEO_ROW_WAIT_REASONS)[number];
 
+function isWaitCode(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Z][A-Z_]{1,63}$/u.test(value);
+}
+
 export function parseCatalogVideoRowProgress(value: unknown): CatalogVideoRowProgress | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
@@ -47,8 +57,6 @@ export function parseCatalogVideoRowProgress(value: unknown): CatalogVideoRowPro
     ) ||
     (row.state === 'ready' && row.registeredCount !== row.requestedCount) ||
     (row.activeChildOperationId != null && !isCatalogCommandUuid(row.activeChildOperationId)) ||
-    (row.waitReason !== undefined &&
-      !CATALOG_VIDEO_ROW_WAIT_REASONS.includes(row.waitReason as CatalogVideoRowWaitReason)) ||
     (row.executor !== undefined &&
       (!row.executor ||
         typeof row.executor !== 'object' ||
@@ -75,9 +83,9 @@ export function parseCatalogVideoRowProgress(value: unknown): CatalogVideoRowPro
     ...(row.activeChildOperationId !== undefined
       ? { activeChildOperationId: row.activeChildOperationId as string | null }
       : {}),
-    ...(row.waitReason !== undefined
-      ? { waitReason: row.waitReason as CatalogVideoRowWaitReason }
-      : {}),
+    // Advisory: an unknown code is kept, a malformed one dropped — never the whole progress (072).
+    ...(isWaitCode(row.waitReason) ? { waitReason: row.waitReason } : {}),
+    ...(isWaitCode(row.waitCode) ? { waitCode: row.waitCode } : {}),
     // Anything but `true` is ignored rather than refused: it is advisory only.
     ...(row.backgroundStalled === true ? { backgroundStalled: true as const } : {}),
     // Advisory as well: an out-of-range ordinal is dropped, not refused.

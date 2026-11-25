@@ -32,6 +32,7 @@
 - [x] T041 Міграція `20261224271000_restitch_defaults_duration_range.sql` (адитивна) + `TeamRestitchDefaults.finalDurationRangeSeconds` у shared; накатано на бету через psql.
 - [x] T042 Картка «Перезашиті відео — за секунди» (`RestitchPrepareCard.tsx`, `useRestitchReadiness.ts`), поточне відео й залишок у `useRestitchPreparation`.
 - [x] T043 Тести: `restitch-prepare-card.test.tsx`, `restitch-readiness.test.tsx`, оновлені `restitch-timeline.test.tsx`, `team-restitch-section.test.tsx`.
+- [x] T045 Перемикачі початку й фіналу — на кліпах стрічки; дві картки «Початок»/«Фінал» поруч замість панелі обраного кліпу; кліп відео — не кнопка.
 - [ ] T044 (агент, окремо) прогрес завантаження в межах файлу при підготовці; запис prep після перезашивки в каталозі/запусках; власний розіграш проміжку агентом; автоматична фонова підготовка — findings.md.
 
 ## Фаза 4 — Перевірка

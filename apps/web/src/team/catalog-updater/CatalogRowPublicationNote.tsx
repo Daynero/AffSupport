@@ -1,6 +1,7 @@
-import { CalendarClock } from 'lucide-react';
+import { CalendarClock, CircleAlert } from 'lucide-react';
 import type { CatalogRowPublication } from '../../api/team';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
+import { Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 
 /**
@@ -12,12 +13,32 @@ import { useI18n } from '../../i18n';
  */
 export function CatalogRowPublicationNote({
   publication,
-  now = Date.now()
+  now = Date.now(),
+  onOpen
 }: {
   publication: CatalogRowPublication;
   now?: number;
+  /** Opens the link's window, where a stopped write says why and is sent again (072). */
+  onOpen?: () => void;
 }) {
   const { t, language } = useI18n();
+  // A write that stopped, or whose result is not confirmed, is said in the row (072, П5): the
+  // window it opens has the reason and «Опублікувати ще раз».
+  const stopped =
+    publication.jobState === 'blocked' && publication.blockedReason !== 'legacy_adoption_required';
+  if (stopped || publication.jobState === 'unknown')
+    return (
+      <small className="catalog-row-publication is-stopped" role="status">
+        <CircleAlert size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+        {t(stopped ? 'catalogPublicationBlockedGeneric' : 'catalogPublicationVerifyingWrite')}
+        {onOpen && (
+          <Button size="xs" variant="link" color="warning" onClick={onOpen}>
+            {t('catalogUpdaterDetails')}
+          </Button>
+        )}
+      </small>
+    );
+  if (!publication.dueAt || !publication.timeZone) return null;
   const due = Date.parse(publication.dueAt);
   if (!Number.isFinite(due)) return null;
   let text: string;

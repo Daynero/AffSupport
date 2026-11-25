@@ -104,14 +104,16 @@ it('closes a round whose Drive connection is detached instead of leasing it fore
         [catalog, due]
       )
     )[0]!;
-    expect(attempt).toMatchObject({ result: 'failed', failure_code: 'NEEDS_REAUTH' });
+    // 072 П5 (20261224230000): a detached connection is the space's previous folder, not a Drive
+    // to sign in again — the code says so, and the manager explains it instead of «reconnect».
+    expect(attempt).toMatchObject({ result: 'failed', failure_code: 'CONNECTION_DETACHED' });
     const record = (
       await db.root<{ last_update_error: string | null }>(
         'select last_update_error from public.team_product_catalogs where material_id=$1',
         [catalog]
       )
     )[0]!;
-    expect(record.last_update_error).toBe('NEEDS_REAUTH');
+    expect(record.last_update_error).toBe('CONNECTION_DETACHED');
   } finally {
     await db.root(
       "update public.team_drive_connections set state='connected',detached_at=null where id=$1",

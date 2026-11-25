@@ -40,6 +40,7 @@ const { setPrivateCacheScope } = await import('../apps/web/src/team/private-cach
 const { TeamProvider } = await import('../apps/web/src/team/TeamContext');
 const { ToastProvider } = await import('../apps/web/src/components/toast');
 const { TeamApiError } = await import('../apps/web/src/api/team');
+const { en } = await import('../apps/web/src/locales/en');
 const { CatalogUpdaterDialog } =
   await import('../apps/web/src/team/catalog-updater/CatalogUpdaterDialog');
 const { filterCatalogRows } =
@@ -387,8 +388,14 @@ it('says the restitch round is waiting for the agent instead of a bare 0 of N', 
   });
   renderDialog(client([item], running));
   await screen.findByLabelText('polo.mp4 catalog');
-  const status = screen.getByText(/Videos ready: 0 of 1/);
-  expect(status.textContent).toContain('Waiting for the computer agent');
+  expect(screen.getByText(/Videos ready: 0 of 1/)).toBeTruthy();
+  // 072 П5: the reason stands in the row's problem line, in the catalog's own words.
+  const problem = document.querySelector('.catalog-row-problem');
+  expect(problem?.textContent).toContain(en.catalogWaitAgentRequired);
+  // Work is under way: the row offers Stop (here: why it cannot), never «run».
+  expect(screen.queryByRole('button', { name: /Update polo\.mp4 catalog now/ })).toBeNull();
+  const stop = screen.getByRole('button', { name: en.catalogStopVideosHint });
+  expect((stop as HTMLButtonElement).disabled).toBe(true);
 });
 it('waits for automatic background recovery without a manual resume/settings action', async () => {
   retryBackgroundRecovery.mockClear();
@@ -403,7 +410,7 @@ it('waits for automatic background recovery without a manual resume/settings act
   });
   renderDialog(client([item], running));
   await screen.findByLabelText('polo.mp4 catalog');
-  const status = screen.getByText(/Videos ready: 0 of 1/);
+  const status = document.querySelector('.catalog-row-problem') as HTMLElement;
   expect(status.textContent).toContain('Waiting for the computer agent');
   expect(within(status).queryByRole('button', { name: 'Resume' })).toBeNull();
   expect(within(status).queryByRole('button', { name: 'Open settings' })).toBeNull();
@@ -646,7 +653,7 @@ it('starts manual preparation immediately when the requested video is not ready'
 it.each([
   ['waiting', null, 'Waiting for video preparation…'],
   ['preparing', 'PROCESS_FAILED', 'Preparing replacement video…'],
-  ['blocked', 'PROCESS_FAILED', 'Video preparation failed · details']
+  ['blocked', 'PROCESS_FAILED', null]
 ] as const)(
   'distinguishes pending video %s from an active preparation',
   async (status, code, label) => {
@@ -662,13 +669,15 @@ it.each([
     renderDialog(client([item], running));
     const identity = await screen.findByLabelText('polo.mp4 catalog');
     const tableRow = identity.closest('tr')!;
-    expect(within(tableRow).getByText(label)).toBeTruthy();
+    if (label) expect(within(tableRow).getByText(label)).toBeTruthy();
     expect(within(tableRow).queryByText('Updating…')).toBeNull();
     if (status === 'blocked') {
       expect(within(tableRow).queryByText('Preparing replacement video…')).toBeNull();
-      await userEvent.click(within(tableRow).getByRole('button', { name: label }));
+      // 072 П5: the refusal stands in the row itself, with the way to its history.
+      const problem = tableRow.querySelector('.catalog-row-problem')!;
+      expect(problem.textContent).toMatch(/This file could not be processed on this computer/);
       expect(
-        await screen.findByText(/This file could not be processed on this computer/)
+        within(problem as HTMLElement).getByRole('button', { name: 'Update history' })
       ).toBeTruthy();
     }
   }
@@ -707,16 +716,11 @@ it('keeps a frozen video failure visible after restitch is disabled for future r
   renderDialog(client([item], running));
   const identity = await screen.findByLabelText('polo.mp4 catalog');
   const tableRow = identity.closest('tr')!;
-  const details = within(tableRow).getByRole('button', {
-    name: 'Video preparation failed · details'
-  });
   expect(within(tableRow).queryByText('Updating…')).toBeNull();
-  await userEvent.click(details);
-  expect(
-    await screen.findByText(
-      /Before retrying|before retrying|could not confirm|could not be confirmed/i
-    )
-  ).toBeTruthy();
+  // 072 П5: the frozen failure is said in the row, not behind a details button.
+  expect(tableRow.querySelector('.catalog-row-problem')?.textContent).toMatch(
+    /Before retrying|before retrying|could not confirm|could not be confirmed/i
+  );
 });
 it('does not label an active sheet write as waiting for next-run video', async () => {
   const item = row('1', 'polo.mp4', {

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type HTMLAttributes } from 'react';
 import type { CatalogRegistryRow } from '../../api/team';
 import { useI18n, type TranslationKey } from '../../i18n';
+import type { CatalogWorkMotion } from './catalogRowActivity';
+import './catalog-manager-activity.css';
 
 const STAGES = {
   preparing: [0.12, 'catalogUpdaterStagePreparing'],
@@ -46,12 +48,13 @@ export function catalogRowProgress(row: CatalogRegistryRow): {
   // from the videos being ready until success).
   const videosMade =
     generation?.state === 'ready' && generation.registeredCount >= generation.requestedCount;
+  // Only for a round that waits on videos: a catalog without re-stitching whose first videos are
+  // long ready read «building the table» while its round still waited its turn (072, П5).
   if (
     videosMade &&
     (row.updateStage === 'waiting_video' ||
       row.updateStage === 'restitching' ||
-      row.updateStage === 'preparing' ||
-      !row.updateStage)
+      ((row.updateStage === 'preparing' || !row.updateStage) && row.profile?.restitch !== false))
   )
     return { active: true, value: STAGES.building[0], label: STAGES.building[1] };
   if (row.updateStage === 'waiting_video')
@@ -86,11 +89,16 @@ export function catalogRowProgress(row: CatalogRegistryRow): {
 
 export function CatalogProgressRow({
   row,
+  motion = null,
   children,
   className,
   onAnimationEnd,
   ...props
-}: HTMLAttributes<HTMLTableRowElement> & { row: CatalogRegistryRow }) {
+}: HTMLAttributes<HTMLTableRowElement> & {
+  row: CatalogRegistryRow;
+  /** Whether the work moves (072, П5): only `live` animates the bar; standing work is still. */
+  motion?: CatalogWorkMotion | null;
+}) {
   const { t } = useI18n();
   const current = catalogRowProgress(row);
   const identity = `${row.catalogId}:${row.videoGeneration?.setId ?? row.activeAttemptId ?? row.activeRoundAt ?? 'legacy'}`;
@@ -108,6 +116,7 @@ export function CatalogProgressRow({
     identity,
     child
   });
+  // The bar grows from nothing on its own (catalog-manager-activity.css, `catalog-row-fill-in`).
   const [fill, setFill] = useState(current.value);
   const [complete, setComplete] = useState(false);
   const success = row.profile?.lastSuccessfulAt;
@@ -143,6 +152,7 @@ export function CatalogProgressRow({
         .filter(Boolean)
         .join(' ')}
       aria-busy={current.active || undefined}
+      data-work-motion={current.active ? (motion ?? undefined) : undefined}
       title={current.active ? progressLabel : undefined}
       aria-label={current.active && row.videoGeneration ? progressLabel : props['aria-label']}
       style={

@@ -187,7 +187,7 @@ export type {
 export { RestitchTimeline } from './RestitchTimeline';
 export type {
   RestitchTimelineLabels,
-  RestitchTimelinePart,
+  RestitchTimelineEnd,
   RestitchTimelineProps,
   RestitchTimelineSlot
 } from './RestitchTimeline';

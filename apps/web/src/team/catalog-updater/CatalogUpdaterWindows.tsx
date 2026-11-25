@@ -3,11 +3,11 @@ import { catalogHasOneVideo } from '@video-compressor/shared';
 import type { TeamPermissions } from '@video-compressor/shared';
 import { TeamApiError, type CatalogRegistryRow } from '../../api/team';
 import { Modal } from '../../components/Modal';
-import { Button } from '../../components/ui/index';
+import { Alert, Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { navigateTo } from '../../lib/navigation';
+import { CatalogFixButton, catalogCodeMessage } from '../catalogFixActions';
 import { teamErrorMessageFor } from '../errors';
-import { spaceRouteFor } from '../SpaceSettingsLink';
 import type { useCatalogVideoR2Team } from '../product-catalog/useCatalogVideoR2Team';
 import { CatalogBulkEditor } from './CatalogBulkEditor';
 import {
@@ -22,6 +22,7 @@ import { CatalogUpdateProgress } from './CatalogUpdateProgress';
 import type { CatalogUpdaterDialogClient } from './CatalogUpdaterDialog';
 import type { CatalogRowContext } from './CatalogUpdaterRow';
 import { needsVideo } from './catalogRowState';
+import { catalogRowActivity, catalogSettingsLock } from './catalogRowActivity';
 import type { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
 import { readCatalogSnapshot } from './readCatalogSnapshot';
 import { UpdaterIntervalPicker, intervalLabel } from './UpdaterIntervalPicker';
@@ -78,6 +79,8 @@ export interface CatalogUpdaterWindowsProps {
   onChanged?: () => void;
   /** The catalogs among these whose re-stitching cannot run in this space (2026-11-25). */
   refuseWithoutRestitch?: (catalogIds: string[]) => Promise<string[]>;
+  /** Stop a catalog's running update (072, П5: offered where its settings are locked). */
+  stopRow?: (row: CatalogRegistryRow) => void;
 }
 
 export function CatalogUpdaterWindows({
@@ -121,9 +124,14 @@ export function CatalogUpdaterWindows({
   listRef,
   registryReload,
   onChanged,
-  refuseWithoutRestitch
+  refuseWithoutRestitch,
+  stopRow
 }: CatalogUpdaterWindowsProps) {
   const { t } = useI18n();
+  const activityOf = (row: CatalogRegistryRow) =>
+    catalogRowActivity(row, Date.now() + clockOffsetMs);
+  const lockOf = (row: CatalogRegistryRow) => catalogSettingsLock(row, Date.now() + clockOffsetMs);
+  const bulkRunning = liveSelected.filter(row => lockOf(row));
   return (
     <>
       {legendOpen && (
@@ -170,7 +178,28 @@ export function CatalogUpdaterWindows({
                   size="lg"
                 >
                   <h2 id={`${titleId}-profile`}>{row.name}</h2>
-                  <div className="team-updater-profile">
+                  {lockOf(row) && (
+                    // 072 П5: shown, not changeable, while the round runs — with the way out.
+                    <Alert
+                      color="warning"
+                      title={lockOf(row) === 'running' ? t('catalogLockedRunningTitle') : undefined}
+                      action={
+                        activityOf(row).stop === 'round' && stopRow && mayRun ? (
+                          <Button size="sm" color="neutral" onClick={() => stopRow(row)}>
+                            {t('catalogStopUpdate')}
+                          </Button>
+                        ) : undefined
+                      }
+                    >
+                      {lockOf(row) === 'running'
+                        ? t('catalogLockedRunningBody')
+                        : t('catalogLockedWhileChecking')}
+                    </Alert>
+                  )}
+                  <div
+                    className={`team-updater-profile${lockOf(row) ? ' catalog-profile-locked' : ''}`}
+                    inert={Boolean(lockOf(row)) || undefined}
+                  >
                     {(row.profile?.creatives?.length ?? 0) > 1 && (
                       <p className="m-0 text-ink-muted">
                         {row.profile!.creatives!.map(creative => creative.alias).join(' · ')}
@@ -190,7 +219,6 @@ export function CatalogUpdaterWindows({
 
                     {row.updatePending && (
                       <div>
-                        <p role="status">{t('catalogUpdaterProfileActiveAttempt')}</p>
                         <CatalogUpdateProgress
                           stage={row.updateStage}
                           restitchProgress={row.restitchProgress}
@@ -282,21 +310,18 @@ export function CatalogUpdaterWindows({
                       <p className="catalog-result-attention">
                         {t('catalogIconsReadinessWarning')}{' '}
                         {row.profile?.restitchBlockedCode &&
-                          teamErrorMessageFor({ code: row.profile?.restitchBlockedCode }, t)}
+                          catalogCodeMessage(row.profile?.restitchBlockedCode, t)}
                       </p>
                     )}
                     {needsVideo(row) && row.profile?.restitchStatus === 'blocked' && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          guard(() =>
-                            navigateTo(spaceRouteFor(teamId, { kind: 'settings', tab: 'restitch' }))
-                          )
-                        }
-                      >
-                        {t('teamSettingsTabRestitch')}
-                      </Button>
+                      // The way on follows the code (072, П5): a refused re-stitch goes to its
+                      // settings, a computer that is gone to background work, Drive to Drive.
+                      <CatalogFixButton
+                        teamId={teamId}
+                        code={row.profile?.restitchBlockedCode ?? 'RESTITCH_INVALID'}
+                        onRepaired={registryReload}
+                        catalogUrl={row.sheetUrl}
+                      />
                     )}
                     {['pending', 'unknown', 'conflict'].includes(
                       inline.states[row.catalogId]?.phase ?? ''
@@ -365,12 +390,15 @@ export function CatalogUpdaterWindows({
                   currentProfileVersion={row.profile?.version}
                   activeAttemptId={row.activeAttemptId}
                   currentFailureCode={row.lastUpdateError}
+                  driveConnection={row.driveConnection}
+                  sheetUrl={row.sheetUrl}
                   checkingDelivery={Boolean(row.profile?.reconciliationRequired)}
                   retryDisabled={
                     inline.blocked(row.catalogId) ||
                     busyIds.has(row.catalogId) ||
-                    row.updatePending ||
-                    row.profile?.reconciliationRequired
+                    activityOf(row).active ||
+                    Boolean(row.profile?.reconciliationRequired) ||
+                    row.driveConnection?.state === 'detached'
                   }
                   load={client.listCatalogUpdateAttempts}
                   onClose={() => {
@@ -424,11 +452,16 @@ export function CatalogUpdaterWindows({
           size="lg"
         >
           <h2 id={`${titleId}-bulk`}>{t('catalogUpdaterBulkSettings')}</h2>
+          {bulkRunning.length > 0 && (
+            <Alert color="warning">
+              {t('catalogBulkSkippedRunning', { count: bulkRunning.length })}
+            </Alert>
+          )}
           <CatalogBulkEditor
             clockOffsetMs={clockOffsetMs}
             mode={bulkMode}
             items={liveSelected
-              .filter(row => row.profile && !inline.blocked(row.catalogId))
+              .filter(row => row.profile && !inline.blocked(row.catalogId) && !lockOf(row))
               .map(row => ({
                 catalogId: row.catalogId,
                 name: row.name,

@@ -3232,6 +3232,12 @@ export const en = {
   teamRestitchEndSwitch: 'Picture after the video',
   teamRestitchStartHint: 'The video’s first frame — what shows before it starts playing.',
   teamRestitchEndHint: 'Shown after the video, without sound.',
+  teamRestitchStartTurnOn: 'Turn the start picture on',
+  teamRestitchStartTurnOff: 'Turn the start picture off',
+  teamRestitchEndTurnOn: 'Turn the picture after the video on',
+  teamRestitchEndTurnOff: 'Turn the picture after the video off',
+  teamRestitchStartOffHint: 'Off: the video starts straight away, with no picture.',
+  teamRestitchEndOffHint: 'Off: nothing is added after the video.',
   teamRestitchDurationLabel: 'Length',
   teamRestitchFitTitle: 'How the picture fits the frame',
   teamRestitchOwnerPoolsNote:

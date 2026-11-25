@@ -28,7 +28,8 @@ import {
   type FinalHandle
 } from './restitch-timeline-scale';
 
-export type RestitchTimelinePart = 'start' | 'video' | 'end';
+/** The two ends a person can switch on and off; the video between them is never a choice. */
+export type RestitchTimelineEnd = 'start' | 'end';
 
 export interface RestitchTimelineSlot {
   enabled: boolean;
@@ -51,6 +52,10 @@ export interface RestitchTimelineLabels {
   builtin: string;
   random: (count: number) => string;
   axisBreak: string;
+  /** What the video clip says on hover: that nothing in it changes. */
+  videoNote: string;
+  /** A switch's tooltip: what pressing it does. */
+  toggle: (part: RestitchTimelineEnd, enabled: boolean) => string;
   /** Each handle's name: the shortest and the longest length. */
   sliderLow: string;
   sliderHigh: string;
@@ -63,8 +68,8 @@ export interface RestitchTimelineProps {
   end: RestitchTimelineSlot;
   duration: FinalDuration;
   onDurationChange: (duration: FinalDuration) => void;
-  selected: RestitchTimelinePart | null;
-  onSelect: (part: RestitchTimelinePart) => void;
+  /** Switches an end on or off, right on its clip. */
+  onToggle: (part: RestitchTimelineEnd, enabled: boolean) => void;
   /** Read-only: the clips still open their panels, the handle does not move. */
   disabled?: boolean;
   labels: RestitchTimelineLabels;
@@ -101,8 +106,7 @@ export function RestitchTimeline({
   end,
   duration,
   onDurationChange,
-  selected,
-  onSelect,
+  onToggle,
   disabled = false,
   labels
 }: RestitchTimelineProps) {
@@ -178,19 +182,30 @@ export function RestitchTimeline({
     </div>
   );
 
+  /* Each end carries its own switch, so what is on and what is off reads off the strip itself
+     — both at once, without opening anything. */
+  const toggle = (part: RestitchTimelineEnd, enabled: boolean) => (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      aria-label={part === 'start' ? labels.start : labels.end}
+      title={labels.toggle(part, enabled)}
+      className="restitch-timeline-toggle"
+      disabled={disabled}
+      onClick={() => onToggle(part, !enabled)}
+    >
+      <span className="restitch-timeline-toggle-knob" aria-hidden="true" />
+    </button>
+  );
+
   return (
     <div
-      className={`restitch-timeline${dragging ? ' is-dragging' : ''}${disabled ? ' is-disabled' : ''}`}
+      className={`restitch-timeline${dragging ? ' is-dragging' : ''}${disabled ? ' is-disabled' : ''}${start.enabled ? '' : ' is-start-off'}${end.enabled ? '' : ' is-end-off'}`}
       style={endStyle}
     >
       <div className="restitch-timeline-strip">
-        <button
-          type="button"
-          className={`restitch-timeline-clip is-start${start.enabled ? '' : ' is-off'}`}
-          aria-pressed={selected === 'start'}
-          aria-label={`${labels.start} · ${start.enabled ? labels.startLength : labels.off}`}
-          onClick={() => onSelect('start')}
-        >
+        <div className={`restitch-timeline-clip is-start${start.enabled ? '' : ' is-off'}`}>
           {start.enabled &&
             (start.image ? (
               <FadeImage className="restitch-timeline-picture" src={start.image} alt="" />
@@ -198,17 +213,13 @@ export function RestitchTimeline({
               <Folder size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
             ))}
           {start.enabled && <SlotBadge slot={start} labels={labels} />}
-        </button>
+          {toggle('start', start.enabled)}
+        </div>
 
-        <button
-          type="button"
-          className="restitch-timeline-clip is-video"
-          aria-pressed={selected === 'video'}
-          aria-label={`${labels.video} · ${labels.videoLength}`}
-          onClick={() => onSelect('video')}
-        >
+        {/* The video is what it is: nothing to set, so nothing to press. */}
+        <div className="restitch-timeline-clip is-video" title={labels.videoNote}>
           <Play size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </button>
+        </div>
 
         <span className="restitch-timeline-break" aria-hidden="true" title={labels.axisBreak} />
 
@@ -221,7 +232,7 @@ export function RestitchTimeline({
             const held = target.closest<HTMLElement>('[data-handle]')?.dataset.handle as
               FinalHandle | undefined;
             const onBand = Boolean(target.closest('.restitch-timeline-zone'));
-            if (!held && !onBand && target.closest('.restitch-timeline-clip')) return;
+            if (target.closest('.restitch-timeline-toggle')) return;
             event.preventDefault();
             const current = latest.current;
             let grip: Grip;
@@ -262,13 +273,7 @@ export function RestitchTimeline({
           onPointerCancel={finish}
           onLostPointerCapture={finish}
         >
-          <button
-            type="button"
-            className={`restitch-timeline-clip is-end${end.enabled ? '' : ' is-off'}`}
-            aria-pressed={selected === 'end'}
-            aria-label={`${labels.end} · ${end.enabled ? labels.endLength : labels.off}`}
-            onClick={() => onSelect('end')}
-          >
+          <div className={`restitch-timeline-clip is-end${end.enabled ? '' : ' is-off'}`}>
             {end.enabled && (
               <>
                 <span className="restitch-timeline-film" aria-hidden="true">
@@ -280,7 +285,8 @@ export function RestitchTimeline({
               </>
             )}
             {!end.enabled && <span className="restitch-timeline-off">{labels.off}</span>}
-          </button>
+            {toggle('end', end.enabled)}
+          </div>
           {end.enabled && low < high && (
             <span className="restitch-timeline-zone" aria-hidden="true" title={labels.endLength} />
           )}

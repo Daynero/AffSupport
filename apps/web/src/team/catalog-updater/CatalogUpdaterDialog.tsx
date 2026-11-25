@@ -45,6 +45,7 @@ import { shownCatalogRows, useCatalogDates } from './catalogRowState';
 import { useCatalogManagerTrash } from './useCatalogManagerTrash';
 import { useCatalogStop } from './useCatalogStop';
 import { useCatalogListFocus } from './useCatalogListFocus';
+import { catalogSettingsLock } from './catalogRowActivity';
 import {
   restitchSettingsFailed,
   useRestitchSettingsReady,
@@ -302,6 +303,8 @@ function CatalogUpdaterDialogScope({
       : row;
   });
   const rowsById = new Map(rows.map(row => [row.catalogId, row]));
+  const isRunning = (row: CatalogRegistryRow | undefined) =>
+    Boolean(row && catalogSettingsLock(row, Date.now() + updater.offsetMs));
   // Re-stitching works out of the box; the one case it cannot is a space with both the start and
   // the end turned off. Such a run is refused where it was pressed, with the way to the setting,
   // instead of a round that waits «Готуємо відео…» for ever (production 2026-11-25).
@@ -349,11 +352,14 @@ function CatalogUpdaterDialogScope({
   });
   const shown = useMemo(
     () =>
+      // A held row keeps its place in the filters and the order while its change is saved; what
+      // the row shows is always the live one (072, П5: a held copy froze «run» over a round that
+      // had started meanwhile).
       shownCatalogRows(
         rows.map(row => heldRows.current.get(row.catalogId) ?? row),
         { query, status: statusFilter, recency: recencyFilter, sortBy, createdRange }
-      ),
-    [rows, query, statusFilter, recencyFilter, sortBy, heldRevision, createdRange]
+      ).map(row => rowsById.get(row.catalogId) ?? row),
+    [rows, rowsById, query, statusFilter, recencyFilter, sortBy, heldRevision, createdRange]
   );
   const filterMounted = useRef(false);
   const previousCreatedRange = useRef(createdRange);
@@ -473,7 +479,7 @@ function CatalogUpdaterDialogScope({
         inline.blocked(id) ||
         busyIds.has(id) ||
         rowsById.get(id)?.profile?.reconciliationRequired ||
-        rowsById.get(id)?.updatePending
+        isRunning(rowsById.get(id))
     );
     if (excluded.length) {
       setExcludedRuns(ids);
@@ -492,7 +498,9 @@ function CatalogUpdaterDialogScope({
       !mayRun ||
       inline.blocked(row.catalogId) ||
       commands.blocked(row.catalogId) ||
-      busyRef.current.has(row.catalogId)
+      busyRef.current.has(row.catalogId) ||
+      // 072 П5: a running catalog's settings wait for the round (the server refuses them too).
+      isRunning(row)
     )
       return;
     // A schedule that would re-stitch in a space with both screens off is not saved.
@@ -554,7 +562,8 @@ function CatalogUpdaterDialogScope({
     changeField,
     saveSchedule: async (row, interval, schedule) => {
       if (!mayRun) throw new TeamApiError('PERMISSION_DENIED', false);
-      if (busyRef.current.has(row.catalogId)) throw new TeamApiError('WRONG_STATE', false);
+      if (busyRef.current.has(row.catalogId) || isRunning(row))
+        throw new TeamApiError('WRONG_STATE', false);
       if (interval !== null && (await refuseWithoutRestitch([row.catalogId])).length)
         throw new TeamApiError('RESTITCH_INVALID', false);
       await inline.saveSchedule(row.catalogId, { interval, schedule });
@@ -807,6 +816,7 @@ function CatalogUpdaterDialogScope({
         registryReload={registry.reload}
         onChanged={onChanged}
         refuseWithoutRestitch={refuseWithoutRestitch}
+        stopRow={row => void cancelNow(row)}
       />
       <div className="catalog-undo-notice" role="status">
         {undoToast && (

@@ -1,0 +1,198 @@
+/*
+ * A catalog row's progress (072, П5).
+ *
+ * Paint the table row itself: WebKit does not consistently use a positioned table row as the
+ * containing block of an absolutely positioned cell pseudo.
+ *
+ * The bar grows on a curve from where it was — from nothing when the work starts, from one stage
+ * to the next after — and only live work moves on it: a soft sheen that runs along the filled
+ * part while the server keeps seeing the work move. Work that stands (a computer that never took
+ * it, an error between tries) is a still bar in the warning tone, with its reason beside it.
+ */
+.catalog-compact-table .catalog-progress-row {
+  --catalog-row-fill: var(--color-success-soft);
+  background-image: linear-gradient(
+    to right,
+    var(--catalog-row-fill) calc(var(--catalog-row-progress) * 100%),
+    transparent calc(var(--catalog-row-progress) * 100%)
+  );
+}
+.catalog-progress-row[aria-busy='true'],
+.catalog-progress-row.is-update-complete {
+  transition: --catalog-row-progress var(--motion-progress) var(--ease-out-curve);
+}
+/* Work that starts — or a row that opens on work already under way — fills from nothing. */
+.catalog-compact-table .catalog-progress-row[aria-busy='true'] {
+  animation: catalog-row-fill-in var(--motion-progress) var(--ease-out-curve);
+}
+@keyframes catalog-row-fill-in {
+  from {
+    --catalog-row-progress: 0;
+  }
+}
+.catalog-compact-table .catalog-progress-row[data-work-motion='stalled'],
+.catalog-compact-table .catalog-progress-row[data-work-motion='problem'] {
+  --catalog-row-fill: var(--color-warning-soft);
+}
+.catalog-compact-table .catalog-progress-row[data-work-motion='live'] {
+  background-image:
+    linear-gradient(
+      to right,
+      transparent calc((var(--catalog-row-sheen) * var(--catalog-row-progress) - 0.06) * 100%),
+      var(--color-success-border)
+        calc(var(--catalog-row-sheen) * var(--catalog-row-progress) * 100%),
+      transparent
+        calc(
+          min(
+              var(--catalog-row-progress),
+              var(--catalog-row-sheen) * var(--catalog-row-progress) + 0.06
+            ) *
+            100%
+        )
+    ),
+    linear-gradient(
+      to right,
+      var(--catalog-row-fill) calc(var(--catalog-row-progress) * 100%),
+      transparent calc(var(--catalog-row-progress) * 100%)
+    );
+  animation:
+    catalog-row-fill-in var(--motion-progress) var(--ease-out-curve),
+    catalog-row-sheen var(--motion-sheen) var(--ease-in-out-curve) infinite;
+}
+@keyframes catalog-row-sheen {
+  from {
+    --catalog-row-sheen: 0;
+  }
+  to {
+    --catalog-row-sheen: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-progress-row[aria-busy='true'],
+  .catalog-progress-row.is-update-complete {
+    transition: none;
+  }
+  .catalog-compact-table .catalog-progress-row[aria-busy='true'],
+  .catalog-compact-table .catalog-progress-row[data-work-motion='live'] {
+    animation: none;
+  }
+  .catalog-compact-table .catalog-progress-row[data-work-motion='live'] {
+    background-image: linear-gradient(
+      to right,
+      var(--catalog-row-fill) calc(var(--catalog-row-progress) * 100%),
+      transparent calc(var(--catalog-row-progress) * 100%)
+    );
+  }
+}
+
+/* Why the work stands, and the way on — one line under the catalog's name. */
+.catalog-row-problem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-warning-text);
+}
+.catalog-row-problem-text {
+  min-width: 0;
+}
+
+/* A settings window of a catalog that is updating: shown, not changeable. */
+.catalog-profile-locked {
+  opacity: var(--catalog-disabled-opacity);
+}
+
+/* The update history: one compact line per try, details folded under it. */
+.catalog-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.catalog-history-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.catalog-history-item + .catalog-history-item {
+  border-top: 1px solid var(--color-border);
+}
+.catalog-history-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+.catalog-history-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+.catalog-history-when time {
+  font-variant-numeric: tabular-nums;
+}
+.catalog-history-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.catalog-history-line svg {
+  transition: transform var(--motion-fast) var(--ease-out-curve);
+}
+.catalog-history-line svg.is-flipped {
+  transform: rotate(180deg);
+}
+.catalog-history-reason {
+  padding: 0 var(--space-3) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+.catalog-history-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
+  font-size: var(--text-xs);
+}
+.catalog-history-details dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+.catalog-history-details dt {
+  color: var(--color-text-muted);
+}
+.catalog-history-details dd {
+  margin: 0;
+}
+.catalog-history-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.catalog-history-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* A link that stopped on its way to the sheet: said in the row, opened from it. */
+.catalog-row-publication.is-stopped {
+  color: var(--color-warning-text);
+}
+.catalog-row-publication.is-stopped > button {
+  margin-inline-start: var(--space-1);
+}

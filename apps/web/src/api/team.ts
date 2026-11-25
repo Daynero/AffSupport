@@ -9,6 +9,10 @@ import {
   type CatalogUpdaterVariantsSnapshot
 } from './catalog-updater-variants';
 import {
+  parseCatalogManagerRuntime,
+  type CatalogManagerRuntime
+} from './catalog-manager-runtime';
+import {
   parseCatalogVideoRowProgress,
   type CatalogVideoRowProgress
 } from './catalog-video-row-progress';
@@ -465,13 +469,17 @@ function catalogListSnapshotFrom<T>(
 /** 023 — one row of the catalog registry: a live product catalog and the video it belongs to. */
 /** A scheduled video-link publication that has not been written yet (1.4.3). */
 export interface CatalogRowPublication {
-  dueAt: string;
-  timeZone: string;
+  /** Null for a link sent at once that stopped (072): only its state is said. */
+  dueAt: string | null;
+  timeZone: string | null;
   /** The link's videos are still being made; it goes out once they are ready. */
   waitingForVideos: boolean;
+  /** The write job's state, when the server says (072): `blocked` and `unknown` need a person. */
+  jobState?: string;
+  blockedReason?: string | null;
 }
 
-export interface CatalogRegistryRow {
+export interface CatalogRegistryRow extends CatalogManagerRuntime {
   /** Confirmed previous material names, used by catalog search. */
   nameAliases?: string[];
   videoGeneration?: CatalogVideoRowProgress | null;
@@ -743,16 +751,33 @@ function catalogUpdaterStateFrom(value: unknown): CatalogUpdaterState | null {
 /** A malformed publication note hides the note, never the row. */
 function catalogRowPublicationFrom(value: unknown): CatalogRowPublication | null {
   const row = asRecord(value);
+  const jobState =
+    typeof row?.job_state === 'string' && /^[a-z_]{1,32}$/u.test(row.job_state)
+      ? row.job_state
+      : undefined;
+  // A link sent at once has no time; it comes only with the state that makes it worth saying.
+  const timeless = row?.due_at === null && row?.time_zone === null && jobState !== undefined;
   if (
     !row ||
-    typeof row.due_at !== 'string' ||
-    !Number.isFinite(Date.parse(row.due_at)) ||
-    typeof row.time_zone !== 'string' ||
-    row.time_zone.length > 64 ||
+    (!timeless &&
+      (typeof row.due_at !== 'string' ||
+        !Number.isFinite(Date.parse(row.due_at)) ||
+        typeof row.time_zone !== 'string' ||
+        row.time_zone.length > 64)) ||
     typeof row.waiting_for_videos !== 'boolean'
   )
     return null;
-  return { dueAt: row.due_at, timeZone: row.time_zone, waitingForVideos: row.waiting_for_videos };
+  return {
+    dueAt: timeless ? null : (row.due_at as string),
+    timeZone: timeless ? null : (row.time_zone as string),
+    waitingForVideos: row.waiting_for_videos,
+    ...(jobState
+      ? {
+          jobState,
+          blockedReason: typeof row.blocked_reason === 'string' ? row.blocked_reason : null
+        }
+      : {})
+  };
 }
 
 function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
@@ -841,6 +866,8 @@ function catalogRegistryRowFrom(value: unknown): CatalogRegistryRow | null {
     ...(Object.prototype.hasOwnProperty.call(row, 'video_publication')
       ? { videoPublication: catalogRowPublicationFrom(row.video_publication) }
       : {}),
+    // 072 П5: a sign of life, a retry time, the catalog's Drive folder (advisory).
+    ...parseCatalogManagerRuntime(row),
     restitchProgress:
       typeof row.restitch_progress === 'number' &&
       Number.isInteger(row.restitch_progress) &&

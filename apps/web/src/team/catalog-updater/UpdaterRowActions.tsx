@@ -48,7 +48,8 @@ export function UpdaterRowActions({
   onVideoVariations,
   onConfigure,
   onRename,
-  onVideoCatalogs
+  onVideoCatalogs,
+  lockedReason
 }: {
   row: CatalogRegistryRow;
   teamId: string;
@@ -64,6 +65,8 @@ export function UpdaterRowActions({
   onRename?: () => void;
   /** The catalog's video and its other catalogs (070, T057): the way from the manager to them. */
   onVideoCatalogs?: () => void;
+  /** The catalog is updating: its settings wait, and the menu says why (072, П5). */
+  lockedReason?: string;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -142,15 +145,33 @@ export function UpdaterRowActions({
                 {
                   id: 'video_variations',
                   label: t('catalogVideoVariationCount'),
+                  disabled: Boolean(lockedReason),
+                  note: lockedReason,
                   onSelect: onVideoVariations
                 }
               ]
             : []),
           ...(onPublication
-            ? [{ id: 'publication', label: t('catalogPublicationTitle'), onSelect: onPublication }]
+            ? [
+                {
+                  id: 'publication',
+                  label: t('catalogPublicationTitle'),
+                  disabled: Boolean(lockedReason),
+                  note: lockedReason,
+                  onSelect: onPublication
+                }
+              ]
             : []),
           ...(onConfigure
-            ? [{ id: 'configure', label: t('catalogUpdaterConfigure'), onSelect: onConfigure }]
+            ? [
+                {
+                  id: 'configure',
+                  label: t('catalogUpdaterConfigure'),
+                  disabled: Boolean(lockedReason),
+                  note: lockedReason,
+                  onSelect: onConfigure
+                }
+              ]
             : []),
           ...(onHistory
             ? [{ id: 'update-history', label: t('catalogUpdaterHistory'), onSelect: onHistory }]

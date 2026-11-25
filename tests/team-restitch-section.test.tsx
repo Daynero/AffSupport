@@ -138,12 +138,6 @@ function renderSection(
   );
 }
 
-/** The strip's first clip; its panel holds the start pool. */
-async function openStart(user = userEvent.setup()) {
-  await user.click(await screen.findByRole('button', { name: /^Start ·/ }));
-  return user;
-}
-
 const emptyListing: RestitchSourcesListing = {
   sourceMode: 'drive',
   legacyImageCount: 0,
@@ -166,8 +160,10 @@ describe('a space’s re-stitching settings', () => {
         'Finished video: 1 frame of picture + your video + 40–50 min of picture'
       )
     ).toBeTruthy();
-    // The final picture's panel is open first: its slot falls back to Soty's picture.
-    expect(screen.getByText('Soty’s standard picture')).toBeTruthy();
+    // Both ends are on, and with nothing of their own each falls back to Soty's picture.
+    expect(screen.getAllByText('Soty’s standard picture')).toHaveLength(2);
+    expect(screen.getByRole('switch', { name: 'Start' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('switch', { name: 'Final' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.queryByText(/Re-stitching is off/)).toBeNull();
     expect(screen.getByRole('slider', { name: 'Longest final picture' })).toBeTruthy();
   });
@@ -190,11 +186,10 @@ describe('a space’s re-stitching settings', () => {
   it('shows the pools in the panel of the clip they belong to, read from the space', async () => {
     const value = client();
     renderSection(value);
-    // The final clip is open first; its pool is empty, so Soty's picture stands in.
+    // Both ends side by side: the final one's pool is empty, so Soty's picture stands in.
     expect(
       await screen.findByText('No pictures of your own yet — Soty uses its standard one.')
     ).toBeTruthy();
-    await openStart();
     expect(await screen.findByText('Openers')).toBeTruthy();
     expect(screen.getByText(/3 pictures in the selection pool/)).toBeTruthy();
     expect(value.listRestitchSources).toHaveBeenCalledWith(TEAM_ID, 'owner');
@@ -279,8 +274,12 @@ describe('a space’s re-stitching settings', () => {
     const value = client();
     renderSection(value);
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('switch', { name: 'Picture after the video' }));
-    await openStart(user);
+    // One end from the strip, the other from its card: the same switch either way.
+    await user.click(await screen.findByRole('switch', { name: 'Final' }));
+    expect(screen.getByRole('switch', { name: 'Picture after the video' })).toHaveProperty(
+      'checked',
+      false
+    );
     await user.click(screen.getByRole('switch', { name: 'Picture at the start' }));
     expect(await screen.findByText(/Re-stitching is off/)).toBeTruthy();
     expect(screen.queryByRole('slider')).toBeNull();
@@ -304,7 +303,6 @@ describe('a space’s re-stitching settings', () => {
         })
       })
     );
-    await openStart();
     expect(await screen.findByRole('switch', { name: 'Picture at the start' })).toHaveProperty(
       'checked',
       true
@@ -375,7 +373,7 @@ describe('a space’s re-stitching settings', () => {
   it('writes a pool the moment a source is removed', async () => {
     const value = client();
     renderSection(value);
-    const user = await openStart();
+    const user = userEvent.setup();
     await user.click(
       await screen.findByRole('button', { name: 'Remove Openers from the pictures' })
     );
@@ -447,7 +445,6 @@ describe('a space’s re-stitching settings', () => {
       )
     );
     await waitFor(() => expect(screen.queryByText(/still points at/)).toBeNull());
-    await openStart(user);
     expect(await screen.findByText('Openers')).toBeTruthy();
   });
 
@@ -466,7 +463,6 @@ describe('a space’s re-stitching settings', () => {
       'checked',
       true
     );
-    await openStart();
     expect(await screen.findByText('Openers')).toBeTruthy();
     // Read, not editable: the handles do not move for someone who inherits.
     expect(
@@ -516,7 +512,6 @@ describe('a space’s re-stitching settings', () => {
     await user.click(await screen.findByRole('button', { name: 'Save' }));
     await waitFor(() => expect(value.setMemberRestitchDefaults).toHaveBeenCalled());
     expect(value.setRestitchDefaults).not.toHaveBeenCalled();
-    await openStart(user);
     await user.click(
       await screen.findByRole('button', { name: 'Remove Openers from the pictures' })
     );
@@ -550,7 +545,6 @@ describe('the pools follow the catalog (030)', () => {
         </TeamProvider>
       </AgentContextOverride>
     );
-    await openStart();
     expect(await screen.findByText('Openers')).toBeTruthy();
     await waitFor(() => expect(freshness.isFresh(TEAM_ID)).toBe(true));
     expect(value.listRestitchSources).toHaveBeenCalledTimes(1);

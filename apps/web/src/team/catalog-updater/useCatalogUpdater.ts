@@ -9,6 +9,7 @@ import {
 } from '../../api/team';
 import type { CatalogUpdateProfile, CatalogUpdateProfilePatch } from '@video-compressor/shared';
 import { useTeam } from '../TeamContext';
+import { catalogRowActivity } from './catalogRowActivity';
 
 /**
  * The space's catalog updater and its catalogs, as the chip and the dialog read them (023).
@@ -133,10 +134,14 @@ export function useCatalogRegistry(
     enabled,
     client
   );
+  // Any work the row shows — a round, the check after it, videos made outside a round — is
+  // followed closely (072, П5): the button and the bar must not wait a minute to learn it ended.
   const hasPendingUpdate =
     value?.rows.some(
       row =>
-        row.updatePending || (row.profile?.restitch && row.profile.restitchStatus === 'preparing')
+        row.updatePending ||
+        catalogRowActivity(row, Date.now()).active ||
+        (row.profile?.restitch && row.profile.restitchStatus === 'preparing')
     ) ?? false;
   // A deferred link near or past its time, or waiting for its videos, changes within seconds:
   // follow it like a running round, and read once more the moment the earliest scheduled
@@ -146,7 +151,7 @@ export function useCatalogRegistry(
   const publicationDue = (value?.rows ?? [])
     .map(row => row.videoPublication)
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
-    .map(entry => ({ due: Date.parse(entry.dueAt), waiting: entry.waitingForVideos }))
+    .map(entry => ({ due: Date.parse(entry.dueAt ?? ''), waiting: entry.waitingForVideos }))
     .filter(entry => Number.isFinite(entry.due));
   const publicationActive = publicationDue.some(
     entry => entry.waiting || entry.due <= now + PUBLICATION_NEAR_MS
