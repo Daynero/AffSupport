@@ -627,7 +627,8 @@ describe('the one invariant jsdom cannot see', () => {
   const css = readFileSync(path.join(process.cwd(), 'apps/web/src/styles.css'), 'utf8');
 
   it('never lets the code give way to a long key', () => {
-    const rule = /^\.tfa-code \{[^}]*\}/mu.exec(css)?.[0] ?? '';
+    // On the inventory's button since 070 T038, hence the doubled class.
+    const rule = /^\.ui-button\.tfa-code \{[^}]*\}/mu.exec(css)?.[0] ?? '';
     expect(rule).toContain('flex: 0 0 auto');
   });
 
@@ -637,7 +638,7 @@ describe('the one invariant jsdom cannot see', () => {
   });
 
   it('lets the key be the part that yields', () => {
-    const rule = /^\.tfa-seed \{[^}]*\}/mu.exec(css)?.[0] ?? '';
+    const rule = /^\.ui-button\.tfa-seed \{[^}]*\}/mu.exec(css)?.[0] ?? '';
     expect(rule).toContain('flex: 0 1 auto');
     expect(rule).toContain('min-width: 0');
   });

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { SettingsPanelHeader } from './SettingsPanelHeader';
 import {
-  ChevronDown,
-  Settings as SettingsIcon,
   Files,
   Film,
   FolderOpen,
@@ -30,7 +29,7 @@ import {
 import { compactPath } from '../format';
 import { isValidIntegerInput } from '../queue-ui';
 import type { Translate } from '../i18n';
-import { Collapse, HelpTip, RadioGroup, Switch } from './ui/index';
+import { Collapse, HelpTip, Input, RadioGroup, Slider, Switch } from './ui/index';
 import { ImageEmbeddingSection } from './ImageEmbeddingSection';
 
 // The presets are exactly the pictos on the row. A value outside them (25 fps,
@@ -94,20 +93,14 @@ export function SettingsPanel({
       {/* The whole header is the toggle: gear and title on the left, the
           current choices in the middle (only while collapsed, so they never
           duplicate the controls below), chevron in the corner. */}
-      <button
-        type="button"
-        className="settings-collapse section-heading compact-heading"
-        aria-expanded={open}
-        aria-controls="settings-body"
-        onClick={() => setOpen(current => !current)}
-      >
-        <SettingsIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        <h2 id="settings-title">{t('compressionSettings')}</h2>
-        {/* The summary stays put when the panel opens: it is the shortest read
-            of what will actually run, and losing it mid-adjustment is exactly
-            when it is most useful. */}
-        {
-          <span className="settings-summary">
+      <SettingsPanelHeader
+        title={t('compressionSettings')}
+        titleId="settings-title"
+        bodyId="settings-body"
+        open={open}
+        onToggle={() => setOpen(current => !current)}
+        summary={
+          <>
             <span>
               <span className="settings-summary-key">{t('settingsSummaryResolution')}</span>
               {summary.resolutionLimit
@@ -126,15 +119,9 @@ export function SettingsPanel({
             </span>
             {/* Embedding is only worth a word when it is on. */}
             {settings.imageEmbedding.enabled && <span>{t('settingsSummaryEmbedding')}</span>}
-          </span>
+          </>
         }
-        <ChevronDown
-          size={ICON_SIZE}
-          strokeWidth={ICON_STROKE}
-          className={`settings-chevron ${open ? '' : 'is-rotated'}`.trim()}
-          aria-hidden="true"
-        />
-      </button>
+      />
       <div id="settings-body" className="settings-body" hidden={!open}>
         <div className="settings-primary-row">
           <div className="field-group">
@@ -389,27 +376,27 @@ function FpsControl({
           ]}
         />
         {choice === 'custom' && (
-          <div className="input-with-suffix">
-            <input
-              className={`time-input fps-input ${!valid && custom ? 'is-invalid' : ''}`}
-              type="number"
-              inputMode="numeric"
-              min={FRAME_RATE_MIN}
-              max={FRAME_RATE_MAX}
-              value={custom}
-              disabled={disabled}
-              aria-label={t('customFps')}
-              aria-invalid={!valid && custom !== ''}
-              onChange={event => {
-                const value = event.target.value;
-                setCustom(value);
-                if (isValidIntegerInput(value, FRAME_RATE_MIN, FRAME_RATE_MAX)) {
-                  updateSettings({ frameRate: Number(value) }, true);
-                }
-              }}
-            />
-            <span>fps</span>
-          </div>
+          <Input
+            className="fps-input"
+            width="narrow"
+            size="sm"
+            suffix="fps"
+            type="number"
+            inputMode="numeric"
+            min={FRAME_RATE_MIN}
+            max={FRAME_RATE_MAX}
+            value={custom}
+            disabled={disabled}
+            aria-label={t('customFps')}
+            invalid={!valid && custom !== ''}
+            onChange={event => {
+              const value = event.target.value;
+              setCustom(value);
+              if (isValidIntegerInput(value, FRAME_RATE_MIN, FRAME_RATE_MAX)) {
+                updateSettings({ frameRate: Number(value) }, true);
+              }
+            }}
+          />
         )}
       </div>
       <span className="optimal-summary">
@@ -486,27 +473,27 @@ function ResolutionControl({
           ]}
         />
         {choice === 'custom' && (
-          <div className="input-with-suffix">
-            <input
-              className={`time-input res-input ${!valid && custom ? 'is-invalid' : ''}`}
-              type="number"
-              inputMode="numeric"
-              min={RESOLUTION_MIN}
-              max={RESOLUTION_MAX}
-              value={custom}
-              disabled={disabled}
-              aria-label={t('customResolution')}
-              aria-invalid={!valid}
-              onChange={event => {
-                const value = event.target.value;
-                setCustom(value);
-                if (isValidIntegerInput(value, RESOLUTION_MIN, RESOLUTION_MAX)) {
-                  updateSettings({ resolutionLimit: Number(value) }, true);
-                }
-              }}
-            />
-            <span>px</span>
-          </div>
+          <Input
+            className="res-input"
+            width="narrow"
+            size="sm"
+            suffix="px"
+            type="number"
+            inputMode="numeric"
+            min={RESOLUTION_MIN}
+            max={RESOLUTION_MAX}
+            value={custom}
+            disabled={disabled}
+            aria-label={t('customResolution')}
+            invalid={!valid && custom !== ''}
+            onChange={event => {
+              const value = event.target.value;
+              setCustom(value);
+              if (isValidIntegerInput(value, RESOLUTION_MIN, RESOLUTION_MAX)) {
+                updateSettings({ resolutionLimit: Number(value) }, true);
+              }
+            }}
+          />
         )}
       </div>
       <span className="optimal-summary">
@@ -544,20 +531,18 @@ function RateValueCrf({
   useEffect(() => setValue(settings.crf), [settings.crf]);
   return (
     <>
-      <span className="crf-track-wrap">
-        <input
-          type="range"
-          className="rate-slider crf-gradient"
+      {/* The inventory's slider on its gradient track (070 T036). The gem grows from the first
+          movement; the panel's own release watch shrinks it back. */}
+      <span className="crf-track-wrap" title={t('crfTooltip')}>
+        <Slider
+          gradient
           min={CRF_MIN}
           max={CRF_MAX}
           step={1}
           value={value}
           disabled={disabled}
           aria-label={t('crf')}
-          title={t('crfTooltip')}
-          onPointerDown={event => onDrag(Number((event.target as HTMLInputElement).value))}
-          onChange={event => {
-            const next = Number(event.target.value);
+          onChange={next => {
             setValue(next);
             onDrag(next);
             updateSettings({ crf: next }, true);
@@ -627,28 +612,28 @@ function RateValueBitrate({
   useEffect(() => setValue(String(settings.videoBitrateKbps)), [settings.videoBitrateKbps]);
   const valid = isValidIntegerInput(value, VIDEO_BITRATE_MIN_KBPS, VIDEO_BITRATE_MAX_KBPS);
   return (
-    <div className="input-with-suffix">
-      <input
-        className={`time-input ${!valid && value !== '' ? 'is-invalid' : ''}`}
-        type="number"
-        inputMode="numeric"
-        min={VIDEO_BITRATE_MIN_KBPS}
-        max={VIDEO_BITRATE_MAX_KBPS}
-        value={value}
-        disabled={disabled}
-        aria-label={t('videoBitrate')}
-        title={t('bitrateTooltip')}
-        aria-invalid={!valid && value !== ''}
-        onChange={event => {
-          const next = event.target.value;
-          setValue(next);
-          if (isValidIntegerInput(next, VIDEO_BITRATE_MIN_KBPS, VIDEO_BITRATE_MAX_KBPS)) {
-            updateSettings({ videoBitrateKbps: Number(next) }, true);
-          }
-        }}
-      />
-      <span>kbps</span>
-    </div>
+    <Input
+      className="bitrate-input"
+      width="narrow"
+      size="sm"
+      suffix="kbps"
+      type="number"
+      inputMode="numeric"
+      min={VIDEO_BITRATE_MIN_KBPS}
+      max={VIDEO_BITRATE_MAX_KBPS}
+      value={value}
+      disabled={disabled}
+      aria-label={t('videoBitrate')}
+      title={t('bitrateTooltip')}
+      invalid={!valid && value !== ''}
+      onChange={event => {
+        const next = event.target.value;
+        setValue(next);
+        if (isValidIntegerInput(next, VIDEO_BITRATE_MIN_KBPS, VIDEO_BITRATE_MAX_KBPS)) {
+          updateSettings({ videoBitrateKbps: Number(next) }, true);
+        }
+      }}
+    />
   );
 }
 
@@ -696,8 +681,10 @@ function OutputSettings({
               }
             ]}
           />
-          <input
-            className="time-input suffix-input"
+          <Input
+            className="suffix-input"
+            width="narrow"
+            size="sm"
             type="text"
             maxLength={60}
             placeholder="_compressed"

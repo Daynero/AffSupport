@@ -394,6 +394,8 @@ export interface SliderProps {
    * fifteen.
    */
   onKeyDown?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+  /** How the value is spoken (`aria-valuetext`): `{ style: 'unit', unit: 'percent' }` reads 50 as "50%". */
+  formatOptions?: Intl.NumberFormatOptions;
   className?: string;
   'aria-label'?: string;
   'aria-labelledby'?: string;
@@ -414,12 +416,14 @@ export function Slider({
   onChangeEnd,
   onRangeChangeEnd,
   onKeyDown,
+  formatOptions,
   className,
   ...props
 }: SliderProps) {
   const slider = (
     <HeroSlider
       {...props}
+      formatOptions={formatOptions}
       value={rangeValue ? [...rangeValue] : value}
       defaultValue={defaultValue}
       minValue={min}

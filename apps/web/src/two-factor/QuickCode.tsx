@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { KeyRound } from 'lucide-react';
 import { parseTwoFactorSeed, type TwoFactorSeedError } from '@video-compressor/shared';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
+import { Input } from '../components/ui/index';
 import { useToasts } from '../components/toast';
 import { useI18n, type TranslationKey } from '../i18n';
 import { CodeCell } from './CodeCell';
@@ -44,18 +45,17 @@ export function QuickCode({ step }: { step: TotpStep }) {
       {/* One line, and a small one. This is the least-used thing on the page and
           it was the second-largest, sitting above the content it is not. */}
       <span className="tfa-quick-heading">{t('twoFactorQuickCode')}</span>
-      <div className="tfa-quick-field">
-        <KeyRound size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        <input
-          type="text"
-          value={value}
-          spellCheck={false}
-          autoComplete="off"
-          aria-label={t('twoFactorQuickPlaceholder')}
-          placeholder={t('twoFactorQuickPlaceholder')}
-          onChange={event => setValue(event.target.value)}
-        />
-      </div>
+      <Input
+        className="tfa-quick-field"
+        leading={<KeyRound size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+        type="text"
+        value={value}
+        spellCheck={false}
+        autoComplete="off"
+        aria-label={t('twoFactorQuickPlaceholder')}
+        placeholder={t('twoFactorQuickPlaceholder')}
+        onChange={event => setValue(event.target.value)}
+      />
 
       {parsed?.ok && (
         <CodeCell

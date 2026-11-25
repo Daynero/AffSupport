@@ -1,17 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Ban,
-  Broom,
-  ChevronDown,
-  Pause,
-  Trash2,
-  Files,
-  FolderOpen,
-  Crown,
-  Play,
-  Settings as SettingsIcon,
-  Sparkles
-} from 'lucide-react';
+import { SettingsPanelHeader } from '../components/SettingsPanelHeader';
+import { Ban, Broom, Pause, Trash2, Files, FolderOpen, Crown, Play, Sparkles } from 'lucide-react';
 import {
   LANDING_JOB_LIFECYCLE,
   canTransition,
@@ -764,38 +753,33 @@ export function LandingSettingsPanel({
       {/* The whole header is the toggle: gear and title on the left, what will actually run in
           the middle, chevron in the corner — the compressor's own header, because this is the
           same panel doing the same job. */}
-      <button
-        type="button"
-        className="settings-collapse section-heading compact-heading"
-        aria-expanded={open}
-        aria-controls="landing-settings-body"
-        onClick={() => setOpen(current => !current)}
-      >
-        <SettingsIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        <h2 id="landing-settings-title">{t('landingQualityTitle')}</h2>
-        <span className="settings-summary">
-          <span>
-            <span className="settings-summary-key">{t('landingSettingsSummaryImages')}</span>
-            {mediaName(settings.optimizeImages, settings.imageQuality)}
-          </span>
-          <span>
-            <span className="settings-summary-key">{t('landingSettingsSummaryVideos')}</span>
-            {mediaName(settings.optimizeVideos, settings.videoQuality)}
-          </span>
-          <span>
-            {settings.outputMode === 'next-to-originals' ? t('nextToOriginals') : t('chooseFolder')}
-          </span>
-          {/* Each of these is worth a word only when it is on. */}
-          {settings.archive && <span>{t('landingArchive')}</span>}
-          {settings.renameMedia && <span>{t('landingRenameMedia')}</span>}
-        </span>
-        <ChevronDown
-          size={ICON_SIZE}
-          strokeWidth={ICON_STROKE}
-          className={`settings-chevron ${open ? '' : 'is-rotated'}`.trim()}
-          aria-hidden="true"
-        />
-      </button>
+      <SettingsPanelHeader
+        title={t('landingQualityTitle')}
+        titleId="landing-settings-title"
+        bodyId="landing-settings-body"
+        open={open}
+        onToggle={() => setOpen(current => !current)}
+        summary={
+          <>
+            <span>
+              <span className="settings-summary-key">{t('landingSettingsSummaryImages')}</span>
+              {mediaName(settings.optimizeImages, settings.imageQuality)}
+            </span>
+            <span>
+              <span className="settings-summary-key">{t('landingSettingsSummaryVideos')}</span>
+              {mediaName(settings.optimizeVideos, settings.videoQuality)}
+            </span>
+            <span>
+              {settings.outputMode === 'next-to-originals'
+                ? t('nextToOriginals')
+                : t('chooseFolder')}
+            </span>
+            {/* Each of these is worth a word only when it is on. */}
+            {settings.archive && <span>{t('landingArchive')}</span>}
+            {settings.renameMedia && <span>{t('landingRenameMedia')}</span>}
+          </>
+        }
+      />
 
       <div id="landing-settings-body" className="settings-body" hidden={!open}>
         <div className="settings-primary-row landing-settings-primary-row">

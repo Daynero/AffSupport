@@ -29,8 +29,8 @@
    chip the one 32 px (070, phase 5): a circle a step taller than the chips
    beside it read as the bar's loudest thing. They take the row's height here; outside the bar — sign-in, the
    legal pages — the theme button keeps the touch-sized circle. */
-.topbar .theme-toggle,
-.topbar .power-toggle {
+.topbar .ui-icon-button.theme-toggle,
+.topbar .ui-icon-button.power-toggle {
   flex-basis: var(--control-height-md);
   width: var(--control-height-md);
   height: var(--control-height-md);

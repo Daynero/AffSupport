@@ -336,16 +336,23 @@ export const TranscriptionRow = memo(function TranscriptionRow({
         </div>
 
         {done && job.preview && (
-          <button
-            type="button"
+          /* The inventory's button in the excerpt's own frame (070 T035); the press hands the
+             viewer this element, which takes the focus back when the viewer closes. */
+          <Button
+            color="neutral"
+            variant="ghost"
+            block
             className="transcription-row-snippet"
-            dir={isRtlLanguage(job.detectedLanguage ?? job.requestedLanguage) ? 'rtl' : 'ltr'}
             title={t('transcriptionView')}
             aria-label={t('transcriptionOpenTranscript', { file: job.fileName })}
             onClick={event => actions.view(job.id, event.currentTarget)}
           >
-            <span>{job.preview}</span>
-          </button>
+            <span
+              dir={isRtlLanguage(job.detectedLanguage ?? job.requestedLanguage) ? 'rtl' : 'ltr'}
+            >
+              {job.preview}
+            </span>
+          </Button>
         )}
 
         {active && (

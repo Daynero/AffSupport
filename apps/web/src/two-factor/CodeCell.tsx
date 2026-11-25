@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { generateTotp } from '@video-compressor/shared';
 import { ICON_STROKE } from '../components/icons';
+import { Button } from '../components/ui/index';
 import { useI18n } from '../i18n';
 import { copyText } from './clipboard';
 import type { TotpStep } from './totp-clock';
@@ -60,8 +61,9 @@ export function CodeCell({
   };
 
   return (
-    <button
-      type="button"
+    <Button
+      color="neutral"
+      variant="ghost"
       className={copied ? 'tfa-code is-copied' : 'tfa-code'}
       aria-label={t('twoFactorCopyCodeFor', { name: label })}
       onClick={copy}
@@ -82,6 +84,6 @@ export function CodeCell({
       <span key={digits} className="tfa-code-digits">
         {grouped(digits)}
       </span>
-    </button>
+    </Button>
   );
 }

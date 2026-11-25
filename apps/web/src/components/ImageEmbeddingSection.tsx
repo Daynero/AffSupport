@@ -2,7 +2,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type ChangeEvent,
   type DragEvent,
   type KeyboardEvent,
   type RefObject,
@@ -32,7 +31,19 @@ import {
 } from 'lucide-react';
 import { ICON_SIZE, ICON_STROKE } from './icons';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
-import { Alert, Collapse, HelpTip, IconButton, Select, Spinner, Switch } from './ui/index';
+import {
+  Alert,
+  Collapse,
+  FileTrigger,
+  HelpTip,
+  IconButton,
+  Input,
+  RadioGroup,
+  Select,
+  Spinner,
+  Switch,
+  type FileTriggerHandle
+} from './ui/index';
 
 const supportedExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const supportedMimeTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -140,40 +151,39 @@ export function ImageEmbeddingSection({
             )}
             <div className="field-group embedding-fit-row">
               <FieldLabel label={t('frameFit')} tooltip={t('frameFitTooltip')} />
-              <div className="fit-mode-pictos" role="group" aria-label={t('frameFit')}>
-                {(
-                  [
-                    [
-                      'cover',
-                      t('fitCover'),
-                      <Crop key="c" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                    ],
-                    [
-                      'contain',
-                      t('fitContain'),
-                      <Minimize2 key="i" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                    ],
-                    [
-                      'stretch',
-                      t('fitStretch'),
-                      <UnfoldVertical key="s" size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-                    ]
-                  ] as const
-                ).map(([value, label, icon]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={settings.fitMode === value ? 'is-selected' : ''}
-                    disabled={disabled}
-                    title={label}
-                    aria-label={label}
-                    aria-pressed={settings.fitMode === value}
-                    onClick={() => update({ fitMode: value })}
-                  >
-                    {icon}
-                  </button>
-                ))}
-              </div>
+              <RadioGroup
+                className="fit-mode-pictos"
+                variant="pictos"
+                label={t('frameFit')}
+                value={settings.fitMode}
+                disabled={disabled}
+                onChange={fitMode => update({ fitMode })}
+                options={[
+                  {
+                    value: 'cover',
+                    label: t('fitCover'),
+                    icon: <Crop size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                  },
+                  {
+                    value: 'contain',
+                    label: t('fitContain'),
+                    icon: (
+                      <Minimize2 size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    )
+                  },
+                  {
+                    value: 'stretch',
+                    label: t('fitStretch'),
+                    icon: (
+                      <UnfoldVertical
+                        size={ICON_SIZE}
+                        strokeWidth={ICON_STROKE}
+                        aria-hidden="true"
+                      />
+                    )
+                  }
+                ]}
+              />
               <span className="optimal-summary">
                 {t(
                   settings.fitMode === 'cover'
@@ -229,55 +239,55 @@ export function ImageEmbeddingSection({
 
                 <div className="field-group start-duration-field">
                   <div className="start-duration-row">
-                    <div
+                    <RadioGroup
                       className="fit-mode-pictos"
-                      role="group"
-                      aria-label={t('startImageDuration')}
-                    >
-                      <button
-                        type="button"
-                        className={settings.startDurationMode === 'one-frame' ? 'is-selected' : ''}
-                        disabled={disabled}
-                        title={t('startDurationOneFrame')}
-                        aria-label={t('startDurationOneFrame')}
-                        aria-pressed={settings.startDurationMode === 'one-frame'}
-                        onClick={() => update({ startDurationMode: 'one-frame' })}
-                      >
-                        <ImageIcon size={20} strokeWidth={1.75} />
-                      </button>
-                      <button
-                        type="button"
-                        className={settings.startDurationMode !== 'one-frame' ? 'is-selected' : ''}
-                        disabled={disabled}
-                        title={t('customDuration')}
-                        aria-label={t('customDuration')}
-                        aria-pressed={settings.startDurationMode !== 'one-frame'}
-                        onClick={() => update({ startDurationMode: 'custom' })}
-                      >
-                        <Timer size={20} strokeWidth={1.75} />
-                      </button>
-                    </div>
+                      variant="pictos"
+                      label={t('startImageDuration')}
+                      value={settings.startDurationMode === 'one-frame' ? 'one-frame' : 'custom'}
+                      disabled={disabled}
+                      onChange={startDurationMode => update({ startDurationMode })}
+                      options={[
+                        {
+                          value: 'one-frame',
+                          label: t('startDurationOneFrame'),
+                          icon: (
+                            <ImageIcon
+                              size={ICON_SIZE}
+                              strokeWidth={ICON_STROKE}
+                              aria-hidden="true"
+                            />
+                          )
+                        },
+                        {
+                          value: 'custom',
+                          label: t('customDuration'),
+                          icon: (
+                            <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                          )
+                        }
+                      ]}
+                    />
                     {settings.startDurationMode === 'custom' && (
                       <>
-                        <div className="custom-duration-input">
-                          <input
-                            className={`time-input ${customStartMs && !customStartMsValid ? 'is-invalid' : ''}`}
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="100"
-                            value={customStartMs}
-                            disabled={disabled}
-                            aria-label={t('customStartDurationInput')}
-                            aria-invalid={!customStartMsValid}
-                            onChange={event => {
-                              const value = event.target.value;
-                              setCustomStartMs(value);
-                              const ms = parseMillisecondsInput(value);
-                              if (ms !== null) update({ customStartDurationMs: ms }, true);
-                            }}
-                          />
-                          <span>{t('millisecondsUnit')}</span>
-                        </div>
+                        <Input
+                          className="custom-duration-input"
+                          width="narrow"
+                          size="sm"
+                          suffix={t('millisecondsUnit')}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="100"
+                          value={customStartMs}
+                          disabled={disabled}
+                          aria-label={t('customStartDurationInput')}
+                          invalid={Boolean(customStartMs) && !customStartMsValid}
+                          onChange={event => {
+                            const value = event.target.value;
+                            setCustomStartMs(value);
+                            const ms = parseMillisecondsInput(value);
+                            if (ms !== null) update({ customStartDurationMs: ms }, true);
+                          }}
+                        />
                         <Collapse open={!customStartMsValid}>
                           <span className="soty-field-error">
                             {t('invalidCustomStartDuration')}
@@ -335,66 +345,61 @@ export function ImageEmbeddingSection({
 
                 <div className="field-group final-duration-field">
                   <div className="start-duration-row">
-                    <div
+                    <RadioGroup
                       className="fit-mode-pictos"
-                      role="group"
-                      aria-label={t('finalImageDuration')}
-                    >
-                      {(
-                        [
-                          ['random-30-40', t('randomDuration30To40'), '30–40'],
-                          ['random-40-50', t('randomDuration40To50'), '40–50'],
-                          ['random-50-60', t('randomDuration50To60'), '50–60']
-                        ] as const
-                      ).map(([value, label, range]) => (
-                        <button
-                          key={value}
-                          type="button"
-                          className={`is-labeled${settings.finalDurationMode === value ? ' is-selected' : ''}`}
-                          disabled={disabled}
-                          title={label}
-                          aria-label={label}
-                          aria-pressed={settings.finalDurationMode === value}
-                          onClick={() => update({ finalDurationMode: value })}
-                        >
-                          <Dices size={16} strokeWidth={1.75} />
-                          <span>{range}</span>
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        className={settings.finalDurationMode === 'custom' ? 'is-selected' : ''}
-                        disabled={disabled}
-                        title={t('customDuration')}
-                        aria-label={t('customDuration')}
-                        aria-pressed={settings.finalDurationMode === 'custom'}
-                        onClick={() => update({ finalDurationMode: 'custom' })}
-                      >
-                        <Timer size={20} strokeWidth={1.75} />
-                      </button>
-                    </div>
+                      variant="pictos"
+                      label={t('finalImageDuration')}
+                      value={settings.finalDurationMode}
+                      disabled={disabled}
+                      onChange={finalDurationMode => update({ finalDurationMode })}
+                      options={[
+                        ...(
+                          [
+                            ['random-30-40', t('randomDuration30To40'), '30–40'],
+                            ['random-40-50', t('randomDuration40To50'), '40–50'],
+                            ['random-50-60', t('randomDuration50To60'), '50–60']
+                          ] as const
+                        ).map(([value, label, range]) => ({
+                          value,
+                          label,
+                          short: (
+                            <>
+                              <Dices size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                              <span>{range}</span>
+                            </>
+                          )
+                        })),
+                        {
+                          value: 'custom' as const,
+                          label: t('customDuration'),
+                          icon: (
+                            <Timer size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                          )
+                        }
+                      ]}
+                    />
                     {settings.finalDurationMode === 'custom' && (
                       <>
-                        <div className="custom-duration-input">
-                          <input
-                            className={`time-input ${customTime && !customTimeValid ? 'is-invalid' : ''}`}
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="54"
-                            value={customTime}
-                            disabled={disabled}
-                            aria-label={t('customDurationInput')}
-                            aria-invalid={!customTimeValid}
-                            onChange={event => {
-                              const value = event.target.value;
-                              setCustomTime(value);
-                              const seconds = parseMinutesInput(value);
-                              if (seconds !== null)
-                                update({ customFinalDurationSeconds: seconds }, true);
-                            }}
-                          />
-                          <span>{t('minutesUnit')}</span>
-                        </div>
+                        <Input
+                          className="custom-duration-input"
+                          width="narrow"
+                          size="sm"
+                          suffix={t('minutesUnit')}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="54"
+                          value={customTime}
+                          disabled={disabled}
+                          aria-label={t('customDurationInput')}
+                          invalid={Boolean(customTime) && !customTimeValid}
+                          onChange={event => {
+                            const value = event.target.value;
+                            setCustomTime(value);
+                            const seconds = parseMinutesInput(value);
+                            if (seconds !== null)
+                              update({ customFinalDurationSeconds: seconds }, true);
+                          }}
+                        />
                       </>
                     )}
                   </div>
@@ -531,7 +536,7 @@ export function ImageDropArea({
   onToggleImage?: (id: string) => void;
   t: Translate;
 }) {
-  const input = useRef<HTMLInputElement>(null);
+  const picker = useRef<FileTriggerHandle>(null);
   // Scrolling is switched on only when the tiles actually overflow two rows,
   // so a short gallery never swallows the page's wheel events.
   const scrollHost = useRef<HTMLDivElement>(null);
@@ -572,8 +577,7 @@ export function ImageDropArea({
 
   const choose = () => {
     if (disabled || busy) return;
-    if (input.current) input.current.value = '';
-    input.current?.click();
+    picker.current?.open();
   };
   const accept = async (files: File[]) => {
     if (!files.length || disabled || busy) return;
@@ -672,17 +676,20 @@ export function ImageDropArea({
       onDragLeave={dropTarget ? undefined : onDragLeave}
       onDrop={dropTarget ? undefined : onDrop}
     >
-      <input
-        ref={input}
-        className="sr-only"
-        type="file"
-        multiple
-        accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
-        disabled={disabled || busy}
-        aria-label={slot === 'start' ? t('chooseStartImage') : t('chooseEndImage')}
-        onChange={(event: ChangeEvent<HTMLInputElement>) =>
-          void accept(Array.from(event.target.files ?? []))
-        }
+      {/* The add tile opens the inventory's picker through its handle (070 T036). */}
+      <FileTrigger
+        ref={picker}
+        acceptedFileTypes={[
+          'image/png',
+          'image/jpeg',
+          'image/webp',
+          '.png',
+          '.jpg',
+          '.jpeg',
+          '.webp'
+        ]}
+        label={slot === 'start' ? t('chooseStartImage') : t('chooseEndImage')}
+        onSelect={files => void accept(files)}
       />
       <div
         className={`image-grid-scroll ${scrollable ? 'is-scrollable' : ''}`.trim()}

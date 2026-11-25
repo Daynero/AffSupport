@@ -129,6 +129,53 @@ describe('raw controls under team/', () => {
 });
 
 /**
+ * The same fence around the rest of the web app (070 T035–T038, phase 9г): the tools, the
+ * cabinet, the shell. `components/ui/` is the inventory itself and `team/` has its own gate
+ * above. Two survivors, each with its reason in the code and in findings.
+ */
+const OUTSIDE_TEAM_ALLOWED: Record<string, { count: number; reason: string }> = {
+  'apps/web/src/auth/AuthScreens.tsx': {
+    count: 1,
+    reason: "Google's sign-in button, drawn to Google's brand rules"
+  },
+  'apps/web/src/landing-viewer/internal/GalleryIconButton.tsx': {
+    count: 1,
+    reason: "the landing viewer toolbar's own control set (findings, phase 9г)"
+  }
+};
+
+describe('raw controls outside team/ and the inventory', () => {
+  const WEB = path.join(ROOT, 'apps/web/src');
+  const outside = sources(WEB).filter(
+    file =>
+      !file.startsWith(path.join(WEB, 'team') + path.sep) &&
+      !file.startsWith(path.join(WEB, 'components/ui') + path.sep)
+  );
+
+  it('has none outside the allowlist', () => {
+    const unexpected = outside
+      .map(file => ({
+        file: path.relative(ROOT, file),
+        controls: rawControls(readFileSync(file, 'utf8'))
+      }))
+      .filter(({ file, controls }) => controls.length > (OUTSIDE_TEAM_ALLOWED[file]?.count ?? 0))
+      .map(
+        ({ file, controls }) =>
+          `  ${controls.length}  ${file}  ${controls.map(c => `${c.line}:${c.element}`).join(' ')}`
+      );
+    expect(unexpected, `raw controls outside team/:\n${unexpected.join('\n')}`).toEqual([]);
+    expect(outside.length).toBeGreaterThan(100);
+  });
+
+  it('keeps its allowlist honest', () => {
+    for (const [file, { count }] of Object.entries(OUTSIDE_TEAM_ALLOWED)) {
+      const found = rawControls(readFileSync(path.join(ROOT, file), 'utf8'), file);
+      expect(found.length, `${file} — drop or lower its allowlist entry`).toBe(count);
+    }
+  });
+});
+
+/**
  * The other two counts of SC-002 (070 T065): the pre-021 shim is gone, and so
  * is the `data-tip` attribute `HintLayer` replaced. Both stay gone.
  */

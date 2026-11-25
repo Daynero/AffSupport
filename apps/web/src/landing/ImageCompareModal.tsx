@@ -13,7 +13,7 @@ import type { LandingAsset } from '@video-compressor/shared';
 import { formatSize } from '../format';
 import type { Language, Translate } from '../i18n';
 import { Modal } from '../components/Modal';
-import { Badge, ErrorState, IconButton, Spinner } from '../components/ui/index';
+import { Badge, ErrorState, IconButton, Slider, Spinner } from '../components/ui/index';
 import { landingPreviewPath } from '../api/client';
 import { useSubresourceUrl } from '../api/useSubresourceUrl';
 
@@ -309,16 +309,17 @@ export function ImageCompareModal({
                 <i>‹</i>
                 <i>›</i>
               </span>
-              <input
+              {/* The inventory's slider, its track stretched invisibly over the stage (070
+                  T037): a press anywhere puts the divider there and a drag carries it. */}
+              <Slider
                 className="landing-compare-range"
-                type="range"
-                min="0"
-                max="100"
-                step="1"
+                min={0}
+                max={100}
+                step={1}
                 value={position}
                 aria-label={t('landingPreviewSlider')}
-                aria-valuetext={`${position}%`}
-                onChange={event => move(Number(event.target.value))}
+                formatOptions={{ style: 'unit', unit: 'percent' }}
+                onChange={move}
               />
             </>
           )}

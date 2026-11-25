@@ -1,6 +1,6 @@
 import { useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
 import type { Translate } from '../i18n';
-import { Spinner } from './ui/index';
+import { Button, Spinner } from './ui/index';
 import { Check, Upload, X } from 'lucide-react';
 import { ICON_STROKE } from './icons';
 
@@ -125,19 +125,18 @@ export function DropZone({
         <span>{formats ?? t('dropFormats')}</span>
       </div>
       {secondaryAction && (
-        <button
-          type="button"
+        /* The inventory's button keeps the press to itself (React Aria stops the click and the
+           keys), so the zone's own dialog does not open under this one. */
+        <Button
+          color="neutral"
+          variant="outline"
+          size="sm"
           className="drop-zone-secondary"
           disabled={disabled || secondaryAction.disabled}
-          // The zone itself is a button; without this the click reaches it as well and both
-          // dialogs open, one on top of the other.
-          onClick={event => {
-            event.stopPropagation();
-            secondaryAction.run();
-          }}
+          onClick={() => secondaryAction.run()}
         >
           {secondaryAction.label}
-        </button>
+        </Button>
       )}
     </div>
   );

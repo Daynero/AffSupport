@@ -152,6 +152,7 @@ export function Button({
   title,
   onClick,
   ref: forwarded,
+  'aria-pressed': ariaPressed,
   ...props
 }: ButtonProps) {
   const node = useRef<HTMLButtonElement>(null);
@@ -168,6 +169,9 @@ export function Button({
   return (
     <HeroButton
       {...props}
+      /* Named rather than spread (070 phase 9г): React Aria's button forwards a known list of
+         attributes, and `aria-pressed` passed in the rest never reached the element. */
+      aria-pressed={ariaPressed}
       ref={ref}
       onClick={onClick as HeroButtonProps['onClick']}
       // A bare button inside a form submits it. Most buttons in this product are
@@ -237,6 +241,7 @@ export function IconButton({
   type = 'button',
   onClick,
   ref: forwarded,
+  'aria-pressed': ariaPressed,
   ...props
 }: IconButtonProps) {
   const node = useRef<HTMLButtonElement>(null);
@@ -254,7 +259,8 @@ export function IconButton({
       variant={heroVariant(variant as UiVariant, color)}
       size={heroSize(size)}
       aria-label={label}
-      aria-pressed={pressed}
+      /* `pressed` is the prop; a caller that wrote `aria-pressed` meant the same (070 phase 9г). */
+      aria-pressed={pressed ?? ariaPressed}
       className={uiClasses('icon-button', {
         color,
         variant: variant as UiVariant,

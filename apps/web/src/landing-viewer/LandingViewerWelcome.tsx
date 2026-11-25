@@ -4,8 +4,7 @@ import type { LandingPreviewState } from '@video-compressor/shared';
 import { DropZone } from '../components/DropZone';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useI18n } from '../i18n';
-import { GalleryIconButton } from './internal/GalleryIconButton';
-import { Button, Card, ErrorState } from '../components/ui/index';
+import { Button, Card, ErrorState, IconButton } from '../components/ui/index';
 
 /**
  * The tool before a folder is open: the compressor's drop zone, then the folders opened
@@ -143,12 +142,15 @@ function RecentList({
               </span>
             </Button>
             {canRemove && (
-              <GalleryIconButton
+              /* The inventory's icon button (070 T037): the viewer toolbar's own button carried a
+                 CSS hint that, at the right edge of the list, widened the page sideways. */
+              <IconButton
+                size="lg"
                 label={t('landingGalleryRemoveCatalog')}
                 onClick={() => remove(catalog.id)}
               >
                 <Trash2 size={18} strokeWidth={ICON_STROKE} aria-hidden="true" />
-              </GalleryIconButton>
+              </IconButton>
             )}
           </div>
         );

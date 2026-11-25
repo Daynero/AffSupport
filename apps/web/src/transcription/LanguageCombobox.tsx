@@ -108,13 +108,17 @@ export const LanguageCombobox = memo(function LanguageCombobox({
     setActiveIndex(current < 0 ? 0 : current);
   }, [query, filtered, value, open]);
   // The keyboard's choice stays in view; arrowing past the bottom of the list used to move
-  // the highlight out of sight.
+  // the highlight out of sight. Only the list scrolls: `scrollIntoView` also moved the page,
+  // and on a phone it threw the field itself under the pinned intake zone (070 phase 9г).
   useEffect(() => {
     if (!open) return;
-    document
-      .getElementById(listId)
-      ?.querySelector<HTMLElement>('li.is-active')
-      ?.scrollIntoView?.({ block: 'nearest' });
+    const item = document.getElementById(listId)?.querySelector<HTMLElement>('li.is-active');
+    const box = item?.closest<HTMLElement>('.transcript-language-listbox');
+    if (!item || !box) return;
+    const shown = box.getBoundingClientRect();
+    const row = item.getBoundingClientRect();
+    if (row.top < shown.top) box.scrollTop -= shown.top - row.top;
+    else if (row.bottom > shown.bottom) box.scrollTop += row.bottom - shown.bottom;
   }, [open, activeIndex, listId]);
 
   const choose = (code: string) => {

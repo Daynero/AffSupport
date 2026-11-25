@@ -24,12 +24,13 @@ import {
   PanelLeft,
   Plus,
   Scan,
-  Search,
   TriangleAlert
 } from 'lucide-react';
 import {
   Button,
+  IconButton,
   Progress,
+  SearchField,
   Spinner,
   useToolbarStages,
   type MenuEntry
@@ -573,25 +574,20 @@ export function LandingViewer({
         </div>
       </header>
 
-      {/* A tap on the dimmed page closes the sheet; the toolbar button is the one AT sees. */}
-      <button
-        type="button"
-        className="lv-scrim"
-        aria-hidden="true"
-        tabIndex={-1}
-        onClick={() => setSidebarOpen(false)}
-      />
+      {/* A tap on the dimmed page closes the sheet; the toolbar button is the one AT sees.
+          Not a control (070 T037): hidden from assistive technology and out of the tab order,
+          it was a `<button>` only to take a pointer, which a plain surface does as well. */}
+      <div className="lv-scrim" aria-hidden="true" onClick={() => setSidebarOpen(false)} />
       <aside className="lv-sidebar" inert={!sidebarOpen} aria-label={t('landingGalleryTree')}>
-        <label className="lv-search">
-          <Search size={16} strokeWidth={2} aria-hidden="true" />
-          <input
-            type="search"
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder={t('landingGallerySearch')}
-            aria-label={t('landingGallerySearch')}
-          />
-        </label>
+        <SearchField
+          className="lv-search"
+          size="sm"
+          value={search}
+          onChange={setSearch}
+          placeholder={t('landingGallerySearch')}
+          aria-label={t('landingGallerySearch')}
+          clearLabel={t('teamSearchClear')}
+        />
         <div className="lv-tree-scroll">
           <LandingTree
             landings={state.landings}
@@ -761,24 +757,22 @@ export function LandingViewer({
           />
         )}
         {!gridMode && selectedIndex > 0 && (
-          <button
+          <IconButton
             className="lv-edge-nav is-left"
-            type="button"
-            aria-label={t('landingGalleryPrevious')}
+            label={t('landingGalleryPrevious')}
             onClick={() => onStep(-1)}
           >
             <ChevronLeft size={24} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
+          </IconButton>
         )}
         {!gridMode && selectedIndex >= 0 && selectedIndex < state.landings.length - 1 && (
-          <button
+          <IconButton
             className="lv-edge-nav is-right"
-            type="button"
-            aria-label={t('landingGalleryNext')}
+            label={t('landingGalleryNext')}
             onClick={() => onStep(1)}
           >
             <ChevronRight size={24} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          </button>
+          </IconButton>
         )}
       </main>
 

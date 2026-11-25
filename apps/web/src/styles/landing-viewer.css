@@ -26,6 +26,8 @@
 }
 
 .lv-welcome-note {
+  /* Centred under the cards, not in a measure-wide column at their left (070 phase 9г). */
+  margin-inline: auto;
   color: var(--color-text-muted);
   font-size: var(--text-lg);
   text-align: center;
@@ -543,41 +545,12 @@
   transform: translateX(-16px);
 }
 
-.lv-search {
+/* The inventory's search field (070 T037), set into the sidebar: its own `width: 100%` plus
+   this inset ran past the sidebar's edge, so the width is the inset's to decide. */
+.ui-search-field.lv-search {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  width: auto;
   margin: 10px 10px 6px;
-  padding: 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-muted);
-  background: var(--color-surface-subtle);
-  transition: border-color var(--dur-micro) var(--ease-standard);
-}
-
-.lv-search:focus-within {
-  border-color: var(--color-focus);
-}
-
-.lv-search > svg {
-  flex: 0 0 auto;
-}
-
-.lv-search > input {
-  width: 100%;
-  min-width: 0;
-  height: 36px;
-  border: 0;
-  outline: 0;
-  color: var(--color-text);
-  background: transparent;
-  font: inherit;
-  font-size: var(--text-lg);
-}
-
-.lv-search > input::-webkit-search-cancel-button {
-  cursor: pointer;
 }
 
 .lv-tree-scroll {
@@ -869,21 +842,19 @@
   color: var(--color-text-muted);
 }
 
-.lv-edge-nav {
+/* The inventory's icon button in the edge arrow's own frosted plate (070 T037). */
+.ui-icon-button.lv-edge-nav {
   position: fixed;
   z-index: var(--layer-content);
   top: 50%;
-  display: grid;
   width: 42px;
   height: 58px;
-  place-items: center;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   color: var(--color-text);
   background: color-mix(in srgb, var(--color-surface) 82%, transparent);
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(8px);
-  cursor: pointer;
   opacity: 0.8;
   transform: translateY(-50%);
   transition:
@@ -891,7 +862,7 @@
     background var(--dur-micro) var(--ease-standard);
 }
 
-.lv-edge-nav:hover {
+.ui-icon-button.lv-edge-nav:hover:not(:disabled) {
   opacity: 1;
   background: var(--color-surface);
 }
@@ -917,15 +888,18 @@
   align-content: start;
 }
 
-.lv-tile {
+/* The inventory's ghost button in the tile's frame (070 T037); its label slot steps aside. */
+.ui-button.lv-tile {
   display: grid;
+  height: auto;
+  min-height: 0;
   gap: 8px;
   padding: 8px;
+  white-space: normal;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text);
   background: var(--color-surface);
-  cursor: pointer;
   font: inherit;
   text-align: left;
   transition:
@@ -934,18 +908,18 @@
     box-shadow var(--dur-micro) var(--ease-standard);
 }
 
-.lv-tile:hover {
+.lv-tile .ui-button-label {
+  display: contents;
+}
+
+.ui-button.lv-tile:hover:not(:disabled) {
+  background: var(--color-surface);
   border-color: var(--color-border-strong);
   box-shadow: var(--shadow-md);
   transform: translateY(-1px);
 }
 
-.lv-tile:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.lv-tile.is-selected {
+.ui-button.lv-tile.is-selected {
   border-color: var(--color-accent);
   box-shadow: 0 0 0 1px var(--color-accent);
 }

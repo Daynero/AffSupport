@@ -113,6 +113,8 @@ export function LoginPage() {
             {message}
           </Alert>
         )}
+        {/* Raw on purpose (070 T038): Google's sign-in button is drawn to Google's brand rules —
+            its white plate, its "G", its type — not to this product's buttons. */}
         <button
           type="button"
           className={`google-sign-in ${authenticating ? 'is-loading' : ''}`}

@@ -32,7 +32,7 @@ vi.mock('qrcode', () => ({
   default: { toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,qr') }
 }));
 
-import { SupportButton } from '../apps/web/src/components/SupportDialog';
+import { SupportDialog } from '../apps/web/src/components/SupportDialog';
 import {
   formatSupportAmount,
   parseSupportAmountInput,
@@ -72,13 +72,9 @@ describe('support goal data', () => {
 });
 
 describe('support goal interface', () => {
-  it('shows compact money progress and opens the specific, accessible goal card', () => {
-    render(<SupportButton />);
-
-    const trigger = screen.getByRole('button', { name: 'Support goal: $24 of $99' });
-    expect(trigger.textContent).toContain('$24');
-    expect(trigger.textContent).toContain('$99');
-    fireEvent.click(trigger);
+  it('shows the specific, accessible goal card', () => {
+    // The header trigger went with the credits chip (064); the dialog opens from the account menu.
+    render(<SupportDialog onClose={() => {}} />);
 
     expect(screen.getByRole('dialog')).toBeTruthy();
     expect(

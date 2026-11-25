@@ -20,7 +20,7 @@ import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { Check, Copy, Eye, EyeOff, KeyRound, Pencil, Trash2, X } from 'lucide-react';
 import { parseTwoFactorSeed, type TwoFactorSeedError } from '@video-compressor/shared';
 import { Modal } from '../components/Modal';
-import { Button, IconButton } from '../components/ui/index';
+import { Button, Checkbox, IconButton, Input } from '../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useToasts } from '../components/toast';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -105,12 +105,12 @@ export function TwoFactorRow({
   return (
     <tr className={selected ? 'tfa-row is-selected' : 'tfa-row'}>
       <td className="tfa-cell-check">
-        <input
-          type="checkbox"
+        <Checkbox
+          size="sm"
           className="tfa-check"
           checked={selected}
           aria-label={t('twoFactorSelectRow', { name: entry.name })}
-          onChange={event => onSelectedChange(event.target.checked)}
+          onChange={checked => onSelectedChange(checked)}
         />
       </td>
 
@@ -126,8 +126,10 @@ export function TwoFactorRow({
             key field most of its width and broke the selected row's outline. */}
         <div className="tfa-code-cell">
           {revealed && (
-            <button
-              type="button"
+            <Button
+              color="neutral"
+              variant="ghost"
+              size="sm"
               className={seedCopied ? 'tfa-seed is-copied' : 'tfa-seed'}
               aria-label={t('twoFactorCopyKey')}
               onClick={() => copySeed(true)}
@@ -143,7 +145,7 @@ export function TwoFactorRow({
                 )}
               </span>
               <span className="tfa-seed-text">{entry.seed}</span>
-            </button>
+            </Button>
           )}
           <CodeCell
             seed={entry.seed}
@@ -359,23 +361,25 @@ function ClearableField({
 }) {
   const { t } = useI18n();
   return (
-    <div className={focused ? 'tfa-field is-focus' : 'tfa-field'}>
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        spellCheck={false}
-        autoComplete="off"
-        aria-label={label}
-        placeholder={label}
-        onChange={event => onChange(event.target.value)}
-        onKeyDown={onKeyDown}
-      />
-      {value !== '' && (
-        <IconButton label={t('twoFactorClearField')} onClick={() => onChange('')}>
-          <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        </IconButton>
-      )}
-    </div>
+    <Input
+      ref={inputRef}
+      size="lg"
+      className={focused ? 'tfa-field is-focus' : 'tfa-field'}
+      type="text"
+      value={value}
+      spellCheck={false}
+      autoComplete="off"
+      aria-label={label}
+      placeholder={label}
+      onChange={event => onChange(event.target.value)}
+      onKeyDown={onKeyDown}
+      trailing={
+        value !== '' && (
+          <IconButton size="xs" label={t('twoFactorClearField')} onClick={() => onChange('')}>
+            <X size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+          </IconButton>
+        )
+      }
+    />
   );
 }

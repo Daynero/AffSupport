@@ -9,10 +9,10 @@
  * why the registry marks it `runtime: 'browser'`.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Clipboard, Plus, Search, Shield, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ChevronDown, Clipboard, Plus, Shield, Trash2 } from 'lucide-react';
 import { analytics } from '../analytics/service';
-import { Button, IconButton } from '../components/ui/index';
+import { Button, Checkbox, IconButton, SearchField } from '../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { ToastProvider, useToasts } from '../components/toast';
 import { useI18n, type TranslationKey } from '../i18n';
@@ -69,7 +69,8 @@ function TwoFactorWallet() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [clockOffBy, setClockOffBy] = useState<number | null>(null);
-  const search = useRef<HTMLInputElement>(null);
+  // The inventory's search field keeps its input to itself; the shortcut finds it by id.
+  const searchId = useId();
 
   useEffect(() => {
     document.title = 'Soty — 2FA Wallet';
@@ -92,12 +93,13 @@ function TwoFactorWallet() {
       if (event.key.toLowerCase() !== 'k') return;
       if (!(event.metaKey || event.ctrlKey)) return;
       event.preventDefault();
-      search.current?.focus();
-      search.current?.select();
+      const field = document.getElementById(searchId) as HTMLInputElement | null;
+      field?.focus();
+      field?.select();
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
-  }, []);
+  }, [searchId]);
 
   /**
    * Both halves of the search: by name, and by the key itself — paste a
@@ -187,16 +189,16 @@ function TwoFactorWallet() {
         </div>
 
         <div className="tfa-search">
-          <Search size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-          <input
-            ref={search}
-            type="search"
+          <SearchField
+            id={searchId}
             value={query}
             aria-label={t('twoFactorSearchLabel')}
             placeholder={t('twoFactorSearchPlaceholder')}
-            onChange={event => setQuery(event.target.value)}
+            clearLabel={t('twoFactorSearchClear')}
+            onChange={setQuery}
           />
-          <kbd aria-hidden="true">{shortcutHint}</kbd>
+          {/* The shortcut's hint, until the field's own clear button takes the place. */}
+          {query === '' && <kbd aria-hidden="true">{shortcutHint}</kbd>}
         </div>
 
         <div className="tfa-header-actions">
@@ -205,17 +207,18 @@ function TwoFactorWallet() {
           {/* Deliberately quiet. An account is added once; a code is taken
               twenty times a day, so the loud thing on this page is the codes. */}
           <div className="tfa-add">
-            <button
-              type="button"
+            <Button
+              color="neutral"
+              variant="outline"
               className="tfa-add-main"
+              leading={<Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
               onClick={() => {
                 setEditingId(null);
                 setAdding(true);
               }}
             >
-              <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
               {t('twoFactorAdd')}
-            </button>
+            </Button>
             <AddMenu onPaste={() => void pasteFromClipboard()} />
           </div>
         </div>
@@ -240,28 +243,28 @@ function TwoFactorWallet() {
           <thead>
             <tr>
               <th scope="col" className="tfa-cell-check">
-                <input
-                  type="checkbox"
+                <Checkbox
+                  size="sm"
                   className="tfa-check"
                   checked={allVisibleSelected}
                   aria-label={t('twoFactorSelectAll')}
-                  onChange={event =>
-                    setSelected(
-                      event.target.checked ? new Set(visible.map(item => item.id)) : new Set()
-                    )
+                  onChange={checked =>
+                    setSelected(checked ? new Set(visible.map(item => item.id)) : new Set())
                   }
                 />
               </th>
               <th scope="col" className="tfa-cell-name">
                 {selected.size > 0 ? (
-                  <button
-                    type="button"
+                  <Button
+                    color="error"
+                    variant="outline"
+                    size="xs"
                     className="tfa-bulk-delete"
+                    leading={<Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
                     onClick={() => void removeSelected()}
                   >
-                    <Trash2 size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
                     {t('twoFactorDeleteSelected', { count: selected.size })}
-                  </button>
+                  </Button>
                 ) : (
                   t('twoFactorColumnAccount')
                 )}
@@ -375,16 +378,17 @@ function SortMenu({ order, onChange }: { order: SortOrder; onChange: (order: Sor
 
   return (
     <div className="tfa-menu-anchor" ref={anchor}>
-      <button
-        type="button"
+      <Button
+        color="neutral"
+        variant="outline"
         className="tfa-sort"
         aria-haspopup="menu"
         aria-expanded={open}
+        trailing={<ChevronDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />}
         onClick={() => setOpen(value => !value)}
       >
         {t('twoFactorSort', { order: t(SORT_LABELS[order]) })}
-        <ChevronDown size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-      </button>
+      </Button>
       <DropdownMenu
         open={open}
         onClose={() => setOpen(false)}

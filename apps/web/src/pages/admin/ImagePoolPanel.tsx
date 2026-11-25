@@ -6,6 +6,7 @@ import {
   Card,
   EmptyState,
   FadeImage,
+  FileTrigger,
   FormField,
   Input,
   Pagination,
@@ -293,18 +294,12 @@ function PoolUpload({
 }) {
   const { t } = useI18n();
   const headingId = useId();
-  const folderInput = useRef<HTMLInputElement>(null);
-  const filesInput = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<PoolImportProgress | null>(null);
   const [state, setState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
-  // A browser exposes a folder picker only through this non-standard attribute.
-  useEffect(() => {
-    folderInput.current?.setAttribute('webkitdirectory', '');
-  }, []);
-  const start = async (list: FileList | null) => {
-    const files = [...(list ?? [])].filter(file => POOL_IMAGE_PATTERN.test(file.name));
+  const start = async (chosen: File[]) => {
+    const files = chosen.filter(file => POOL_IMAGE_PATTERN.test(file.name));
     if (!files.length) return;
     controller.current?.abort();
     const abort = new AbortController();
@@ -331,42 +326,25 @@ function PoolUpload({
         </div>
       </div>
       <div className="admin-pool-actions">
-        <Button
-          color="primary"
-          disabled={state === 'running' || !overview.policy.mediaOrigin}
-          onClick={() => folderInput.current?.click()}
+        {/* The inventory's way into the file system (070 T038): the folder door asks for a
+            folder (`webkitdirectory`), the files door for images only. */}
+        <FileTrigger acceptDirectory onSelect={files => void start(files)}>
+          <Button color="primary" disabled={state === 'running' || !overview.policy.mediaOrigin}>
+            {t('adminPoolUploadFolder')}
+          </Button>
+        </FileTrigger>
+        <FileTrigger
+          acceptedFileTypes={['image/jpeg', 'image/png', 'image/webp']}
+          onSelect={files => void start(files)}
         >
-          {t('adminPoolUploadFolder')}
-        </Button>
-        <Button
-          color="neutral"
-          variant="outline"
-          disabled={state === 'running' || !overview.policy.mediaOrigin}
-          onClick={() => filesInput.current?.click()}
-        >
-          {t('adminPoolUploadFiles')}
-        </Button>
-        <input
-          ref={folderInput}
-          type="file"
-          multiple
-          hidden
-          onChange={event => {
-            void start(event.target.files);
-            event.target.value = '';
-          }}
-        />
-        <input
-          ref={filesInput}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          hidden
-          onChange={event => {
-            void start(event.target.files);
-            event.target.value = '';
-          }}
-        />
+          <Button
+            color="neutral"
+            variant="outline"
+            disabled={state === 'running' || !overview.policy.mediaOrigin}
+          >
+            {t('adminPoolUploadFiles')}
+          </Button>
+        </FileTrigger>
       </div>
       {progress && (
         <div className="admin-pool-progress" aria-live="polite">

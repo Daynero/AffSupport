@@ -5,6 +5,7 @@ import { useI18n } from '../i18n';
 import { usePower } from '../lib/power';
 import { PowerLever } from './PowerLever';
 import { PowerReadout, PowerThrottleNotice } from './PowerReadout';
+import { IconButton } from './ui/index';
 
 /**
  * The header control: a power icon that opens the throttle.
@@ -63,16 +64,15 @@ export function PowerThrottle() {
 
   return (
     <div className="power-throttle" ref={containerRef} style={powerStyle}>
-      <button
+      <IconButton
         ref={buttonRef}
-        type="button"
         className="power-toggle"
         data-limited={limited ? 'true' : undefined}
-        aria-label={t('powerControl')}
+        label={t('powerControl')}
+        title={t('powerLimitAt', { percent: limitPercent })}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? panelId : undefined}
-        title={t('powerLimitAt', { percent: limitPercent })}
         onClick={() => {
           const next = !open;
           setOpen(next);
@@ -81,7 +81,7 @@ export function PowerThrottle() {
       >
         <PowerIcon />
         {limited ? <span className="power-toggle__badge">{limitPercent}</span> : null}
-      </button>
+      </IconButton>
       {open ? (
         <div className="power-panel" id={panelId} role="dialog" aria-label={t('powerControl')}>
           <div className="power-panel__heading">

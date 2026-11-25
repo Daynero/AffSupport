@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { FileArchive, Folder, TriangleAlert } from 'lucide-react';
 import type { LandingPreviewItem } from '@video-compressor/shared';
 import { ICON_STROKE } from '../components/icons';
-import { Spinner } from '../components/ui/index';
+import { Button, Spinner } from '../components/ui/index';
 import { useI18n } from '../i18n';
 import type { LandingViewerSource } from './types';
 import { FadeImage } from '../components/ui/index';
@@ -29,9 +29,12 @@ export function LandingGalleryGrid({
       {landings.map(item => {
         const Icon = item.sourceKind === 'zip' ? FileArchive : Folder;
         return (
-          <button
+          /* The inventory's button in the tile's frame (070 T037); the label slot steps aside so
+             the picture and the name are the tile's own rows. */
+          <Button
             key={item.id}
-            type="button"
+            color="neutral"
+            variant="ghost"
             className={`lv-tile ${item.id === selectedId ? 'is-selected' : ''}`.trim()}
             aria-current={item.id === selectedId ? 'true' : undefined}
             onClick={() => onSelect(item.id)}
@@ -62,7 +65,7 @@ export function LandingGalleryGrid({
               <Icon size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
               <span>{item.name}</span>
             </span>
-          </button>
+          </Button>
         );
       })}
     </div>

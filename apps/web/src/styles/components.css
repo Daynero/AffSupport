@@ -1812,6 +1812,20 @@
   background: none;
   outline: none;
 }
+/* The page's global field rules (`input[type='number']` in styles.css: a height, a border, a
+   hover, a focus outline, a disabled fill) reach the input inside this frame as well, which
+   then drew a second box inside the first. The frame draws all of that itself (070 phase 9г). */
+.ui-input input[type],
+.ui-input input[type]:hover:not(:disabled),
+.ui-input input[type]:focus-visible,
+.ui-input input[type]:disabled {
+  height: auto;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: inherit;
+}
 .ui-input--xs {
   min-height: var(--control-height-xs);
   font-size: var(--text-micro);

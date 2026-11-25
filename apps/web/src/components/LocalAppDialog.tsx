@@ -169,10 +169,12 @@ export default function LocalAppDialog({
       {t('windows')}
     </a>
   ) : (
-    <button
+    <Button
       ref={windowsButton}
-      className="ui-button ui-button--solid ui-button--lg ui-color-primary platform-download-button"
-      type="button"
+      color="primary"
+      variant="solid"
+      size="lg"
+      className="platform-download-button"
       onClick={() => {
         analytics.track('blocked_action_attempted', {
           tool_identifier: toolIdentifier,
@@ -183,7 +185,7 @@ export default function LocalAppDialog({
       }}
     >
       {t('windows')}
-    </button>
+    </Button>
   );
 
   return (

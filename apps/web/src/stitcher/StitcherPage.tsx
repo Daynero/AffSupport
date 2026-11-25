@@ -11,10 +11,10 @@
  * which the compressor cannot) and the line that says what was found and what will come out.
  */
 
+import { SettingsPanelHeader } from '../components/SettingsPanelHeader';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ban,
-  ChevronDown,
   Eraser,
   Files,
   FolderOpen,
@@ -22,7 +22,6 @@ import {
   RefreshCw,
   Plus,
   Replace,
-  Settings as SettingsIcon,
   Trash2
 } from 'lucide-react';
 import type {
@@ -74,6 +73,7 @@ import {
   Checkbox,
   EmptyState,
   HelpTip,
+  Input,
   RadioGroup,
   useCompactToolbar
 } from '../components/ui/index';
@@ -567,28 +567,21 @@ function StitchSettingsPanel({
       className={`settings-panel ${open ? '' : 'is-collapsed'}`.trim()}
       aria-labelledby="stitcher-settings-title"
     >
-      <button
-        type="button"
-        className="settings-collapse section-heading compact-heading"
-        aria-expanded={open}
-        aria-controls="stitcher-settings-body"
-        onClick={() => setOpen(current => !current)}
-      >
-        <SettingsIcon size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-        <h2 id="stitcher-settings-title">{t('stitcherSettingsTitle')}</h2>
-        <span className="settings-summary">
-          <span>
-            <span className="settings-summary-key">{t('saveResults')}</span>
-            {destinationLabel(settings.destination, t)}
-          </span>
-        </span>
-        <ChevronDown
-          size={ICON_SIZE}
-          strokeWidth={ICON_STROKE}
-          className={`settings-chevron ${open ? '' : 'is-rotated'}`.trim()}
-          aria-hidden="true"
-        />
-      </button>
+      <SettingsPanelHeader
+        title={t('stitcherSettingsTitle')}
+        titleId="stitcher-settings-title"
+        bodyId="stitcher-settings-body"
+        open={open}
+        onToggle={() => setOpen(current => !current)}
+        summary={
+          <>
+            <span>
+              <span className="settings-summary-key">{t('saveResults')}</span>
+              {destinationLabel(settings.destination, t)}
+            </span>
+          </>
+        }
+      />
 
       <div id="stitcher-settings-body" className="settings-body" hidden={!open}>
         <div className="embedding-settings-row">
@@ -663,8 +656,10 @@ function StitchSettingsPanel({
                   }
                 ]}
               />
-              <input
-                className="time-input suffix-input"
+              <Input
+                className="suffix-input"
+                width="narrow"
+                size="sm"
                 type="text"
                 maxLength={60}
                 placeholder="_stitched"

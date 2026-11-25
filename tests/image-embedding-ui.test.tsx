@@ -211,10 +211,11 @@ describe('image embedding settings UI', () => {
     const validity = vi.fn();
     render(<SettingsHarness enabled endImage={asset('end.webp')} onValidity={validity} />);
     for (const name of ['Random: 30–40 min', 'Random: 40–50 min', 'Random: 50–60 min']) {
-      await user.click(screen.getByRole('button', { name }));
-      expect(screen.getByRole('button', { name, pressed: true })).toBeTruthy();
+      // Pictos are a radio group on the inventory since 070 T036.
+      await user.click(screen.getByRole('radio', { name }));
+      expect(screen.getByRole('radio', { name, checked: true })).toBeTruthy();
     }
-    await user.click(screen.getAllByRole('button', { name: 'Custom duration' })[1]);
+    await user.click(screen.getAllByRole('radio', { name: 'Custom duration' })[1]);
     const custom = screen.getByLabelText('Custom duration in minutes');
     expect(screen.getByText('minutes')).toBeTruthy();
     await user.clear(custom);
@@ -225,8 +226,9 @@ describe('image embedding settings UI', () => {
     await waitFor(() => expect(validity).toHaveBeenLastCalledWith(true));
 
     for (const name of ['Fill and crop', 'Fit completely', 'Stretch']) {
-      await user.click(screen.getByRole('button', { name }));
-      expect(screen.getByRole('button', { name, pressed: true })).toBeTruthy();
+      // Pictos are a radio group on the inventory since 070 T036.
+      await user.click(screen.getByRole('radio', { name }));
+      expect(screen.getByRole('radio', { name, checked: true })).toBeTruthy();
     }
     expect(screen.getByText('Stretching can distort the image proportions.')).toBeTruthy();
   });
@@ -235,8 +237,8 @@ describe('image embedding settings UI', () => {
     const user = userEvent.setup();
     const validity = vi.fn();
     render(<SettingsHarness enabled startImage={asset('opening.png')} onValidity={validity} />);
-    expect(screen.getByRole('button', { name: '1 frame', pressed: true })).toBeTruthy();
-    await user.click(screen.getAllByRole('button', { name: 'Custom duration' })[0]);
+    expect(screen.getByRole('radio', { name: '1 frame', checked: true })).toBeTruthy();
+    await user.click(screen.getAllByRole('radio', { name: 'Custom duration' })[0]);
     const custom = screen.getByLabelText('Custom duration in milliseconds');
     await user.clear(custom);
     await user.type(custom, '0');
@@ -251,7 +253,7 @@ describe('image embedding settings UI', () => {
     const user = userEvent.setup();
     const validity = vi.fn();
     render(<SettingsHarness enabled startImage={asset('opening.png')} onValidity={validity} />);
-    await user.click(screen.getAllByRole('button', { name: 'Custom duration' })[1]);
+    await user.click(screen.getAllByRole('radio', { name: 'Custom duration' })[1]);
     const custom = screen.getByLabelText('Custom duration in minutes');
     await user.clear(custom);
     await user.type(custom, '0');
@@ -292,7 +294,7 @@ describe('image embedding settings UI', () => {
       />
     );
     expect(await screen.findByAltText('opening.png')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Вмістити повністю' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Вмістити повністю' })).toBeTruthy();
     expect(settings.imageEmbedding.startImages[0]?.id).toBe('asset-1');
   });
 

@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { useI18n } from '../i18n';
 import { useTheme } from '../lib/theme';
+import { IconButton } from './ui/index';
 
 const RAY_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315];
 const STARS = [
@@ -16,9 +17,12 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
   const maskId = useId();
 
   return (
-    <button
-      type="button"
-      className={`theme-toggle ${compact ? 'theme-toggle-compact' : ''}`}
+    /* The inventory's icon button in the toggle's own round skin (070 T038): the press, focus
+       ring, name and hint are the inventory's; the sun-moon morph is the product's. */
+    <IconButton
+      className={`theme-toggle ${compact ? 'theme-toggle-compact' : ''}`.trim()}
+      label={isDark ? t('themeToLight') : t('themeToDark')}
+      pressed={isDark}
       onClick={event => {
         const bounds = event.currentTarget.getBoundingClientRect();
         toggleTheme({
@@ -26,9 +30,6 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
           y: bounds.top + bounds.height / 2
         });
       }}
-      aria-label={isDark ? t('themeToLight') : t('themeToDark')}
-      aria-pressed={isDark}
-      title={isDark ? t('themeToLight') : t('themeToDark')}
     >
       <span className="theme-toggle__halo" aria-hidden="true" />
       <svg
@@ -81,6 +82,6 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
           ))}
         </g>
       </svg>
-    </button>
+    </IconButton>
   );
 }

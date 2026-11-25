@@ -7,6 +7,8 @@ import { installedReleaseStatus, localizedReleaseSummary } from '../release-mani
 import { InstallerDownload } from './InstallerDownload';
 import { siteChannel } from '../lib/config';
 import { useReleaseTester } from '../lib/release-tester';
+import { Button, IconButton } from './ui/index';
+import { X } from 'lucide-react';
 
 const DISMISSED_RELEASE_KEY = 'wishly.release-notice.dismissed.v1';
 
@@ -100,14 +102,14 @@ function LegacyReleaseUpdateNotice() {
       aria-live="polite"
       aria-labelledby={titleId}
     >
-      <button
+      <IconButton
         className="release-update-close"
-        type="button"
-        aria-label={t('supportClose')}
+        size="lg"
+        label={t('supportClose')}
         onClick={dismiss}
       >
-        ✕
-      </button>
+        <X aria-hidden="true" />
+      </IconButton>
       <div className="release-update-mark" aria-hidden="true">
         W
       </div>
@@ -135,13 +137,9 @@ function LegacyReleaseUpdateNotice() {
         <InstallerDownload intent="update">
           {t(returnToStable ? 'releaseRollbackDownload' : 'releaseNoticeDownload')}
         </InstallerDownload>
-        <button
-          className="ui-button ui-button--link ui-button--md ui-color-neutral"
-          type="button"
-          onClick={dismiss}
-        >
+        <Button color="neutral" variant="link" onClick={dismiss}>
           {t('releaseNoticeLater')}
-        </button>
+        </Button>
       </div>
     </aside>
   );

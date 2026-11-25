@@ -79,10 +79,12 @@ export function LandingTree({
     };
   };
 
+  /* "Nothing for this query" only when there is a query (070 phase 9г): an empty folder said it
+     under an empty search box, beside the canvas's own "no landings found". */
   if (!visible.length)
-    return (
+    return search.trim() ? (
       <EmptyState className="lv-tree-empty" size="sm" title={t('landingGallerySearchEmpty')} />
-    );
+    ) : null;
 
   /* The tree holds which folders are *closed*; the inventory asks which are
      open, so the expansion is the folders minus those. */

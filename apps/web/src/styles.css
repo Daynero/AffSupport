@@ -426,95 +426,6 @@ a {
   gap: var(--space-4);
 }
 
-.support-trigger {
-  position: relative;
-  display: inline-flex;
-  overflow: hidden;
-  align-items: center;
-  gap: 8px;
-  min-height: 37px;
-  padding: 0 11.5px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
-  color: var(--color-accent-hover);
-  font-size: var(--text-xl);
-  font-weight: 700;
-  background: var(--color-surface-muted);
-  box-shadow: 0 1px 2px var(--tint-soft);
-  cursor: pointer;
-  transition:
-    border-color var(--dur-control) var(--ease-standard),
-    background var(--dur-control) var(--ease-standard),
-    box-shadow var(--dur-control) var(--ease-standard),
-    transform var(--dur-control) var(--ease-standard);
-}
-
-.support-trigger:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border));
-  background: var(--color-accent-soft);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-accent) 12%, transparent);
-  transform: translateY(-1px);
-}
-
-.support-trigger:active {
-  transform: translateY(1px);
-}
-
-.support-trigger.has-goal {
-  padding-bottom: 3.45px;
-}
-
-.support-trigger-label {
-  white-space: nowrap;
-}
-
-.support-trigger-amount {
-  background: var(--color-surface);
-  font-size: var(--text-xl);
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-}
-
-.support-trigger-amount span {
-  color: var(--color-text-muted);
-  font-weight: 500;
-}
-
-/* The bar itself is the shared Progress; the trigger only says where it sits. */
-.support-trigger-progress {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  border-radius: 0;
-}
-
-.support-trigger.is-complete {
-  border-color: color-mix(in srgb, var(--color-success) 45%, var(--color-border));
-  color: var(--color-success);
-  background: var(--color-success-soft);
-}
-
-/*
- * The narrow-window ladder, declared after the component it narrows.
- *
- * It used to sit above it, and a media query adds no specificity: the
- * unconditional `display: inline-flex` below simply won, so the pill stayed on
- * a phone and kept squeezing the bar it was supposed to leave — which is the
- * exact failure the ladder was written for.
- */
-@media (max-width: 1280px) {
-  .support-trigger .support-trigger-label {
-    display: none;
-  }
-}
-
-@media (max-width: 1024px) {
-  .support-trigger {
-    display: none;
-  }
-}
-
 /* Shared card surface; per-card modifiers add their unique traits. */
 .soty-card {
   padding: var(--space-6);
@@ -831,26 +742,52 @@ a {
 .settings-panel .section-heading {
   grid-column: 1 / -1;
 }
-.settings-collapse {
-  /* The whole strip is the toggle. */
+.settings-collapse-row {
+  /* The whole strip is the toggle: the button's hit area is stretched over it (070). */
+  position: relative;
   display: flex;
   width: 100%;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
+  cursor: pointer;
+}
+.settings-collapse-heading {
+  min-width: 0;
+  margin: 0;
+}
+/* The inventory's ghost button, worn as the heading's text: no plate, no press scale, the
+   heading's own type, the gear in the accent. */
+.ui-button.settings-collapse,
+.ui-button.settings-collapse:hover:not(:disabled),
+.ui-button.settings-collapse:active:not(:disabled) {
+  position: static;
   min-height: 0;
   padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--color-accent);
-  cursor: pointer;
-  text-align: left;
-}
-.settings-collapse h2 {
+  border: 0;
+  background: none;
   color: var(--color-text);
+  font-size: inherit;
+  font-weight: inherit;
+  transform: none;
 }
-.settings-collapse .settings-chevron {
+.ui-button.settings-collapse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.settings-collapse .ui-button-leading {
+  color: var(--color-accent);
+}
+.settings-collapse .ui-button-leading svg:not([data-slot='spinner'] svg) {
+  width: var(--icon-size);
+  height: var(--icon-size);
+}
+.settings-collapse-row .settings-chevron {
+  flex: none;
   margin-left: auto;
   color: var(--color-accent);
+  transition: transform var(--dur-control) var(--ease-standard);
 }
 .settings-summary {
   display: flex;
@@ -870,28 +807,25 @@ a {
 .settings-summary + .settings-chevron {
   margin-left: var(--space-4);
 }
-.settings-collapse .settings-chevron {
-  transition: transform var(--dur-control) var(--ease-standard);
-}
 /* On a phone the summary is its own line under the title (070, phase 6): beside
    it, three values stacked into a column of six short lines and pushed the
    title onto two. Every tool with a settings strip shares this header. */
 @media (max-width: 640px) {
-  .settings-collapse {
+  .settings-collapse-row {
     flex-wrap: wrap;
   }
-  .settings-collapse .settings-summary {
+  .settings-collapse-row .settings-summary {
     order: 3;
     flex-basis: 100%;
     margin-left: 0;
     font-size: var(--text-label);
   }
-  .settings-collapse .settings-summary + .settings-chevron {
+  .settings-collapse-row .settings-summary + .settings-chevron {
     order: 2;
     margin-left: auto;
   }
 }
-.settings-collapse .settings-chevron.is-rotated {
+.settings-collapse-row .settings-chevron.is-rotated {
   transform: rotate(-90deg);
 }
 
@@ -1307,35 +1241,6 @@ a {
   min-width: 0;
 }
 
-.custom-duration-input {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--text-xl);
-}
-
-.time-input {
-  width: min(180px, 100%);
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  background: var(--color-surface);
-  font-variant-numeric: tabular-nums;
-}
-
-.custom-duration-input .time-input {
-  flex: 0 1 180px;
-}
-
-.custom-duration-input > span {
-  display: flex;
-  align-items: center;
-  height: 36px;
-}
-
 .embedding-fit-row {
   min-width: 0;
 }
@@ -1407,14 +1312,12 @@ input[type='number'] {
 }
 
 select:hover:not(:disabled),
-input[type='number']:hover:not(:disabled),
-.time-input:hover:not(:disabled) {
+input[type='number']:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border-strong));
 }
 
 select:focus-visible,
-input[type='number']:focus-visible,
-.time-input:focus-visible {
+input[type='number']:focus-visible {
   border-color: var(--color-accent);
   outline: 3px solid var(--color-focus);
   outline-offset: 0;
@@ -1440,20 +1343,6 @@ input.is-invalid {
 .range-number-control input[type='range'] {
   width: 100%;
   margin: 0;
-}
-
-/* The unit label (мс, px, fps, kbps) sits OUTSIDE the input box — matching
-   the ms field the owner approved as the reference. */
-.input-with-suffix {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.input-with-suffix > span {
-  color: var(--color-text-muted);
-  font-size: var(--text-lg);
-  pointer-events: none;
 }
 
 .metadata-control {
@@ -2507,22 +2396,11 @@ input.is-invalid {
   font-size: var(--text-xl);
 }
 
+/* The inventory's `IconButton` (070 T038); the notice only puts it in its corner. */
 .release-update-close {
   position: absolute;
   top: 9px;
   right: 9px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  color: var(--color-text-muted);
-  background: transparent;
-  cursor: pointer;
-}
-
-.release-update-close:hover {
-  color: var(--color-text);
-  background: var(--color-surface-muted);
 }
 
 @media (max-width: 480px) {
@@ -2774,10 +2652,6 @@ input.is-invalid {
     gap: var(--space-2);
   }
 
-  .support-trigger.has-goal .support-trigger-label {
-    display: none;
-  }
-
   .workspace {
     padding: var(--space-3);
   }
@@ -2908,15 +2782,6 @@ input.is-invalid {
 
   .topbar-lead {
     gap: var(--space-2);
-  }
-
-  .support-trigger {
-    gap: 5px;
-    padding-inline: var(--space-2);
-  }
-
-  .support-trigger-amount {
-    font-size: var(--text-lg);
   }
 
   .support-goal-card {
@@ -4875,25 +4740,9 @@ body:has(.public-home) {
 
 /* The second way into the zone, sitting inside it rather than under it, so the zone stays
    one object instead of becoming a title for a row of buttons. */
+/* The inventory's small outline button (070 T038); in a zone it never breaks its words. */
 .drop-zone-secondary {
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  padding: 4px 12px;
-  background: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.drop-zone-secondary:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-text);
-}
-
-.drop-zone-secondary:disabled {
-  opacity: 0.5;
-  cursor: default;
+  flex: none;
 }
 
 .landing-jobs-list {
@@ -4960,9 +4809,22 @@ body:has(.public-home) {
   gap: 0;
 }
 
-.landing-batch-toggle {
+/* The inventory's ghost button around the card's identity (070 T037): the doubled class undoes
+   its plate, height and press, and the label slot steps aside so the icon, the words and the
+   chevron are the grid's own items. */
+.ui-button.landing-batch-toggle:hover:not(:disabled),
+.ui-button.landing-batch-toggle:active:not(:disabled) {
+  background: transparent;
+  transform: none;
+}
+
+.ui-button.landing-batch-toggle {
   display: grid;
+  width: 100%;
+  justify-self: stretch;
+  height: auto;
   min-width: 0;
+  min-height: 0;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
@@ -4970,11 +4832,18 @@ body:has(.public-home) {
   border: 0;
   color: inherit;
   background: transparent;
+  font-size: inherit;
+  font-weight: inherit;
   text-align: left;
-  cursor: pointer;
+  white-space: normal;
+  transform: none;
 }
 
-.landing-batch-toggle:disabled {
+.landing-batch-toggle .ui-button-label {
+  display: contents;
+}
+
+.ui-button.landing-batch-toggle:disabled {
   opacity: 1;
   cursor: default;
 }
@@ -5308,9 +5177,12 @@ body:has(.public-home) {
   stroke-width: 1.6;
 }
 
-.landing-preview-thumbnail {
+/* The inventory's ghost button holding a picture (070 T037); its label slot steps aside so the
+   two layers and the divider are placed against the frame. */
+.ui-button.landing-preview-thumbnail {
   position: relative;
   display: block;
+  min-height: 0;
   width: 100%;
   height: 100%;
   aspect-ratio: 1;
@@ -5327,16 +5199,20 @@ body:has(.public-home) {
     transform var(--dur-control) var(--ease-standard);
 }
 
-.landing-preview-thumbnail:hover,
-.landing-preview-thumbnail:focus-visible {
+.ui-button.landing-preview-thumbnail:hover:not(:disabled),
+.ui-button.landing-preview-thumbnail[data-focus-visible] {
   border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
   box-shadow: 0 5px 14px color-mix(in srgb, var(--color-accent) 18%, transparent);
   transform: scale(1.045);
 }
 
-.landing-preview-thumbnail > img,
-.landing-preview-thumbnail > span,
-.landing-preview-thumbnail > span img {
+.landing-preview-thumbnail .ui-button-label {
+  display: contents;
+}
+
+.landing-preview-thumbnail .ui-button-label > img,
+.landing-preview-thumbnail .ui-button-label > span,
+.landing-preview-thumbnail .ui-button-label > span img {
   position: absolute;
   width: 100%;
   height: 100%;
@@ -5349,12 +5225,12 @@ body:has(.public-home) {
   user-select: none;
 }
 
-.landing-preview-thumbnail > span {
+.landing-preview-thumbnail .ui-button-label > span {
   overflow: hidden;
   clip-path: inset(0 50% 0 0);
 }
 
-.landing-preview-thumbnail > i {
+.landing-preview-thumbnail .ui-button-label > i {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -5365,7 +5241,7 @@ body:has(.public-home) {
   transform: translateX(-1px);
 }
 
-.landing-preview-thumbnail > i::after {
+.landing-preview-thumbnail .ui-button-label > i::after {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -5460,20 +5336,31 @@ body:has(.public-home) {
   opacity: 0.55;
 }
 
-/* The name and its numbers are a target, and look like one on hover. */
-.landing-asset-copy.is-openable {
+/* The name and its numbers are a target, and look like one on hover: the inventory's ghost
+   button (070 T037), worn as the row's text. */
+.ui-button.landing-asset-copy.is-openable,
+.ui-button.landing-asset-copy.is-openable:hover:not(:disabled),
+.ui-button.landing-asset-copy.is-openable:active:not(:disabled) {
   display: block;
+  height: auto;
+  min-height: 0;
   padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
-  cursor: pointer;
   font: inherit;
   text-align: left;
+  white-space: normal;
+  transform: none;
+}
+
+.landing-asset-copy.is-openable .ui-button-label {
+  display: grid;
+  gap: 2px;
 }
 
 .landing-asset-item:hover .landing-asset-copy.is-openable h3,
-.landing-asset-copy.is-openable:focus-visible h3 {
+.landing-asset-copy.is-openable[data-focus-visible] h3 {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -5513,36 +5400,10 @@ body:has(.public-home) {
   font-variant-numeric: tabular-nums;
 }
 
-.landing-asset-filters {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.landing-asset-filters button {
-  padding: 4px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
-  background: transparent;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-lg);
-}
-
-.landing-asset-filters button b {
+/* The inventory's segmented control (070 T037); the count after a filter's word is a number. */
+.landing-asset-filters b {
   margin-left: 4px;
   font-variant-numeric: tabular-nums;
-}
-
-.landing-asset-filters button:hover {
-  color: var(--color-text);
-}
-
-.landing-asset-filters button.is-selected {
-  border-color: var(--color-accent);
-  color: var(--color-text);
-  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
 }
 
 .landing-note {
@@ -5880,8 +5741,9 @@ body:has(.public-home) {
   left: 5px;
 }
 
-.landing-compare-range {
+.ui-slider.landing-compare-range {
   position: absolute;
+  display: block;
   z-index: var(--layer-content);
   width: 100%;
   height: 100%;
@@ -5891,14 +5753,16 @@ body:has(.public-home) {
   inset: 0;
 }
 
+/* The inventory's slider, stretched over the stage (070 T037): the track is the whole picture,
+   so a press anywhere puts the divider there; the thumb only keeps the focus and the keys. */
+.landing-compare-range .ui-slider-track {
+  height: 100%;
+}
+
 /* The keyboard route to the divider was an invisible control with an invisible focus ring:
    tab to it and nothing on screen changed, so there was no way to know the arrows would
    work. The stage says it has the focus instead. */
-.landing-compare-range:focus-visible {
-  outline: none;
-}
-
-.landing-compare-stage:has(.landing-compare-range:focus-visible) {
+.landing-compare-stage:has(.landing-compare-range [data-focus-visible]) {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;
 }
@@ -6102,7 +5966,7 @@ body:has(.public-home) {
 }
 
 @media (max-width: 480px) {
-  .landing-batch-toggle {
+  .ui-button.landing-batch-toggle {
     grid-template-columns: 44px minmax(0, 1fr) auto;
     align-items: start;
     gap: var(--space-2);
@@ -6546,22 +6410,21 @@ body:has(.public-home) {
   gap: var(--space-2);
 }
 
-.theme-toggle {
+/* On the inventory's `IconButton` (070 T038), hence the doubled class: the round skin has to
+   outrank the icon button's own plate, hover and pressed fill. */
+.ui-icon-button.theme-toggle,
+.ui-icon-button.theme-toggle:hover:not(:disabled) {
   position: relative;
-  display: inline-grid;
-  place-items: center;
   flex: 0 0 auto;
   width: var(--control-height-lg);
   height: var(--control-height-lg);
   min-width: var(--control-height-lg);
   min-height: var(--control-height-lg);
   aspect-ratio: 1;
-  padding: 0;
   border: 1px solid var(--color-border);
   border-radius: 50%;
   color: var(--honey-400);
   background: var(--color-surface-muted);
-  cursor: pointer;
   overflow: visible;
   isolation: isolate;
   view-transition-name: theme-toggle;
@@ -6576,15 +6439,16 @@ body:has(.public-home) {
   width: var(--app-header-control-icon-size);
   height: var(--app-header-control-icon-size);
 }
-:root[data-theme='dark'] .theme-toggle {
+:root[data-theme='dark'] .ui-icon-button.theme-toggle,
+:root[data-theme='dark'] .ui-icon-button.theme-toggle:hover:not(:disabled) {
   color: var(--purple-200);
   background: color-mix(in srgb, var(--color-accent) 16%, var(--color-surface-muted));
   border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
 }
-.theme-toggle:hover {
+.ui-icon-button.theme-toggle:hover:not(:disabled) {
   transform: translateY(-1px);
 }
-.theme-toggle:active {
+.ui-icon-button.theme-toggle:active {
   transform: scale(0.88);
 }
 
@@ -6855,10 +6719,6 @@ body:has(.public-home) {
   gap: var(--space-3);
   padding: var(--space-4) var(--space-4) var(--space-3);
   border-bottom: 1px solid var(--color-border);
-}
-.transcript-modal-header > div:first-child {
-  min-width: 0;
-  flex: 1 1 auto;
 }
 .transcript-modal-header h2 {
   margin: 0;
@@ -7139,6 +6999,13 @@ body:has(.public-home) {
 @media (max-width: 1280px) {
   .transcript-modal-header {
     flex-wrap: wrap;
+  }
+  /* The tabs take the second line; the close stays in the corner beside the title instead of
+     wrapping onto a line of its own (070 phase 9г). */
+  .transcript-modal-header > .text-variant-tabs {
+    order: 1;
+    flex-basis: 100%;
+    min-width: 0;
   }
 }
 @media (max-width: 640px) {
@@ -10302,7 +10169,6 @@ body {
 
 /* Circular legacy controls must satisfy the global touch floor on both axes.
    Otherwise their fixed width and inherited minimum height produce an oval. */
-.release-update-close,
 .landing-batch-chevron,
 .team-explorer-filter-clear,
 .team-explorer-tile-play {
@@ -10323,38 +10189,36 @@ body {
   transition: --power-level-color var(--motion-base) var(--ease-standard);
 }
 
-/* Matches the theme toggle's footprint so the header cluster stays even. */
-.power-toggle {
+/* Matches the theme toggle's footprint so the header cluster stays even. On the inventory's
+   `IconButton` (070 T038); the doubled class outranks its plate and hover. */
+.ui-icon-button.power-toggle {
   position: relative;
-  display: inline-flex;
   flex: 0 0 var(--control-height-lg);
-  align-items: center;
-  justify-content: center;
   inline-size: var(--control-height-lg);
   block-size: var(--control-height-lg);
   min-inline-size: var(--control-height-lg);
   min-block-size: var(--control-height-lg);
   aspect-ratio: 1;
-  padding: 0;
   border: 1px solid var(--color-border);
   border-radius: 50%;
   color: var(--color-text-muted);
   background: var(--color-surface-muted);
-  cursor: pointer;
+  overflow: visible;
   transition:
     color var(--dur-control) var(--ease-standard),
     background var(--dur-control) var(--ease-standard),
     border-color var(--dur-control) var(--ease-standard);
 }
 
-.power-toggle:hover {
+.ui-icon-button.power-toggle:hover:not(:disabled) {
+  background: var(--color-surface-muted);
   color: var(--color-text);
   border-color: var(--color-border-strong, var(--color-border));
 }
 
 /* A reduced limit has to be legible without opening anything, or a setting made
    weeks ago reads as "Soty has become slow". */
-.power-toggle[data-limited='true'] {
+.ui-icon-button.power-toggle[data-limited='true'] {
   color: var(--power-level-color, var(--color-accent));
   border-color: currentColor;
 }
@@ -11940,16 +11804,6 @@ body {
   gap: 10px;
   flex-wrap: wrap;
 }
-.start-duration-row .custom-duration-input {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.start-duration-row .custom-duration-input .time-input {
-  width: 72px;
-  min-height: 34px;
-}
-
 /* Range buttons pair the dice (randomness) with universal digits. */
 .fit-mode-pictos button.is-labeled {
   width: auto;
@@ -11994,7 +11848,7 @@ body {
 }
 
 /* Name-suffix input matches the picto-row inputs (same box as the ms field). */
-.suffix-input {
+.ui-input.suffix-input {
   width: 150px;
 }
 
@@ -12012,12 +11866,6 @@ body {
   border-color: var(--color-accent);
 }
 
-/* Custom-value inputs inside a picto row: same compact box as the ms field. */
-.start-duration-row .input-with-suffix input {
-  width: 96px;
-  min-height: 34px;
-}
-
 /* No number-input spinners anywhere — values are typed, not clicked. */
 input[type='number']::-webkit-outer-spin-button,
 input[type='number']::-webkit-inner-spin-button {
@@ -12027,11 +11875,6 @@ input[type='number']::-webkit-inner-spin-button {
 input[type='number'] {
   -moz-appearance: textfield;
   appearance: textfield;
-}
-
-/* CRF is a two-digit value; bitrate goes up to five digits. */
-.rate-control-field .input-with-suffix input {
-  width: 78px;
 }
 
 /* Static value note beside the optimal preset — plain text, not a control. */
@@ -12046,34 +11889,6 @@ input[type='number'] {
   position: relative;
   display: inline-flex;
   align-items: center;
-}
-.crf-gradient {
-  accent-color: var(--color-accent);
-  background: linear-gradient(to right, var(--green-450) 0%, var(--red-400) 100%);
-  width: 100%;
-  min-width: 120px;
-  height: 12px;
-  border-radius: var(--radius-full);
-  appearance: none;
-  -webkit-appearance: none;
-  outline-offset: 4px;
-}
-.crf-gradient::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--color-white);
-  border: 2px solid var(--color-accent);
-  cursor: pointer;
-}
-.crf-gradient::-moz-range-thumb {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--color-white);
-  border: 2px solid var(--color-accent);
-  cursor: pointer;
 }
 .pixel-gem {
   width: 20px;
@@ -12123,15 +11938,6 @@ input[type='number'] {
 .custom-settings .start-duration-row {
   flex-wrap: nowrap;
 }
-.start-duration-row .input-with-suffix input.fps-input {
-  width: 64px;
-}
-
-/* Resolution is four digits at most. */
-.start-duration-row .input-with-suffix input.res-input {
-  width: 76px;
-}
-
 /* Big drag-and-drop glyph in the intake zone, Soty orange. */
 .drop-zone .drop-icon {
   display: inline-flex;
@@ -13159,11 +12965,6 @@ input[type='number'] {
   flex-wrap: nowrap;
 }
 
-/* The custom-minutes box holds four digits and sits on the picto line. */
-.final-duration-field .custom-duration-input .time-input {
-  width: 64px;
-}
-
 /* The "what is selected" lines under each picto group: white at 70%, so they
    read as a value rather than as muted helper text. */
 .settings-panel .optimal-summary {
@@ -13273,49 +13074,23 @@ input[type='number'] {
 }
 
 .tfa-search {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  position: relative;
   justify-self: center;
   width: min(100%, 440px);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
 }
 
-.tfa-search:focus-within {
-  border-color: var(--color-focus);
-}
-
-.tfa-search input,
-.tfa-quick-field input,
-.tfa-field input {
+/* The inventory's search field (070 T038); the shortcut's hint sits where its clear button
+   appears once there is something to clear. */
+.tfa-search .ui-search-field {
   width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--color-text);
-  font-size: var(--text-md);
-}
-
-.tfa-search input:focus,
-.tfa-quick-field input:focus,
-.tfa-field input:focus {
-  outline: none;
-  box-shadow: none;
-}
-
-.tfa-search input {
-  height: 38px;
-}
-
-.tfa-search input::-webkit-search-cancel-button {
-  appearance: none;
 }
 
 .tfa-search kbd {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%);
+  pointer-events: none;
   padding: 2px 6px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -13331,51 +13106,25 @@ input[type='number'] {
   gap: var(--space-2);
 }
 
-.tfa-sort,
-.tfa-add-main {
-  display: inline-flex;
-  min-height: 38px;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
-  cursor: pointer;
-  font-size: var(--text-base);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.tfa-sort:hover,
-.tfa-add-main:hover {
-  border-color: var(--color-border-strong);
-}
-
+/* Add and its caret: the inventory's outline button with an icon button joined to its right
+   edge, drawn with the same border (070 T038). */
 .tfa-add {
   display: flex;
   align-items: stretch;
 }
 
-.tfa-add-main {
-  border-right: 0;
-  border-radius: var(--radius-md) 0 0 var(--radius-md);
+.tfa-add .ui-button.tfa-add-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
-.tfa-add .tfa-add-more {
+.tfa-add .ui-icon-button.tfa-add-more {
   width: 34px;
   min-width: 34px;
   height: auto;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--ui-border);
+  border-left-width: 0;
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-}
-
-.tfa-add .tfa-add-more:hover {
-  border-color: var(--color-border-strong);
-  color: var(--color-text);
 }
 
 /* --- Menus ----------------------------------------------------------------- */
@@ -13397,30 +13146,6 @@ input[type='number'] {
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
-}
-
-.tfa-menu button {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-text);
-  cursor: pointer;
-  font-size: var(--text-base);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.tfa-menu button:hover {
-  background: var(--color-surface-muted);
-}
-
-.tfa-menu button[aria-checked='true'] {
-  color: var(--color-accent);
-  font-weight: 650;
 }
 
 /* --- A code for a key that is not stored ----------------------------------- */
@@ -13460,24 +13185,10 @@ input[type='number'] {
   flex: 0 0 auto;
 }
 
-.tfa-quick-field {
-  display: flex;
+/* The inventory's field (070 T038); here it only takes the bar's spare width. */
+.ui-input.tfa-quick-field {
   flex: 1 1 auto;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
-  color: var(--color-text-muted);
-}
-
-.tfa-quick-field:focus-within {
-  border-color: var(--color-accent);
-}
-
-.tfa-quick-field input {
-  height: 38px;
+  width: auto;
 }
 
 .tfa-quick-error {
@@ -13487,8 +13198,9 @@ input[type='number'] {
 
 /* --- The code, which is also the button that copies it --------------------- */
 
-.tfa-code {
-  display: inline-flex;
+/* The inventory's ghost button in the code's own type (070 T038): the doubled class outranks
+   the button's size and hover. */
+.ui-button.tfa-code {
   /* Never shrinks. It shares a flex row with a revealed key, and a long enough
      key was squeezing the digits until they wrapped onto a second line and took
      the row's height with them. The key gives way instead; it is the one with
@@ -13497,12 +13209,9 @@ input[type='number'] {
   align-items: center;
   gap: var(--space-2);
   height: 34px;
+  min-height: 0;
   padding: 0 var(--space-2);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: none;
   color: var(--color-accent);
-  cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-section);
   font-weight: 600;
@@ -13510,12 +13219,12 @@ input[type='number'] {
   font-variant-numeric: tabular-nums;
 }
 
-.tfa-code:hover {
+.ui-button.tfa-code:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 
-.tfa-code.is-copied {
+.ui-button.tfa-code.is-copied {
   color: var(--color-success);
 }
 
@@ -13528,10 +13237,10 @@ input[type='number'] {
 }
 
 .tfa-code:hover .tfa-code-mark,
-.tfa-code:focus-visible .tfa-code-mark,
+.tfa-code[data-focus-visible] .tfa-code-mark,
 .tfa-code.is-copied .tfa-code-mark,
 .tfa-seed:hover .tfa-code-mark,
-.tfa-seed:focus-visible .tfa-code-mark,
+.tfa-seed[data-focus-visible] .tfa-code-mark,
 .tfa-seed.is-copied .tfa-code-mark {
   opacity: 1;
 }
@@ -13768,24 +13477,16 @@ input[type='number'] {
 
 /* Present for the rare bulk delete, out of the way the rest of the time. Kept
    in the layout (opacity, not display) so they stay focusable by keyboard. */
+/* The inventory's checkbox (070 T038), faded until the table is hovered, focused or the box is
+   ticked. */
 .tfa-check {
-  width: 17px;
-  height: 17px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg);
-  appearance: none;
-  cursor: pointer;
   opacity: 0;
-  transition:
-    opacity var(--dur-control) var(--ease-standard),
-    border-color var(--dur-control) var(--ease-standard),
-    background-color var(--dur-control) var(--ease-standard);
+  transition: opacity var(--dur-control) var(--ease-standard);
 }
 
 .tfa-table-frame:hover .tfa-check,
 .tfa-table-frame:focus-within .tfa-check,
-.tfa-check:checked {
+.tfa-check[data-selected] {
   opacity: 1;
 }
 
@@ -13793,25 +13494,6 @@ input[type='number'] {
   .tfa-check {
     opacity: 1;
   }
-}
-
-.tfa-check:hover {
-  border-color: var(--color-accent);
-}
-
-.tfa-check:checked {
-  border-color: var(--color-accent);
-  background-color: var(--color-accent);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3.5 8.5 3 3 6-6'/%3E%3C/svg%3E");
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: 13px;
-}
-
-.tfa-check:focus-visible {
-  opacity: 1;
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
 }
 
 /* One line, always. A long name is cut rather than allowed to wrap and turn a
@@ -13838,19 +13520,14 @@ input[type='number'] {
   gap: var(--space-3);
 }
 
-.tfa-seed {
-  display: inline-flex;
+/* The inventory's small ghost button holding a key that wraps rather than truncates. */
+.ui-button.tfa-seed {
   flex: 0 1 auto;
   min-width: 0;
   min-height: 0;
-  align-items: center;
-  gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: none;
   color: var(--color-text-muted);
-  cursor: pointer;
+  white-space: normal;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-sm);
   letter-spacing: 0.02em;
@@ -13866,13 +13543,13 @@ input[type='number'] {
   text-align: left;
 }
 
-.tfa-seed:hover {
+.ui-button.tfa-seed:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
   background: color-mix(in srgb, var(--color-accent) 10%, transparent);
   color: var(--color-text);
 }
 
-.tfa-seed.is-copied {
+.ui-button.tfa-seed.is-copied {
   color: var(--color-success);
 }
 
@@ -13944,59 +13621,22 @@ input[type='number'] {
   color: var(--color-error);
 }
 
+/* The inventory's small error button, in a column head that is otherwise spaced capitals. */
 .tfa-bulk-delete {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--color-error) 45%, var(--color-border));
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--color-error);
-  cursor: pointer;
-  font-size: var(--text-xs);
   letter-spacing: normal;
   text-transform: none;
-  white-space: nowrap;
 }
 
 /* --- Editing a row --------------------------------------------------------- */
 
-.tfa-field {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0 var(--space-1) 0 var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
-  text-align: left;
+/* The inventory's large field (070 T038): the size keeps a row's height when it turns into an
+   editor. The name field opens focused, and says so before the caret is seen. */
+.ui-input.tfa-field {
+  padding-right: var(--space-1);
 }
 
-.tfa-field.is-focus,
-.tfa-field:focus-within {
-  border-color: var(--color-accent);
-}
-
-/* Sized so a row keeps its height when it turns into an editor: the list below
-   used to jump twenty pixels the moment you pressed the pencil. */
-.tfa-field input {
-  height: 42px;
-}
-
-/* The one place the 44.2px floor is wrong: this is the clear affordance inside
-   a text field, not a control standing on its own, and at full size it made the
-   field taller than every other row on the page. */
-.tfa-field .icon-button {
-  display: inline-flex;
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
+.ui-input.tfa-field.is-focus {
+  border-color: var(--color-secondary-solid);
 }
 
 .tfa-edit-error {
@@ -14093,6 +13733,29 @@ input[type='number'] {
 
   .tfa-cell-check {
     display: none;
+  }
+}
+
+/* A phone (070 phase 9г): the one-off code bar gives its field a line of its own instead of
+   squeezing it to its icon, and a revealed key takes a line above the code instead of one
+   character per line beside it. */
+@media (max-width: 640px) {
+  .tfa-quick {
+    flex-wrap: wrap;
+    padding-right: var(--space-4);
+  }
+
+  .ui-input.tfa-quick-field {
+    flex-basis: 100%;
+    order: 1;
+  }
+
+  .tfa-code-cell {
+    flex-wrap: wrap;
+  }
+
+  .ui-button.tfa-seed {
+    flex-basis: 100%;
   }
 }
 

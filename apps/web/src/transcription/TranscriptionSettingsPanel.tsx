@@ -1,5 +1,6 @@
 import { memo, useEffect, useId, useState } from 'react';
-import { ChevronDown, Settings as SettingsIcon, Target, Zap } from 'lucide-react';
+import { SettingsPanelHeader } from '../components/SettingsPanelHeader';
+import { Target, Zap } from 'lucide-react';
 import {
   TRANSCRIPTION_LANGUAGE_CODES,
   type TranscriptionQualityMode,
@@ -80,32 +81,25 @@ export const TranscriptionSettingsPanel = memo(function TranscriptionSettingsPan
     >
       {/* The compressor's strip, so the two tools fold the same way: the whole header is the
           toggle, the current choices sit in the middle and stay put when it opens. */}
-      <button
-        type="button"
-        className="settings-collapse section-heading compact-heading"
-        aria-expanded={open}
-        aria-controls={bodyId}
-        onClick={() => setChosen(!open)}
-      >
-        <SettingsIcon size={18} strokeWidth={1.75} aria-hidden="true" />
-        <h2 id={titleId}>{t('transcriptionSettingsTitle')}</h2>
-        <span className="settings-summary">
-          <span>
-            <span className="settings-summary-key">{t('transcriptionSummaryLanguage')}</span>
-            {languageName}
-          </span>
-          <span>
-            <span className="settings-summary-key">{t('transcriptionSummaryQuality')}</span>
-            {qualityName}
-          </span>
-        </span>
-        <ChevronDown
-          size={18}
-          strokeWidth={1.75}
-          className={`settings-chevron${open ? '' : ' is-rotated'}`}
-          aria-hidden="true"
-        />
-      </button>
+      <SettingsPanelHeader
+        title={t('transcriptionSettingsTitle')}
+        titleId={titleId}
+        bodyId={bodyId}
+        open={open}
+        onToggle={() => setChosen(!open)}
+        summary={
+          <>
+            <span>
+              <span className="settings-summary-key">{t('transcriptionSummaryLanguage')}</span>
+              {languageName}
+            </span>
+            <span>
+              <span className="settings-summary-key">{t('transcriptionSummaryQuality')}</span>
+              {qualityName}
+            </span>
+          </>
+        }
+      />
       <div id={bodyId} className="settings-body" hidden={!open}>
         <div className="transcription-settings-grid">
           <div className="field-group transcription-language-field">

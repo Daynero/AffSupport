@@ -15,7 +15,14 @@ import { Card } from '../components/Card';
 import { Ban, ExternalLink, FolderOpen, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
 import { SotyLoader } from '../components/SotyLoader';
 import { ImageCompareModal } from './ImageCompareModal';
-import { Alert, Button, Checkbox, Collapse, Progress } from '../components/ui/index';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Collapse,
+  Progress,
+  SegmentedControl
+} from '../components/ui/index';
 
 export function LandingJobCard({
   job,
@@ -145,8 +152,11 @@ export function LandingJobCard({
             onChange={checked => onSelect(checked)}
           />
         )}
-        <button
-          type="button"
+        {/* The inventory's button around the card's identity (070 T037); the label slot steps
+            aside (`display: contents`) so the icon, the words and the chevron keep their grid. */}
+        <Button
+          color="neutral"
+          variant="ghost"
           className="landing-batch-toggle"
           disabled={!canExpand}
           aria-label={
@@ -195,7 +205,7 @@ export function LandingJobCard({
               <ChevronIcon />
             </span>
           )}
-        </button>
+        </Button>
 
         <div className="landing-batch-actions">
           {/* Same button, same place, same words as a compression: a landing is the same kind
@@ -434,50 +444,53 @@ function LandingAssetControls({
           order they are shown in belongs on the right. */}
       <div className="landing-asset-scope">
         {sharedFolder && <span className="landing-shared-folder">{sharedFolder}/</span>}
-        <div className="landing-asset-filters" role="group">
-          <button
-            type="button"
-            className={filter === 'all' ? 'is-selected' : ''}
-            aria-pressed={filter === 'all'}
-            onClick={() => onFilter('all')}
-          >
-            {t('landingAssetFilterAll')} <b>{total}</b>
-          </button>
-          {skipped > 1 && (
-            <button
-              type="button"
-              className={filter === 'skipped' ? 'is-selected' : ''}
-              aria-pressed={filter === 'skipped'}
-              onClick={() => onFilter('skipped')}
-            >
-              {t('landingAssetFilterSkipped')} <b>{skipped}</b>
-            </button>
-          )}
-        </div>
+        <SegmentedControl
+          className="landing-asset-filters"
+          size="xs"
+          label={t('landingAssetFilterLabel')}
+          value={filter}
+          onChange={onFilter}
+          options={[
+            {
+              value: 'all' as const,
+              title: `${t('landingAssetFilterAll')} ${total}`,
+              label: (
+                <>
+                  {t('landingAssetFilterAll')} <b>{total}</b>
+                </>
+              )
+            },
+            ...(skipped > 1
+              ? [
+                  {
+                    value: 'skipped' as const,
+                    title: `${t('landingAssetFilterSkipped')} ${skipped}`,
+                    label: (
+                      <>
+                        {t('landingAssetFilterSkipped')} <b>{skipped}</b>
+                      </>
+                    )
+                  }
+                ]
+              : [])
+          ]}
+        />
       </div>
-      <div className="landing-asset-filters" role="group">
-        {/* Off while the run is going: the list holds the order it was walked in so rows do
-            not jump under the cursor as each file finishes, and a control that visibly
-            responds while changing nothing is worse than one that says it cannot. */}
-        <button
-          type="button"
-          className={sort === 'saving' ? 'is-selected' : ''}
-          aria-pressed={sort === 'saving'}
-          disabled={!sortable}
-          onClick={() => onSort('saving')}
-        >
-          {t('landingAssetSortSaving')}
-        </button>
-        <button
-          type="button"
-          className={sort === 'size' ? 'is-selected' : ''}
-          aria-pressed={sort === 'size'}
-          disabled={!sortable}
-          onClick={() => onSort('size')}
-        >
-          {t('landingAssetSortSize')}
-        </button>
-      </div>
+      {/* Off while the run is going: the list holds the order it was walked in so rows do
+          not jump under the cursor as each file finishes, and a control that visibly
+          responds while changing nothing is worse than one that says it cannot. */}
+      <SegmentedControl
+        className="landing-asset-filters"
+        size="xs"
+        label={t('landingAssetSortLabel')}
+        value={sort}
+        disabled={!sortable}
+        onChange={onSort}
+        options={[
+          { value: 'saving' as const, label: t('landingAssetSortSaving') },
+          { value: 'size' as const, label: t('landingAssetSortSize') }
+        ]}
+      />
     </div>
   );
 }
@@ -557,14 +570,15 @@ function RowCopy({
 }) {
   if (!openable) return <div className="landing-asset-copy">{children}</div>;
   return (
-    <button
-      type="button"
+    <Button
+      color="neutral"
+      variant="ghost"
       className="landing-asset-copy is-openable"
       title={title}
       onClick={event => onOpen(event.currentTarget)}
     >
       {children}
-    </button>
+    </Button>
   );
 }
 
@@ -728,8 +742,9 @@ function ImagePreviewThumbnail({
     );
   }
   return (
-    <button
-      type="button"
+    <Button
+      color="neutral"
+      variant="ghost"
       className={`landing-preview-thumbnail ${comparison ? 'is-comparison' : 'is-single'}`}
       /* Out of the tab order: the name and numbers beside it open the same comparison with a
          better label, and two adjacent stops per row is forty-four for a landing of
@@ -780,7 +795,7 @@ function ImagePreviewThumbnail({
           />
         )
       )}
-    </button>
+    </Button>
   );
 }
 
