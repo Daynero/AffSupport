@@ -7,7 +7,10 @@ import { homedir, tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { basename, dirname, join, resolve } from 'node:path';
 import pg from 'pg';
-import { resetApplicationSchemas } from './supabase-schema-baseline.mjs';
+import {
+  resetApplicationSchemas,
+  withoutUnknownColumnOptions
+} from './supabase-schema-baseline.mjs';
 import {
   analyseMiniDbSql,
   assertMiniDbTupleSource,
@@ -550,17 +553,20 @@ export async function createMiniDbRehearsalRuntime({
           `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='${name}') THEN CREATE ROLE ${name}; END IF; END $$;`
       );
     await psql('postgres', definitions);
-    const schema = await docker([
-      'exec',
-      source,
-      'pg_dump',
-      '-U',
-      'supabase_admin',
-      '--schema-only',
-      '--clean',
-      '--if-exists',
-      'postgres'
-    ]);
+    // A newer image's private column stamps (pg_attver) are not valid on this pinned image.
+    const schema = withoutUnknownColumnOptions(
+      await docker([
+        'exec',
+        source,
+        'pg_dump',
+        '-U',
+        'supabase_admin',
+        '--schema-only',
+        '--clean',
+        '--if-exists',
+        'postgres'
+      ])
+    ).dump;
     await psql(
       'postgres',
       `CREATE DATABASE ${names.baseline} WITH TEMPLATE template0 OWNER postgres`,

@@ -2,7 +2,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
-import { resetApplicationSchemas } from './lib/supabase-schema-baseline.mjs';
+import {
+  resetApplicationSchemas,
+  withoutUnknownColumnOptions
+} from './lib/supabase-schema-baseline.mjs';
 import { cleanupDisposableAuth, cleanupDisposableDatabase } from './lib/disposable-auth.mjs';
 
 const configuredProject = /^project_id\s*=\s*"([a-zA-Z0-9_-]+)"/mu.exec(
@@ -136,17 +139,22 @@ try {
         `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='${name}') THEN CREATE ROLE ${name}; END IF; END $$;`
     );
   sql(roleStatements);
-  const schemaDump = docker([
-    'exec',
-    source,
-    'pg_dump',
-    '-U',
-    'supabase_admin',
-    '--schema-only',
-    '--clean',
-    '--if-exists',
-    'postgres'
-  ]);
+  // A newer image's private column stamps (pg_attver) are not valid on this pinned image.
+  const { dump: schemaDump, dropped } = withoutUnknownColumnOptions(
+    docker([
+      'exec',
+      source,
+      'pg_dump',
+      '-U',
+      'supabase_admin',
+      '--schema-only',
+      '--clean',
+      '--if-exists',
+      'postgres'
+    ])
+  );
+  for (const [name, count] of dropped)
+    console.log(`database: dropped ${count} column option(s) ${name} unknown to PostgreSQL`);
   sql(schemaDump, false);
   // Retain real Auth/storage/extension foundations, then replay the application from zero.
   sql(resetApplicationSchemas(schemaDump));
