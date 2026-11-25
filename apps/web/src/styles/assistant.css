@@ -388,14 +388,125 @@ body:has(.next-channel-badge) .assistant-dock {
   color: var(--color-text-muted);
   font-size: var(--text-caption);
 }
-.ai-budget-forms {
+/* 064 — the AI budget tab: one bar for the month, marks for where it is heading. */
+.ai-budget-meter {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 0 var(--space-5);
+  gap: var(--space-3);
 }
-/* A number field keeps its own width; its button stands right next to it, not across the column. */
-.ai-budget-forms .release-testers-form .ui-field {
-  flex: 0 1 auto;
+.ai-budget-headline {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-text-muted);
+}
+.ai-budget-headline-label {
+  font-size: var(--text-caption);
+}
+.ai-budget-headline strong {
+  color: var(--color-text);
+  font-size: var(--text-title);
+}
+.ai-budget-track {
+  position: relative;
+  padding-block: var(--space-1);
+}
+.ai-budget-mark {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(var(--ai-budget-at) * 100%);
+  width: 2px;
+  margin-inline-start: -1px;
+  border-radius: var(--radius-full);
+  background: var(--color-text);
+}
+.ai-budget-mark--forecast,
+.ai-budget-key--forecast {
+  background: var(--color-secondary-solid);
+}
+.ai-budget-mark--worst,
+.ai-budget-key--worst {
+  background: var(--color-warning-solid);
+}
+.ai-budget-key {
+  display: inline-block;
+  flex: none;
+  width: 2px;
+  height: var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-text);
+}
+.ai-budget-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+.ai-budget-legend dt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.ai-budget-legend dd {
+  margin: 0;
+  font-weight: 600;
+}
+.ai-budget-end {
+  text-align: end;
+}
+.ai-budget-cell-note {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 400;
+}
+.ai-budget-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.ai-budget-setting p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+.ai-budget-setting .ui-switch {
+  flex: none;
+}
+/* Fields first, their buttons on one row beneath: every form on the tab is laid out alike. */
+.ai-budget-form {
+  display: grid;
+  gap: var(--space-3);
+  align-content: start;
+}
+.ai-budget-fields,
+.ai-budget-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-5);
+  align-items: start;
+}
+.ai-budget-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ai-budget-saved {
+  color: var(--color-success-text);
+  font-size: var(--text-caption);
+}
+.ai-budget-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-caption);
 }
 .assistant-card-title .assistant-card-warning {
   color: var(--color-warning-text);

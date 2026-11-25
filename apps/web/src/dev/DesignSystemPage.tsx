@@ -373,6 +373,9 @@ export default function DesignSystemPage() {
             <FormField label="Number with steppers">
               <InputNumber steppers defaultValue={50} stepUpLabel="More" stepDownLabel="Less" />
             </FormField>
+            <FormField label="With a unit">
+              <InputNumber defaultValue={100} suffix="credits/day" />
+            </FormField>
           </Row>
           <Row title="select and textarea">
             <FormField label="Select">

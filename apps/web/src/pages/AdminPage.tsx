@@ -360,7 +360,7 @@ export default function AdminPage() {
         </div>
       ) : tab === 'aiBudget' ? (
         <div role="tabpanel" id="admin-panel-aiBudget" aria-labelledby="tab-aiBudget">
-          <AiBudgetPanel />
+          <AiBudgetPanel onOpenTariffs={() => setTab('tariffs')} />
         </div>
       ) : (
         <div role="tabpanel" id="admin-panel-analytics" aria-labelledby="tab-analytics">

@@ -166,6 +166,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 export interface InputNumberProps {
   /** Draws − and + plates beside the field, as the money column does. */
   steppers?: boolean;
+  /** The unit, drawn outside the border as muted text, as `Input`'s suffix is: `USD`, `чарунок/день`. */
+  suffix?: ReactNode;
   value?: number;
   defaultValue?: number;
   onChange?: (value: number) => void;
@@ -196,6 +198,7 @@ export interface InputNumberProps {
  */
 export function InputNumber({
   steppers = false,
+  suffix,
   value,
   defaultValue,
   onChange,
@@ -211,7 +214,7 @@ export function InputNumber({
   className,
   ...props
 }: InputNumberProps) {
-  return (
+  const field = (
     <NumberField
       {...props}
       value={value}
@@ -242,6 +245,13 @@ export function InputNumber({
         )}
       </NumberField.Group>
     </NumberField>
+  );
+  if (!suffix) return field;
+  return (
+    <span className="ui-input-with-suffix">
+      {field}
+      <span className="ui-input-suffix">{suffix}</span>
+    </span>
   );
 }
 

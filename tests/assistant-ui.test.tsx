@@ -693,16 +693,31 @@ describe('the AI budget panel', () => {
       bonuses: [{ email: 'a@example.com', balance: 40 }],
       updatedAt: '2026-11-11T10:00:00Z'
     });
-    render(<AiBudgetPanel />);
-    expect(await screen.findByText('$60.00')).toBeTruthy();
+    render(<AiBudgetPanel onOpenTariffs={() => undefined} />);
+    // one headline: spent of the limit, the rest as the bar's legend
+    expect(await screen.findByText('Spent this month')).toBeTruthy();
+    expect(screen.getByText('$40.00')).toBeTruthy();
+    expect(screen.getByRole('progressbar', { name: 'Spent this month' })).toBeTruthy();
+    expect(screen.getByText('$60.00')).toBeTruthy();
     expect(screen.getByText('$120.00')).toBeTruthy();
     expect(screen.getByText(/Full use of grants exceeds the limit/u)).toBeTruthy();
-    expect(screen.getByText(/prices cover cost ×1.20/u)).toBeTruthy();
-    // plain words: the rate, the worst case explained, the daily grant in money
+    // the breakdown in plain columns: cost, credits charged, coverage
+    expect(screen.getByText(/12,000 ≈ \$12\.00/u)).toBeTruthy();
+    expect(screen.getByText('×1.2')).toBeTruthy();
+    // plain words: the rate, the worst case named, the daily grant in money
     expect(screen.getByText('1 credit ≈ $0.001')).toBeTruthy();
-    expect(screen.getByText('Worst case this month')).toBeTruthy();
-    expect(screen.getByText(/100 credits ≈ \$0.100 per person a day/u)).toBeTruthy();
-    // people and the pilot moved to Tariffs
+    expect(screen.getAllByText(/Worst case this month/u).length).toBeGreaterThan(0);
+    expect(screen.getByText(/≈ \$0.100 per person a day/u)).toBeTruthy();
+    // the switch says the state it is in, not a fixed «enabled»
+    const assistant = screen.getByRole('switch', { name: 'Assistant' });
+    expect((assistant as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByText('On')).toBeTruthy();
+    // the two limits are one form; nothing changed, nothing to save
+    expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+    // people and the pilot live in Tariffs; the footer points there
+    expect(
+      screen.getByRole('button', { name: /Other people’s credits and the assistant pilot/u })
+    ).toBeTruthy();
     expect(screen.queryByText('a@example.com')).toBeNull();
   });
 });
