@@ -3751,3 +3751,11 @@ Drive version (Drive raises the version of a fresh upload by itself), and the fr
 the version it was accepted at. No table or column; the video source keeps its strict version
 policy. Undo by re-running the function from 20261207156000: launches started within minutes of
 uploading their pictures fail with SOURCE_CHANGED again.
+
+## 20261224380000 — the children of a folder, whatever their lifecycle
+
+Adds the index `public.team_materials_children_idx (team_id, connection_id, parent_folder_id)`
+for the walk below «Soty cache» in `public.search_materials`, which no partial index could
+answer. No function changes, so no result changes. Undo with
+`drop index concurrently public.team_materials_children_idx`: the search of a large space goes
+back to seconds and statement timeouts.
