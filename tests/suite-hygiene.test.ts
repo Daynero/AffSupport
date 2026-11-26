@@ -65,7 +65,9 @@ const SLEEP_IS_THE_POINT: Record<string, string> = {
   'team-accounts-order.test.tsx':
     'a delay before asserting no late focus reveal ran the list away from where it was let go',
   'launch-creative-images.test.ts':
-    'a zero-delay macrotask yield before asserting how many publishes the bounded pool admitted'
+    'a zero-delay macrotask yield before asserting how many publishes the bounded pool admitted',
+  'native-app-update-late-handshake.test.ts':
+    'a delay before asserting a host that has not answered yet was offered no startup check'
 };
 
 /**
