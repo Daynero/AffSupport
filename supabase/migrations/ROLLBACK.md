@@ -3759,3 +3759,13 @@ for the walk below «Soty cache» in `public.search_materials`, which no partial
 answer. No function changes, so no result changes. Undo with
 `drop index concurrently public.team_materials_children_idx`: the search of a large space goes
 back to seconds and statement timeouts.
+
+## 20261224390000 — a kept catalog sheet closes a cancelled launch's cleanup
+
+Replaces `public.service_finish_launch_cleanup_before_video(uuid, uuid, uuid, text, text, text)`:
+a created output that is a material of a space (any lifecycle) is settled as kept, marked
+`launchOutputRetained` on the intent's checkpoint, instead of leaving the generation in
+`canceled_with_cleanup_pending` for ever. Replaces `private.archive_launch_pre_assignment`: a
+launch whose only unfinished generation is `canceled_with_cleanup_pending` can be deleted. No
+table or column. Undo by re-running both functions from 20261207171000 and 20261201167000; a
+generation already closed stays closed, and the checkpoint mark is read by nothing.
