@@ -14,6 +14,7 @@ import {
 } from '../_shared/credentials.ts';
 import { GoogleDriveClient, proveLiveAncestry, type DriveFileMetadata } from '../_shared/drive.ts';
 import { isHiddenPreviewCache } from '../_shared/drive-cache.ts';
+import { recordDriveImageProbes } from './image-probes.ts';
 import { rpcErrorRecord } from './logging.ts';
 import {
   errorResponse,
@@ -411,6 +412,8 @@ function dependencies(input: {
           p_files: page.files.map(catalogRow),
           p_complete: page.complete
         });
+        // What Drive read of the page's pictures; never a reason to fail the scan.
+        if (committed === true) await recordDriveImageProbes(service, job.connectionId, page.files);
         return committed === true;
       },
       missingCandidates: async generation =>
@@ -541,15 +544,19 @@ function dependencies(input: {
     },
     // Replay writes go through the lease fence and count on the job (028):
     // a worker whose lease ended, or whose job was stopped, writes nothing.
-    upsertFiles: request =>
-      rpcValue(service, 'service_upsert_catalog_page', {
+    upsertFiles: async request => {
+      const saved = await rpcValue(service, 'service_upsert_catalog_page', {
         p_job: request.jobId,
         p_worker: worker,
         p_epoch: job.leaseEpoch,
         p_connection: request.connectionId,
         p_parent_folder_id: request.parentId,
         p_files: request.files.map(catalogRow)
-      }),
+      });
+      // What Drive read of the page's pictures; never a reason to fail the scan.
+      await recordDriveImageProbes(service, request.connectionId, request.files);
+      return saved;
+    },
     enqueueDiscoveredFolder: request =>
       rpcValue(service, 'service_enqueue_discovered_catalog_subtree', {
         p_job: request.jobId,

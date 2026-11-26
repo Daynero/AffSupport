@@ -34,6 +34,13 @@ export interface DriveFileMetadata {
   ownedByMe?: boolean;
   webViewLink?: string | null;
   thumbnailLink?: string | null;
+  /** When Drive first held the file; `modifiedAt` may be the uploader's own clock. */
+  createdAt?: string | null;
+  /**
+   * The picture Drive read in the file. Present only when Drive gave both dimensions; absent
+   * for a file that is no picture, and for one Drive has not read yet.
+   */
+  imageSize?: { width: number; height: number };
   /**
    * The marks this application put on the file, invisible to every other one.
    *
@@ -97,12 +104,32 @@ const FILE_FIELDS = [
   'capabilities(canDownload,canListChildren,canAddChildren,canRename,canMoveItemWithinDrive,canMoveItemOutOfDrive,canModifyContent,canShare,canTrash,canUntrash)',
   'size',
   'modifiedTime',
+  'createdTime',
   'version',
   'md5Checksum',
   'webViewLink',
   'thumbnailLink',
+  'imageMediaMetadata(width,height)',
   'appProperties'
 ].join(',');
+
+/** Both dimensions, as whole pixels, or nothing: half an answer is no picture. */
+function parseImageSize(value: unknown): { width: number; height: number } | null {
+  if (!isRecord(value)) return null;
+  const { width, height } = value;
+  if (
+    typeof width !== 'number' ||
+    typeof height !== 'number' ||
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    width < 1 ||
+    height < 1 ||
+    width > 1_000_000 ||
+    height > 1_000_000
+  )
+    return null;
+  return { width, height };
+}
 
 function parseAppProperties(value: unknown): Record<string, string> {
   if (!isRecord(value)) return {};
@@ -158,6 +185,7 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
   const shortcut = isRecord(value.shortcutDetails) ? value.shortcutDetails : null;
   const parsedSize =
     typeof value.size === 'string' && /^\d+$/.test(value.size) ? Number(value.size) : null;
+  const imageSize = parseImageSize(value.imageMediaMetadata);
   return {
     id: value.id,
     name: value.name,
@@ -179,6 +207,8 @@ function parseMetadata(value: unknown): DriveFileMetadata | null {
     webViewLink: typeof value.webViewLink === 'string' ? value.webViewLink : null,
     thumbnailLink: typeof value.thumbnailLink === 'string' ? value.thumbnailLink : null,
     ...(typeof value.ownedByMe === 'boolean' ? { ownedByMe: value.ownedByMe } : {}),
+    ...(typeof value.createdTime === 'string' ? { createdAt: value.createdTime } : {}),
+    ...(imageSize ? { imageSize } : {}),
     appProperties: parseAppProperties(value.appProperties)
   };
 }
