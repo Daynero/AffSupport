@@ -1157,10 +1157,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
           NSApp.terminate(nil)
         }
-      } else if self.readinessAttempts >= (self.process?.isRunning == true ? 480 : 60) {
+      } else if self.readinessAttempts >= (self.process?.isRunning == true ? 1200 : 60) {
         // 15 s was too short for an agent that is alive and still starting: under Rosetta its
         // first listen came after ~23 s, the modal «could not start» blocked the main thread,
-        // and with it the native update bridge (1.7.0 qualification). A living agent gets 2 min.
+        // and with it the native update bridge (1.7.0 qualification). A living agent gets
+        // 5 min — longer than the native 2 min target-readiness deadline, which then records
+        // the slow target first and lets it still prove itself late.
         self.readinessTimer?.invalidate()
         if self.portIsOccupied() {
           self.waitForPortToBecomeAvailable()
