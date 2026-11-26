@@ -1,4 +1,8 @@
-import type { LaunchSummary } from '@video-compressor/shared';
+import {
+  launchInputsLocked,
+  type LaunchGenerationState,
+  type LaunchSummary
+} from '@video-compressor/shared';
 import type { TranslationKey } from '../../i18n.js';
 export type LaunchCardState =
   'draft' | 'queued' | 'running' | 'ready' | 'failed' | 'partial' | 'canceled' | 'unknown';
@@ -35,4 +39,10 @@ export function launchCardProgress(value: LaunchSummary): number | undefined {
   if (video) return (video.registeredCount / video.requestedCount) * 100;
   const progress = value.generation?.progress;
   return progress && progress.total > 0 ? (progress.completed / progress.total) * 100 : undefined;
+}
+/** What holds a launch back from being deleted. A cancelled launch that is only removing what it
+ * left behind does not: that cleanup carries on without the launch being listed (archive_launch,
+ * 20261224390000). It used to sit there with neither Cancel nor a Delete that worked. */
+export function launchDeleteLocked(state: LaunchGenerationState | null): boolean {
+  return launchInputsLocked(state) && state !== 'canceled_with_cleanup_pending';
 }

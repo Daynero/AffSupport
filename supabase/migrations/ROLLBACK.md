@@ -3733,3 +3733,39 @@ pg_net, so twenty image creatives continue in fresh invocations instead of waiti
 lease after each CPU-limited one. No table or column. Undo by dropping the function: drive-ops
 ignores the failed call and the generation is resumed by the per-minute pass once its lease
 expires, as before.
+
+## 20261224360000 — a preparing catalog video is read again (hotfix 2026-11-26)
+
+Replaces `public.service_read_initial_catalog_video(uuid, uuid, text)`: the row variable that
+20261224210000 named `s` is `vset`, so it no longer collides with the table alias `s` of the
+agentSilent check (42702 on every read of a launch whose catalog video was still preparing).
+Behaviour is otherwise that of 20261224210000. No table or column. Applied to production by hand
+on 2026-11-26 09:42 UTC; the migration re-declares the same body. Do not undo: the previous body
+cannot be executed on that path.
+
+## 20261224370000 — a re-stitch picture is its content, not its Drive version
+
+Replaces the trigger function `private.restitch_selection_freeze_candidate()`: a picture
+candidate whose checksum, size and MIME type are what the set froze is accepted under a newer
+Drive version (Drive raises the version of a fresh upload by itself), and the frozen row records
+the version it was accepted at. No table or column; the video source keeps its strict version
+policy. Undo by re-running the function from 20261207156000: launches started within minutes of
+uploading their pictures fail with SOURCE_CHANGED again.
+
+## 20261224380000 — the children of a folder, whatever their lifecycle
+
+Adds the index `public.team_materials_children_idx (team_id, connection_id, parent_folder_id)`
+for the walk below «Soty cache» in `public.search_materials`, which no partial index could
+answer. No function changes, so no result changes. Undo with
+`drop index concurrently public.team_materials_children_idx`: the search of a large space goes
+back to seconds and statement timeouts.
+
+## 20261224390000 — a kept catalog sheet closes a cancelled launch's cleanup
+
+Replaces `public.service_finish_launch_cleanup_before_video(uuid, uuid, uuid, text, text, text)`:
+a created output that is a material of a space (any lifecycle) is settled as kept, marked
+`launchOutputRetained` on the intent's checkpoint, instead of leaving the generation in
+`canceled_with_cleanup_pending` for ever. Replaces `private.archive_launch_pre_assignment`: a
+launch whose only unfinished generation is `canceled_with_cleanup_pending` can be deleted. No
+table or column. Undo by re-running both functions from 20261207171000 and 20261201167000; a
+generation already closed stays closed, and the checkpoint mark is read by nothing.

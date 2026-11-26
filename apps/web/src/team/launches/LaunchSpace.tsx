@@ -1,7 +1,7 @@
 import { privateCacheActorEpoch } from '../private-cache-scope.js';
 import type { LaunchBatch } from './LaunchBatch.js';
 import { onLaunchesChanged, registerLaunchRunner } from '../assistant/bridge.js';
-import { launchCardState } from './launchPresentation.js';
+import { launchCardState, launchDeleteLocked } from './launchPresentation.js';
 import { batchEligible } from './batchModel.js';
 import { durableCardValue, durableItemState } from './durableBatchModel.js';
 import { ensureBackgroundRecovery } from '../../api/recovery.js';
@@ -14,7 +14,6 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Copy, Link2, ListChecks, MoreHorizontal, Play, Plus, Trash2 } from 'lucide-react';
 import {
   LAUNCH_BATCH_MAX_ITEMS,
-  launchInputsLocked,
   type LaunchDetail,
   type DurableLaunchBatch,
   type LaunchBatchCommand,
@@ -530,7 +529,7 @@ function LaunchSpaceContent({
   const deleteSelected = () => {
     if (!can('delete') || archiveBusy) return;
     const rows = items.filter(i => selectedIds.has(i.id));
-    if (rows.some(i => launchInputsLocked(i.generationState)) || rows.length === 0) return;
+    if (rows.some(i => launchDeleteLocked(i.generationState)) || rows.length === 0) return;
     void Promise.all(
       rows.map(async item => ({
         id: item.id,
@@ -821,7 +820,7 @@ function LaunchSpaceContent({
                     disabled={
                       archiveBusy ||
                       items.some(
-                        i => selectedIds.has(i.id) && launchInputsLocked(i.generationState)
+                        i => selectedIds.has(i.id) && launchDeleteLocked(i.generationState)
                       )
                     }
                     leading={
@@ -1032,7 +1031,7 @@ function LaunchSpaceContent({
                     }
                   : undefined
               }
-              actionsDisabled={archiveBusy || launchInputsLocked(value.generationState)}
+              actionsDisabled={archiveBusy || launchDeleteLocked(value.generationState)}
             />
           ))}
         </div>

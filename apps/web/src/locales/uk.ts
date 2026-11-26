@@ -595,6 +595,8 @@ export const uk: Record<keyof typeof en, string> = {
   launchesOriginalVideoConfirm:
     'Поточну спробу буде скасовано. Новий каталог використовуватиме оригінальне відео. Перезашивку буде вимкнено і для наступних оновлень цього каталогу.',
   launchesProgressStopped: 'Генерацію зупинено',
+  launchesProgressSourceChanged:
+    'Відео або картинки для перезашивки змінилися, поки тривав запуск. Запустіть генерацію ще раз.',
   launchesProgressErrorUnconfirmed: 'Помилка — перевірте стан',
   launchesProgressNotStarted: 'Запуск не почався',
   launchesCatalogExecutorRequired:

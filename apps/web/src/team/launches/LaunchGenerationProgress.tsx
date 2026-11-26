@@ -179,6 +179,13 @@ export function LaunchGenerationProgress({
         child.operation?.errorCode ??
         (childState === 'canceled' ? 'PROCESS_CANCELED' : 'PROCESS_FAILED'))
       : null);
+  // A generation that stopped on a changed source froze its video and its re-stitch pictures
+  // when it was accepted, so the general "reopen the file" does not help: it is started again.
+  const codeMessage = !code
+    ? null
+    : code === 'SOURCE_CHANGED'
+      ? t('launchesProgressSourceChanged')
+      : teamErrorMessage(code, t);
   const needsAttention =
     !recovering &&
     Boolean(
@@ -401,7 +408,8 @@ export function LaunchGenerationProgress({
           )}
         >
           {(!canonicalTerminalCause && !reconciling && requestError) ||
-            (code ? teamErrorMessage(code, t) : t('launchesProgressActionRequired'))}
+            codeMessage ||
+            t('launchesProgressActionRequired')}
           {unconfirmed && (
             <span className="launch-progress-error-hint">
               {t(googleBusy ? 'launchesProgressRetrySafe' : 'launchesProgressUnconfirmedHint')}

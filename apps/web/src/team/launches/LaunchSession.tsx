@@ -6,6 +6,7 @@ import {
 } from './LaunchPendingResult.js';
 import { launchAction, launchMutation, launchObservedGeneration, launchVisible } from './analytics';
 import { launchPublicationTimePassed } from './launchPublicationTiming';
+import { launchDeleteLocked } from './launchPresentation.js';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Check, ChevronDown, Copy, History as HistoryIcon, Trash2, X } from 'lucide-react';
 import {
@@ -379,14 +380,13 @@ export function LaunchSession({
       setRequestErrorDefinitive(false);
     }
   }, [detail]);
-  const inputLocked =
+  const sessionBusy =
     pendingExit !== null ||
     preflighting ||
     generation.busy ||
     copying.busy ||
     copying.hasUnresolvedRequest ||
     working ||
-    launchInputsLocked(detail?.generation?.state ?? null) ||
     generation.hasUnresolvedRequest ||
     saveIntent.current !== null ||
     overridesIntent.current !== null ||
@@ -394,7 +394,12 @@ export function LaunchSession({
     workingCopyIntent.current !== null ||
     restoreTarget !== null ||
     changeReview !== null;
+  const inputLocked = sessionBusy || launchInputsLocked(detail?.generation?.state ?? null);
   const locked = inputLocked || autosaving;
+  // Deleting waits for the same things as editing, except a cancelled launch that is only
+  // removing its leftovers: it can be deleted, its inputs stay closed.
+  const deleteLocked =
+    sessionBusy || autosaving || launchDeleteLocked(detail?.generation?.state ?? null);
   const offerDefaults = useOfferDefaults({
     teamId,
     config: draft.config,
@@ -1618,7 +1623,9 @@ export function LaunchSession({
               variant="ghost"
               color="error"
               className="launch-detail-delete"
-              disabled={working || generation.busy || (locked && archiveIntent.current === null)}
+              disabled={
+                working || generation.busy || (deleteLocked && archiveIntent.current === null)
+              }
               onClick={() =>
                 void run(async () => {
                   if (archiveIntent.current) {
@@ -1800,11 +1807,13 @@ export function LaunchSession({
             label={t('launchesSuppress')}
             checked={suppress}
             onChange={setSuppress}
-            disabled={locked}
+            disabled={deleteLocked}
           />
           <Button
             variant="danger"
-            disabled={working || generation.busy || (locked && archiveIntent.current === null)}
+            disabled={
+              working || generation.busy || (deleteLocked && archiveIntent.current === null)
+            }
             onClick={() => void run(() => archive(suppress))}
           >
             {t('launchesArchive')}

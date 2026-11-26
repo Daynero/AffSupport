@@ -82,10 +82,20 @@ export function catalogVideoProcessGrants(
       typeof round.acquisition !== 'number'
     )
       throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
-    const alias =
-      context.settings.sourceMode === 'drive' && context.settings.operation !== 'unstitch'
-        ? await options.prepareAlias!(context, child)
-        : null;
+    let alias: Awaited<ReturnType<NonNullable<typeof options.prepareAlias>>> | null = null;
+    if (context.settings.sourceMode === 'drive' && context.settings.operation !== 'unstitch')
+      try {
+        alias = await options.prepareAlias!(context, child);
+      } catch (cause) {
+        // The set froze its video and its pictures when it was admitted, so a refusal for a
+        // changed source can never pass on a later try. Nothing has been processed yet: close
+        // the variant with that cause, so the launch stops and names it instead of holding a
+        // process nobody will finish. An agent that closes it itself gets the same terminal
+        // answer; a close that is refused leaves things exactly as they were.
+        if (cause instanceof TeamFunctionError && cause.code === 'SOURCE_CHANGED')
+          await store.complete(child, 'failed', 'SOURCE_CHANGED').catch(() => undefined);
+        throw cause;
+      }
     if (alias && (alias.rootOperationId !== child.operationId || alias.selectionProtocol !== 1))
       throw new TeamFunctionError('INVALID_RESPONSE');
     const sourceTicket = await catalogVideoTransferTicket(
