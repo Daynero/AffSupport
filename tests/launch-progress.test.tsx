@@ -254,6 +254,30 @@ it('keeps cancellation available after failure without showing work as still run
   expect(cancel).toHaveBeenCalledTimes(1);
 });
 
+it('tells a launch stopped on a changed source to start again, not to reopen a file', () => {
+  // Incident 2026-11-26: the catalog video of a launch is frozen with its re-stitch pictures;
+  // when one of them really changes the generation stops with SOURCE_CHANGED.
+  render(
+    <LaunchGenerationProgress
+      method="catalog"
+      generation={{
+        ...generation,
+        state: 'interrupted',
+        stage: 'catalog_planning',
+        errorCode: 'SOURCE_CHANGED'
+      }}
+      onCancel={vi.fn()}
+      disabled={false}
+    />
+  );
+  const alert = screen.getByRole('alert').textContent ?? '';
+  expect(alert).toContain('Generation stopped');
+  expect(alert).toContain(
+    'The video or the re-stitch pictures changed while the launch was running. Start the generation again.'
+  );
+  expect(alert).not.toContain('Reopen it');
+  expect(alert).not.toContain('unexpected');
+});
 it('names unresolved cancellation without claiming that cleanup already finished', () => {
   render(
     <LaunchGenerationProgress

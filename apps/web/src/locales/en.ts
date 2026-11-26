@@ -599,6 +599,8 @@ export const en = {
   launchesOriginalVideoConfirm:
     'The current attempt will be canceled. The new catalog will use the original video. Stitching will also be disabled for future updates of this catalog.',
   launchesProgressStopped: 'Generation stopped',
+  launchesProgressSourceChanged:
+    'The video or the re-stitch pictures changed while the launch was running. Start the generation again.',
   launchesProgressErrorUnconfirmed: 'Error — check the status',
   launchesProgressNotStarted: 'The launch did not start',
   launchesCatalogExecutorRequired:
