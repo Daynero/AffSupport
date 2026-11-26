@@ -3742,3 +3742,12 @@ agentSilent check (42702 on every read of a launch whose catalog video was still
 Behaviour is otherwise that of 20261224210000. No table or column. Applied to production by hand
 on 2026-11-26 09:42 UTC; the migration re-declares the same body. Do not undo: the previous body
 cannot be executed on that path.
+
+## 20261224370000 — a re-stitch picture is its content, not its Drive version
+
+Replaces the trigger function `private.restitch_selection_freeze_candidate()`: a picture
+candidate whose checksum, size and MIME type are what the set froze is accepted under a newer
+Drive version (Drive raises the version of a fresh upload by itself), and the frozen row records
+the version it was accepted at. No table or column; the video source keeps its strict version
+policy. Undo by re-running the function from 20261207156000: launches started within minutes of
+uploading their pictures fail with SOURCE_CHANGED again.
