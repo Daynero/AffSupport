@@ -41,7 +41,7 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash, createPrivateKey, randomUUID, sign } from 'node:crypto';
-import { createReadStream, readFileSync, statSync } from 'node:fs';
+import { createReadStream, openSync, readFileSync, statSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
@@ -278,12 +278,18 @@ export async function capture(args) {
   const startHost = async () => {
     if ((await betaListeners(origin.port)).length)
       throw new Error('NATIVE_PROBE_BETA_ALREADY_RUNNING');
+    // Optional: the owned host's own stdout/stderr (no tokens are ever printed there).
+    const hostLog = option('host-log') ? openSync(option('host-log'), 'a') : null;
     const child = spawn(path.join(app, 'Contents/MacOS/SotyBetaAgent'), [], {
-      stdio: 'ignore',
+      stdio: hostLog === null ? 'ignore' : ['ignore', hostLog, hostLog],
       detached: true,
       env: { ...process.env, NO_OPEN: '1', SOTY_UPDATE_PROBE_SESSION_TOKEN: '' }
     });
     child.unref();
+    // How the owned host ended (status or signal) is evidence in its own right.
+    child.once('exit', (code, signal) =>
+      actions.push({ at: Date.now(), action: 'host-exited', pid: child.pid, code, signal })
+    );
     launches++;
     return child.pid;
   };
