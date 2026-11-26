@@ -4380,6 +4380,10 @@ export const en = {
     'Soty on this computer is waiting to restart after an update. Quit Soty and open it again, then try once more.',
   teamErrorProcessResultUncertain:
     'The result could not be confirmed. Check the file state before retrying.',
+  teamProcessSaveFailedFile:
+    'The result for “{name}” was made but did not reach Drive — the connection seems to have dropped. Try again.',
+  teamTranscribeStillRunning:
+    'An earlier transcription of “{name}” is still running. Wait for it to finish, then try again.',
   teamTranscribeFailedFile:
     'Nothing could be transcribed from “{name}” — it may have no speech, or no sound at all.',
   teamErrorProcessCanceled: 'The run was stopped.',

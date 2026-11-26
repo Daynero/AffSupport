@@ -3769,3 +3769,14 @@ a created output that is a material of a space (any lifecycle) is settled as kep
 launch whose only unfinished generation is `canceled_with_cleanup_pending` can be deleted. No
 table or column. Undo by re-running both functions from 20261207171000 and 20261201167000; a
 generation already closed stays closed, and the checkpoint mark is read by nothing.
+
+## 20261224460000 — a retry takes over the same person's stalled run of the same file
+
+Adds `public.service_release_own_process_reservation(uuid, uuid, uuid, uuid, text)` (service
+role only), called by `drive-ops/process/start` when its output name is held: a manual run
+(bare-UUID key) of the same actor, source, destination and name that has not started writing to
+Drive is cancelled as `cancel_team_operation` cancels it, and the start is tried once more. No
+table or column. Undo with `drop function public.service_release_own_process_reservation(uuid,
+uuid, uuid, uuid, text)` after the edge function stops calling it (an older edge function never
+does): a retry within 30 minutes of a run lost on the network is refused with NAME_CONFLICT
+again.

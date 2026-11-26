@@ -4351,6 +4351,10 @@ export const uk: Record<keyof typeof en, string> = {
     'Soty на комп’ютері чекає на перезапуск після оновлення. Закрийте Soty й відкрийте знову, тоді спробуйте ще раз.',
   teamErrorProcessResultUncertain:
     'Не вдалося підтвердити результат. Перевірте стан файла перед повтором.',
+  teamProcessSaveFailedFile:
+    'Результат для «{name}» готовий, але не зберігся в Drive — схоже, зник інтернет. Спробуйте ще раз.',
+  teamTranscribeStillRunning:
+    'Для «{name}» ще триває попередня транскрибація. Дочекайтесь, поки вона закінчиться, і спробуйте ще раз.',
   teamTranscribeFailedFile:
     'З «{name}» не вдалося зробити транскрипт — можливо, у відео немає мови або й звуку.',
   teamErrorProcessCanceled: 'Роботу зупинено.',

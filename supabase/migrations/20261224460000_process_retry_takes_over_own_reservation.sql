@@ -78,7 +78,7 @@ begin
   where transfer.operation_id = held.id and transfer.revoked_at is null;
   perform private.record_team_audit(
     p_team, p_actor, 'operation.canceled',
-    pg_catalog.jsonb_build_object('operation_id', held.id, 'state', 'canceled', 'reason', 'superseded_by_retry'),
+    pg_catalog.jsonb_build_object('operation_id', held.id, 'state', 'canceled'),
     'canceled', null
   );
   return held.id;

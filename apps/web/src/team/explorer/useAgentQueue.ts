@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { teamApi } from '../../api/team';
+import { TeamApiError, teamApi } from '../../api/team';
 import {
   cancelTeamAgentProcess,
   cancelTeamDownload,
@@ -156,6 +156,44 @@ export function localCompressProgress(stage: string, progress: number): number {
   return 0;
 }
 
+/** The app's stages after the work itself is done: the result is on its way to Drive. */
+const SAVING_STAGES = new Set(['uploading', 'finalizing']);
+
+/** Waits between the retries of a lost "the run is over" (about a minute in all). */
+export const CANCEL_RETRY_DELAYS_MS: readonly number[] = [2_000, 5_000, 15_000, 40_000];
+
+/**
+ * Tells the space a failed run is over, and keeps telling it while the network is down.
+ *
+ * The first answer is awaited, as before; when it does not come, the rest are sent in the
+ * background so the next file of the queue is not held up. A final answer — a refusal included —
+ * ends it: only a call that never arrived (a retryable failure) is worth repeating.
+ */
+export async function cancelUntilHeard(
+  send: () => Promise<unknown>,
+  delays: readonly number[] = CANCEL_RETRY_DELAYS_MS,
+  wait: (ms: number) => Promise<void> = ms => new Promise(resolve => setTimeout(resolve, ms))
+): Promise<void> {
+  const heard = (error: unknown) => error instanceof TeamApiError && !error.retryable;
+  try {
+    await send();
+    return;
+  } catch (error) {
+    if (heard(error)) return;
+  }
+  void (async () => {
+    for (const delay of delays) {
+      await wait(delay);
+      try {
+        await send();
+        return;
+      } catch (error) {
+        if (heard(error)) return;
+      }
+    }
+  })();
+}
+
 interface TeamOperationsEvent {
   type: 'team:operations';
   operations: Array<{ operationId: string; stage: string; progress: number }>;
@@ -206,6 +244,8 @@ export function useAgentQueue({
   } | null>(null);
   /** Which tools this run carried, so its closing toast names what was done. */
   const runTools = useRef(new Set<AgentQueueItem['tool']>());
+  /** The app's last stage of each space run, so a failure can say where it happened. */
+  const agentStage = useRef(new Map<string, string>());
   /**
    * Where this batch's local compressions go (B5), once the first one has landed: the
    * picker is asked once per batch, and the file manager is shown once, not per file.
@@ -478,6 +518,15 @@ export function useAgentQueue({
           /* Named for what it was trying to do: "this file could not be processed" says
              nothing a person can act on, and this queue is always transcribing. */
           const ranAndFailed = cause instanceof Error && cause.message === 'PROCESS_FAILED';
+          /* Production 2026-11-26: the text was made and the network dropped on the way to
+             Drive; "the video may have no speech" sent the person looking at the wrong thing. */
+          const lostOnSave =
+            ranAndFailed &&
+            started !== null &&
+            SAVING_STAGES.has(agentStage.current.get(started) ?? '');
+          const nameHeld =
+            next.tool === 'transcription' &&
+            (cause instanceof TeamApiError ? cause.code : null) === 'NAME_CONFLICT';
           push({
             tone: 'error',
             /* A trim that did not happen leaves the upload as it was, whatever the reason —
@@ -486,19 +535,29 @@ export function useAgentQueue({
             text:
               next.tool === 'restitch'
                 ? t('teamTrimFailedFile', { name: next.name })
-                : ranAndFailed
-                  ? next.tool === 'compressor'
-                    ? t('teamErrorProcessFailed')
-                    : t('teamTranscribeFailedFile', { name: next.name })
-                  : teamErrorMessageFor(cause, t)
+                : lostOnSave
+                  ? t('teamProcessSaveFailedFile', { name: next.name })
+                  : nameHeld
+                    ? t('teamTranscribeStillRunning', { name: next.name })
+                    : ranAndFailed
+                      ? next.tool === 'compressor'
+                        ? t('teamErrorProcessFailed')
+                        : t('teamTranscribeFailedFile', { name: next.name })
+                      : teamErrorMessageFor(cause, t)
           });
           setTFailed(current => current + 1);
         }
         // Tell the space the run is over. Without this a failed item stays
         // `running` for good: nothing else ever revisits it, it holds its
         // output name reserved, and the next attempt at the same file is
-        // refused for a conflict with a run that is not happening.
-        if (started) await teamApi.cancelOperation(teamId, started).catch(() => undefined);
+        // refused for a conflict with a run that is not happening. The run
+        // often failed because the network did, so one lost call is retried
+        // in the background instead of being the end of it.
+        const over = started;
+        if (over) {
+          await cancelUntilHeard(() => teamApi.cancelOperation(teamId, over));
+          agentStage.current.delete(over);
+        }
       } finally {
         completeTeamWorkflow(workflow, { outcome, retryable: false, stage });
         if (started)
@@ -639,6 +698,11 @@ export function useAgentQueue({
     teamId,
     operationId: tActive?.operationId ?? null
   });
+  const activeStage = activeOperation.localProgress?.stage ?? null;
+  useEffect(() => {
+    if (tActive?.operationId && activeStage)
+      agentStage.current.set(tActive.operationId, activeStage);
+  }, [activeStage, tActive?.operationId]);
   // A local run (B5) has no operation in the space; its progress comes straight from the app.
   const localOperationId = tActive?.localOperationId ?? null;
   const [localProgress, setLocalProgress] = useState(0);
