@@ -57,6 +57,13 @@ export function isNativeUpdateManifestUrl(channel: string, manifestURL: string):
     !url.hash
   );
 }
+/** The started target still has to prove readiness — also after missing the deadline. */
+function awaitsReadiness(state: NativeUpdateSnapshot): boolean {
+  return (
+    state.stage === 'target_started' ||
+    (state.stage === 'recovering' && state.code === 'APP_UPDATE_READINESS_TIMEOUT')
+  );
+}
 export class NativeAppUpdateService {
   private state: NativeUpdateSnapshot | null = null;
   private hello: { url: string; publicKey: string; channel: string; target: string } | null = null;
@@ -166,9 +173,10 @@ export class NativeAppUpdateService {
       this.hold = {
         attempt: value.state.attemptId,
         epoch,
-        committed: value.state.stage !== 'target_started'
+        // A target awaiting its readiness proof holds admission only until it proves it.
+        committed: !awaitsReadiness(value.state)
       };
-      if (value.state.stage === 'target_started' && this.options.toolsReady()) {
+      if (awaitsReadiness(value.state) && this.options.toolsReady()) {
         await this.refresh('target-ready', {
           pid: process.pid,
           buildId: this.options.buildId,
@@ -469,7 +477,7 @@ export class NativeAppUpdateService {
       }
       if (value.checkRequested === true)
         void this.command('check', this.nextCommand()).catch(() => undefined);
-      if (value.state.stage === 'target_started' && this.hold && this.options.toolsReady()) {
+      if (awaitsReadiness(value.state) && this.hold && this.options.toolsReady()) {
         const ready = await this.refresh('target-ready', {
           pid: process.pid,
           buildId: this.options.buildId,

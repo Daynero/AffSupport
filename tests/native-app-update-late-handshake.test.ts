@@ -34,11 +34,12 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map(root => removeTemporaryDirectory(root)));
 });
 
-async function fixture(stage: string) {
+async function fixture(stage: string, code: string | null = null) {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'soty-late-handshake-'));
   roots.push(directory);
   let state = { ...nativeSnapshot(), stage } as ReturnType<typeof nativeSnapshot>;
   if (stage === 'native_ready') state = { ...state, nativeSuccess: true };
+  if (code) state = { ...state, code: code as typeof state.code, attemptId: randomUUID() };
   const keys = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   const manifest = {
     schemaVersion: 1,
@@ -74,10 +75,21 @@ async function fixture(stage: string) {
       }
       if (action === 'receipts') return { records: [] };
       if (action === 'pending') return { state, installerReady: false, handoffStarted: false };
+      if (action === 'target-ready')
+        state = {
+          ...state,
+          revision: state.revision + 1,
+          stage: 'native_ready',
+          nativeSuccess: true
+        };
       if (action === 'command' && payload.action === 'ack-visible')
         state = { ...state, revision: state.revision + 1, stage: 'ui_visible', uiSuccess: true };
       return state;
     }
+  );
+  const barrier = new AgentUpdateCoordinator(
+    { busy: () => false, flush: async () => {}, pauseAdmission: () => () => {} },
+    ms => ms
   );
   const service = new NativeAppUpdateService({
     host: {
@@ -87,10 +99,7 @@ async function fixture(stage: string) {
       launcherPid: 1,
       bundleRoot: '/Soty.app'
     },
-    barrier: new AgentUpdateCoordinator(
-      { busy: () => false, flush: async () => {}, pauseAdmission: () => () => {} },
-      ms => ms
-    ),
+    barrier,
     power: new PowerGovernor(),
     hub: new ChannelHub(),
     origins: new Set(),
@@ -103,6 +112,7 @@ async function fixture(stage: string) {
   });
   return {
     service,
+    barrier,
     calls,
     failHello: (count: number) => {
       helloFailures = count;
@@ -155,6 +165,23 @@ describe('native update handshake and successor checks', () => {
     f.service.afterListening();
     await settle();
     expect(f.calls).toContain('offer');
+    await f.service.close();
+  });
+
+  it('a target that missed its readiness deadline proves readiness late and reopens work', async () => {
+    const f = await fixture('recovering', 'APP_UPDATE_READINESS_TIMEOUT');
+    await f.service.start();
+    expect(f.calls).toContain('target-ready');
+    expect(f.service.snapshot()?.stage).toBe('native_ready');
+    expect(f.barrier.accepting()).toBe(true);
+    await f.service.close();
+  });
+
+  it('an uncertain recovery keeps admission held', async () => {
+    const f = await fixture('recovering', 'APP_UPDATE_REPLACEMENT_UNKNOWN');
+    await f.service.start();
+    expect(f.calls).not.toContain('target-ready');
+    expect(f.barrier.accepting()).toBe(false);
     await f.service.close();
   });
 });

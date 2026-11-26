@@ -259,7 +259,11 @@ final class NativeAppUpdateCoordinator {
       let uncertain = state.handoffStarted || state.replacementRequested || ["install_committed", "replacement_started", "relaunch_requested", "recovering", "unknown"].contains(state.stage)
       try change(uncertain ? "recovering" : "failed", code: code)
     case "target-ready":
-      guard state.stage == "target_started" || state.stage == "native_ready", let candidate = state.candidate,
+      // A target that missed the readiness deadline and then got ready proves itself late:
+      // the exact build, pid, attempt and installation still have to match (1.7.0
+      // qualification: a thawed target otherwise stayed «recovering» with admission closed).
+      let lateReadiness = state.stage == "recovering" && state.code == NativeUpdateFailure.readiness.rawValue && state.targetStarted
+      guard state.stage == "target_started" || state.stage == "native_ready" || lateReadiness, let candidate = state.candidate,
         NativeUpdateReadiness.matches(candidate: candidate, installedBuild: buildId, installedRevision: revision,
           payload: payload, agentPid: agentPid, attempt: state.attemptId, installation: state.installationId)
       else { throw NativeUpdateFailure.identity }
