@@ -992,8 +992,15 @@ export function CreateProductCatalogDialog({
         setVideoUnknown(true);
         // A timeout or lost connection says nothing about the operation; the
         // person only needs to know it is temporary and the action is still there.
+        // The server now names why a creation with every video ready was not assembled (it
+        // used to answer «another pass holds it» for anything): say it in the catalog's words.
+        const code = teamErrorCodeOf(cause);
         setFailure(
-          isTransientCatalogFailure(cause) ? t('catalogServerSlow') : teamErrorMessageFor(cause, t)
+          isTransientCatalogFailure(cause)
+            ? t('catalogServerSlow')
+            : code
+              ? catalogCodeMessage(code, t)
+              : teamErrorMessageFor(cause, t)
         );
       }
     } finally {

@@ -52,6 +52,9 @@ const ACTION_BY_CODE: Readonly<Record<string, CatalogFixAction>> = {
   DRIVE_UNAVAILABLE: 'retry',
   RATE_LIMITED: 'retry',
   PROCESS_RESULT_UNCERTAIN: 'retry',
+  // The shared picture pool is not confirmed as serving: nothing of the person's to repair.
+  GLOBAL_IMAGE_READINESS_UNKNOWN: 'retry',
+  GLOBAL_IMAGE_POOL_UNAVAILABLE: 'retry',
   SOURCE_CHANGED: 'open_catalog',
   // CONNECTION_DETACHED (the catalog stays in the space's previous folder), DISK_FULL (free space
   // on the computer), PERMISSION_DENIED and SHARE_NOT_ALLOWED have no door: the sentence is all.
@@ -81,6 +84,10 @@ const CATALOG_COPY: Readonly<Record<string, TranslationKey>> = {
   AGENT_STALLED: 'catalogWaitAgentStalled',
   AGENT_UPDATE_REQUIRED: 'catalogWaitAgentUpdateRequired',
   NEEDS_REAUTH: 'catalogWaitNeedsReauth',
+  // In general «the picture is not confirmed by its public link — refresh before repeating»:
+  // a creation has no picture to refresh, its videos are done and it only has to be continued.
+  GLOBAL_IMAGE_READINESS_UNKNOWN: 'catalogWaitImagePoolUnconfirmed',
+  GLOBAL_IMAGE_POOL_UNAVAILABLE: 'catalogWaitImagePoolUnconfirmed',
   SPACE_BLOCKED: 'catalogWaitSpaceBlocked'
 };
 
