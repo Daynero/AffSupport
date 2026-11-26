@@ -1,28 +1,28 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "version": "1.7.0",
-  "buildNumber": "106",
-  "buildId": "1.7.0+106",
+  "version": "1.7.1",
+  "buildNumber": "107",
+  "buildId": "1.7.1+107",
   "apiVersion": 6,
   "minimumSupportedVersion": "0.4.0",
-  "publishedAt": "2026-11-25T00:00:00.000Z",
+  "publishedAt": "2026-11-26T00:00:00.000Z",
   "summary": {
     "uk": "Soty знову оновлюється сам. Новий вигляд простору, перезашивка з коробки, каталог без мовчазних зависань, файли без метаданих, кнопка навантаження комп'ютера.",
     "en": "Soty updates itself again. A new space layout, re-stitching out of the box, catalogs that no longer hang silently, files without metadata, and a computer load meter."
   },
   "artifacts": {
     "macos-arm64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.0/Soty-v1.7.0-macOS-arm64.dmg",
-      "sha256": "e88489f8b53c88a9a40debf06642e97d222c5ee30851aeb98bb99b3bd701f6ea"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.1/Soty-v1.7.1-macOS-arm64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "macos-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.0/Soty-v1.7.0-macOS-x64.dmg",
-      "sha256": "a493d89401fc4fa420352e917c1c86081188c3a516200a45bfc92da4bc12b871"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.1/Soty-v1.7.1-macOS-x64.dmg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     },
     "windows-x64": {
-      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.0/Soty-v1.7.0-Windows-x64.exe",
-      "sha256": "91775d60541ca39fda36fffed0001e357bed1a5e8266ec4618e262557851ef6b"
+      "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.1/Soty-v1.7.1-Windows-x64.exe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     }
   },
   "toolRequirements": {
@@ -48,41 +48,5 @@
     }
   },
   "platformSetVersion": 2,
-  "signature": "7hT0i-9UecTAjwxJXMVMUKt7TyP1b7PMZ9xISNuUlW9iNyofqSppOZwt-whtvtHoltYNtjhd7cwiH_zsdmi1Fg",
-  "nativeUpdates": {
-    "macos-arm64": {
-      "schemaVersion": 1,
-      "channel": "stable",
-      "target": "macos-arm64",
-      "version": "1.7.0",
-      "buildNumber": "106",
-      "buildId": "1.7.0+106",
-      "sourceRevision": "e40a6457c2d59190036129296524b67deb1a54d7",
-      "minimumSystemVersion": "15.5",
-      "publisherTeamId": "A3V2L73L2N",
-      "archive": {
-        "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.0/Soty-v1.7.0-macOS-arm64.zip",
-        "length": 180441824,
-        "sha256": "b971a33a9a4aae1a5142ea4a7c8e8b6411364c46611f09de0508f1464511c136",
-        "edSignature": "q/ZJ31sFukykd0/2tFItlozhwkUEVzOxBKP7+ZKSR2IIikyIhcoSc3iEN3kW4tSFcyNIA50uOKiAI5WrPfGQBA=="
-      }
-    },
-    "macos-x64": {
-      "schemaVersion": 1,
-      "channel": "stable",
-      "target": "macos-x64",
-      "version": "1.7.0",
-      "buildNumber": "106",
-      "buildId": "1.7.0+106",
-      "sourceRevision": "e40a6457c2d59190036129296524b67deb1a54d7",
-      "minimumSystemVersion": "13.0",
-      "publisherTeamId": "A3V2L73L2N",
-      "archive": {
-        "url": "https://github.com/Daynero/AffSupport/releases/download/v1.7.0/Soty-v1.7.0-macOS-x64.zip",
-        "length": 199637255,
-        "sha256": "e8d9faca9699016df3a5c4ba74ece8b638f26308b70464898f50c23de165dee6",
-        "edSignature": "xEI50Qr2qfrVcupEOuh0Aajz+XeUovQ53fkiQtvHzzOvOEDijhbVHuvh1BV/qh01FvwXZ6wzqqNKeJ82mVP6DA=="
-      }
-    }
-  }
+  "signature": "oHv6emlSwAkh1jHeAdCHXksgc-k3rRalCpEDAcFYsDRIT-flBGyWw1m9Wnb0dY65sGljUpicMGfVGBvdHMhlqA"
 }
