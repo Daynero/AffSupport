@@ -3769,3 +3769,18 @@ a created output that is a material of a space (any lifecycle) is settled as kep
 launch whose only unfinished generation is `canceled_with_cleanup_pending` can be deleted. No
 table or column. Undo by re-running both functions from 20261207171000 and 20261201167000; a
 generation already closed stays closed, and the checkpoint mark is read by nothing.
+
+## 20261224400000 — a rebased catalog video set keeps its window and its pictures
+
+Replaces `public.service_rebase_catalog_video_source(uuid, bytea, uuid, integer, text, text)`:
+the rebase also moves `source_version` of the set's `private.catalog_video_foreground_authorities`
+row and of its `private.catalog_video_restitch_contexts` row, which used to stay behind and
+refuse every later call of the set (AUTH_REQUIRED, REQUEST_REUSE_CONFLICT). Replaces
+`private.guard_catalog_foreground_immutable()` and puts the new
+`private.guard_catalog_video_context_immutable()` on the context's update trigger: both rows
+stay frozen except that their source version may follow their own set. Replaces
+`public.service_read_initial_catalog_video(uuid, uuid, text)`: `agentSilent` is also answered for
+a window-bound creation with videos still owed and no sign of life for two minutes. No table or
+column. Undo by re-running the three functions from 20261215110000, 20261207180000 and
+20261224360000 and pointing the trigger back at `private.restitch_candidate_version_immutable()`;
+sets rebased in the meantime keep working only while the new functions are in place.
