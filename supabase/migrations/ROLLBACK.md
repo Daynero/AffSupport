@@ -3733,3 +3733,12 @@ pg_net, so twenty image creatives continue in fresh invocations instead of waiti
 lease after each CPU-limited one. No table or column. Undo by dropping the function: drive-ops
 ignores the failed call and the generation is resumed by the per-minute pass once its lease
 expires, as before.
+
+## 20261224360000 — a preparing catalog video is read again (hotfix 2026-11-26)
+
+Replaces `public.service_read_initial_catalog_video(uuid, uuid, text)`: the row variable that
+20261224210000 named `s` is `vset`, so it no longer collides with the table alias `s` of the
+agentSilent check (42702 on every read of a launch whose catalog video was still preparing).
+Behaviour is otherwise that of 20261224210000. No table or column. Applied to production by hand
+on 2026-11-26 09:42 UTC; the migration re-declares the same body. Do not undo: the previous body
+cannot be executed on that path.
