@@ -453,6 +453,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             target: NativeUpdateBuildPolicy.target, version: expectedVersion, buildId: expectedBuildID,
             revision: sourceRevision, agentURL: agentBaseURL)
           nativeUpdates?.onChange = { [weak self] in self?.refreshNativeUpdateMenu() }
+          // A handoff proven not to have replaced this bundle gives the person their agent back.
+          nativeUpdates?.onAgentRestartRequired = { [weak self] in
+            guard let self, !self.isTerminating, self.process == nil else { return }
+            self.startAgentWhenPortIsFree()
+          }
           refreshNativeUpdateMenu()
         } catch {
           nativeUpdateStartupFailed = true

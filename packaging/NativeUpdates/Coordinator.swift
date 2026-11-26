@@ -29,6 +29,8 @@ final class NativeAppUpdateCoordinator {
   func requestCheck() { checkRequested = true }
   var agentPid: Int32 = 0
   var onChange: (() -> Void)?
+  /// Asks the host to start its agent again after a handoff proven not to have replaced it.
+  var onAgentRestartRequired: (() -> Void)?
   var awaitingAgentExit: Bool { state.installerReady && state.stage == "install_committed" }
   var permitsQuit: Bool { driver == nil || ["replacement_started", "relaunch_requested", "recovering", "unknown"].contains(state.stage) }
 
@@ -88,11 +90,32 @@ final class NativeAppUpdateCoordinator {
       if let deadline = self.state.preparationDeadline { self.state.preparationDeadline = deadline + duration }
       self.sleepStarted = nil; try? self.persist()
     })
-    readinessTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.checkDeadlines() }
+    // Common modes: a modal panel (the launcher's own «could not start» alert) must not
+    // starve the readiness and preparation deadlines (1.7.0 qualification, 2026-11-26).
+    let timer = Timer(timeInterval: 2, repeats: true) { [weak self] _ in self?.checkDeadlines() }
+    RunLoop.main.add(timer, forMode: .common)
+    readinessTimer = timer
   }
   deinit {
     readinessTimer?.invalidate()
     for observer in sleepObservers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
+  }
+  /// Sparkle reported failure after this host already let its agent go. When the installer
+  /// is gone and this exact source bundle is still in place, nothing was replaced: release the
+  /// attempt and bring the agent back, instead of a menu-bar host with no agent at all.
+  private func reconcileAfterInstallerFailure(attempts: Int) {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+      guard let self, self.state.stage == "recovering", self.state.replacementRequested, !self.state.targetStarted else { return }
+      if Self.sparkleInstallerAlive() {
+        if attempts > 1 { self.reconcileAfterInstallerFailure(attempts: attempts - 1) }
+        return
+      }
+      guard self.sourceBundleIntact() else { return }
+      self.driver = nil
+      self.releaseUnreplaced()
+      do { try self.persist() } catch { return }
+      self.onAgentRestartRequired?()
+    }
   }
   private func checkDeadlines() {
     guard sleepStarted == nil else { return }
@@ -198,7 +221,10 @@ final class NativeAppUpdateCoordinator {
             self.state.handoffStarted = false; self.state.installerReady = false; self.state.preparationDeadline = nil
             self.state.lastProvenStage = "drained"; self.driver = nil
             try self.change("failed", code: code.isEmpty ? NativeUpdateFailure.install.rawValue : code)
-          } else if !["unknown", "recovering"].contains(self.state.stage) || stage == "failed" { try self.change(stage == "failed" ? "recovering" : stage, code: code.isEmpty ? nil : code) }
+          } else if !["unknown", "recovering"].contains(self.state.stage) || stage == "failed" {
+            try self.change(stage == "failed" ? "recovering" : stage, code: code.isEmpty ? nil : code)
+            if stage == "failed" && self.state.replacementRequested { self.reconcileAfterInstallerFailure(attempts: 10) }
+          }
         } catch { self.state.installerReady = false; self.state.stage = "recovering"; self.state.code = NativeUpdateFailure.flush.rawValue }
       }
       state.handoffStarted = true; try persist()
@@ -331,7 +357,8 @@ final class NativeAppUpdateCoordinator {
     let committed = receipt?["stage"] as? String == "committed" &&
       receipt?["attemptId"] as? String == state.attemptId && receipt?["candidateId"] as? String == state.candidateId &&
       receipt?["installationId"] as? String == state.installationId && receipt?["epoch"] as? String == state.epoch
-    switch NativeUpdateRecovery.decide(state: state, buildId: buildId, revision: revision, committedWorkload: committed) {
+    switch NativeUpdateRecovery.decide(state: state, buildId: buildId, revision: revision, committedWorkload: committed,
+      installerAlive: Self.sparkleInstallerAlive()) {
     case .unchanged: break
     case .prepareAgain: state.stage = "offered"; state.downloadedBytes = 0; state.code = NativeUpdateFailure.interrupted.rawValue
     case .deferUnstarted:
@@ -339,10 +366,42 @@ final class NativeAppUpdateCoordinator {
     case .startTarget:
       state.targetStarted = true; state.lastProvenStage = "replacement_committed"; state.stage = "target_started"
       state.readinessDeadline = Date().timeIntervalSince1970 + NativeUpdateBuildPolicy.readinessSeconds
+    case .releaseUnreplaced: releaseUnreplaced()
     case .unknown: state.stage = "unknown"; state.code = NativeUpdateFailure.unknown.rawValue
     }
   }
 
+  /// The attempt ends as a retryable failure: positive evidence that the SDK left this
+  /// source bundle in place, so agent work may be released (service.ts polls for exactly
+  /// `failed` + no handoff + last proven `drained`).
+  private func releaseUnreplaced() {
+    state.handoffStarted = false; state.replacementRequested = false; state.installerReady = false
+    state.preparationDeadline = nil; state.readinessDeadline = nil; state.acceptedAt = nil; state.epoch = nil
+    state.lastProvenStage = "drained"; state.stage = "failed"; state.code = NativeUpdateFailure.interrupted.rawValue
+  }
+  /// The running bundle on disk is still exactly this source build (no replacement landed).
+  private func sourceBundleIntact() -> Bool {
+    let url = Bundle.main.bundleURL.resolvingSymlinksInPath().appendingPathComponent("Contents/Resources/release.json")
+    guard let bytes = try? Data(contentsOf: url), bytes.count <= 16384,
+      let installed = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any] else { return false }
+    return installed["buildId"] as? String == buildId && installed["sourceRevision"] as? String == revision &&
+      (try? Self.signingTeam()) == publisher
+  }
+  /// Any Sparkle installer process of this bundle (or Sparkle's own installation cache).
+  /// An unreadable process table counts as alive: unproven stays uncertain.
+  static func sparkleInstallerAlive() -> Bool {
+    let framework = Bundle.main.bundleURL.resolvingSymlinksInPath().appendingPathComponent("Contents/Frameworks/Sparkle.framework").path + "/"
+    var pids = [pid_t](repeating: 0, count: 8192)
+    let bytes = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+    guard bytes > 0 else { return true }
+    var path = [CChar](repeating: 0, count: 4096)
+    for pid in pids.prefix(Int(bytes)) where pid > 0 && pid != getpid() {
+      guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { continue }
+      let executable = String(cString: path)
+      if executable.hasPrefix(framework) || executable.contains("/org.sparkle-project.Sparkle/") { return true }
+    }
+    return false
+  }
   private func verifyInstallation() throws {
     let url = Bundle.main.bundleURL.resolvingSymlinksInPath()
     guard url.pathExtension == "app", !url.path.hasPrefix("/Volumes/"), !url.path.contains("/AppTranslocation/") else { throw NativeUpdateFailure.unsafe }

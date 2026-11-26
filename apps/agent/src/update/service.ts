@@ -27,6 +27,7 @@ import {
   prepareNativeArchive
 } from './preparation.js';
 import { writeUpdateReceipt } from './receipt.js';
+import { verifyNativeCandidateBundle } from './candidate-identity.js';
 
 type UpdateEvent = { type: 'app-update:state'; state: NativeUpdateSnapshot | null };
 /**
@@ -74,6 +75,7 @@ export class NativeAppUpdateService {
   private helpers = new Map<number, () => void>();
   private lastDiagnostic = '';
   private closed = false;
+  private readonly verifyCandidate: typeof verifyNativeCandidateBundle;
   constructor(
     private readonly options: {
       host: NativeUpdateHostConfiguration;
@@ -87,8 +89,11 @@ export class NativeAppUpdateService {
       toolsReady: () => boolean;
       diagnostics: DiagnosticsLog;
       exitForUpdate: () => Promise<void>;
+      /** Replaceable in tests; production proves the Developer ID of the candidate bundle. */
+      verifyCandidate?: typeof verifyNativeCandidateBundle;
     }
   ) {
+    this.verifyCandidate = options.verifyCandidate ?? verifyNativeCandidateBundle;
     this.bridge = new NativeUpdateBridge(options.host.socketPath, options.host.token);
     this.events = new EventChannel(options.origins, () => ({
       type: 'app-update:state',
@@ -334,7 +339,7 @@ export class NativeAppUpdateService {
   private async prepare(snapshot: NativeUpdateSnapshot) {
     if (!snapshot.candidate) throw new AppUpdateError('APP_UPDATE_INVALID');
     const signal = this.abort.signal;
-    await prepareNativeArchive(
+    const archive = await prepareNativeArchive(
       snapshot.candidate,
       path.join(this.options.host.receiptDirectory, 'cache'),
       signal,
@@ -342,6 +347,14 @@ export class NativeAppUpdateService {
         if (!signal.aborted) void this.refresh('progress', { bytes }).catch(() => undefined);
       }
     );
+    // Consent is offered only for a candidate whose own bytes carry the promised publisher.
+    if (!signal.aborted)
+      await this.verifyCandidate(
+        archive,
+        snapshot.candidate,
+        this.options.host.receiptDirectory,
+        signal
+      );
     if (!signal.aborted) await this.refresh('prepared', { candidateId: snapshot.candidateId });
   }
   private async receipt(

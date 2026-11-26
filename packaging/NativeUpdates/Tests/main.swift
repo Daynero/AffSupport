@@ -94,6 +94,15 @@ do {
   try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: false) == .deferUnstarted, "a busy refusal while draining is not an unknown install")
   state.handoffStarted = true
   try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: false) == .unknown, "a started handoff stays uncertain")
+  try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: false, installerAlive: true) == .unknown, "a live installer keeps the handoff uncertain")
+  for stage in ["install_committed", "replacement_started", "relaunch_requested", "recovering", "unknown"] {
+    state.stage = stage; state.replacementRequested = stage != "install_committed"
+    try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: true, installerAlive: false) == .releaseUnreplaced, "the whole source bundle with no installer left proves no replacement (\(stage))")
+    try check(NativeUpdateRecovery.decide(state: state, buildId: "9.0.0+999", revision: String(repeating: "b", count: 40), committedWorkload: false, installerAlive: false) == .unknown, "another bundle never releases an uncertain handoff (\(stage))")
+  }
+  state.targetStarted = true
+  try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: true, installerAlive: false) == .unknown, "a started target is never released back to the source")
+  state.targetStarted = false; state.replacementRequested = false; state.stage = "failed"
   state.handoffStarted = false; state.stage = "drained"; state.lastProvenStage = "drained"
   state.targetStarted = true
   try check(NativeUpdateRecovery.decide(state: state, buildId: state.sourceBuild!, revision: state.sourceRevision!, committedWorkload: true) == .unknown, "never automatically downgrade after target start")
