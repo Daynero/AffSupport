@@ -6,5 +6,7 @@ typedef void (^SotyUpdateProgress)(NSString *stage, uint64_t received, uint64_t 
 - (BOOL)startWithError:(NSError **)error NS_SWIFT_NAME(start());
 - (void)installAfterAgentExit;
 - (BOOL)cancelDownload;
+/// Whether Sparkle still runs an update session (false once it ended, with or without a callback).
+- (BOOL)sessionInProgress;
 @end
 NS_ASSUME_NONNULL_END

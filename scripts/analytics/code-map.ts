@@ -737,6 +737,11 @@ export const JOURNAL_CODES: Readonly<Record<string, JournalSpec>> = {
     check:
       'The participant prop names which part refused the update drain (team_recovery, catalog_foreground, native_restitch, module_<tool>); error_code is its own code, usually APP_UPDATE_BUSY.'
   },
+  'update:native_update_handshake': {
+    files: ['apps/agent/src/index.ts', 'packaging/NativeUpdates/Coordinator.swift'],
+    check:
+      'The agent could not greet its native host at start and retried. outcome recovered (attempts) means the host answered late; admission_reopened_without_host means work resumed after the bounded wait while retries continued — look for a slow or translated start in the native startup journal.'
+  },
   'update:drain_requested': {
     files: [AGENT_QUEUE],
     check: 'An update asked the queues to drain; new work is refused until restart.'

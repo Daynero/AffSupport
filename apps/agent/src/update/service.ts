@@ -75,6 +75,7 @@ export class NativeAppUpdateService {
   private helpers = new Map<number, () => void>();
   private lastDiagnostic = '';
   private closed = false;
+  private listening = false;
   private readonly verifyCandidate: typeof verifyNativeCandidateBundle;
   constructor(
     private readonly options: {
@@ -183,8 +184,12 @@ export class NativeAppUpdateService {
       void this.poll();
     }, 500);
     this.timer.unref();
+    if (this.listening) this.afterListening();
   }
   afterListening() {
+    this.listening = true;
+    // A late handshake (slow host start) calls this again; one interval is enough.
+    if (this.checks || !this.state) return;
     // Native monitoring is background infrastructure; browsers still use one SSE owner.
     this.checks = setInterval(() => {
       if (
@@ -202,7 +207,12 @@ export class NativeAppUpdateService {
         void this.command('check', this.nextCommand()).catch(() => undefined);
     }, NATIVE_UPDATE_LIMITS.checkIntervalMs);
     this.checks.unref();
-    if (this.state && ['idle', 'offered', 'prepared', 'deferred'].includes(this.state.stage))
+    // A start after a completed, acknowledged update looks for the next one too; otherwise a
+    // successor published meanwhile waited for the hourly check (1.7.0 qualification: B→C).
+    if (
+      this.state &&
+      ['idle', 'offered', 'prepared', 'deferred', 'ui_visible'].includes(this.state.stage)
+    )
       void this.command('check', this.nextCommand()).catch(() => undefined);
   }
   private nextCommand(): NativeUpdateCommand {
@@ -316,6 +326,11 @@ export class NativeAppUpdateService {
         this.launch(() => this.prepare(snapshot));
       if (action === 'accept' && snapshot.stage === 'consented')
         this.launch(() => this.install(snapshot));
+      // Once the result is acknowledged the update is finished: look for the next one now.
+      if (action === 'ack-visible' && snapshot.stage === 'ui_visible')
+        queueMicrotask(() => {
+          void this.command('check', this.nextCommand()).catch(() => undefined);
+        });
       return snapshot;
     });
   }

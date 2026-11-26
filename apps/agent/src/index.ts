@@ -7,7 +7,7 @@ import {
 import { NativeRestitchVaultFile } from './team-bridge/native-restitch-vault.js';
 import { settleCatalogVariantProcess } from './team-bridge/catalog-variant-closure.js';
 import { randomUUID } from 'node:crypto';
-import { isRecord } from '@video-compressor/shared';
+import { isRecord, NATIVE_UPDATE_LIMITS } from '@video-compressor/shared';
 import { NativeRestitchController } from './team-bridge/native-restitch-controller.js';
 import { NativeRestitchJournal } from './team-bridge/native-restitch-journal.js';
 import { ScreenCacheError } from './team-bridge/screen-cache.js';
@@ -1072,11 +1072,12 @@ if (nativeUpdates) {
   try {
     await nativeUpdates.start();
   } catch {
-    if (updateBarrier.accepting()) updateBarrier.acquire(instanceId);
+    const epoch = updateBarrier.accepting() ? updateBarrier.acquire(instanceId) : null;
     diagnosticsLog.record('update', 'native_update_stage', {
       stage: 'unknown',
       error_code: 'APP_UPDATE_NATIVE_UNAVAILABLE'
     });
+    void retryNativeUpdateHandshake(nativeUpdates, epoch);
   }
 } else if (
   process.env.AGENT_NATIVE_UPDATE_STARTUP_FAILED === '1' ||
@@ -1087,6 +1088,59 @@ if (nativeUpdates) {
     stage: 'unknown',
     error_code: 'APP_UPDATE_REPLACEMENT_UNKNOWN'
   });
+}
+
+/**
+ * A slow host is not a missing one. Under Rosetta the first handshake came after the
+ * agent's 15 s request budget, and closing admission for the whole session refused every
+ * task until Soty was restarted (1.7.0 qualification). The handshake is retried with
+ * backoff; admission stays closed only for a bounded window, then work resumes while the
+ * retries continue. A host that answers later reconciles its receipts as on a normal start.
+ */
+async function retryNativeUpdateHandshake(
+  service: NonNullable<typeof nativeUpdates>,
+  epoch: string | null
+) {
+  const reopenAt =
+    performance.now() + powerGovernor.scaleTimeout(NATIVE_UPDATE_LIMITS.readinessTimeoutMs);
+  let held = epoch;
+  // A reconciled receipt may need its own attempt hold, so the startup hold is let go
+  // just before each try; the handshake's first step is a native read, not work.
+  const release = () => {
+    if (held === null) return;
+    try {
+      updateBarrier.release(instanceId, held);
+    } catch {
+      /* Already released or superseded. */
+    }
+    held = null;
+  };
+  let reopened = false;
+  for (let attempt = 0; !shuttingDown; attempt++) {
+    await new Promise<void>(resolve => {
+      setTimeout(resolve, Math.min(30_000, 2_000 * 2 ** Math.min(attempt, 4))).unref();
+    });
+    if (shuttingDown) return;
+    release();
+    try {
+      await service.start();
+      diagnosticsLog.record('update', 'native_update_handshake', {
+        outcome: 'recovered',
+        attempts: attempt + 1
+      });
+      return;
+    } catch {
+      if (performance.now() < reopenAt) {
+        if (updateBarrier.accepting()) held = updateBarrier.acquire(instanceId);
+      } else if (!reopened) {
+        reopened = true;
+        diagnosticsLog.record('update', 'native_update_handshake', {
+          outcome: 'admission_reopened_without_host',
+          attempts: attempt + 1
+        });
+      }
+    }
+  }
 }
 
 if (catalogForeground) {

@@ -64,9 +64,13 @@
 - (void)showExtractionReceivedProgress:(double)progress {}
 - (void)showReadyToInstallAndRelaunch:(void (^)(SPUUserUpdateChoice))reply { self.readyReply = reply; self.progress(@"installer_ready",self.received,self.total,@""); }
 - (BOOL)cancelDownload { if (!self.downloadCancellation) return NO; void (^cancel)(void) = self.downloadCancellation; self.downloadCancellation = nil; cancel(); return YES; }
+- (BOOL)sessionInProgress { return self.updater != nil && self.updater.sessionInProgress; }
 - (void)installAfterAgentExit { if (self.readyReply) { void (^reply)(SPUUserUpdateChoice) = self.readyReply; self.readyReply = nil; self.progress(@"replacement_started",self.received,self.total,@""); reply(SPUUserUpdateChoiceInstall); } }
 - (void)showInstallingUpdateWithApplicationTerminated:(BOOL)terminated retryTerminatingApplication:(void (^)(void))retry {}
 - (void)showUpdateInstalledAndRelaunched:(BOOL)relaunched acknowledgement:(void (^)(void))ack { ack(); }
-- (void)dismissUpdateInstallation {}
+// The session ended. After a refused macOS permission request Sparkle aborts silently: no
+// error reaches showUpdaterError, only this. Reported so the host can end the attempt
+// instead of waiting on an installer that will never come (1.7.0 qualification).
+- (void)dismissUpdateInstallation { self.progress(@"dismissed",self.received,self.total,@""); }
 - (void)updaterWillRelaunchApplication:(SPUUpdater *)updater { self.progress(@"relaunch_requested",self.received,self.total,@""); }
 @end

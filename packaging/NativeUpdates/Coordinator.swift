@@ -117,8 +117,24 @@ final class NativeAppUpdateCoordinator {
       self.onAgentRestartRequired?()
     }
   }
+  /// Sparkle ended its session before this host let the agent go: nothing was handed over (a
+  /// refused macOS permission request ends exactly so, silently). Positive no-handoff evidence:
+  /// end the attempt as a retryable failure, release agent work and allow an ordinary quit.
+  private func endSessionWithoutHandoff() throws {
+    guard state.stage == "install_committed", !state.replacementRequested, state.handoffStarted else { return }
+    state.handoffStarted = false; state.installerReady = false; state.preparationDeadline = nil
+    state.lastProvenStage = "drained"; driver = nil; idleSessionChecks = 0
+    try change("failed", code: NativeUpdateFailure.permission.rawValue)
+  }
+  private var idleSessionChecks = 0
   private func checkDeadlines() {
     guard sleepStarted == nil else { return }
+    // Safety net for an SDK that ends without any callback: two consecutive checks (~4 s)
+    // with no Sparkle session while still committed and not handed over end the attempt.
+    if state.stage == "install_committed", state.handoffStarted, !state.replacementRequested, let driver {
+      idleSessionChecks = driver.sessionInProgress() ? 0 : idleSessionChecks + 1
+      if idleSessionChecks >= 2 { try? endSessionWithoutHandoff() }
+    } else { idleSessionChecks = 0 }
     let now = Date().timeIntervalSince1970
     if let deadline = state.readinessDeadline, !state.nativeSuccess, now > deadline {
       state.readinessDeadline = nil
@@ -212,6 +228,7 @@ final class NativeAppUpdateCoordinator {
         guard let self else { return }
         self.state.downloadedBytes = Int64(received); self.state.totalBytes = Int64(total)
         do {
+          if stage == "dismissed" { try self.endSessionWithoutHandoff(); return }
           if stage == "installer_ready" { guard self.state.stage == "install_committed" else { return }; self.state.preparationDeadline = nil; self.state.installerReady = true; try self.persist() }
           else if stage == "extracting" { try self.persist() }
           else if stage == self.state.stage { /* Progress is volatile; stage receipts remain bounded. */ }

@@ -91,7 +91,7 @@ export const en = {
   appUpdateMoveToApplications:
     'Move Soty to Applications and open it from there to enable updates.',
   appUpdatePermissionDenied:
-    'macOS did not allow the update. Try again and approve the system prompt if it appears.',
+    'macOS did not allow the update. Soty keeps working on the current version. Try again and approve the system prompt, or postpone the update; you can also install the new version with the installer.',
   appUpdateSaveFailed:
     'Soty could not confirm that your work was saved. Installation has been paused.',
   appUpdateVerificationFailed:

@@ -17,6 +17,7 @@ enum NativeUpdateFailure: String, Error {
   case readiness = "APP_UPDATE_READINESS_TIMEOUT"
   case identity = "APP_UPDATE_IDENTITY_MISMATCH"
   case power = "APP_UPDATE_POWER_UNAVAILABLE"
+  case permission = "APP_UPDATE_PERMISSION_DENIED"
 }
 struct NativeArchive: Codable, Equatable {
   let url: String

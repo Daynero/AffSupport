@@ -57,10 +57,16 @@ final class NativeUpdateSocket {
     let bytes = Array(supplied.utf8)
     guard bytes.count == token.count, zip(bytes, token).reduce(UInt8(0), { $0 | ($1.0 ^ $1.1) }) == 0 else { return }
     var response: [String: Any] = ["schemaVersion": 1, "nonce": nonce]
-    DispatchQueue.main.sync {
-      do { response["value"] = try handler(request) }
+    // On the main run loop in COMMON modes: a modal panel (the launcher's start-failure
+    // alert) must not stall the agent's handshake until it times out (1.7.0 qualification).
+    let done = DispatchSemaphore(value: 0)
+    CFRunLoopPerformBlock(CFRunLoopGetMain(), CFRunLoopMode.commonModes.rawValue) {
+      do { response["value"] = try self.handler(request) }
       catch { response["error"] = (error as? NativeUpdateFailure)?.rawValue ?? NativeUpdateFailure.invalid.rawValue }
+      done.signal()
     }
+    CFRunLoopWakeUp(CFRunLoopGetMain())
+    done.wait()
     guard var output = try? JSONSerialization.data(withJSONObject: response), output.count < NativeUpdateBuildPolicy.frameBytes else { return }
     output.append(10)
     output.withUnsafeBytes { raw in
