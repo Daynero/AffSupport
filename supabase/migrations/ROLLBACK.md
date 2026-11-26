@@ -3784,3 +3784,14 @@ a window-bound creation with videos still owed and no sign of life for two minut
 column. Undo by re-running the three functions from 20261215110000, 20261207180000 and
 20261224360000 and pointing the trigger back at `private.restitch_candidate_version_immutable()`;
 sets rebased in the meantime keep working only while the new functions are in place.
+
+## 20261224410000 — sets rebased before 20261224400000 get their copies back in step
+
+New `private.heal_rebased_foreground_sets()` (owner-only), run once by the migration: for sets
+in `accepted`, `preparing` or `unknown`, `source_version` of their
+`private.catalog_video_foreground_authorities` row (and its `updated_at`) and of their
+`private.catalog_video_restitch_contexts` row is set to the set's own `source_version` where it
+lagged — the one move the guards of 20261224400000 allow. Nothing else changes; ready,
+cancel_requested and canceled sets are left as they are. No table or column. Undo: drop the
+function; the healed rows keep their set's version, which is what the rebase writes since
+20261224400000, so there is nothing to move back.
