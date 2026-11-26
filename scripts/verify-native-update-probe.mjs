@@ -2,22 +2,16 @@
 /** Native boundary probe and bounded packaged-beta observation recorder.
  * This command does not infer acceptance from collected snapshots.
  */
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { createHash } from 'node:crypto';
-import {
-  isNativeUpdateSnapshot,
-  NATIVE_UPDATE_STAGES
-} from '../packages/shared/dist/native-app-updates.js';
-import { NATIVE_UPDATE_QUALIFICATION_CASES } from './lib/native-update-qualification.mjs';
-import { readBetaUpdateProfile } from './lib/native-update-profile.mjs';
 import { renderNativeUpdatePolicy } from './lib/native-update-policy.mjs';
+import { capture as runCapture } from './lib/native-update-capture.mjs';
 const exec = promisify(execFile);
+const capture = () => runCapture(process.argv.slice(2));
 const args = process.argv.slice(2);
-const option = name => args.find(value => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 if (args.includes('--native-boundaries')) {
   if (process.platform !== 'darwin') throw new Error('NATIVE_PROBE_MACOS_REQUIRED');
   const directory = await mkdtemp(path.join(os.tmpdir(), 'soty-native-boundaries-'));
@@ -57,142 +51,9 @@ if (args.includes('--native-boundaries')) {
     await rm(directory, { recursive: true, force: true });
   }
 } else if (args.includes('--capture')) {
-  const scenario = option('scenario');
-  const output = option('output');
-  const origin = new URL(option('origin') ?? 'http://127.0.0.1:43140');
-  const until = option('until') ?? 'ui_visible';
-  const fault = option('fault');
-  if (
-    !scenario ||
-    !NATIVE_UPDATE_QUALIFICATION_CASES.includes(scenario) ||
-    !output ||
-    origin.protocol !== 'http:' ||
-    origin.hostname !== '127.0.0.1' ||
-    origin.port !== '43140' ||
-    !NATIVE_UPDATE_STAGES.some(stage => stage === until) ||
-    (fault && !NATIVE_UPDATE_STAGES.some(stage => stage === fault))
-  )
-    throw new Error('NATIVE_PROBE_ARGUMENTS');
-  const session = process.env.SOTY_UPDATE_PROBE_SESSION_TOKEN;
-  if (!session) throw new Error('NATIVE_PROBE_SESSION_REQUIRED');
-  const observations = [];
-  let owned = null;
-  let faulted = false;
-  const launch = option('launch');
-  const app = launch ?? option('app');
-  if (!app || !path.isAbsolute(app) || path.basename(app) !== 'Soty Beta.app')
-    throw new Error('NATIVE_PROBE_BETA_APP_REQUIRED');
-  const profile = await readBetaUpdateProfile(app, { required: true });
-  if (!profile) throw new Error('NATIVE_UPDATE_PROFILE_REQUIRED');
-  const installationFile = path.join(
-    os.homedir(),
-    'Library',
-    'Application Support',
-    profile.supportDirectoryName,
-    'Updates/beta/installation-id'
-  );
-  if (launch) {
-    const { stdout } = await exec('/usr/sbin/lsof', ['-tiTCP:43140', '-sTCP:LISTEN']).catch(
-      error => {
-        if (error.code === 1) return { stdout: '' };
-        throw error;
-      }
-    );
-    if (stdout.trim()) throw new Error('NATIVE_PROBE_BETA_ALREADY_RUNNING');
-    if (path.basename(app) !== 'Soty Beta.app') throw new Error('NATIVE_PROBE_BETA_APP_REQUIRED');
-    const release = JSON.parse(
-      await readFile(path.join(app, 'Contents/Resources/release.json'), 'utf8')
-    );
-    if (release.channel !== 'beta') throw new Error('NATIVE_PROBE_BETA_IDENTITY');
-    owned = spawn(path.join(app, 'Contents/MacOS/SotyBetaAgent'), [], {
-      stdio: 'ignore',
-      env: { ...process.env, NO_OPEN: '1' }
-    });
-  }
-  if (fault && !owned) throw new Error('NATIVE_PROBE_FAULT_REQUIRES_OWNED_HOST');
-  const read = async route => {
-    const response = await fetch(new URL(route, origin), {
-      headers: { 'x-session-token': session },
-      signal: AbortSignal.timeout(5000)
-    });
-    if (!response.ok) throw new Error('NATIVE_PROBE_READ_FAILED');
-    const text = await response.text();
-    if (text.length > 262144) throw new Error('NATIVE_PROBE_FRAME_LIMIT');
-    return JSON.parse(text);
-  };
-  const started = Date.now();
-  let consecutiveUnavailable = 0;
-  try {
-    while (Date.now() - started < 10 * 60_000 && observations.length < 5000) {
-      try {
-        const health = await read('/api/health');
-        if (health.environment !== 'beta' || health.channel !== 'beta')
-          throw new Error('NATIVE_PROBE_NON_BETA');
-        const state = await read('/api/app-update');
-        if (!isNativeUpdateSnapshot(state)) throw new Error('NATIVE_PROBE_INVALID_SNAPSHOT');
-        const installationId = (await readFile(installationFile, 'utf8')).trim();
-        if (state.installationId !== installationId)
-          throw new Error('NATIVE_PROBE_PROFILE_MISMATCH');
-        consecutiveUnavailable = 0;
-        const previous = observations.at(-1);
-        if (
-          !previous ||
-          previous.state.revision !== state.revision ||
-          previous.state.stage !== state.stage
-        )
-          observations.push({
-            at: Date.now(),
-            state,
-            buildId: health.buildId,
-            sourceRevision: health.sourceRevision
-          });
-        if (fault && state.stage === fault && !faulted) {
-          if (!owned?.pid || owned.exitCode !== null)
-            throw new Error('NATIVE_PROBE_OWNERSHIP_LOST');
-          owned.kill('SIGKILL');
-          faulted = true;
-        }
-        if (state.stage === until || (faulted && consecutiveUnavailable > 2)) break;
-      } catch (error) {
-        if (
-          error instanceof Error &&
-          ['NATIVE_PROBE_NON_BETA', 'NATIVE_PROBE_PROFILE_MISMATCH'].includes(error.message)
-        )
-          throw error;
-        consecutiveUnavailable++;
-        if (faulted && consecutiveUnavailable >= 3) break;
-      }
-      await new Promise(resolve => setTimeout(resolve, 150));
-    }
-  } finally {
-    const sourceSha = (await exec('git', ['rev-parse', 'HEAD'])).stdout.trim();
-    const record = {
-      schemaVersion: 1,
-      kind: 'native-update-observation',
-      status: 'unreviewed',
-      sourceSha,
-      scenario,
-      startedAt: started,
-      finishedAt: Date.now(),
-      faulted,
-      controlledRuntimeOnly: true,
-      profileId: profile.profileId,
-      observations
-    };
-    await mkdir(path.dirname(path.resolve(output)), { recursive: true });
-    await writeFile(output, JSON.stringify(record, null, 2) + '\n', { flag: 'wx' });
-    process.stdout.write(
-      JSON.stringify({
-        output: path.resolve(output),
-        sha256: createHash('sha256').update(JSON.stringify(record)).digest('hex'),
-        observations: observations.length,
-        status: 'unreviewed'
-      }) + '\n'
-    );
-    // A surviving host is deliberately left to the tester; no unrelated app is stopped.
-  }
+  await capture();
 } else {
   process.stdout.write(
-    'Usage: --native-boundaries | --capture --scenario=<case> --output=<file> (--app=<running Soty Beta.app> | --launch=<Soty Beta.app>) [--fault=<stage>] [--until=<stage>]\n'
+    'Usage: --native-boundaries | --capture --scenario=<case> --output=<file> (--app=<running Soty Beta.app> | --launch=<Soty Beta.app>) [--pair] [--fault=<stage>] [--step=<stage|*>:<action>]... [--until=<stage>] [--settle-ms=<ms>] [--timeout-ms=<ms>]\n'
   );
 }
