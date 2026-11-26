@@ -377,6 +377,11 @@ export function CreateProductCatalogDialog({
   const deliveredCatalog = useRef<string | null>(null);
   const videoCommandBusy = useRef(false);
   const videoReadDirty = useRef(false);
+  // A cancel pressed while a read or a resume is under way. It used to be folded into «read
+  // again», so in a dialog that kept reading (read → resume → refusal, every few seconds) no
+  // press ever reached the server (beta 2026-11-26: nine presses, no cancel request).
+  const videoCancelWanted = useRef(false);
+  const videoReadAbort = useRef<AbortController | null>(null);
   /** Until this time, re-read every few seconds instead of on the widening timer. */
   const readSoon = useRef(0);
   const videoFlow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
@@ -863,10 +868,18 @@ export function CreateProductCatalogDialog({
     )
       return;
     if (videoCommandBusy.current) {
-      videoReadDirty.current = true;
+      if (cancel) {
+        // Cancelling outranks the poll: the read under way is put aside (the server is asked
+        // nothing new by that) and the cancel goes as soon as it has let go.
+        videoCancelWanted.current = true;
+        videoReadAbort.current?.abort();
+      } else videoReadDirty.current = true;
       return;
     }
     videoCommandBusy.current = true;
+    if (cancel) videoCancelWanted.current = false;
+    const reading = new AbortController();
+    videoReadAbort.current = cancel ? null : reading;
     const run = observationRun.current,
       actor = privateCacheActor(),
       epoch = privateCacheEpoch();
@@ -893,7 +906,7 @@ export function CreateProductCatalogDialog({
               (client.readProductCatalogVideo ?? teamApi.readProductCatalogVideo)(teamId, key, {
                 signal
               }),
-            new AbortController().signal,
+            reading.signal,
             // A hung read becomes the calm «зв'язок перервався» note after 10 s, not 15.
             CATALOG_VIDEO_READ_DEADLINE_MS
           );
@@ -936,7 +949,7 @@ export function CreateProductCatalogDialog({
               (client.resumeProductCatalogVideo ?? teamApi.resumeProductCatalogVideo)(teamId, key, {
                 signal
               }),
-            new AbortController().signal
+            reading.signal
           );
         } catch (cause) {
           const code = teamErrorCodeOf(cause);
@@ -972,6 +985,8 @@ export function CreateProductCatalogDialog({
         showCreated(result);
       }
     } catch (cause) {
+      // A read put aside for the cancel the person pressed: its ending says nothing.
+      if (!cancel && videoCancelWanted.current) return;
       if (owns()) {
         // 1.4.2 prod (Windows, 3 variations): a loaded server failed one poll
         // and the window put a red "something went wrong" beside "1 of 3" while
@@ -1005,7 +1020,13 @@ export function CreateProductCatalogDialog({
       }
     } finally {
       videoCommandBusy.current = false;
-      if (videoReadDirty.current) {
+      if (videoReadAbort.current === reading) videoReadAbort.current = null;
+      if (videoCancelWanted.current) {
+        videoCancelWanted.current = false;
+        // The cancel answers with the current state itself: no read is owed after it.
+        videoReadDirty.current = false;
+        queueMicrotask(() => void checkVideoRef.current(true));
+      } else if (videoReadDirty.current) {
         videoReadDirty.current = false;
         queueMicrotask(() => void checkVideoRef.current());
       }
@@ -1020,6 +1041,7 @@ export function CreateProductCatalogDialog({
     setResumedName(null);
     videoKey.current = null;
     videoOwner.current = null;
+    videoCancelWanted.current = false;
     setReadInterrupted(false);
     setVideoPending(null);
     setVideoUnknown(false);

@@ -1320,6 +1320,49 @@ describe('a creation still running behind the catalogs list (1.4.3)', () => {
       expect(listUnfinishedProductCatalogCreations).toHaveBeenCalledTimes(2);
     });
 
+    it('offers Cancel for a creation whose videos are ready but whose catalog stopped', async () => {
+      // Beta 2026-11-26: every video ready, the assembly refused, and the row had only
+      // «Показати прогрес» — the way out was a dialog whose own Cancel did not send.
+      const stopped = {
+        ...unfinished,
+        setState: 'ready',
+        registeredCount: 3,
+        queuedCount: 0,
+        safeErrorCode: 'GLOBAL_IMAGE_READINESS_UNKNOWN'
+      };
+      const cancelProductCatalogVideo = vi
+        .fn()
+        .mockResolvedValue({ ...pending, state: 'canceled' });
+      renderList(
+        client({
+          listUnfinishedProductCatalogCreations: vi
+            .fn()
+            .mockResolvedValueOnce([stopped])
+            .mockResolvedValue([]),
+          cancelProductCatalogVideo
+        })
+      );
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Cancel creating clip_v8_catalog' })
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel creation' }));
+      await waitFor(() => expect(cancelProductCatalogVideo).toHaveBeenCalledTimes(1));
+    });
+    it('does not offer Cancel while the server is assembling a creation whose videos are ready', async () => {
+      renderList(
+        client({
+          listUnfinishedProductCatalogCreations: vi
+            .fn()
+            .mockResolvedValue([
+              { ...unfinished, setState: 'ready', registeredCount: 3, intentState: 'planning' }
+            ])
+        })
+      );
+      expect(await screen.findByText('clip_v8_catalog')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Cancel creating clip_v8_catalog' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Show progress of clip_v8_catalog' })).toBeTruthy();
+    });
+
     it('falls back to this browser when the server list cannot be read', async () => {
       localStorage.setItem(
         `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`,
@@ -2106,5 +2149,52 @@ describe('catalog assembly once every video is ready (1.4.3)', () => {
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Continue catalog creation' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Cancel video generation' })).toBeTruthy();
+  });
+  it('sends a cancel pressed while a read is still under way', async () => {
+    // Beta 2026-11-26: the dialog kept reading and resuming, and a cancel pressed during a
+    // read was turned into one more read — nine presses, no cancel request on the server.
+    const waiting = { ...allReady, registeredCount: 2 };
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce(waiting)
+      // Every later read hangs, as a slow server does, and ignores its abort signal.
+      .mockImplementation(() => new Promise(() => undefined));
+    const client = dialogClient({
+      createProductCatalogVideo: vi.fn(),
+      readProductCatalogVideo: read,
+      cancelProductCatalogVideo: vi.fn().mockResolvedValue({ ...waiting, state: 'canceled' })
+    });
+    renderDialog(client);
+    expect(await screen.findByText('Videos ready: 2 of 3')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Check status' }));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    expect(client.cancelProductCatalogVideo).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel video generation' }));
+    await waitFor(() =>
+      expect(client.cancelProductCatalogVideo).toHaveBeenCalledWith(
+        TEAM_ID,
+        key,
+        expect.any(String),
+        expect.any(Object)
+      )
+    );
+    expect(await screen.findByText('Catalog creation canceled.')).toBeTruthy();
+    // The read that was put aside leaves no error behind and is not repeated after the cancel.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+  it('sends the cancel after a resume that is still under way, not another read', async () => {
+    const client = dialogClient({
+      createProductCatalogVideo: vi.fn(),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(allReady),
+      resumeProductCatalogVideo: vi.fn().mockImplementation(() => new Promise(() => undefined)),
+      cancelProductCatalogVideo: vi.fn().mockResolvedValue({ ...allReady, state: 'canceled' })
+    });
+    renderDialog(client);
+    await waitFor(() => expect(client.resumeProductCatalogVideo).toHaveBeenCalledTimes(1));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel video generation' }));
+    await waitFor(() => expect(client.cancelProductCatalogVideo).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Catalog creation canceled.')).toBeTruthy();
+    expect(client.readProductCatalogVideo).toHaveBeenCalledTimes(1);
   });
 });

@@ -98,13 +98,17 @@ function creationStatus(creation: UnfinishedCatalogCreation): TranslationKey {
   return 'productCatalogCreationAssembling';
 }
 
-/** A creation can be canceled while its videos are still being made. */
+/**
+ * A creation can be canceled while its videos are still being made — and when every video is
+ * ready but the catalog was not assembled and the attempt stopped (`interrupted`): the server
+ * cancels that too (service_cancel_initial_catalog_video keeps the ready videos), and without it
+ * the row had «Показати прогрес» and nothing else (beta 2026-11-26). A ready set the server is
+ * assembling right now is left alone.
+ */
 function creationCancelable(creation: UnfinishedCatalogCreation): boolean {
-  return (
-    creation.restitch &&
-    creation.setState !== null &&
-    !['cancel_requested', 'ready', 'canceled'].includes(creation.setState)
-  );
+  if (!creation.restitch || creation.setState === null) return false;
+  if (creation.setState === 'ready') return creation.intentState === 'interrupted';
+  return !['cancel_requested', 'canceled'].includes(creation.setState);
 }
 
 function durationOf(creation: UnfinishedCatalogCreation): RestitchDurationValue | undefined {
