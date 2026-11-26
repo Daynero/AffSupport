@@ -2976,9 +2976,15 @@ it('uses the real control-bound selection API to replace a rejected image within
         name === 'service_issue_restitch_control_screen_range' ||
         name === 'service_read_restitch_selection_source_owned' ||
         name === 'service_abandon_restitch_control_screen_range' ||
-        name === 'service_refresh_restitch_control_screen_range'
+        name === 'service_refresh_restitch_control_screen_range' ||
+        // Advisory, after the ledger has settled the candidate (2026-11-26); this double
+        // refuses it, which is exactly the older database the call must survive.
+        name === 'service_record_restitch_screen_verdict'
     )
   ).toBe(true);
+  // One for the rejection and one for each acceptance: nothing is ever "proven" to a double
+  // that records nothing, so the second acceptance of the same picture asks again.
+  expect(calls.filter(name => name === 'service_record_restitch_screen_verdict')).toHaveLength(3);
   await db.root('delete from auth.sessions where id=$1', [f.session]);
   await expect(call('next')).rejects.toMatchObject({ code: 'AUTH_REQUIRED' });
 });
@@ -3124,4 +3130,261 @@ it('distinguishes images rejected in this attempt from remembered failures befor
     kind: 'exhausted',
     reason: 'unusable'
   });
+});
+
+/**
+ * The space's memory of its pictures (2026-11-26). Before it, the same AppleDouble companions
+ * were drawn, refused by the agent and drawn again in every next video: the ledger knew a
+ * candidate was rejected inside one operation and nothing knew it afterwards.
+ */
+function screenMemoryService(
+  f: Awaited<ReturnType<typeof controlSelectionFixture>>,
+  calls: string[] = []
+): ServiceRpcClient {
+  return {
+    rpc: async (name, args) => {
+      calls.push(name);
+      const hash = Buffer.from(String(args.p_control_hash).slice(2), 'hex');
+      try {
+        if (name === 'service_read_restitch_control_selection')
+          return { data: await f.readSelection(args.p_active as boolean, hash), error: null };
+        if (name === 'service_cas_restitch_control_selection')
+          return {
+            data: await f.change(
+              args.p_expected_budget as ReturnType<typeof createScreenSelectionBudget>,
+              args.p_next_budget as ReturnType<typeof createScreenSelectionBudget>
+            ),
+            error: null
+          };
+        if (name === 'service_record_restitch_screen_verdict')
+          return {
+            data: (
+              await db.root<{ value: boolean }>(
+                'select public.service_record_restitch_screen_verdict($1,$2,$3,$4,$5) value',
+                [args.p_control, hash, args.p_slot, args.p_version, args.p_outcome]
+              )
+            )[0]!.value,
+            error: null
+          };
+      } catch (error) {
+        return { data: null, error: { message: (error as Error).message } };
+      }
+      throw Error('Unexpected authority action');
+    }
+  };
+}
+const secondScreen = async (original: { image: string; team: string }) => {
+  const another = id(sequence++);
+  await db.root(
+    `insert into public.team_materials(id,team_id,connection_id,drive_file_id,parent_folder_id,name,kind,category,mime_type,size_bytes,checksum,drive_version)
+   select $1,team_id,connection_id,$1::uuid::text,parent_folder_id,'Synthetic second.png',kind,category,mime_type,size_bytes,$3,drive_version from public.team_materials where id=$2`,
+    [another, original.image, 'b'.repeat(32)]
+  );
+  await db.root(
+    "insert into public.team_restitch_sources(team_id,slot,material_id,kind,sort_order,added_by) values($1,'end',$2,'file',2,$3)",
+    [original.team, another, owner]
+  );
+};
+const screenVerdicts = (team: string) =>
+  db.root<{ checksum: string; verdict: string; rejections: number }>(
+    'select checksum,verdict,rejections from private.restitch_screen_verdicts where team_id=$1 order by checksum',
+    [team]
+  );
+type FlaggedCandidate = {
+  versionId: string;
+  checksum: string;
+  unusable?: boolean;
+  proven?: boolean;
+};
+it('remembers bytes an agent could not decode: the ledger is the proof and the space is never offered them again', async () => {
+  const token = 'u'.repeat(43),
+    f = await controlSelectionFixture({
+      ticketHash: createHash('sha256').update(token).digest(),
+      beforeAccept: secondScreen
+    }),
+    calls: string[] = [],
+    service = screenMemoryService(f, calls);
+  const call = (action: string, body: Record<string, unknown> = {}) =>
+    handleRestitchNativeSelection(
+      new Request('https://project.invalid/native-selection', {
+        method: 'POST',
+        headers: { 'x-restitch-control-ticket': token }
+      }),
+      action,
+      { protocolVersion: 1, grantId: f.grant, slot: 'end', ...body },
+      { service }
+    );
+  const record = async (version: string, outcome: string, hash = f.ticket) =>
+    (
+      await db.root<{ value: boolean }>(
+        'select public.service_record_restitch_screen_verdict($1,$2,$3,$4,$5) value',
+        [f.grant, hash, 'end', version, outcome]
+      )
+    )[0]!.value;
+  const candidates = async () => (await f.readSelection()).candidates as FlaggedCandidate[];
+  expect((await candidates()).map(row => [row.unusable, row.proven])).toEqual([
+    [false, false],
+    [false, false]
+  ]);
+  const a = ((await call('next')) as { candidate: { versionId: string; acquisition: number } })
+    .candidate;
+  // Nothing is a verdict until the ledger says so: a selected candidate is neither.
+  expect(await record(a.versionId, 'unsupported')).toBe(false);
+  expect(await record(a.versionId, 'accepted')).toBe(false);
+  expect(await screenVerdicts(f.team)).toEqual([]);
+  expect(await call('reject', { ...a, defect: 'unsupported' })).toBe(true);
+  const refused = (await candidates()).find(row => row.versionId === a.versionId)!;
+  expect(await screenVerdicts(f.team)).toEqual([
+    { checksum: refused.checksum, verdict: 'unusable', rejections: 1 }
+  ]);
+  expect(refused).toMatchObject({ unusable: true, proven: false });
+  const b = ((await call('next')) as { candidate: { versionId: string; acquisition: number } })
+    .candidate;
+  expect(b.versionId).not.toBe(a.versionId);
+  expect(await call('accept', b)).toBe(true);
+  const accepted = (await candidates()).find(row => row.versionId === b.versionId)!;
+  expect(accepted).toMatchObject({ unusable: false, proven: true });
+  expect(await screenVerdicts(f.team)).toEqual(
+    [
+      { checksum: refused.checksum, verdict: 'unusable', rejections: 1 },
+      { checksum: accepted.checksum, verdict: 'usable', rejections: 0 }
+    ].sort((left, right) => left.checksum.localeCompare(right.checksum))
+  );
+  // The ledger cannot be argued with afterwards, and a foreign ticket is no authority at all.
+  expect(await record(a.versionId, 'accepted')).toBe(false);
+  expect(await record(b.versionId, 'unsupported')).toBe(false);
+  expect(await record(id(sequence++), 'unsupported')).toBe(false);
+  await expect(record(a.versionId, 'source_missing')).rejects.toThrow('INVALID_INPUT');
+  await expect(record(a.versionId, 'unsupported', Buffer.alloc(32, 113))).rejects.toThrow(
+    'AUTH_REQUIRED'
+  );
+  expect(await screenVerdicts(f.team)).toHaveLength(2);
+  // A picture already proven is not written again by the next acceptance of it.
+  const writes = calls.filter(name => name === 'service_record_restitch_screen_verdict').length;
+  expect(await call('accept', b)).toBe(true);
+  expect(calls.filter(name => name === 'service_record_restitch_screen_verdict')).toHaveLength(
+    writes
+  );
+  // What the next operation or catalog set of this space freezes: the refused bytes are not in it.
+  const pool = (
+    await db.root<{
+      value: {
+        candidates: Array<{ checksum: string }>;
+        complete: boolean;
+        ineligibleObserved: number;
+      };
+    }>(
+      "select private.restitch_selection_pool_snapshot($1,private.launch_restitch_pool_user($1,$2),'end') value",
+      [f.team, actor]
+    )
+  )[0]!.value;
+  expect(pool.candidates.map(row => row.checksum)).toEqual([accepted.checksum]);
+  expect(pool).toMatchObject({ complete: true, ineligibleObserved: 1 });
+  // New bytes under the same file are a new picture.
+  await db.root('update public.team_materials set checksum=$2 where team_id=$1 and checksum=$3', [
+    f.team,
+    'd'.repeat(32),
+    refused.checksum
+  ]);
+  const renewed = (
+    await db.root<{ value: { candidates: unknown[] } }>(
+      "select private.restitch_selection_pool_snapshot($1,private.launch_restitch_pool_user($1,$2),'end') value",
+      [f.team, actor]
+    )
+  )[0]!.value;
+  expect(renewed.candidates).toHaveLength(2);
+});
+it('passes over a frozen candidate the space knows to be useless without spending the slot budget', async () => {
+  const token = 'k'.repeat(43),
+    f = await controlSelectionFixture({
+      ticketHash: createHash('sha256').update(token).digest(),
+      beforeAccept: secondScreen
+    }),
+    service = screenMemoryService(f);
+  const call = (action: string, body: Record<string, unknown> = {}) =>
+    handleRestitchNativeSelection(
+      new Request('https://project.invalid/native-selection', {
+        method: 'POST',
+        headers: { 'x-restitch-control-ticket': token }
+      }),
+      action,
+      { protocolVersion: 1, grantId: f.grant, slot: 'end', ...body },
+      { service }
+    );
+  const frozen = (await f.readSelection()).candidates as FlaggedCandidate[];
+  // The list was frozen before anybody had tried its first picture; another operation has since.
+  await db.root(
+    "insert into private.restitch_screen_verdicts(team_id,checksum,mime_type,verdict,rejections) values($1,$2,'image/png','unusable',1)",
+    [f.team, frozen[0]!.checksum]
+  );
+  expect(await call('next')).toMatchObject({
+    kind: 'candidate',
+    candidate: { versionId: frozen[1]!.versionId, acquisition: 0 }
+  });
+  expect((await f.readSelection()).budget.candidates.map(row => row.versionId)).toEqual([
+    frozen[1]!.versionId
+  ]);
+  // A file that went missing says nothing about its bytes: nothing is remembered.
+  expect(
+    await call('reject', {
+      versionId: frozen[1]!.versionId,
+      acquisition: 0,
+      defect: 'source_missing'
+    })
+  ).toBe(true);
+  expect(await screenVerdicts(f.team)).toHaveLength(1);
+  expect(await call('next')).toMatchObject({
+    kind: 'exhausted',
+    reason: 'unusable',
+    complete: true
+  });
+});
+it('says "unusable", not "remembered", when every frozen candidate is known to be useless', async () => {
+  const token = 'n'.repeat(43),
+    f = await controlSelectionFixture({ ticketHash: createHash('sha256').update(token).digest() }),
+    service = screenMemoryService(f);
+  const only = ((await f.readSelection()).candidates as FlaggedCandidate[])[0]!;
+  await db.root(
+    "insert into private.restitch_screen_verdicts(team_id,checksum,mime_type,verdict,rejections) values($1,$2,'image/png','unusable',3)",
+    [f.team, only.checksum]
+  );
+  const next = await handleRestitchNativeSelection(
+    new Request('https://project.invalid/native-selection', {
+      method: 'POST',
+      headers: { 'x-restitch-control-ticket': token }
+    }),
+    'next',
+    { protocolVersion: 1, grantId: f.grant, slot: 'end', excludeVersions: [only.versionId] },
+    { service }
+  );
+  expect(next).toEqual({ kind: 'exhausted', reason: 'unusable', complete: true });
+  expect((await f.readSelection()).budget.candidates).toHaveLength(0);
+});
+it('keeps the operation going when the verdict cannot be written', async () => {
+  const token = 'w'.repeat(43),
+    f = await controlSelectionFixture({ ticketHash: createHash('sha256').update(token).digest() }),
+    inner = screenMemoryService(f);
+  // A database from before 20261224450000: the function does not exist.
+  const service: ServiceRpcClient = {
+    rpc: async (name, args) => {
+      if (name === 'service_record_restitch_screen_verdict')
+        return { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
+      return inner.rpc(name, args);
+    }
+  };
+  const call = (action: string, body: Record<string, unknown> = {}) =>
+    handleRestitchNativeSelection(
+      new Request('https://project.invalid/native-selection', {
+        method: 'POST',
+        headers: { 'x-restitch-control-ticket': token }
+      }),
+      action,
+      { protocolVersion: 1, grantId: f.grant, slot: 'end', ...body },
+      { service }
+    );
+  const a = ((await call('next')) as { candidate: { versionId: string; acquisition: number } })
+    .candidate;
+  expect(await call('reject', { ...a, defect: 'unsupported' })).toBe(true);
+  expect((await f.readSelection()).budget.candidates).toMatchObject([{ rejected: true }]);
+  expect(await screenVerdicts(f.team)).toEqual([]);
 });

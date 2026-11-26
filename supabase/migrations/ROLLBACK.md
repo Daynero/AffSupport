@@ -3769,3 +3769,37 @@ a created output that is a material of a space (any lifecycle) is settled as kep
 launch whose only unfinished generation is `canceled_with_cleanup_pending` can be deleted. No
 table or column. Undo by re-running both functions from 20261207171000 and 20261201167000; a
 generation already closed stays closed, and the checkpoint mark is read by nothing.
+
+## 20261224450000 — a picture that cannot be a re-stitch screen is offered once
+
+Adds `private.restitch_screen_verdicts` (what agents found decoding a picture's bytes, per space)
+and `private.drive_image_probes` (the dimensions Drive read of an image file), the functions
+`private.os_service_file_name`, `private.restitch_screen_defect`,
+`private.restitch_pool_usable_images`, `private.restitch_pool_unusable_json`,
+`public.service_record_restitch_screen_verdict` and `public.service_record_drive_image_probes`,
+and the trigger `team_materials_os_service_file` (a new `._*`, `.DS_Store`, `Thumbs.db` or
+`desktop.ini` row is indexed as `other`). Replaces `private.restitch_pool_json`,
+`private.draw_restitch_screens_for`, `private.restitch_selection_pool_snapshot` and
+`public.service_read_restitch_control_selection`: a picture with a defect is not drawn or frozen,
+the listing gains `unusable`, and a control read marks each candidate `unusable` / `proven`.
+Released browsers and agents ignore the new fields. `private.restitch_image_ok` and
+`private.restitch_pool_images` are deliberately untouched: the launch settings version is
+computed from them and must not move when evidence arrives. Patches
+`private.effective_restitch_defaults_json` in place: a slot has pictures of its own when the
+usable pool is not empty, so a slot of only unusable files gets Soty's standard picture.
+
+Undo by re-running the four replaced functions from 20261029100000, 20261207158000 and
+20261207166000 and `private.effective_restitch_defaults_json` from 20261224271000, then `drop trigger team_materials_os_service_file on public.team_materials` and
+drop the new functions and the two tables. drive-ops and catalog-sync treat a missing recording
+function as nothing to record, so they need not be redeployed first. After the undo the service
+files and the pictures agents could not decode are drawn again in every re-stitch.
+
+## 20261224451000 — service files indexed earlier, and what agents already said
+
+Data only. Sets `category = 'other'` on service files indexed before 20261224450000 that no
+re-stitch candidate list names, and fills `private.restitch_screen_verdicts` from the
+`screen_candidate_rejected` records of the agent journal. Safe to run again: it inserts nothing
+twice. To undo the first part, set those rows back to `category = 'image'`,
+`classification_source = 'mime'` with the trigger `team_materials_os_service_file` disabled (it
+would otherwise keep them `other`); to undo the second, delete the rows of
+`private.restitch_screen_verdicts`.

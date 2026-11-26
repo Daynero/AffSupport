@@ -31,6 +31,10 @@ type Candidate = {
   sizeBytes: number;
   checksum: string;
   mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  /** Known to be no screen: a service file, bytes an agent could not decode, or no picture. */
+  unusable: boolean;
+  /** An agent has already decoded these bytes; the verdict need not be written again. */
+  proven: boolean;
 };
 type Context = {
   rootOperationId: string;
@@ -102,7 +106,10 @@ function context(value: unknown, grant: string, slot: 'start' | 'end'): Context 
         materialId: uuid(row.materialId),
         sizeBytes: row.sizeBytes as number,
         checksum: row.checksum,
-        mimeType: row.mimeType as Candidate['mimeType']
+        mimeType: row.mimeType as Candidate['mimeType'],
+        // Absent on a database from before 20261224450000: nothing is known, so nothing is skipped.
+        unusable: row.unusable === true,
+        proven: row.proven === true
       };
     });
     if (new Set(candidates.map(row => row.versionId)).size !== candidates.length) throw uncertain();
@@ -189,6 +196,28 @@ function selected(c: Context, candidate: Candidate, state: ScreenSelectionBudget
       sizeBytes: candidate.sizeBytes
     }
   };
+}
+/**
+ * What the agent found, kept for every later draw (2026-11-26). Advisory by design: the ledger
+ * has already recorded the rejection or the acceptance, so a verdict that cannot be written -
+ * an older database, a lost reply - is one more attempt at this picture some day, never a
+ * reason to fail the operation that reported it.
+ */
+async function rememberScreenVerdict(
+  service: ServiceRpcClient,
+  scope: Record<string, unknown>,
+  version: string,
+  outcome: 'unsupported' | 'accepted'
+): Promise<void> {
+  try {
+    await service.rpc('service_record_restitch_screen_verdict', {
+      ...scope,
+      p_version: version,
+      p_outcome: outcome
+    });
+  } catch {
+    /* advisory */
+  }
 }
 /** Native-only selection adapter over the existing ledger. No caller-selected
  * actor/root/epoch or generic RPC fallback. Unknown CAS stops this invocation. */
@@ -320,11 +349,12 @@ export async function handleRestitchNativeSelection(
       if (!item) throw uncertain();
       return selected(c, item, c.budget);
     }
-    const item = c.candidates.find(
-      row =>
-        !excluded.has(row.versionId) &&
-        !c.budget.candidates.some(used => used.versionId === row.versionId)
+    // A candidate the space already knows to be useless is passed over without spending the
+    // slot's budget on it: the list was frozen before anyone had tried the picture.
+    const untried = c.candidates.filter(
+      row => !row.unusable && !c.budget.candidates.some(used => used.versionId === row.versionId)
     );
+    const item = untried.find(row => !excluded.has(row.versionId));
     if (!item)
       return {
         kind: 'exhausted',
@@ -332,7 +362,7 @@ export async function handleRestitchNativeSelection(
           ? 'limit'
           : c.candidates.length === 0
             ? 'empty'
-            : excluded.size && c.budget.candidates.length === 0
+            : untried.length > 0 && c.budget.candidates.length === 0
               ? 'remembered'
               : 'unusable',
         complete: c.complete
@@ -515,10 +545,16 @@ export async function handleRestitchNativeSelection(
     )
       throw new TeamFunctionError('INVALID_INPUT');
     await store.reject(version, acquisition);
+    // Only bytes that would not decode are a property of the picture; a file that went missing
+    // or changed says nothing about the next version of it.
+    if (input.defect === 'unsupported')
+      await rememberScreenVerdict(deps.service, scope, version, 'unsupported');
     return true;
   }
   if (action === 'accept') {
     await store.accept(version, acquisition);
+    if (!c.candidates.some(row => row.versionId === version && row.proven))
+      await rememberScreenVerdict(deps.service, scope, version, 'accepted');
     return true;
   }
   const changed = await store.reacquire(version, acquisition);

@@ -1221,9 +1221,14 @@ function build(): Record<string, CodeLocation> {
       'Inspect operationId, last native stage, safe errorCode and optional sourceIntegrityReason. Missing binary integrity detail stays unknown. A failed native finalize may coexist with a running legacy server child; explicit Repeat retires only the matching child. The beta manual native controller correlates its terminal to the cloud root and preserves the trusted delivery phase when observed; an unknown phase must not be reconstructed. Missing journal delivery leaves the cause unknown.'
   };
   map['journal:team:screen_candidate_rejected'] = {
-    files: ['apps/agent/src/team-bridge/screen-cache.ts', 'apps/web/src/team/restitch/screens.ts'],
+    files: [
+      'apps/agent/src/team-bridge/screen-cache.ts',
+      'apps/web/src/team/restitch/screens.ts',
+      'supabase/functions/drive-ops/restitch-native-selection.ts',
+      'supabase/migrations/20261224450000_unusable_screen_images.sql'
+    ],
     check:
-      'A confirmed file-specific image failure was persisted for the next random draw. Correlate the operation and material; network and disk failures do not blacklist candidates. Repaired versions and changed settings can be checked again.'
+      'A confirmed file-specific image failure was persisted for the next random draw. Correlate the operation and material; network and disk failures do not blacklist candidates. Repaired versions and changed settings can be checked again. Since 20261224450000 a rejection with reason unsupported_image is also remembered by the server per space and content (private.restitch_screen_verdicts, written by the reject action of drive-ops): the same bytes rejected again in a later operation mean the verdict was not written (older database, lost reply) or the list was frozen and the agent predates the skip. The reason each file is kept out of a pool is in list_restitch_sources → pools.*.unusable.'
   };
   map['journal:team:screen_fetch_failed'] = {
     files: [
