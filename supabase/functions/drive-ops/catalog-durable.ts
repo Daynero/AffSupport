@@ -18,7 +18,10 @@ import {
   publishCreativeImagesBounded,
   workerShutdownAnnounced
 } from './creative-image-pool.ts';
-import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
+import {
+  TEAM_ERROR_CODES,
+  type TeamErrorCode
+} from '../../../packages/shared/dist/team/transport.js';
 import {
   launchCreativeAnalytics,
   parseCatalogCreativeDiagnostics,
@@ -141,6 +144,46 @@ export interface CatalogIntentStore {
     state: 'pending' | 'created' | 'preserved'
   ): Promise<void>;
 }
+/** The four answers the intent's own steps give about its lease and state; they were always
+ * passed on as they are, and as retryable. */
+const INTENT_STEP_ANSWERS = new Set([
+  'REQUEST_REUSE_CONFLICT',
+  'LEASE_MISMATCH',
+  'PERMISSION_DENIED',
+  'WRONG_STATE'
+]);
+/**
+ * What an intent's database step refused with, for the caller.
+ *
+ * GROUP_RECONCILING means "another executor holds this creation": the database says it in those
+ * words, the dialog answers it by showing the progress so far and reading again, and a Launch
+ * leaves the generation to that other executor. Every other answer used to be folded into it
+ * too — so a creation whose picture pool could not be confirmed (GLOBAL_IMAGE_READINESS_UNKNOWN,
+ * beta 2026-11-26) stood at «Готово відео: 1 з 1» for good, with «Продовжити» doing nothing and
+ * no word of why. A code the database raised is now the code the caller gets: the dialog names
+ * it, a Launch stops on it, and the recovery pass records it. Only an answer that is not a code
+ * at all (a statement timeout, a dropped connection) is still read as "busy, try again", and
+ * the log says which step gave it.
+ */
+export function catalogIntentRpcFailure(
+  name: string,
+  error: { message?: unknown; code?: unknown }
+): TeamFunctionError {
+  const message = typeof error.message === 'string' ? error.message : '';
+  if (INTENT_STEP_ANSWERS.has(message) || message === 'GROUP_RECONCILING')
+    return new TeamFunctionError(message as TeamErrorCode, { retryable: true });
+  const known = TEAM_ERROR_CODES.find(code => code === message);
+  if (known) return new TeamFunctionError(known);
+  console.warn(
+    '[catalog] intent step answered outside its codes',
+    JSON.stringify({
+      rpc: /^[a-z][a-z0-9_]{0,63}$/u.test(name) ? name : null,
+      sqlstate:
+        typeof error.code === 'string' && /^[0-9A-Z]{5}$/u.test(error.code) ? error.code : null
+    })
+  );
+  return new TeamFunctionError('GROUP_RECONCILING', { retryable: true });
+}
 export function catalogIntentStore(
   service: ServiceRpcClient,
   teamId: string,
@@ -151,19 +194,7 @@ export function catalogIntentStore(
 ): CatalogIntentStore {
   const call = async (name: string, parameters: Record<string, unknown>) => {
     const { data, error } = await service.rpc(name, parameters);
-    if (error)
-      throw new TeamFunctionError(
-        error.message === 'REQUEST_REUSE_CONFLICT'
-          ? 'REQUEST_REUSE_CONFLICT'
-          : error.message === 'LEASE_MISMATCH'
-            ? 'LEASE_MISMATCH'
-            : error.message === 'PERMISSION_DENIED'
-              ? 'PERMISSION_DENIED'
-              : error.message === 'WRONG_STATE'
-                ? 'WRONG_STATE'
-                : 'GROUP_RECONCILING',
-        { retryable: true }
-      );
+    if (error) throw catalogIntentRpcFailure(name, error);
     return data;
   };
   const common = (intent: CatalogIntent, owner: string) => ({

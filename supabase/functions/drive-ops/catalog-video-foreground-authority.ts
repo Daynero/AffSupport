@@ -5,6 +5,7 @@ import {
 import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
+import { logCatalogVideoRefusal } from './catalog-video-refusal-log.ts';
 import { isRecord } from '../_shared/validation.ts';
 export interface CatalogForegroundScope {
   teamId: string;
@@ -74,6 +75,7 @@ export async function foregroundRpc(
 ) {
   const result = await service.rpc(name, args);
   if (result.error) {
+    logCatalogVideoRefusal('foreground', name, result.error, { setId: args.p_set });
     const code = TEAM_ERROR_CODES.find(code => result.error?.message === code);
     throw new TeamFunctionError(code ?? 'PROCESS_RESULT_UNCERTAIN');
   }
