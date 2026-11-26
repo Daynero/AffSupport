@@ -44,6 +44,7 @@ import { acceptManualRestitchRoot, readManualRestitchRoot } from './restitch-roo
 import { betaNativeCatalogSheets } from '../_shared/catalog-native-sheet.ts';
 import { catalogDriveScope } from '../_shared/catalog-drive-scope.ts';
 import { finalizeProcessOutput } from './process-finalize.ts';
+import { startProcessTakingOverOwnRun } from './process-reservation-takeover.ts';
 import { acceptMutationPreflight } from './mutation-preflight.ts';
 import { parseMaterialHistoricalReceipt } from './material-historical-receipt.ts';
 import { drawCatalogImagePool, assertCatalogImageContract } from '../_shared/catalog-image-draw.ts';
@@ -2217,18 +2218,32 @@ async function handleProcessStart(
     },
     names
   );
-  const authority = await startOperation({
-    service,
-    teamId,
-    actorId,
-    kind: 'process',
+  const authority = await startProcessTakingOverOwnRun({
+    start: () =>
+      startOperation({
+        service,
+        teamId,
+        actorId,
+        kind: 'process',
+        idempotencyKey,
+        requestNonce: requestNonce(idempotencyKey),
+        sourceMaterialId: materialId,
+        destinationFolderId,
+        reservedNameKey: plan.reservationKey,
+        reservationExpiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        bytesTotal: source.sizeBytes
+      }),
+    release: () =>
+      rpcValue(service, 'service_release_own_process_reservation', {
+        p_team: teamId,
+        p_actor: actorId,
+        p_source: materialId,
+        p_destination: destinationFolderId,
+        p_name_key: plan.reservationKey
+      }),
     idempotencyKey,
-    requestNonce: requestNonce(idempotencyKey),
-    sourceMaterialId: materialId,
-    destinationFolderId,
-    reservedNameKey: plan.reservationKey,
-    reservationExpiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-    bytesTotal: source.sizeBytes
+    reservedNameKey: plan.reservationKey ?? null,
+    trusted: trustedVariant !== undefined
   });
   await bindIntent({
     service,
