@@ -7,8 +7,8 @@
  * and why, whether it is still there at all. Nothing here uploads anything anywhere.
  */
 
-import { useState } from 'react';
-import { Folder, Image, X } from 'lucide-react';
+import { useId, useState } from 'react';
+import { Folder, Image, ImageOff, X } from 'lucide-react';
 import type {
   RestitchPoolSummary,
   RestitchSlot,
@@ -16,8 +16,8 @@ import type {
   RestitchSourceInput
 } from '@video-compressor/shared';
 import type { TeamMaterialSummary } from '../../api/team';
-import { Badge, Button, FadeImage, IconButton } from '../../components/ui/index';
-import { ICON_STROKE } from '../../components/icons';
+import { Alert, Badge, Button, Collapse, FadeImage, IconButton } from '../../components/ui/index';
+import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
@@ -25,6 +25,11 @@ import {
   TaskAttachmentPicker,
   type TaskAttachmentPickerClient
 } from '../tasks/TaskAttachmentPicker';
+import {
+  unusableScreensOf,
+  type UnusableScreenReason,
+  type UnusableScreens
+} from './restitch/unusable-screens';
 
 export type RestitchSourcePoolClient = Pick<TaskAttachmentPickerClient, 'listMaterials'> &
   Partial<Pick<TaskAttachmentPickerClient, 'searchCatalog'>>;
@@ -38,6 +43,85 @@ const AVAILABILITY_KEYS: Record<RestitchSource['availability'], TranslationKey |
   pending: 'teamRestitchSourcePending',
   disconnected: 'teamRestitchSourceDisconnected'
 };
+
+const UNUSABLE_REASON_KEYS: Record<UnusableScreenReason, TranslationKey> = {
+  service_file: 'teamRestitchUnusableServiceFile',
+  undecodable: 'teamRestitchUnusableUndecodable',
+  not_an_image: 'teamRestitchUnusableNotAnImage',
+  unknown: 'teamRestitchUnusableUnknown'
+};
+
+/**
+ * The files of the chosen folders that cannot be a screen (2026-11-26): an operating system's
+ * own «._photo.png», a picture no agent could decode, a file with no picture in it. Soty has
+ * already stopped drawing them; this is where their owner learns which they are, so they can
+ * be removed or replaced in Drive. Closed until asked: the count is the message, the names
+ * are for the person who goes looking.
+ */
+function UnusableScreensNotice({ unusable }: { unusable: UnusableScreens }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  return (
+    <div className="team-restitch-unusable">
+      <Alert
+        color="warning"
+        variant="subtle"
+        // A standing fact about the folder, read in place: the pool's own status line is the
+        // one live region here.
+        live="none"
+        icon={<ImageOff size={ICON_SIZE} strokeWidth={ICON_STROKE} />}
+        title={t('teamRestitchUnusableTitle', { count: unusable.count })}
+        action={
+          unusable.items.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-expanded={open}
+              aria-controls={listId}
+              onClick={() => setOpen(current => !current)}
+            >
+              {t(open ? 'teamRestitchUnusableHide' : 'teamRestitchUnusableShow')}
+            </Button>
+          )
+        }
+      >
+        {t('teamRestitchUnusableBody')}
+      </Alert>
+      {unusable.items.length > 0 && (
+        <Collapse open={open}>
+          <ul
+            id={listId}
+            className="team-restitch-unusable-list"
+            aria-label={t('teamRestitchUnusableList')}
+          >
+            {unusable.items.map(item => (
+              <li key={item.materialId}>
+                <span className="team-restitch-unusable-name" title={item.name}>
+                  {item.name}
+                </span>
+                <small>
+                  {item.folderName &&
+                    `${t('teamRestitchUnusableFolder', { name: item.folderName })} · `}
+                  {t(UNUSABLE_REASON_KEYS[item.reason])}
+                </small>
+              </li>
+            ))}
+          </ul>
+          {unusable.count > unusable.items.length && (
+            <p className="team-inline-note">
+              {t('teamRestitchUnusableMore', {
+                shown: unusable.items.length,
+                count: unusable.count
+              })}
+            </p>
+          )}
+        </Collapse>
+      )}
+    </div>
+  );
+}
 
 /** What the server stores back when a source is kept: its reference, never its bytes. */
 function inputOf(source: RestitchSource): RestitchSourceInput {
@@ -84,6 +168,7 @@ export function RestitchSourcePool({
   // under two names. The pool counts the picture once; the person is told why the sum differs.
   const overlap =
     pool.sources.reduce((sum, source) => sum + source.imageCount, 0) > pool.eligibleCount;
+  const unusable = unusableScreensOf(pool);
 
   return (
     <div className={`team-restitch-pool team-restitch-pool-${slot}`} data-state={pool.state}>
@@ -175,6 +260,7 @@ export function RestitchSourcePool({
           })}
         </ul>
       )}
+      {unusable.count > 0 && <UnusableScreensNotice unusable={unusable} />}
       {editable && client && (
         <div className="settings-section-actions">
           <TaskAttachmentPicker

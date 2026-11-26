@@ -200,6 +200,7 @@ import type {
   RestitchSourcesListing
 } from '@video-compressor/shared';
 import { parseFolderSyncStatus, type FolderSyncStatus } from '../team/syncStatus';
+import { withUnusableScreens } from '../team/workspace/restitch/unusable-screens';
 import { parseUpdaterInterval, type UpdaterInterval } from '../team/catalog-updater/limits';
 import type { Database, Json } from '../lib/database.types';
 import { publicConfig } from '../lib/config';
@@ -6631,7 +6632,7 @@ export const teamApi = {
     throwRpc(error);
     const parsed = parseRestitchSourcesListing(data);
     if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
-    return parsed.value;
+    return withUnusableScreens(parsed.value, data);
   },
 
   /** Replace one slot of the space's pool (owner only). Flips the settings to drive mode. */
@@ -6650,7 +6651,7 @@ export const teamApi = {
     throwRpc(error);
     const parsed = parseRestitchSourcesListing(data);
     if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
-    return parsed.value;
+    return withUnusableScreens(parsed.value, data);
   },
 
   /** Replace one slot of the caller's personal pool. */
@@ -6669,7 +6670,7 @@ export const teamApi = {
     throwRpc(error);
     const parsed = parseRestitchSourcesListing(data);
     if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
-    return parsed.value;
+    return withUnusableScreens(parsed.value, data);
   },
 
   /**
