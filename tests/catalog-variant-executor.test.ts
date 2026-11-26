@@ -134,6 +134,45 @@ it('keeps unknown diagnostic causes bounded and separates request from admitted 
   );
   expect(JSON.stringify(events)).not.toContain('private-provider');
 });
+it('says which step of a variant failed: the admission, the process or the checkpoint', async () => {
+  // Production 2026-11-26: the journal said PROCESS_RESULT_UNCERTAIN for a request with no
+  // operation and nothing else; that the server had refused the admission took its own logs.
+  const observed = async (arrange: (x: ReturnType<typeof fixture>) => void) => {
+    const x = fixture(1),
+      events: CatalogVariantObservation[] = [];
+    arrange(x);
+    const executor = new CatalogVariantExecutor(x.authority, event => events.push(event));
+    await expect(executor.run(new AbortController().signal)).rejects.toThrow();
+    return events.find(event => event.stage === 'unknown')!;
+  };
+  const admit = await observed(x =>
+    vi.mocked(x.authority.admit).mockRejectedValueOnce(Error('PROCESS_RESULT_UNCERTAIN'))
+  );
+  expect(admit).toMatchObject({ step: 'admit', errorCode: 'PROCESS_RESULT_UNCERTAIN' });
+  expect(admit.childOperationId).toBeUndefined();
+  expect(
+    await observed(x =>
+      vi.mocked(x.authority.execute).mockRejectedValueOnce(Error('SOURCE_CHANGED'))
+    )
+  ).toMatchObject({ step: 'process', errorCode: 'SOURCE_CHANGED', childOperationId: id(50) });
+  // The process succeeded and the save of its registration was refused.
+  expect(
+    await observed(x => {
+      const save = vi.mocked(x.authority.save).getMockImplementation()!;
+      let calls = 0;
+      vi.mocked(x.authority.save).mockImplementation(async (revision, next) =>
+        ++calls === 3 ? false : save(revision, next)
+      );
+    })
+  ).toMatchObject({ step: 'checkpoint', errorCode: 'PROCESS_RESULT_UNCERTAIN' });
+  // A variant that went through carries no step.
+  const x = fixture(1),
+    events: CatalogVariantObservation[] = [];
+  await new CatalogVariantExecutor(x.authority, event => events.push(event)).run(
+    new AbortController().signal
+  );
+  expect(events.some(event => 'step' in event)).toBe(false);
+});
 it('re-runs a variant the server requeued after a proven failure, under its new identity', async () => {
   // 1.4.3: a failed video used to stay unknown forever and bury the whole set.
   let stored: CatalogVariantSnapshot = {

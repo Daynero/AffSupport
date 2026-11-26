@@ -79,6 +79,13 @@ export interface CatalogVariantObservation {
   errorCode?: string;
   /** Set only with `retrying`: which bounded retry of this variant begins. */
   retryAttempt?: number;
+  /**
+   * Set when a variant ends `unknown` or `canceled`: what was being done — `admit` (asking the
+   * server for the variant's process), `process` (running it) or `checkpoint` (saving its
+   * state). Production 2026-11-26: a set stopped on PROCESS_RESULT_UNCERTAIN with no operation
+   * and the journal could not say that it was the admission the server had refused.
+   */
+  step?: 'admit' | 'process' | 'checkpoint';
   stage:
     | 'accepted'
     | 'reconciling'
@@ -103,6 +110,7 @@ export class CatalogVariantExecutor {
         stage: event.stage,
         ...(event.errorCode ? { errorCode: event.errorCode } : {}),
         ...(event.retryAttempt ? { retryAttempt: event.retryAttempt } : {}),
+        ...(event.step ? { step: event.step } : {}),
         readyCount: event.ready,
         requestedCount: event.total
       });
@@ -125,7 +133,8 @@ export class CatalogVariantExecutor {
       value: CatalogVariantObservation['stage'],
       child?: CatalogVariantChild,
       errorCode?: string,
-      retryAttempt?: number
+      retryAttempt?: number,
+      step?: CatalogVariantObservation['step']
     ) => {
       try {
         this.observe({
@@ -139,6 +148,7 @@ export class CatalogVariantExecutor {
           stage: value,
           ...(errorCode ? { errorCode } : {}),
           ...(retryAttempt ? { retryAttempt } : {}),
+          ...(step ? { step } : {}),
           ready: snapshot.children.filter(c => c.state === 'registered').length,
           total: snapshot.children.length
         });
@@ -220,16 +230,20 @@ export class CatalogVariantExecutor {
       await save(child.index, 'working');
       current();
       child = snapshot.children[child.index]!;
+      let step: NonNullable<CatalogVariantObservation['step']> = 'admit';
       try {
         if (child.operationId === null) {
           const accepted = await this.authority.admit(Object.freeze({ ...child }), signal);
+          step = 'checkpoint';
           await save(child.index, 'working', null, accepted.operationId);
           child = snapshot.children[child.index]!;
           current();
         }
+        step = 'process';
         stage('processing', child);
         const output = await this.authority.execute(Object.freeze({ ...child }), signal);
         // Persist confirmed registration even if cancellation arrived alongside it.
+        step = 'checkpoint';
         await save(child.index, 'registered', output.outputId);
         notify();
         stage('registered', child);
@@ -248,7 +262,9 @@ export class CatalogVariantExecutor {
             ? 'PROCESS_CANCELED'
             : new Set<string>([...TEAM_ERROR_CODES, ...STITCH_ERROR_CODES]).has(code)
               ? code
-              : 'PROCESS_RESULT_UNCERTAIN'
+              : 'PROCESS_RESULT_UNCERTAIN',
+          undefined,
+          step
         );
         throw cause;
       }

@@ -2088,4 +2088,23 @@ describe('catalog assembly once every video is ready (1.4.3)', () => {
     expect(await screen.findByText('Videos ready: 3 of 3')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
   });
+  it('says why the catalog was not assembled when the server names the reason', async () => {
+    // Beta 2026-11-26: every video was ready, the picture pool could not be confirmed, and the
+    // window stood at «Готово відео: 1 з 1» with a «Продовжити» that changed nothing.
+    const client = dialogClient({
+      createProductCatalogVideo: vi.fn(),
+      readProductCatalogVideo: vi.fn().mockResolvedValue(allReady),
+      resumeProductCatalogVideo: vi
+        .fn()
+        .mockRejectedValue(new TeamApiError('GLOBAL_IMAGE_READINESS_UNKNOWN', false))
+    });
+    renderDialog(client);
+    expect(
+      await screen.findByText(
+        'The catalog pictures cannot be confirmed right now, so the catalog was not assembled. The videos are kept — continue the creation in a few minutes.'
+      )
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Continue catalog creation' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cancel video generation' })).toBeTruthy();
+  });
 });

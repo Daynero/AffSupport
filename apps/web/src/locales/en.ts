@@ -181,6 +181,8 @@ export const en = {
     'The space lost its Google Drive connection — the videos are not prepared until the owner reconnects Drive.',
   catalogWaitSpaceBlocked:
     'The space is paused — the videos are not prepared until the tariff is renewed.',
+  catalogWaitImagePoolUnconfirmed:
+    'The catalog pictures cannot be confirmed right now, so the catalog was not assembled. The videos are kept — continue the creation in a few minutes.',
   catalogWaitAgentUpdateRequired:
     'Soty on the computer with background work is out of date — update it and the videos start.',
   catalogFixReconnectDrive: 'Reconnect Drive',

@@ -2,6 +2,7 @@ import { handleCatalogVideoReplacement } from './catalog-video-replacement.ts';
 import { commitRenameWithPreview } from './rename-preview.ts';
 import { readCatalogVideoFailure } from './catalog-video-failure.ts';
 import { handleCatalogVideoForeground } from './catalog-video-foreground.ts';
+import { logCatalogVideoRefusal } from './catalog-video-refusal-log.ts';
 import {
   prepareCatalogVideoForeground,
   foregroundRpc
@@ -3520,47 +3521,56 @@ Deno.serve(async request => {
         throw new TeamFunctionError('AUTH_REQUIRED');
       const parsed = await parseJsonBody(request);
       if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT');
-      const value = await handleCatalogVideoForeground(
-        configured.service,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-        request,
-        foregroundRoute[1]!,
-        parsed.value,
-        (native, child) =>
-          admitCatalogVideoVariant(
-            configured.service,
-            {
-              ...native,
-              index: child.index,
-              requestId: child.requestId
-            },
-            {
-              restitchedFolder: async (teamId, actorId) =>
-                (
-                  await handleEnsureRestitchedFolder(
-                    request,
-                    { teamId },
-                    configured.service,
-                    actorId
-                  )
-                ).folderId,
-              startProcess: async (actorId, body) => {
-                if (typeof body.expectedSourceVersion !== 'string')
-                  throw new TeamFunctionError('INVALID_INPUT');
-                const started = await handleProcessStart(
-                  request,
-                  body,
-                  configured.service,
-                  actorId,
-                  { sourceVersion: body.expectedSourceVersion }
-                );
-                return { operationId: started.operationId };
+      let value: unknown;
+      try {
+        value = await handleCatalogVideoForeground(
+          configured.service,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+          request,
+          foregroundRoute[1]!,
+          parsed.value,
+          (native, child) =>
+            admitCatalogVideoVariant(
+              configured.service,
+              {
+                ...native,
+                index: child.index,
+                requestId: child.requestId
               },
-              liveSource: (teamId, actorId, materialId) =>
-                liveSourceFor(request, configured.service, teamId, actorId, materialId)
-            }
-          )
-      );
+              {
+                restitchedFolder: async (teamId, actorId) =>
+                  (
+                    await handleEnsureRestitchedFolder(
+                      request,
+                      { teamId },
+                      configured.service,
+                      actorId
+                    )
+                  ).folderId,
+                startProcess: async (actorId, body) => {
+                  if (typeof body.expectedSourceVersion !== 'string')
+                    throw new TeamFunctionError('INVALID_INPUT');
+                  const started = await handleProcessStart(
+                    request,
+                    body,
+                    configured.service,
+                    actorId,
+                    { sourceVersion: body.expectedSourceVersion }
+                  );
+                  return { operationId: started.operationId };
+                },
+                liveSource: (teamId, actorId, materialId) =>
+                  liveSourceFor(request, configured.service, teamId, actorId, materialId)
+              }
+            )
+        );
+      } catch (error) {
+        // Which step refused and with what code: the agent only ever sees the code.
+        logCatalogVideoRefusal('foreground_' + foregroundRoute[1]!, null, error, {
+          setId: parsed.value.setId
+        });
+        throw error;
+      }
       return successResponse(value, cors);
     }
 

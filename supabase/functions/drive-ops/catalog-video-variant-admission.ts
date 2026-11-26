@@ -2,6 +2,7 @@ import { RESTITCH_CONTRACT_VERSION } from '../../../packages/shared/dist/team/re
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
+import { logCatalogVideoRefusal } from './catalog-video-refusal-log.ts';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 /** The gateway is the existing trusted process-start implementation, not a
  * user-selected endpoint. Lost replies resolve through original-key SQL only. */
@@ -36,8 +37,14 @@ export async function admitCatalogVideoVariant(
       p_index: original.index,
       p_request: original.requestId
     });
-    if (result.error || !isRecord(result.data))
+    if (result.error || !isRecord(result.data)) {
+      // The answer is folded into PROCESS_RESULT_UNCERTAIN for the agent; the log keeps it.
+      logCatalogVideoRefusal('admit', 'service_read_catalog_video_admission', result.error, {
+        setId: original.setId,
+        index: original.index
+      });
       throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+    }
     return result.data;
   };
   const first = await read();
@@ -117,7 +124,13 @@ export async function admitCatalogVideoVariant(
       p_version: live.version,
       p_checksum: live.checksum
     });
-    if (rebased.error || rebased.data !== true) throw cause;
+    if (rebased.error || rebased.data !== true) {
+      logCatalogVideoRefusal('admit', 'service_rebase_catalog_video_source', rebased.error, {
+        setId: original.setId,
+        index: original.index
+      });
+      throw cause;
+    }
     const again = await read();
     if (again.kind !== 'new' || again.sourceVersion !== live.version) throw cause;
     try {

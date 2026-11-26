@@ -178,6 +178,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogWaitNeedsReauth:
     'Простір утратив підключення до Google Drive — відео не готуються, доки власник не підключить Drive знову.',
   catalogWaitSpaceBlocked: 'Простір призупинено — відео не готуються, доки тариф не продовжено.',
+  catalogWaitImagePoolUnconfirmed:
+    'Картинки для каталогу зараз не підтверджено, тому каталог не зібрано. Відео збережено — продовжте створення за кілька хвилин.',
   catalogWaitAgentUpdateRequired:
     'Soty на комп’ютері з фоновою роботою застарів — оновіть його, і відео почнуть готуватися.',
   catalogFixReconnectDrive: 'Підключити Drive знову',

@@ -1,5 +1,5 @@
 begin;
-select plan(14);
+select plan(21);
 -- Hotfix 20261224360000: 072 (20261224210000) declared a PL/pgSQL variable `s` next to the table
 -- alias `s` of the agentSilent check, so every read of a launch whose catalog video was still
 -- being prepared raised 42702 «column reference "s.id" is ambiguous» and the launch stopped with
@@ -72,5 +72,30 @@ update private.team_recovery_delegations set last_claim_at=clock_timestamp() whe
 select ok(not pg_temp.read_video('preparing') ?| array['waitReason','backgroundStalled'],'a delegation that claimed after the set was accepted is at work');
 update public.team_drive_connections set state='needs_reauth' where id='c1720000-0000-4000-8000-000000000031';
 select is(pg_temp.read_video('preparing')->>'waitReason','NEEDS_REAUTH','a Drive that needs sign-in is named before anything else');
+
+-- 4. 20261224400000: a creation made with the window open that the computer left between two
+-- videos. No process is under way, a video is still owed, and nothing of the set has moved.
+update private.catalog_video_variants set state='queued',operation_id=null,heartbeat_at=clock_timestamp()-interval '5 minutes' where video_set_id='c1720000-0000-4000-8000-000000000080';
+update private.catalog_video_sets set updated_at=clock_timestamp()-interval '5 minutes' where id='c1720000-0000-4000-8000-000000000080';
+select ok(not pg_temp.read_video('preparing') ? 'agentSilent','a set handed to background work is not called silent for waiting its turn');
+insert into private.catalog_video_foreground_authorities(enrollment_id,video_set_id,team_id,actor_id,session_id,source_material_id,source_version,settings_digest,
+  consumer_kind,original_key,canonical_key,original_request_id,admitted_at,native_instance_id,execution_native_instance_id,proof_hash,token_hash,
+  created_at,updated_at,challenge_until,expires_at,redeemed_at)
+ values('c1720000-0000-4000-8000-000000000090','c1720000-0000-4000-8000-000000000080','c1720000-0000-4000-8000-000000000011','c1720000-0000-4000-8000-000000000001',
+  'c1720000-0000-4000-8000-000000000002','c1720000-0000-4000-8000-000000000041','1',repeat('b',64),'create','initial-video-read-catalog','initial-video-read-catalog',
+  'c1720000-0000-4000-8000-000000000093',clock_timestamp()-interval '10 minutes','c1720000-0000-4000-8000-000000000091','c1720000-0000-4000-8000-000000000091',
+  decode(repeat('ae',32),'hex'),decode(repeat('af',32),'hex'),clock_timestamp()-interval '10 minutes',clock_timestamp()-interval '10 minutes',
+  clock_timestamp()-interval '8 minutes',clock_timestamp()+interval '1 day',clock_timestamp()-interval '10 minutes');
+select is(pg_temp.read_video('preparing')->>'agentSilent','true','a window-bound creation idle for two minutes between videos says the computer is silent');
+select is(pg_temp.read_video('unknown')->>'agentSilent','true','and so does one left in an unknown state');
+select ok(not pg_temp.read_video('ready') ? 'agentSilent','a finished one does not');
+update private.catalog_video_sets set updated_at=clock_timestamp() where id='c1720000-0000-4000-8000-000000000080';
+select ok(not pg_temp.read_video('preparing') ? 'agentSilent','a checkpoint a moment ago is a sign of life');
+update private.catalog_video_sets set updated_at=clock_timestamp()-interval '5 minutes' where id='c1720000-0000-4000-8000-000000000080';
+update private.catalog_video_variants set heartbeat_at=clock_timestamp() where video_set_id='c1720000-0000-4000-8000-000000000080';
+select ok(not pg_temp.read_video('preparing') ? 'agentSilent','so is a heartbeat');
+update private.catalog_video_variants set heartbeat_at=clock_timestamp()-interval '5 minutes' where video_set_id='c1720000-0000-4000-8000-000000000080';
+update private.catalog_video_foreground_authorities set updated_at=clock_timestamp() where video_set_id='c1720000-0000-4000-8000-000000000080';
+select ok(not pg_temp.read_video('preparing') ? 'agentSilent','and so is the computer taking the creation up again');
 select * from finish();
 rollback;

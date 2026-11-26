@@ -1,6 +1,7 @@
 import { parseTeamRestitchDefaults } from '../../../packages/shared/dist/team/restitch.js';
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
+import { logCatalogVideoRefusal } from './catalog-video-refusal-log.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { catalogVideoSetStore } from './catalog-video-set-store.ts';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -37,6 +38,10 @@ export function catalogVideoNativeStore(
   const call = async (name: string, body: Record<string, unknown>) => {
     const value = await service.rpc(name, body);
     if (value.error) {
+      logCatalogVideoRefusal('variant', name, value.error, {
+        setId: input.setId,
+        index: body.p_index
+      });
       switch (value.error.message) {
         case 'PERMISSION_DENIED':
         case 'AUTH_REQUIRED':
