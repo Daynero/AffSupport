@@ -123,6 +123,9 @@ delegate.checkReadiness();delegate.pending!(observed(previous))
 require(!delegate.agentReady,"WRONG_STARTUP_ID_ACCEPTED")
 delegate.readinessAttempts=59
 delegate.checkReadiness();delegate.pending!(observed(nil))
+require(!delegate.agentReady && delegate.failureCount == 0,"LIVING_AGENT_CUT_AT_THE_SHORT_DEADLINE")
+delegate.readinessAttempts=1199
+delegate.checkReadiness();delegate.pending!(observed(nil))
 require(!delegate.agentReady && delegate.failureCount == 1,"UNPROVEN_STARTUP_TIMEOUT_IGNORED")
 delegate.readinessAttempts=0
 delegate.checkReadiness();delegate.pending!(observed(delegate.nativeStartupAttempt))
