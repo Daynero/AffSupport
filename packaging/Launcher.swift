@@ -1074,6 +1074,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
           return // Sparkle must retain this host until its replacement handoff.
         }
         self.nativeUpdates?.agentDidExit(finished.terminationStatus)
+        if finished.terminationStatus == updateHandoffExitStatus, let updater = self.nativeUpdates,
+          updater.releasedWithoutHandoff {
+          // The agent left for a native update that ended (proven) without a handoff — Sparkle
+          // failed in the same instant. Bring the agent back instead of quitting Soty.
+          self.startAgentWhenPortIsFree()
+          return
+        }
         if finished.terminationStatus == updateHandoffExitStatus {
           // The Agent accepted a coordinated update drain. When this app was
           // updated in place, reopen the new payload; when a newer launcher is

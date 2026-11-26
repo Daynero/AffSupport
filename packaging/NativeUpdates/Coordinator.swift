@@ -32,6 +32,8 @@ final class NativeAppUpdateCoordinator {
   /// Asks the host to start its agent again after a handoff proven not to have replaced it.
   var onAgentRestartRequired: (() -> Void)?
   var awaitingAgentExit: Bool { state.installerReady && state.stage == "install_committed" }
+  /// The attempt ended with positive evidence that nothing was handed over.
+  var releasedWithoutHandoff: Bool { state.stage == "failed" && !state.handoffStarted && !state.replacementRequested && state.lastProvenStage == "drained" }
   var permitsQuit: Bool { driver == nil || ["replacement_started", "relaunch_requested", "recovering", "unknown"].contains(state.stage) }
 
   init(support: URL, channel: String, target: String, version: String, buildId: String, revision: String, agentURL: URL) throws {
