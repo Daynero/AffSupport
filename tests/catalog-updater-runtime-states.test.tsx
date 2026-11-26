@@ -42,6 +42,33 @@ it.each([
   expect(screen.getByRole('status').textContent).toContain('Downloading');
 });
 
+it('says which of the six steps a sheet update is on, and marks the ones behind it', () => {
+  const view = render(<CatalogUpdateProgress stage="uploading" />);
+  const status = screen.getByRole('status');
+  expect(status.textContent).toContain('Uploading the sheet to Google Drive');
+  expect(status.textContent).toContain('Step 4 of 6');
+  // Only the video's own work has a measurable bar; a sheet's steps are not a percentage.
+  expect(screen.queryByRole('progressbar')).toBeNull();
+  const marks = [...view.container.querySelectorAll('.product-catalog-progress-track span')];
+  expect(marks.map(mark => mark.className)).toEqual([
+    'is-done',
+    'is-done',
+    'is-done',
+    'is-now',
+    '',
+    ''
+  ]);
+  view.rerender(<CatalogUpdateProgress stage="finalizing" />);
+  expect(screen.getByRole('status').textContent).toContain('Step 6 of 6');
+});
+
+it('starts at the first step while the worker has not said where it is', () => {
+  render(<CatalogUpdateProgress stage={null} />);
+  const status = screen.getByRole('status');
+  expect(status.textContent).toContain('Preparing the catalog update');
+  expect(status.textContent).toContain('Step 1 of 6');
+});
+
 it('re-reads the server-adjusted deadline on focus and visibility, then stops its timer on unmount', () => {
   const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
   const view = render(
