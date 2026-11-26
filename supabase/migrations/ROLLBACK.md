@@ -3795,3 +3795,13 @@ lagged — the one move the guards of 20261224400000 allow. Nothing else changes
 cancel_requested and canceled sets are left as they are. No table or column. Undo: drop the
 function; the healed rows keep their set's version, which is what the rebase writes since
 20261224400000, so there is nothing to move back.
+
+## 20261224420000 — a refused publication preparation ends
+
+Replaces `public.service_release_catalog_publication_preparation(uuid, uuid, text)`: the first
+reported refusal of a due, undispatched job stamps `validation_epoch_started_at` (the stamp
+`service_catalog_publication_cells_context` sets and loses when it raises), and a refusal with
+SOURCE_CHANGED, PERMISSION_DENIED or SHARE_NOT_ALLOWED blocks the job as `job_blocked` ten
+minutes later, keeping its code. A job not due yet, or dispatched, is released as before. No
+table or column. Undo by re-running the function from 20261207176000: a job whose videos are
+gone is then refused every thirty seconds until the daily sweep blocks it.
