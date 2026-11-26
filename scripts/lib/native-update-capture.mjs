@@ -348,6 +348,9 @@ export async function capture(args) {
         : {
             error: typeof json.error === 'string' ? json.error : undefined,
             keys: Object.keys(json).slice(0, 12),
+            ...(typeof json.enrollmentId === 'string' ? { enrollmentId: json.enrollmentId } : {}),
+            ...(typeof json.state === 'string' ? { state: json.state } : {}),
+            ...(typeof json.available === 'boolean' ? { available: json.available } : {}),
             ...(Array.isArray(json.jobs)
               ? {
                   jobs: json.jobs.slice(-8).map(job => ({
