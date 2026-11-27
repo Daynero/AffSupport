@@ -295,8 +295,7 @@ export class TeamRecoveryWorker {
       const endpoint = recoveryEndpoint(metadata.endpoint, this.options.environment);
       // A pending setup whose ticket is gone or does not match is dropped, never fatal: one
       // used to fail the whole load, and with it every space's background work on this
-      // computer stayed off until the journal was removed by hand. Its delegation, if the
-      // server issued one, is still unknown here, so setup stays explicit (setupRequired).
+      // computer stayed off until the journal was removed by hand.
       const secret =
         metadata.account === this.#enrollmentAccount(metadata.id, endpoint)
           ? await this.#readHandle(metadata.account)
@@ -309,8 +308,12 @@ export class TeamRecoveryWorker {
         secret.claimExpiresAt !== null ||
         (challengeId !== undefined && (typeof challengeId !== 'string' || !UUID.test(challengeId)))
       ) {
+        // Dropped without parking the computer as «blocked» (production 2026-11-27): in the
+        // automatic mode nothing but the page's setup clears that, and the page never sets up a
+        // blocked computer — 23 refused setups left as many stale tickets, and after the next
+        // restart the space stayed without background work until the journal was removed by
+        // hand. A delegation the server may have issued for it is refused by name, not hidden.
         if (secret) await this.#secrets.delete(metadata.account).catch(() => undefined);
-        this.#setupRequired = true;
         continue;
       }
       this.#enrollments.set(metadata.id, {
@@ -396,8 +399,15 @@ export class TeamRecoveryWorker {
       throw new Error('PERMISSION_DENIED');
     const receipt = this.begin(teamId, endpoint);
     const enrollment = this.#enrollments.get(receipt.enrollmentId)!;
+    // A credential the server refused is renewed by name like an expired one (production
+    // 2026-11-27): set up as a new delegation, the server refused it for as long as the refused
+    // one stayed live — up to 30 days of «AUTH_REQUIRED» on every page, background work dead.
     enrollment.renewalDelegationId ??= this.#registrations.find(
-      r => r.teamId === teamId && this.#isCurrent(r) && this.#expiredCredentials.has(r.delegationId)
+      r =>
+        r.teamId === teamId &&
+        this.#isCurrent(r) &&
+        (this.#expiredCredentials.has(r.delegationId) ||
+          this.#rejectedCredentials.has(r.delegationId))
     )?.delegationId;
     enrollment.account ??= this.#enrollmentAccount(receipt.enrollmentId, enrollment.endpoint);
     enrollment.persistence ??= this.#persistEnrollment(receipt.enrollmentId, enrollment).finally(
@@ -761,9 +771,21 @@ export class TeamRecoveryWorker {
       let serverUnknown = false;
       if (!r.revocationConfirmed) {
         const secrets = await this.#readHandle(r.account);
-        if (secrets) {
-          const value = await this.#call(r.endpoint, 'disconnect', secrets.refresh, {});
-          if (value.revoked !== true) throw new Error('INVALID_RESPONSE');
+        // A handle the server no longer knows (production 2026-11-27: refused after a rotation,
+        // then the page's sign-out withdrew its delegation) cannot withdraw anything either.
+        // Retrying it hourly kept the space «retiring» for good, refusing every new setup.
+        const refused = async (refresh: string) => {
+          try {
+            const value = await this.#call(r.endpoint, 'disconnect', refresh, {});
+            if (value.revoked !== true) throw new Error('INVALID_RESPONSE');
+            return false;
+          } catch (error) {
+            if (error instanceof RecoveryRequestError && error.message === 'AUTH_REQUIRED')
+              return true;
+            throw error;
+          }
+        };
+        if (secrets && !(await refused(secrets.refresh))) {
           r.revocationConfirmed = true;
         } else {
           // Nothing here can speak for this delegation any more (its handle is missing or no

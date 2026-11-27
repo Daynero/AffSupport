@@ -3769,3 +3769,14 @@ a created output that is a material of a space (any lifecycle) is settled as kep
 launch whose only unfinished generation is `canceled_with_cleanup_pending` can be deleted. No
 table or column. Undo by re-running both functions from 20261207171000 and 20261201167000; a
 generation already closed stays closed, and the checkpoint mark is read by nothing.
+
+## 20261225100000 — a withdrawn delegation can be renewed by name
+
+Patches `public.service_team_recovery` (through `pg_get_functiondef`, failing if the text it
+replaces is missing): automatic setup naming `renewalDelegationId` is no longer refused when that
+delegation — still this person's, space's and computer's — is already revoked; it proceeds as a
+fresh setup. Every other live delegation of the computer still refuses automatic setup
+(AUTH_REQUIRED). Production 2026-11-27: a desktop whose handle the server had refused renewed it by
+name after a sign-out had withdrawn it, and PERMISSION_DENIED kept background work off for good.
+Undo by restoring `and d.revoked_at is null` to the renewal check; such desktops then need their
+journal removed by hand again.

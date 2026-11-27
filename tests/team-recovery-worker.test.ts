@@ -269,6 +269,66 @@ describe('background recovery worker', () => {
     );
   });
 
+  // Production 2026-11-27: the handle had been refused since a rotation and the page's sign-out
+  // withdrew its delegation; every hourly «disconnect» was refused too, and the space stayed
+  // «retiring» — the page never set it up again.
+  it('withdraws a space whose handle the server no longer knows instead of retrying for good', async () => {
+    const f = await fixture();
+    await f.worker.load();
+    f.fetcher.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ ok: false, error: { code: 'AUTH_REQUIRED' } }), {
+          status: 401
+        })
+    );
+    await expect(f.worker.remove(TEAM)).resolves.toEqual({ disabled: true });
+    expect(
+      f.fetcher.mock.calls.some(call => JSON.parse(String(call[1]?.body)).action === 'disconnect')
+    ).toBe(true);
+    expect((await f.journal.load()).registrations).toEqual([]);
+    expect(f.worker.status(TEAM).automaticSetup).toBe('eligible');
+    expect(f.record).toHaveBeenCalledWith(
+      'recovery_retirement',
+      expect.objectContaining({ stage: 'server_unknown' })
+    );
+  });
+
+  it('still retries a withdrawal the server could not answer', async () => {
+    const f = await fixture();
+    await f.worker.load();
+    f.fetcher.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ ok: false, error: { code: 'DRIVE_UNAVAILABLE' } }), {
+          status: 503
+        })
+    );
+    await f.worker.remove(TEAM).catch(() => undefined);
+    expect((await f.journal.load()).registrations).toHaveLength(1);
+    expect(f.worker.status(TEAM).automaticSetup).toBe('retiring');
+  });
+
+  // Production 2026-11-27: 23 refused setups left as many tickets in the journal; after the next
+  // restart each one without its secret parked the computer as «blocked», which only a setup
+  // clears, and the page never sets up a blocked computer.
+  it('drops a pending setup whose ticket is gone without parking the computer as blocked', async () => {
+    const f = await fixture();
+    await f.journal.save({
+      ...(await f.journal.load()),
+      enrollments: [
+        {
+          id: '35000000-0000-4000-8000-000000000099',
+          teamId: TEAM,
+          actorId: ACTOR,
+          installationId: INSTALL,
+          endpoint: 'http://127.0.0.1:54321/functions/v1/team-recovery',
+          account: `soty-recovery-enrollment-${'a'.repeat(64)}`
+        }
+      ]
+    });
+    await f.worker.load();
+    expect(f.worker.status(TEAM).automaticSetup).not.toBe('blocked');
+  });
+
   it('answers «Відновити» on a lost handle by asking for setup, not by resuming', async () => {
     const f = await fixture();
     await f.journal.save({
@@ -1620,13 +1680,14 @@ describe('background recovery worker', () => {
       reason: 'needs_agent_setup',
       automaticSetup: 'eligible'
     });
-    // The page may set it up again now — as a new delegation, never a «renewal» of a live one.
+    // The page may set it up again now, renewing the refused delegation by name (production
+    // 2026-11-27: as a new delegation the server refused it while the refused one stayed live).
     const setup = await f.worker.beginAutomatic(
       TEAM,
       'http://127.0.0.1:54321/functions/v1/team-recovery',
       ACTOR
     );
-    expect(setup).not.toHaveProperty('renewalDelegationId');
+    expect(setup).toMatchObject({ renewalDelegationId: DELEGATION });
     // Nobody did: an hour later the worker asks the server itself, and the space runs again.
     await vi.advanceTimersByTimeAsync(REJECTED_REASK_MS);
     await f.worker.idle();

@@ -148,7 +148,7 @@ describe('scoped background delegation', () => {
     ).toEqual([{ count: 1 }]);
   });
 
-  it('does not renew a revoked, wrong-actor or missing delegation', async () => {
+  it('does not renew a wrong-actor or missing delegation; a withdrawn one is set up afresh', async () => {
     await db.root('delete from private.team_recovery_delegations');
     const input = { actorId: OWNER, teamId: team, installationId: INSTALL, automatic: true };
     const first = await call('delegate', H(65), input);
@@ -165,7 +165,10 @@ describe('scoped background delegation', () => {
       "update private.team_recovery_delegations set expires_at=clock_timestamp()-interval '1 second',revoked_at=clock_timestamp() where id=$1",
       [redeemed.delegationId]
     );
-    await expect(call('delegate', H(67), renewal)).rejects.toThrow(/PERMISSION_DENIED/u);
+    // Production 2026-11-27: a refused handle's delegation withdrawn by a sign-out used to be
+    // refused for good; nothing live stands in the way, so it is a fresh setup.
+    expect((await call('delegate', H(68), renewal)).challengeId).toBeTruthy();
+    await db.root('delete from private.team_recovery_enrollments');
     await db.root('update private.team_recovery_delegations set revoked_at=null where id=$1', [
       redeemed.delegationId
     ]);
@@ -252,7 +255,7 @@ describe('scoped background delegation', () => {
     // The replaced delegation cannot be named again to displace the new live one.
     await expect(
       call('delegate', H(75), { ...input, renewalDelegationId: lost.delegationId })
-    ).rejects.toThrow(/PERMISSION_DENIED/u);
+    ).rejects.toThrow(/AUTH_REQUIRED/u);
   });
   it('replays one setup ticket and its exact Vault redemption without revoking live work', async () => {
     await db.root('delete from private.team_recovery_delegations');
