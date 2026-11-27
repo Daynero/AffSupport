@@ -1,34 +1,142 @@
-# Migration contract
+# Контракт: копіювання файлів у новий R2-простір
 
-`decision_required → chosen_migrate → inventory → needs_action|ready → copying → catching_up → freezing → verifying → protected → cutover_committed → validating → completed`.
-Pause/cancel allowed before cutover with resume checkpoint; failure/unknown represented separately. After cutover cancellation cannot roll back to Drive; use repair-forward. Admin retries use the same migration_id, new attempt_id and monotonic lease/authority fence. The user can choose fresh instead before beginning a migration; after cancellation a later migration still targets only its original logical space.
+**Редакція 2026-11-27** (рішення власника). Замінює контракт переносу «на місці» від
+2026-11-14 (його текст лишився в історії git, коміт 7931d13a).
 
-## API
+## Чому копія, а не перенос
 
-`workspace-migrate inspect` is read-only planning with bounded paginated continuation and completeness token; `choose` records migrate/fresh and implications; `start` binds source snapshot, owner consent, org quota and policy versions; `pause/resume/cancel` transitions by compare-and-swap; `commit` internal-only requires full verified manifest, current owner authorization and fencing proof; `status` shows counts/bytes/blockers/fresh-through. Owner only starts/cuts over; members see read/progress. Read-only CLI never invokes any of these mutators.
+Каталоги перенести не можна:
 
-## Inventory and stable snapshot
+- таблиця каталогу — це Google Sheet, адресу якої людина вже вказала в кабінеті;
+- посилання в рядках зашиті на Google Drive;
+- частина відео й статики каталогів лежить на Drive людей.
 
-Enumerate entire connected root and authoritative Soty DB references, not only visible browser page. Capture team/root/connection identity, Drive change token, revisions/checksum/MIME/size, native export requirements, shortcuts, permissions, catalog publications/legacy Sheets, source-target mapping and generation. Bound list pages/concurrency, persist every page; duplicate page replay idempotent. Rescan if change token expired or root changes. Unknown-size entries receive explicit bounded reservation only after estimate and block readiness until measured.
+Тому переїжджають лише **файли**. Старий простір лишається працювати для своїх каталогів
+(`legacy-policy.md`). Копіювання ніколи не змінює простір-джерело і нічого не видаляє з
+Drive.
 
-Shortcuts inside eligible root resolve once with cycle detection and preserved reference; outside root or inaccessible targets require explicit exclusion or authorized export. Native Docs/Sheets/Slides use chosen archival export(s) and retain provenance/limitations; actual Soty catalog spreadsheet becomes a feed with semantic comparison, not a binary zero-byte copy. Explicit exclusions list affected features and require owner acknowledgement; an excluded required Soty reference blocks migration until dependency repaired. No automatic broad Drive crawl.
+## Стани
 
-## Copy and final fence
+`not_started → inventory → ready_to_choose → copying ⇄ paused → completed | completed_with_gaps`, окремо `failed`.
 
-Stream from permitted Drive source revision into immutable private R2 version; checksum source stream, trusted destination readback and B2 verified copy. Native export records content hash + source modified revision before/after; instability triggers retry. No reliance on size/name/ETag alone. Retries respect Drive rate limits/Retry-After, bounded attempts and jitter, queue budget, per-tenant fairness. Provider 403 may mean permission or quota; normalize only if evidence supports it.
+Будь-коли можна поставити на паузу або скасувати. Скасування не видаляє вже скопійоване.
+Повторний запуск того самого джерела в той самий новий простір докопіює лише те, чого
+бракує.
 
-Before freeze, reconcile all current source changes to reduce lock duration. Acquire per-team migration lease, block new Soty mutations, pre-drain/checkpoint long existing claims before entering freeze; after freeze begins, remaining drain plus final barrier share one ≤10min total deadline (longer ones checkpoint or abort safely), fence grants/leases with next epoch. Run final full consistency pass and change-token replay; confirm no source-revision change through final barrier. External Drive writers cannot be stopped: if revisions keep changing, unfreeze safely and ask owner to pause external editing; never claim an atomic provider-wide snapshot. Define cutover snapshot as verified revisions observed at recorded final barrier; external changes after it are not imported, explicitly disclosed. If acceptance requires zero missed concurrent external changes, owner must stop those edits during barrier; no technical promise of cross-provider transaction.
+## 1. Перелік (до вибору)
 
-SQL cutover locks team/org and checks migration state, all required entries protected, referential closure, quota, current role/terms, restore-point metadata checkpoint prepared and feed acceptance/bridge policy. Transaction changes authority epoch/backend, canonical pointers, logical ledger and cutover receipt/outbox atomically. A fully verified post-cutover exported metadata snapshot must contain the exact cutover receipt, new authority epoch, canonical links and protected dependency manifest before UI `storage_migration_completed` or R2 writes unfreeze. A journal receipt alone is insufficient in v1. Lag leaves `cutover_committed/protection_pending` with R2-only writes fenced until protected. Recovery selects that post-cutover snapshot; it cannot replay an unqualified journal or select old Drive by timeout. If this post-commit protection wait exceeds the normal10min barrier target, show explicit recovery/protection incident and keep writes fenced; never pretend the pre-commit abort/unfreeze rule still applies after commit.
+Повний обхід кореня старого простору й записів Soty, а не лише того, що видно на
+сторінці. Кожен запис отримує клас:
 
-Freeze target ≤10min after catch-up for qualification fixture; exceeding bound aborts freeze before commit and returns to catch-up, not indefinite lock. Copy phase may last hours/days. Receipt-loss reconciles SQL state and object manifest before retry. Failed copy never deletes source; cancelled staging reclaims only own objects after uncertain operations reconcile.
+| Клас                                  | Що це                                                                                                   | За замовчуванням                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `user_file`                           | звичайний файл людини                                                                                   | кандидат на копію                                                                             |
+| `user_folder`                         | папка                                                                                                   | структура зберігається                                                                        |
+| `task_attachment`                     | вкладення завдань                                                                                       | кандидат на копію                                                                             |
+| `prior_version`                       | попередні версії (`version_of`)                                                                         | **не** копіюється, галочка «з версіями» показує, скільки додасть                              |
+| `soty_service`                        | «Soty Cache», мініатюри, постери, прев'ю лендингів, проміжні перезашивки, маркери, `soty.upload.folder` | **ніколи**                                                                                    |
+| `legacy_catalog_output`               | варіації, постери й таблиці старих каталогів                                                            | **ніколи**, лишаються зі своїми каталогами                                                    |
+| `trashed` / `missing` / `out_of_root` | кошик і файли, яких Drive уже не віддає                                                                 | **ніколи**                                                                                    |
+| `shortcut`                            | ярлики Drive                                                                                            | **ніколи**, у списку з поясненням                                                             |
+| `google_native`                       | Docs/Sheets/Slides                                                                                      | лише за галочкою, експортом у docx/xlsx/pptx; людині пояснено, що редагування в Google зникає |
 
-## Catalog links and acceptance
+Службовість визначається за ознаками Soty (appProperties, записи в БД, належність
+каталогу), а не за назвою папки, яку людина могла перейменувати. Розмір береться з
+переліку. Для `google_native` розміру немає: показується оцінка експорту, позначена як
+оцінка. Однаковий вміст (хеш) рахується один раз.
 
-Keep all existing Soty stable links and current public R2 asset URLs. For Google-hosted Sheet/feed, generate Soty feed with same rows/columns/escaping/content type/encoding and validate against actual consumer fixtures; mark external URL transition required. Owner provides acknowledgement plus supported readback/probe evidence where available; if consumer can't be observed mark external confirmation manual, not machine-proven.
+## 2. Вибір і пріоритет
 
-Two explicit outcomes: (a) replacement confirmed, no Google dependency for that catalog; (b) temporarily retained legacy Sheet bridge, shown `Google link still maintained`, with scoped credentials and only existing catalog updates. Expose distinct `storage_migration_completed` and `google_dependency_retired` states. Core R2 parity with Drive revoked is required in both fixtures; bridge-dependent external feeds are explicitly unavailable if their Drive token is revoked. Outcome(b) permits storage migration completion with a named external dependency exception, but not claim complete Google retirement. No bridge for newly created R2 catalogs. Endpoint bridge jobs use current R2 generation, never import new Drive material. Bridge can be revoked; subsequent external refresh fails visibly. Long-term zero Google means all such links switched; do not silently cut them at T1, which the owner reserved for maintenance.
+Людина бачить чотири числа:
 
-## Acceptance fixture
+- скільки всього в старому просторі;
+- скільки з цього службового й не копіюється;
+- скільки варто копіювати;
+- скільки вільно в новому просторі.
 
-Nested folders, shared material referenced by two catalogs and one task, old launch/account/finance history, interrupted multi-part transfer, Drive version changed mid-copy, root removed, native document, external shortcut, unresolved consumer link, seat/quota changes, duplicate start, revoked owner, old agent finalize, loss of DB response, backup lag, cancel before/after commit, downgrade mid-flight. Require exact reference/ACL/bytes comparisons and attempt-specific CLI evidence for each.
+Якщо все не вміщується, Soty сама попередньо обирає найважливіше в межах
+`вільно − 5%` (запас під роботу), у такому порядку:
+
+1. файли, використані у відкритих завданнях і запусках за останні 30 днів;
+2. креативи з рангом (059), від вищого;
+3. нещодавно змінені або відкриті;
+4. решта від нових до старих.
+
+Дерево папок показує вагу й галочки. Людина знімає або додає папку, а лічильник
+«вміщується / ні» оновлюється одразу. Слова «звільніть місце» немає: невзяте лишається в
+старому просторі й на Google Drive. Поруч із лічильником стоїть дія «Збільшити місце»
+(тариф).
+
+## 3. Копіювання
+
+- **Серверна черга.** Агент і комп'ютер людини не потрібні. Паралельність обмежена на
+  простір і на сервіс; ліміти Google (`Retry-After`, `RATE_LIMITED`) поважаються.
+- **Місце.** Резервується наперед. Копія ніколи не перевищує ліміт: на межі вона
+  зупиняється з поясненням, без половинчастих файлів.
+- **Порядок.** Файли йдуть у порядку пріоритету. Скопійований і перевірений файл одразу
+  видно в новому просторі, з ним можна працювати, поки решта ще копіюється.
+- **Перевірка.** Кожен файл перевіряється за хешем після запису. Неперевірений не
+  показується.
+- **Обрив або перезапуск.** Копіювання продовжується з контрольної точки без дублів.
+- **Що переноситься разом із файлом:**
+  - шлях у дереві, назва, автор і дати;
+  - теги;
+  - ранг на момент копіювання;
+  - транскрипти й переклади — без повторної транскрибації та списань;
+  - мініатюри — генеруються наново на R2.
+- **Однаковий вміст** у кількох папках стає одним об'єктом із кількома місцями й займає
+  місце один раз.
+- **Файл, видалений у новому просторі,** при докопіюванні не повертається. Запис
+  «пропущено людиною» зберігається за ідентифікатором джерела.
+
+## 4. Підсумок
+
+Після завершення людина бачить:
+
+- скопійовано: N файлів, X ГБ;
+- не взято за вибором або через місце: M файлів, Y ГБ — список і «Докопіювати»;
+- пропущено службове: Z ГБ, одним рядком;
+- не вдалося: список із причиною людською мовою (немає доступу — файл іншого власника у
+  спільній папці; видалено з Drive під час копіювання; ліміт Google) і «Повторити».
+
+Те, що не вдалося, решту не блокує.
+
+## 5. Люди та решта сутностей
+
+- **Люди.** Учасників старого простору можна запросити в новий одним натисканням, з тими
+  самими ролями. Вони займають місця в тарифі нового простору. Автоматично без
+  натискання ніхто не додається.
+- **Завдання, запуски, акаунти, фінанси й каталоги** лишаються в старому просторі як є.
+  Історія не дублюється, щоб не задвоювати фінанси й ранги. Нове створюється в новому
+  просторі.
+- **Пул картинок (045) і текстів (055).** Новий R2-простір підключається до пулу
+  автоматично, а не вручну, як зараз.
+
+## Перевірочна фікстура
+
+Старий простір на 30 ГБ, новий на 15 ГБ. У старому:
+
+- «Soty Cache» на кілька ГБ;
+- дві варіації каталогу;
+- кошик;
+- дублікати в трьох папках;
+- Google Doc і ярлик;
+- файл іншого власника в спільній папці;
+- файли з транскриптами й перекладами.
+
+Сценарій:
+
+1. Запустити копіювання й обірвати мережу посередині.
+2. Видалити файл у новому просторі.
+3. Розширити місце.
+4. Докопіювати.
+
+Очікувано:
+
+- службове пропущено на 100%;
+- автоматичний вибір не перевищує `вільно − 5%`;
+- перевищення ліміту — 0 байт;
+- дублів 0;
+- видалений файл не повернувся;
+- транскрипти перенесені на 100% без нових списань;
+- підсумок збігається з переліком до файла.
