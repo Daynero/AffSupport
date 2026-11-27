@@ -41,19 +41,20 @@
 
 ### Нові таблиці
 
-| Таблиця                         | Поля й обмеження                                                                                                                                                                                                                                                                           | Стани                                                                            | Огорожа       |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------- |
-| `storage_r2_pilots`             | `user_id` pk → auth.users, `max_space_bytes bigint not null`, `added_by`, `added_at`, `removed_at`. RLS увімкнено, гранти відкликано, як у `release_testers`                                                                                                                               | активний / знятий (знятий не видаляє простори)                                   | ні            |
-| `space_objects`                 | `id`, `team_id`, `sha256 text` (64 hex), `byte_size`, `content_type`, `r2_key`, `verified_at`, медіафакти (`duration_ms`, `width`, `height`, `codec`, `fps`), `created_at`. Унікальність (`team_id`, `sha256`) серед непрочищених                                                          | `committed` → `verified` → `purge_pending` → `purged`; `corrupt` (хеш не збігся) | ні            |
-| `space_object_refs`             | pk (`object_id`, `owner_kind`, `owner_id`), `team_id`, `category`, `counted boolean`. `owner_kind`: `material`, `task_attachment`, `process_output`, `derivative`                                                                                                                          | рядок є — посилання живе                                                         | ні            |
-| `space_storage_usage`           | pk (`team_id`, `category`), `bytes`, `objects`, `shared_bytes`, `revision`. Категорії: `materials`, `catalogs`, `process`, `attachments`, `versions`, `trash`                                                                                                                              | лише інкременти з тригерів                                                       | ні            |
-| `space_storage_reservations`    | `id`, `team_id`, `operation_id` unique, `bytes`, `purpose` (`upload`, `process_output`, `catalog_generation`), `expires_at`, `created_by`                                                                                                                                                  | `reserved` → `committed` / `released`; `uncertain` до звірки                     | ні            |
-| `space_uploads`                 | `id`, `team_id`, `reservation_id`, `declared_sha256`, `declared_bytes`, `name`, `content_type`, `parent_material_id` (FK `team_materials`), `r2_upload_id`, `staging_key`, `ingress` (`explorer`, `agent_output`, `inbox`, `mobile`, `share_target`), `actor_id`, `idempotency_key` unique | `open` → `completing` → `committed`; `aborted`, `expired`, `rejected`            | так (FK)      |
-| `space_derivative_jobs`         | pk (`object_id`, `recipe_version`), `team_id`, `attempts`, `error_code`, `lease_until`                                                                                                                                                                                                     | `queued` → `running` → `ready` / `unsupported` / `failed` (обмежені повтори)     | ні            |
-| `space_object_purges`           | `object_id` pk, `team_id`, `r2_key`, `due_at`, `reason` (`trash_expired`, `trash_emptied`, `catalog_deleted`, `space_deleted`, `orphan`), `attempts`                                                                                                                                       | `due` → `deleted` / `failed`                                                     | ні            |
-| `space_storage_reconciliations` | `id`, `team_id` (null — весь bucket), `started_at`, `finished_at`, `listed`, `ledger`, `orphans_found`, `orphans_deleted`, `missing`                                                                                                                                                       | `running` → `done` / `failed`                                                    | ні            |
-| `team_space_storage_signals`    | `id`, `team_id`, `kind` (`content`, `usage`, `derivative`), `folder_id`, `revision`, `created_at`. У публікації `supabase_realtime`, RLS як у `team_catalog_video_r2_signals`                                                                                                              | лише вставка, прибирання старших за добу                                         | так (`team_`) |
-| `private.space_storage_journal` | `operation_id`, `attempt`, `stage`, `outcome`, `code`, `bytes`, `team_id`, `ingress`, `client` (web/agent і версія), `occurred_at`. Без імен, шляхів і ключів                                                                                                                              | лише вставка, 90 діб                                                             | ні            |
+| Таблиця                         | Поля й обмеження                                                                                                                                                                                                                                                                                                                                    | Стани                                                                                       | Огорожа       |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------- |
+| `storage_r2_pilots`             | `user_id` pk → auth.users, `max_space_bytes bigint not null`, `added_by`, `added_at`, `removed_at`. RLS увімкнено, гранти відкликано, як у `release_testers`                                                                                                                                                                                        | активний / знятий (знятий не видаляє простори)                                              | ні            |
+| `space_objects`                 | `id`, `team_id`, `content_id text` (SHA-256 від розміру частини й SHA-256 частин, R3), `sha256 text` (повний хеш від клієнта, довідково), `byte_size`, `content_type`, `r2_key`, медіафакти (`duration_ms`, `width`, `height`; `codec`, `fps` — після агента), `created_at`. Унікальність (`team_id`, `content_id`) серед непрочищених              | `committed` → `purge_pending` → `purged` (фіксація вже доведена контрольними сумами частин) | ні            |
+| `space_object_refs`             | pk (`object_id`, `owner_kind`, `owner_id`), `team_id`, `category`, `counted boolean`. `owner_kind`: `material`, `task_attachment`, `process_output`, `derivative`                                                                                                                                                                                   | рядок є — посилання живе                                                                    | ні            |
+| `space_storage_usage`           | pk (`team_id`, `category`), `bytes`, `objects`, `shared_bytes`, `revision`. Категорії: `materials`, `catalogs`, `process`, `attachments`, `versions`, `trash`                                                                                                                                                                                       | лише інкременти з тригерів                                                                  | ні            |
+| `space_storage_reservations`    | `id`, `team_id`, `operation_id` unique, `bytes`, `purpose` (`upload`, `process_output`, `catalog_generation`), `expires_at`, `created_by`                                                                                                                                                                                                           | `reserved` → `committed` / `released`; `uncertain` до звірки                                | ні            |
+| `space_uploads`                 | `id`, `team_id`, `reservation_id`, `declared_content_id`, `declared_bytes`, заявлені похідні — рядки `space_upload_derivatives`, `name`, `content_type`, `parent_material_id` (FK `team_materials`), `r2_upload_id`, `staging_key`, `ingress` (`explorer`, `agent_output`, `inbox`, `mobile`, `share_target`), `actor_id`, `idempotency_key` unique | `open` → `completing` → `committed`; `aborted`, `expired`, `rejected`                       | так (FK)      |
+| `space_upload_derivatives`      | pk (`upload_id`, `variant`), `content_type`, `bytes`, `width`, `height`, `staging_key`                                                                                                                                                                                                                                                              | `declared` → `accepted` / `rejected`                                                        | ні            |
+| `space_derivative_jobs`         | pk (`object_id`, `recipe_version`), `team_id`, `reason` (`browser_unsupported`, `missing_media_facts`, `client_skipped`), `claimed_by_device`, `lease_until`, `attempts`, `error_code`. Лише добір агентом: те, що зробив клієнт під час завантаження, сюди не потрапляє                                                                            | `pending_agent` → `claimed` → `ready` / `unsupported` / `failed` (обмежені повтори)         | ні            |
+| `space_object_purges`           | `object_id` pk, `team_id`, `r2_key`, `due_at`, `reason` (`trash_expired`, `trash_emptied`, `catalog_deleted`, `space_deleted`, `orphan`), `attempts`                                                                                                                                                                                                | `due` → `deleted` / `failed`                                                                | ні            |
+| `space_storage_reconciliations` | `id`, `team_id` (null — весь bucket), `started_at`, `finished_at`, `listed`, `ledger`, `orphans_found`, `orphans_deleted`, `missing`                                                                                                                                                                                                                | `running` → `done` / `failed`                                                               | ні            |
+| `team_space_storage_signals`    | `id`, `team_id`, `kind` (`content`, `usage`, `derivative`), `folder_id`, `revision`, `created_at`. У публікації `supabase_realtime`, RLS як у `team_catalog_video_r2_signals`                                                                                                                                                                       | лише вставка, прибирання старших за добу                                                    | так (`team_`) |
+| `private.space_storage_journal` | `operation_id`, `attempt`, `stage`, `outcome`, `code`, `bytes`, `team_id`, `ingress`, `client` (web/agent і версія), `occurred_at`. Без імен, шляхів і ключів                                                                                                                                                                                       | лише вставка, 90 діб                                                                        | ні            |
 
 ### Облік пам'яті
 
@@ -84,13 +85,31 @@
   - Одразу — для очищеного кошика, каталогу й простору.
   - `space-storage-sweeper` видаляє об'єкт з R2 і ставить `purged`. Повтор безпечний.
 
+### Похідні від клієнта (research.md R5)
+
+- **Хто робить.** Похідні оголошуються в `admit-upload` і вантажаться частинами того самого
+  коміту. Робить їх браузер з локального файлу або агент для своїх файлів.
+- **Перевірка при `complete-upload`.** Сервер перевіряє кожну похідну:
+  - тип за першими байтами (WebP або JPEG);
+  - байти в межах ліміту варіанта з `packages/shared/src/team/space-storage.ts`;
+  - розміри із заголовка зображення збігаються із заявленими.
+
+  Невалідна похідна відкидається, а оригінал фіксується. Тоді матеріал отримує
+  `thumbnail_state='pending'` і рядок у `space_derivative_jobs`.
+
+- **Повтор.** Якщо для `content_id` похідні вже є, клієнт їх не робить, а сервер нічого не
+  чекає (FR-038).
+- **Добір агентом.** Агент будь-якого учасника з доступом, коли онлайн, бере `pending_agent`
+  через `service_claim_space_derivative_jobs` і пише похідні з контрольними сумами.
+- **Чого не буде.** Серверного рендерингу немає, тож немає й черги, що чекає сервер.
+
 ### Ключі R2 (bucket `soty-spaces-{env}`, EU jurisdiction — перевірити readback)
 
-| Ключ                                     | Що                                     | Життя                               |
-| ---------------------------------------- | -------------------------------------- | ----------------------------------- |
-| `t/{team}/u/{upload_id}`                 | staging multipart                      | lifecycle 7 діб, multipart — 1 доба |
-| `t/{team}/o/{sha256}`                    | оригінал, результат обробки, вкладення | доки є посилання                    |
-| `t/{team}/d/{sha256}/{recipe}/{variant}` | мініатюри, постер, прев'ю              | разом з оригіналом                  |
+| Ключ                                         | Що                                     | Життя                               |
+| -------------------------------------------- | -------------------------------------- | ----------------------------------- |
+| `t/{team}/u/{upload_id}`                     | staging multipart                      | lifecycle 7 діб, multipart — 1 доба |
+| `t/{team}/o/{content_id}`                    | оригінал, результат обробки, вкладення | доки є посилання                    |
+| `t/{team}/d/{content_id}/{recipe}/{variant}` | мініатюри, постер, прев'ю              | разом з оригіналом                  |
 
 Стрічки каталогів лежать окремо, у публічному `soty-catalog-videos-{env}-public` під ключем
 `feeds/{feed_id}.csv`.
@@ -102,7 +121,7 @@
 | `space_share_links` | `id`, `team_id`, `material_id` (FK `team_materials`), `token_hash`, `mode` (`view`, `download`), `expires_at`, `revoked_at`, `created_by`, `requests`, `bytes_served`, `bytes_limit` | `active` → `expired` / `revoked` | так (FK) |
 
 «Вхідні» не мають серверної таблиці. Цільова папка й журнал файлів живуть в агенті. Кожен
-файл іде через `space_uploads` з `ingress='inbox'` і `idempotency_key` = хеш + шлях відносно
+файл іде через `space_uploads` з `ingress='inbox'` і `idempotency_key` = `content_id` + шлях відносно
 папки. Тому повтор після сну чи обриву не дає дубля (SC-015).
 
 ## M3 — загальний запуск

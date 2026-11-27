@@ -30,10 +30,17 @@
 
 ### Фаза 1 — підготовка
 
-- [ ] T001 Кваліфікувати R2 і Cloudflare на beta-акаунті. Новий скрипт `scripts/space-storage-qualify.mjs` відмовляється від будь-якого не-beta bucket. Перевірити: контрольну суму SHA-256 на `UploadPart`, ліміти multipart, CORS для `https://next.soty.pp.ua`, прод- і beta-вебадрес, readback юрисдикції EU для `soty-spaces-beta`, доступність Containers і Queues, вартість і холодний старт ffmpeg-образу. Результат записати в `specs/057-r2-workspaces/evidence/qualification.md`. Якщо Containers не підходять — записати вибір запасного шляху R5 (research.md).
+- [ ] T001 Кваліфікувати R2 і Cloudflare на beta-акаунті. Новий скрипт `scripts/space-storage-qualify.mjs` відмовляється від будь-якого не-beta bucket. Перевірити:
+  - R2 перевіряє `x-amz-checksum-sha256` на `UploadPart` і повертає контрольні суми частин у `ListParts`/`CompleteMultipartUpload` — на цьому стоїть `content_id` (research.md R3);
+  - ліміти multipart;
+  - CORS для `https://next.soty.pp.ua`, прод- і beta-вебадрес;
+  - readback юрисдикції EU для `soty-spaces-beta`;
+  - межі безкоштовного плану Workers (запити на добу, CPU на запит) для `space-read`.
+
+  Containers, Queues і платний план не використовуються (research.md R5). Результат — `specs/057-r2-workspaces/evidence/qualification.md`. Якщо R2 не перевіряє контрольні суми частин — записати вимкнення дедуплікації за R3.
+
 - [ ] T002 Описати інфраструктуру як код, застосувати лише до beta:
   - `apps/catalog-image-delivery/wrangler.toml`: маршрут `files-beta.soty.pp.ua/*` і біндінг `SPACE_BUCKET`;
-  - `apps/space-derivatives/wrangler.toml`: Queue `space-derivatives-beta` і Container;
   - `config/space-storage/r2-lifecycle.json`: multipart 1 доба, `t/*/u/*` 7 діб;
   - `config/space-storage/r2-cors.json`;
   - правило кешу зони для `/feeds/*` з TTL ≤60 с — описати в `docs/PRODUCTION.md`.
@@ -43,7 +50,8 @@
 - [ ] T003 [P] Контракт `packages/shared/src/team/space-storage.ts`:
   - стани завантаження, похідних і видалення;
   - категорії обліку й `ingress`;
-  - можливість `storage-r2/1` і ліміти (частина, кількість частин, паралельність, 100 ГіБ, 100 000 матеріалів);
+  - можливість `storage-r2/1` і ліміти (частина, кількість частин, паралельність, 100 ГіБ, 100 000 матеріалів, байти й розміри кожного варіанта похідної);
+  - обчислення `content_id` з розміру частини й SHA-256 частин (research.md R3) — одна функція для вебу, агента й сервера;
   - розбір відповідей як `unknown` → дискримінований результат, байти — десятковим рядком.
 
   Коди з [contracts/storage-api.md](contracts/storage-api.md) додати в `packages/shared/src/types.ts`, експорт — у `packages/shared/src/index.ts`. Новий `packages/shared/src/team/space-read-grant.ts`: HMAC-грант на WebCrypto, спільний для Deno і Worker.
@@ -221,7 +229,7 @@
   - підключення в `TeamTransferClient` (`apps/agent/src/team-bridge/transfer.ts:124`, `downloadSource` :135, `uploadResult` :376 — `validateGoogleSession` :630 лишається для Drive), `download.ts` (`TeamDownloadBridge.download` :175), `process.ts` (`TeamProcessBridge` :171);
   - `AGENT_TOOL_CONTRACTS.teamWorkspace` 2 → 3 і `WEB_TOOL_REQUIREMENTS` для R2 у `packages/shared/src/release.ts:114`, `:187`;
   - маршрути `/agent/source` і `/process/output/start` (протокол 3) у `supabase/functions/space-storage/agent.ts`;
-  - `apps/agent/src/team-bridge/source-cache.ts` (`TeamSourceCache` :53) — ключ за `sha256` об'єкта, тож повторна обробка того самого вмісту не скачує його вдруге (FR-037 для агента).
+  - `apps/agent/src/team-bridge/source-cache.ts` (`TeamSourceCache` :53) — ключ за `content_id` об'єкта, тож повторна обробка того самого вмісту не скачує його вдруге (FR-037 для агента).
 
   Тест: T032.
 
@@ -275,29 +283,33 @@
 - [ ] T044 [P] [US7] Тест для T045 — `tests/space-upload-client.test.ts`:
   - ≤8 паралельних частин;
   - продовження з журналу IndexedDB після обриву мережі й перезавантаження вкладки;
-  - SHA-256 у Web Worker збігається з еталоном;
+  - `content_id` (SHA-256 частин у Web Worker) збігається з еталоном і з тим, що сервер рахує з контрольних сум R2;
   - `exists` пропускає передачу;
   - дерево папок зберігає структуру;
   - скасування закриває multipart.
 - [ ] T045 [US7] Рушій завантаження:
-  - `apps/web/src/team/storage/spaceUpload.ts` і `spaceHash.worker.ts`;
+  - `apps/web/src/team/storage/spaceUpload.ts` і `spaceHash.worker.ts` (SHA-256 частин і `content_id`);
   - журнал за зразком `apps/web/src/team/explorer/workspaceOperationJournal.ts:214`;
   - підключення в `apps/web/src/team/explorer/useExplorerUploads.ts` і `ExplorerDropZone.tsx`.
 
   Тест: T044.
 
-- [ ] T046 [P] [US7] Тест для T047 — `tests/space-derivatives.test.ts`:
-  - ключі рецептів і ідемпотентність за хешем;
-  - обмежені повтори, `unsupported`;
-  - розбіжність повного хешу → `corrupt` і повідомлення;
-  - вихід ffprobe розбирається як `unknown`;
-  - завдання, пропущене Queue, підбирає звірка.
-- [ ] T047 [US7] Застосунок похідних `apps/space-derivatives/`:
-  - `src/consumer.ts` — споживач Queue;
-  - `container/Dockerfile` — ffmpeg і libvips з межами CPU, пам'яті й часу;
-  - `src/recipes.ts` — рядок, плитка й повний WebP, постер, прев'ю при наведенні, факти ffprobe, перша сторінка PDF; непідтримуваний тип явно позначається `unsupported` (FR-012).
+- [ ] T046 [P] [US7] Тест для T047 — `tests/space-derivatives.test.ts`, `tests/agent-r2-derivatives.test.ts` і `supabase/tests/database/space-derivatives.test.sql`.
+  - Браузер робить 3 розміри WebP і для відео постер, кадри прев'ю, тривалість і роздільність. Робота йде у Web Worker, по файлу за раз. Похідні йдуть частинами того самого коміту.
+  - Для `content_id`, у якого похідні вже є, браузер нічого не генерує й не вантажить.
+  - Сервер відкидає похідну з чужим типом за першими байтами, з розміром понад ліміт варіанта чи з розмірами, що не збігаються із заявленими. Оригінал при цьому фіксується з `thumbnail_state='pending'` і завданням `pending_agent`.
+  - Формат, який браузер не декодує (HEVC-фікстура, PDF), отримує `pending_agent`. Інтерфейс показує «прев'ю готується», а скачування працює.
+  - Агент-ffmpeg бере завдання з орендою і пише похідні, кодек і fps. Протермінована оренда повертає завдання. Повтори обмежені, непідтримуване → `unsupported`.
+  - Вихід ffprobe розбирається як `unknown`.
+- [ ] T047 [US7] Похідні від клієнта (research.md R5, уточнення FR-038). Серверного рендерингу немає.
+  - **Браузер.** Новий `apps/web/src/team/storage/spaceDerivatives.ts`: `createImageBitmap`/`OffscreenCanvas` для зображень, `<video>` з перемотуванням і canvas (за зразком `apps/web/src/team/explorer/usePosterFrames.ts`) і WebCodecs, де є. Підключити в рушій T045: похідні оголошуються в `/uploads/admit`.
+  - **Сервер.** Перевірка похідних у `supabase/functions/space-storage/uploads.ts` при `complete`: перші байти через `rangeGet`, ліміти з `packages/shared/src/team/space-storage.ts`. RPC `service_claim_space_derivative_jobs` і `service_finish_space_derivative` у міграції `supabase/migrations/<ts>_space_storage_derivatives.sql`. Завершення ставить `thumbnail_state`/`preview_state` і медіафакти й шле сигнал.
+  - **Агент.** Новий `apps/agent/src/team-bridge/r2-derivatives.ts` на основі `thumbnail.ts` і `poster.ts`:
+    - похідні для власних завантажень («Вхідні», результати обробки — T033, T065);
+    - добір `pending_agent` з фонового циклу `apps/agent/src/team-bridge/recovery-worker.ts` під PowerGovernor, якщо агент учасника має доступ до простору;
+    - PDF — перша сторінка, коли браузер не впорався; непідтримуване → `unsupported` (FR-012).
 
-  Фіксація публікує завдання в Queue після коміту (`supabase/functions/space-storage/uploads.ts`), а `space-storage-sweeper` підбирає пропущені. Завершення — RPC `service_finish_space_derivative`: `thumbnail_state`/`preview_state`, медіафакти, сигнал, `verified_at` або `corrupt`. Тест: T046.
+  Тест: T046.
 
 - [ ] T048 [P] [US7] Тест для T049 — `tests/space-realtime-cache.test.tsx`:
   - сигнал оновлює сторінку папки на місці без блимання;
@@ -399,7 +411,7 @@
   - кроки 1–10 [quickstart.md](quickstart.md) M1 через Playwright-драйвер беті;
   - результат — `specs/057-r2-workspaces/evidence/m1-beta-acceptance-<дата>.md`.
 
-  Потім створити прод-ресурси з T002 (`soty-spaces-production`, маршрут `files.soty.pp.ua`, Queue, Container, правило кешу `/feeds/*`) і повний реліз на next раннером: змінились агент і shared, тож швидкий веб-шлях не підходить. Promote не робиться. Видати пілот власнику.
+  Потім створити прод-ресурси з T002 (`soty-spaces-production`, маршрут `files.soty.pp.ua`, правило кешу `/feeds/*`; усе на безкоштовному плані) і повний реліз на next раннером: змінились агент і shared, тож швидкий веб-шлях не підходить. Promote не робиться. Видати пілот власнику.
 
 - [ ] T063 Пілот на next:
   - власник проходить US7–US10 сам;
@@ -524,13 +536,14 @@
 ### Фаза 14 — US5: робота й відновлення при аварії (P1)
 
 - [ ] T084 [P] [US5] Тест для T085 — `tests/space-replication.test.ts` і `supabase/tests/database/space-replicas.test.sql`:
-  - копія в B2 перевірена хешем і довжиною;
+  - копія в B2 перевірена довжиною й контрольними сумами частин;
+  - копіювання продовжується з контрольної точки після обриву виклику;
   - стани «збережено, резерв готується» і «захищено» розрізняються;
   - відставання понад 15 хв видиме;
   - облікові дані основного записувача не видаляють резерв (фейк);
   - подовження блокування.
 - [ ] T085 [US5] Реплікація:
-  - споживач Queue `space-replication` в `apps/space-derivatives/src/replicate.ts` копіює зафіксовані оригінали в B2 з Object Lock, ключі окремі;
+  - edge-функція `supabase/functions/space-replicator/` (pg_cron) копіює зафіксовані оригінали в B2 з Object Lock частинами з контрольною точкою після кожної, ключі окремі (research.md R14). Перший крок — кваліфікація меж часу й CPU edge-функцій на файлі 5 ГБ;
   - `space_object_replicas` і `space_restore_points` у міграції `supabase/migrations/<ts>_space_replicas.sql`;
   - знімок метаданих за [contracts/recovery.md](contracts/recovery.md);
   - статус у `StorageMeterPanel.tsx`.
@@ -554,7 +567,7 @@
 - [ ] T089 Перевірки запуску:
   - матриця паритету [architecture-inventory.md](architecture-inventory.md) для R2 на macOS arm64, x64 і Windows x64 (SC-006);
   - навантаження SC-005 на беті скриптом `scripts/space-storage-load.mjs`;
-  - звіт фактичних витрат R2, B2 і Containers для власника (FR-029, FR-034, окремий рядок для пілоту FR-053);
+  - звіт фактичних витрат R2, B2 і запитів Workers проти безкоштовних меж для власника (FR-029, FR-034, окремий рядок для пілоту FR-053);
   - результат — `specs/057-r2-workspaces/evidence/launch-gates-<дата>.md`.
 - [ ] T090 Повний реліз: beta → next → promote — лише на слово власника. Одразу після promote — `admin_activate_storage_launch()`, запис T0 і D у `evidence/launch-<дата>.md`, перевірка аудиту після релізу. Нагадування стартують від T0.
 
@@ -563,7 +576,7 @@
 - **Фази M1.**
   - Фаза 1 → Фаза 2 → US11 (фаза 3).
   - US1 (фаза 4) залежить від US11: `space-storage` і створення простору.
-  - US7 (фаза 5) залежить від T023, T027, T029.
+  - US7 (фаза 5) залежить від T023, T027, T029. T047 — після T045 (рушій завантаження) і T033 (агент контракту 3).
   - US9 (фаза 6) залежить від T006 і T023.
   - US10 (фаза 7) залежить від T023, T025, T037.
   - Фаза 8 — після всіх фаз M1.
@@ -579,7 +592,7 @@
 - **Фаза 2:** T009/T010 і T011/T012 паралельно з міграціями T006/T008.
 - **US1:** гілка агента (T032–T035), гілка каталогів (T036–T043) і гілка вебу (T028–T031)
   незалежні після T023/T025.
-- **US7:** застосунок похідних (T046/T047) паралельно з вебом (T044/T045, T048–T051).
+- **US7:** похідні (T046/T047) — після T045; Realtime, кеш і медіа (T048–T051) — паралельно з ними.
 - **US9:** компонент (T054/T055) паралельно з SQL (T052/T053).
 - **M3:** резерв (T084–T086) і діагностика (T087/T088) незалежні від архіву (T076–T081).
 
