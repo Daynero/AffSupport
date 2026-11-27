@@ -3,18 +3,15 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useId,
   useMemo,
-  useRef,
   useState,
   type ReactNode
 } from 'react';
 import type { TeamTaskSummary } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
-import { Modal } from '../../components/Modal';
 import { useToasts } from '../../components/toast';
-import { Plus } from 'lucide-react';
-import { Input } from '../../components/ui/index';
+import { ListTodo, Plus } from 'lucide-react';
+import { PickerDialog, type PickerItem } from '../../components/ui/index';
 import { ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { navigateTo } from '../../lib/navigation';
@@ -98,14 +95,10 @@ export function AddToTaskDialog({
 }) {
   const { t } = useI18n();
   const { push } = useToasts();
-  const titleId = useId();
-  const listId = useId();
   const [tasks, setTasks] = useState<TeamTaskSummary[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [query, setQuery] = useState('');
-  const [active, setActive] = useState(0);
   const [busy, setBusy] = useState(false);
-  const list = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -141,14 +134,6 @@ export function AddToTaskDialog({
     tasks !== null &&
     newTitle.length > 0 &&
     !(tasks ?? []).some(task => task.title.toLocaleLowerCase() === newTitle.toLocaleLowerCase());
-  const optionCount = shown.length + (canCreate ? 1 : 0);
-
-  useEffect(() => setActive(0), [query]);
-  useEffect(() => {
-    list.current
-      ?.querySelector<HTMLElement>(`[data-index="${active}"]`)
-      ?.scrollIntoView?.({ block: 'nearest' });
-  }, [active]);
 
   const add = async (task: TeamTaskSummary) => {
     setBusy(true);
@@ -223,101 +208,55 @@ export function AddToTaskDialog({
       ? t('teamAddToTaskTitleOne', { name: materials[0]!.name })
       : t('teamAddToTaskTitleMany', { count: materials.length });
 
+  const CREATE = 'create-task'; // task ids are UUIDs, so this cannot collide
+  const items: PickerItem[] = [
+    ...(canCreate
+      ? [
+          {
+            id: CREATE,
+            title: t('teamAddToTaskCreate', { task: newTitle }),
+            icon: <Plus size={16} strokeWidth={ICON_STROKE} />,
+            action: true
+          }
+        ]
+      : []),
+    ...shown.map(task => ({
+      id: task.id,
+      title: task.title,
+      subtitle: taskStatusLabel(task.status, t),
+      icon: <ListTodo size={16} strokeWidth={ICON_STROKE} />
+    }))
+  ];
+  const byId = new Map(shown.map(task => [task.id, task]));
+
+  // 075: the same window as every other choice; a press chooses the task at once.
   return (
-    <Modal
-      layout="search"
-      labelledBy={titleId}
-      size="sm"
+    <PickerDialog
+      title={heading}
       onClose={onClose}
       closeLabel={t('teamCancel')}
-      initialFocus="#team-add-to-task-search"
-    >
-      <div className="team-add-to-task">
-        <h2 id={titleId}>{heading}</h2>
-        <Input
-          id="team-add-to-task-search"
-          aria-label={t('teamAddToTaskSearch')}
-          placeholder={t('teamAddToTaskSearch')}
-          value={query}
-          role="combobox"
-          aria-controls={listId}
-          aria-expanded="true"
-          aria-activedescendant={active < optionCount ? `${listId}-${active}` : undefined}
-          onChange={event => setQuery(event.target.value)}
-          onKeyDown={event => {
-            if (event.key === 'ArrowDown') {
-              event.preventDefault();
-              setActive(index => Math.min(index + 1, Math.max(optionCount - 1, 0)));
-            } else if (event.key === 'ArrowUp') {
-              event.preventDefault();
-              setActive(index => Math.max(index - 1, 0));
-            } else if (event.key === 'Enter') {
-              event.preventDefault();
-              if (busy) return;
-              const task = shown[active];
-              if (task) void add(task);
-              else if (canCreate && active === shown.length) void create();
-            }
-          }}
-        />
-        <div className="modal-search-results">
-          {failed ? (
-            <p className="team-inline-error" role="alert">
-              {t('teamAddToTaskLoadFailed')}
-            </p>
-          ) : tasks === null ? (
-            <p className="team-add-to-task-note">{t('teamAddToTaskLoading')}</p>
-          ) : optionCount === 0 ? (
-            <p className="team-add-to-task-note">
-              {t(query.trim() ? 'teamAddToTaskNoMatch' : 'teamAddToTaskNone')}
-            </p>
-          ) : (
-            <ul
-              ref={list}
-              id={listId}
-              role="listbox"
-              aria-label={heading}
-              className="team-add-to-task-list"
-            >
-              {shown.map((task, index) => (
-                <li
-                  key={task.id}
-                  id={`${listId}-${index}`}
-                  data-index={index}
-                  role="option"
-                  aria-selected={index === active}
-                  className={index === active ? 'is-active' : undefined}
-                  onMouseEnter={() => setActive(index)}
-                  onClick={() => {
-                    if (!busy) void add(task);
-                  }}
-                >
-                  <span className="team-add-to-task-name">{task.title}</span>
-                  <span className="team-add-to-task-meta">{taskStatusLabel(task.status, t)}</span>
-                </li>
-              ))}
-              {canCreate && (
-                <li
-                  id={`${listId}-${shown.length}`}
-                  data-index={shown.length}
-                  role="option"
-                  aria-selected={active === shown.length}
-                  className={`team-add-to-task-create${active === shown.length ? ' is-active' : ''}`}
-                  onMouseEnter={() => setActive(shown.length)}
-                  onClick={() => {
-                    if (!busy) void create();
-                  }}
-                >
-                  <Plus size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  <span className="team-add-to-task-name">
-                    {t('teamAddToTaskCreate', { task: newTitle })}
-                  </span>
-                </li>
-              )}
-            </ul>
-          )}
-        </div>
-      </div>
-    </Modal>
+      nested={false}
+      mode="commit"
+      busy={busy}
+      search={{
+        value: query,
+        onChange: setQuery,
+        placeholder: t('teamAddToTaskSearch'),
+        clearLabel: t('teamSearchClear')
+      }}
+      items={items}
+      loading={tasks === null && !failed}
+      loadingLabel={t('teamAddToTaskLoading')}
+      error={failed ? t('teamAddToTaskLoadFailed') : null}
+      empty={{ title: t(query.trim() ? 'teamAddToTaskNoMatch' : 'teamAddToTaskNone') }}
+      onPick={item => {
+        if (busy) return;
+        if (item.id === CREATE) void create();
+        else {
+          const task = byId.get(item.id);
+          if (task) void add(task);
+        }
+      }}
+    />
   );
 }

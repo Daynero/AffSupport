@@ -5305,5 +5305,13 @@ export const en = {
   whatsNewUpdate: 'Update',
   whatsNewLater: 'Later',
   whatsNewNativeNote: 'Soty waits for the current work to finish and restarts by itself.',
-  whatsNewInstallerNote: 'An installer downloads — open it to update Soty.'
+  whatsNewInstallerNote: 'An installer downloads — open it to update Soty.',
+  pickerViewLabel: 'View',
+  pickerViewList: 'List',
+  pickerViewGrid: 'Tiles',
+  pickerKindLabel: 'File type',
+  pickerKindAll: 'All',
+  pickerKindVideo: 'Videos',
+  pickerKindImage: 'Pictures',
+  pickerSelectedCount: 'Selected: {count}'
 } as const;

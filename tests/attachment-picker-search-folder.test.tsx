@@ -54,13 +54,13 @@ function renderPicker() {
 it('opens a folder found by name at its own place, and leaves the search', async () => {
   const client = renderPicker();
   fireEvent.click(screen.getByRole('button', { name: 'Open picker' }));
-  fireEvent.change(await screen.findByRole('searchbox'), { target: { value: 'TR' } });
-  const found = await screen.findByRole('button', { name: /TR - Туреччина/u }, { timeout: 2000 });
+  fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'TR' } });
+  const found = await screen.findByRole('option', { name: /TR - Туреччина/u }, { timeout: 2000 });
   fireEvent.click(found);
   // The folder's own files, under its real trail — and the search box is empty again.
-  expect(await screen.findByRole('button', { name: /TR1\.mp4/u })).toBeTruthy();
+  expect(await screen.findByRole('option', { name: /TR1\.mp4/u })).toBeTruthy();
   expect(client.listMaterials).toHaveBeenLastCalledWith('team', 'drive-turkey');
-  expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('');
+  expect((screen.getByRole('combobox') as HTMLInputElement).value).toBe('');
   const trail = document.querySelector('.team-task-picker-path')!.textContent!;
   expect(trail).toContain('Гео');
   expect(trail.match(/Туреччина/gu)).toHaveLength(1);
@@ -69,10 +69,10 @@ it('opens a folder found by name at its own place, and leaves the search', async
 it('starts at the root again the next time it is opened', async () => {
   const client = renderPicker();
   fireEvent.click(screen.getByRole('button', { name: 'Open picker' }));
-  fireEvent.click(await screen.findByRole('button', { name: /TR - Туреччина/u }));
-  await screen.findByRole('button', { name: /TR1\.mp4/u });
+  fireEvent.click(await screen.findByRole('option', { name: /TR - Туреччина/u }));
+  await screen.findByRole('option', { name: /TR1\.mp4/u });
   fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
-  await waitFor(() => expect(screen.queryByRole('button', { name: /TR1\.mp4/u })).toBeNull());
+  await waitFor(() => expect(screen.queryByRole('option', { name: /TR1\.mp4/u })).toBeNull());
   fireEvent.click(screen.getByRole('button', { name: 'Open picker' }));
   await waitFor(() => expect(client.listMaterials).toHaveBeenLastCalledWith('team', null));
 });

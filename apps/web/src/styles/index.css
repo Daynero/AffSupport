@@ -159,6 +159,9 @@
 @import './restitch-timeline.css' layer(soty);
 /* The task editor, refined over the legacy sheet and the board's (070, 9и). */
 @import './task-editor.css' layer(soty);
+/* 074: the update in the header and «What's new». 075: the picker. */
+@import './update-center.css' layer(soty);
+@import './picker.css' layer(soty);
 @import './skin.css' layer(soty);
 /* The tool pages, redrawn as one family over the legacy sheet (070, the tools pass); last, so
    their dense layout is the one that holds. */

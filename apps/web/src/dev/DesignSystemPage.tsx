@@ -28,6 +28,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  PickerDialog,
   Pagination,
   Popover,
   Progress,
@@ -155,6 +156,9 @@ export default function DesignSystemPage() {
   const [checked, setChecked] = useState(true);
   const [switched, setSwitched] = useState(false);
   const [modal, setModal] = useState(false);
+  const [picker, setPicker] = useState<null | 'multiple' | 'commit' | 'empty' | 'loading'>(null);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const [pickerSelected, setPickerSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
   const [menu, setMenu] = useState(false);
   const [popover, setPopover] = useState(false);
@@ -725,6 +729,19 @@ export default function DesignSystemPage() {
             <Button color="neutral" onClick={() => setModal(true)}>
               Open modal
             </Button>
+            {/* 075: the one picker — list and tiles, commit, empty, loading. */}
+            <Button color="neutral" onClick={() => setPicker('multiple')}>
+              Picker (tick)
+            </Button>
+            <Button color="neutral" onClick={() => setPicker('commit')}>
+              Picker (choose)
+            </Button>
+            <Button color="neutral" onClick={() => setPicker('empty')}>
+              Picker (empty)
+            </Button>
+            <Button color="neutral" onClick={() => setPicker('loading')}>
+              Picker (loading)
+            </Button>
             <Button color="error" variant="soft" onClick={() => setConfirm(true)}>
               Open confirmation
             </Button>
@@ -757,6 +774,72 @@ export default function DesignSystemPage() {
         </Section>
       )}
 
+      {picker && (
+        <PickerDialog
+          title={picker === 'commit' ? 'Add to task' : 'Choose creatives'}
+          onClose={() => setPicker(null)}
+          closeLabel="Close"
+          size={picker === 'commit' ? 'lg' : 'xl'}
+          nested={false}
+          mode={picker === 'commit' ? 'commit' : 'multiple'}
+          views={picker === 'commit' ? ['list'] : ['list', 'grid']}
+          defaultView="grid"
+          viewLabels={{ label: 'View', list: 'List', grid: 'Tiles' }}
+          search={{
+            value: pickerQuery,
+            onChange: setPickerQuery,
+            placeholder: 'Search by name',
+            clearLabel: 'Clear'
+          }}
+          loading={picker === 'loading'}
+          loadingLabel="Loading"
+          empty={{ title: 'Nothing found', description: 'Try another name.' }}
+          items={
+            picker === 'empty'
+              ? []
+              : [
+                  ...(picker === 'commit'
+                    ? [{ id: 'new', title: 'Create task “Spring”', action: true }]
+                    : [{ id: 'f', title: 'Campaigns', branch: true, icon: <Clapperboard /> }]),
+                  ...['Spring_01.mp4', 'Spring_02.mp4', 'Summer_hook.mp4', 'Banner.png'].map(
+                    (name, index) => ({
+                      id: name,
+                      title: name,
+                      subtitle: index === 2 ? 'Already added' : 'Video',
+                      disabled: index === 2,
+                      icon: <Clapperboard />
+                    })
+                  )
+                ].filter(item => item.title.toLowerCase().includes(pickerQuery.toLowerCase()))
+          }
+          selected={pickerSelected}
+          onPick={item => {
+            if (picker === 'commit') {
+              setPicked(item.title);
+              setPicker(null);
+              return;
+            }
+            if (item.branch) return;
+            setPickerSelected(current => {
+              const next = new Set(current);
+              if (next.has(item.id)) next.delete(item.id);
+              else next.add(item.id);
+              return next;
+            });
+          }}
+          footer={
+            picker === 'commit'
+              ? undefined
+              : {
+                  summary: pickerSelected.size ? `Selected: ${pickerSelected.size}` : null,
+                  cancelLabel: 'Cancel',
+                  confirmLabel: `Add ${pickerSelected.size}`,
+                  confirmDisabled: pickerSelected.size === 0,
+                  onConfirm: () => setPicker(null)
+                }
+          }
+        />
+      )}
       {modal && (
         <Modal
           onClose={() => setModal(false)}

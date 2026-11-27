@@ -153,6 +153,10 @@ export type {
   UserProps
 } from './Table';
 
+/* 075: one window for choosing things — files, tasks, launches. */
+export { PickerDialog } from './PickerDialog';
+export type { PickerDialogProps, PickerItem, PickerMode, PickerView } from './PickerDialog';
+
 export {
   ConfirmDialog,
   EmptyState,

@@ -5278,5 +5278,13 @@ export const uk: Record<keyof typeof en, string> = {
   whatsNewUpdate: 'Оновити',
   whatsNewLater: 'Пізніше',
   whatsNewNativeNote: 'Soty дочекається поточної роботи й перезапуститься сама.',
-  whatsNewInstallerNote: 'Завантажиться інсталятор — відкрийте його, щоб оновити Soty.'
+  whatsNewInstallerNote: 'Завантажиться інсталятор — відкрийте його, щоб оновити Soty.',
+  pickerViewLabel: 'Вигляд',
+  pickerViewList: 'Список',
+  pickerViewGrid: 'Плитка',
+  pickerKindLabel: 'Тип файлів',
+  pickerKindAll: 'Усе',
+  pickerKindVideo: 'Відео',
+  pickerKindImage: 'Картинки',
+  pickerSelectedCount: 'Обрано: {count}'
 };

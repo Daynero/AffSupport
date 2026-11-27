@@ -44,15 +44,15 @@ it('shows a file unavailable, with the reason, once it cannot join what is ticke
     />
   );
   fireEvent.click(screen.getByRole('button', { name: 'Open picker' }));
-  const video = await screen.findByRole('button', { name: /clip\.mp4/u });
-  const image = screen.getByRole('button', { name: /still\.png/u });
-  expect((image as HTMLButtonElement).disabled).toBe(false);
+  const video = await screen.findByRole('option', { name: /clip\.mp4/u });
+  const image = screen.getByRole('option', { name: /still\.png/u });
+  expect(image.getAttribute('aria-disabled')).toBeNull();
   fireEvent.click(video);
-  await waitFor(() => expect((image as HTMLButtonElement).disabled).toBe(true));
+  await waitFor(() => expect(image.getAttribute('aria-disabled')).toBe('true'));
   expect(image.textContent).toContain('Video or images');
   // Unticking the video makes the picture available again.
   fireEvent.click(video);
-  await waitFor(() => expect((image as HTMLButtonElement).disabled).toBe(false));
+  await waitFor(() => expect(image.getAttribute('aria-disabled')).toBeNull());
 });
 
 // 070 T069: a space whose Drive needs its owner lists nothing to attach, and the picker said

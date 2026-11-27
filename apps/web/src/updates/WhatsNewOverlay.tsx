@@ -14,7 +14,6 @@ import { UPDATE_BUTTON_GLOW } from './HeaderUpdateButton';
 import { genieInto, prefersReducedMotion, tokenDuration } from './genie';
 import { releaseHighlight } from './release-highlights';
 import { UpdateArt } from './UpdateArt';
-import './update-center.css';
 
 const SEEN_KEY = 'soty.whats-new.seen.v1';
 /** How often a waiting window looks again for its turn (another dialog may be up). */

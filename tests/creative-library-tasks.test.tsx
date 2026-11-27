@@ -531,7 +531,7 @@ describe('Creative Library task workflows', () => {
 
     await screen.findByText('launch.mp4');
     fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
-    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(await screen.findByRole('option', { name: /new-image\.png/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
 
     await waitFor(() =>
@@ -592,7 +592,7 @@ describe('Creative Library task workflows', () => {
       attachments: [...first.attachments, saved]
     });
     fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
-    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(await screen.findByRole('option', { name: /new-image\.png/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
 
     await waitFor(() => expect(screen.getByText('2 attachments')).toBeTruthy());
@@ -735,15 +735,15 @@ describe('Creative Library task workflows', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
-    fireEvent.click(await screen.findByRole('button', { name: /Campaigns/ }));
+    fireEvent.click(await screen.findByRole('option', { name: /Campaigns/ }));
     await waitFor(() =>
       expect(api.listMaterials).toHaveBeenCalledWith(TEAM_ID, 'drive-folder-campaigns')
     );
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     await waitFor(() => expect(api.listMaterials).toHaveBeenLastCalledWith(TEAM_ID, null));
 
-    fireEvent.click(screen.getByRole('button', { name: /Campaigns/ }));
-    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(screen.getByRole('option', { name: /Campaigns/ }));
+    fireEvent.click(await screen.findByRole('option', { name: /new-image\.png/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
 
     expect(onAdd).toHaveBeenCalledWith([
@@ -784,10 +784,10 @@ describe('Creative Library task workflows', () => {
     fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
     // Opens in the folder the task's files are in (024).
     await waitFor(() => expect(api.listMaterials).toHaveBeenCalledWith(TEAM_ID, 'drive-glucosoft'));
-    fireEvent.change(await screen.findByRole('searchbox', { name: 'Search the space by name' }), {
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Search the space by name' }), {
       target: { value: 'Gs2_2' }
     });
-    const found = await screen.findByRole('button', { name: /Gs2_2\.mp4/ });
+    const found = await screen.findByRole('option', { name: /Gs2_2\.mp4/ });
     expect(found.textContent).toContain('Creo / GlucoSoft');
   });
 
@@ -820,7 +820,7 @@ describe('Creative Library task workflows', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
-    const field = await screen.findByRole('searchbox', { name: 'Search the space by name' });
+    const field = await screen.findByRole('combobox', { name: 'Search the space by name' });
     fireEvent.change(field, { target: { value: 'new-image' } });
 
     await waitFor(() =>
@@ -829,7 +829,7 @@ describe('Creative Library task workflows', () => {
         expect.objectContaining({ query: 'new-image' })
       )
     );
-    fireEvent.click(await screen.findByRole('button', { name: /new-image\.png/ }));
+    fireEvent.click(await screen.findByRole('option', { name: /new-image\.png/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Add to task (1)' }));
     expect(onAdd).toHaveBeenCalledWith([
       expect.objectContaining({ id: SECOND_ASSET_ID, name: 'new-image.png' })
@@ -854,7 +854,9 @@ describe('Creative Library task workflows', () => {
     const roots = await screen.findAllByRole('button', { name: 'Root' });
     expect(roots).toHaveLength(1);
     expect((roots[0] as HTMLButtonElement).disabled).toBe(false);
+    // Without a search box (this client has none) focus opens on the one root.
     expect(roots[0].id).toBe('team-task-picker-root');
+    expect(document.activeElement).toBe(roots[0]);
   });
 
   it('sends an asset straight into a real task, attached and open', async () => {
@@ -952,8 +954,8 @@ it('reuses the media browser in single Creative mode with Launch-specific words 
   );
   fireEvent.click(screen.getByRole('button', { name: /Add from the space/ }));
   await screen.findByRole('heading', { name: 'Choose creative' });
-  fireEvent.click(await screen.findByRole('button', { name: /one.mp4/ }));
-  fireEvent.click(screen.getByRole('button', { name: /two.mp4/ }));
+  fireEvent.click(await screen.findByRole('option', { name: /one.mp4/ }));
+  fireEvent.click(screen.getByRole('option', { name: /two.mp4/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Choose creative' }));
   expect(picked).toHaveBeenCalledWith([
     expect.objectContaining({ id: SECOND_ASSET_ID, name: 'two.mp4' })

@@ -1,0 +1,216 @@
+/* 075 — one window for choosing things (components/ui/PickerDialog.tsx). Tokens only. */
+
+.modal.ui-picker-xl.modal-search {
+  block-size: min(var(--search-dialog-height-xl), calc(100dvh - var(--space-6) - var(--space-6)));
+}
+
+.ui-picker-frame {
+  gap: var(--space-3);
+}
+
+.ui-picker-heading h2 {
+  margin: 0;
+  padding-inline-end: calc(var(--space-6) + var(--space-4));
+  font-size: var(--text-section);
+  line-height: var(--leading-heading);
+}
+
+.ui-picker-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-picker-search {
+  flex: 1 1 var(--picker-search-min);
+  min-width: 0;
+}
+
+.ui-picker-views {
+  flex: none;
+  margin-inline-start: auto;
+}
+
+.ui-picker-trail-bar {
+  min-width: 0;
+}
+
+.ui-picker-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---- One option -------------------------------------------------------------- */
+
+.ui-picker-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-height-lg);
+  padding: var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-neutral-text);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-out-curve),
+    border-color var(--motion-fast) var(--ease-out-curve);
+}
+
+.ui-picker-option[data-active] {
+  background: var(--color-neutral-surface-subtle);
+}
+
+.ui-picker-option[data-selected] {
+  border-color: var(--color-primary-border);
+  background: var(--color-primary-softer);
+}
+
+.ui-picker-option[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ui-picker-option[data-action] {
+  grid-column: 1 / -1;
+  color: var(--color-primary-text);
+}
+
+.ui-picker-glyph,
+.ui-picker-trail {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  color: var(--color-neutral-text-muted);
+}
+
+.ui-picker-trail {
+  min-width: var(--space-5);
+}
+
+.ui-picker-option[data-selected] .ui-picker-trail {
+  color: var(--color-primary-solid);
+}
+
+.ui-picker-copy {
+  display: grid;
+  flex: 1 1 auto;
+  gap: calc(var(--space-1) / 2);
+  min-width: 0;
+}
+
+.ui-picker-copy strong {
+  overflow: hidden;
+  font-weight: var(--weight-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-picker-copy small {
+  overflow: hidden;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- The grid ---------------------------------------------------------------- */
+
+.ui-picker-list[data-view='grid'] {
+  grid-template-columns: repeat(auto-fill, minmax(var(--picker-tile-min), 1fr));
+  gap: var(--space-3);
+}
+
+.ui-picker-list[data-view='grid'] .ui-picker-option:not([data-action]) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-height: 0;
+  padding: var(--space-1);
+}
+
+.ui-picker-tile-media {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-surface-muted);
+  color: var(--color-neutral-text-muted);
+}
+
+.ui-picker-tile-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ui-picker-option[data-branch] .ui-picker-tile-media {
+  background: var(--color-primary-softer);
+  color: var(--color-primary-solid);
+}
+
+.ui-picker-tile-glyph svg {
+  width: calc(var(--space-6) + var(--space-2));
+  height: calc(var(--space-6) + var(--space-2));
+}
+
+.ui-picker-tick {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  display: grid;
+  place-items: center;
+  width: var(--space-5);
+  height: var(--space-5);
+  border: calc(var(--border-width) * 2) solid var(--color-surface);
+  border-radius: var(--radius-full);
+  background: var(--color-neutral-surface-muted);
+  color: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-picker-option[data-selected] .ui-picker-tick {
+  background: var(--color-primary-solid);
+}
+
+.ui-picker-list[data-view='grid'] .ui-picker-copy {
+  padding-inline: var(--space-1);
+}
+
+.ui-picker-list[data-view='grid'] .ui-picker-copy strong {
+  display: -webkit-box;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ---- The bar at the bottom ---------------------------------------------------- */
+
+.ui-picker-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: var(--border-width) solid var(--color-neutral-border);
+}
+
+.ui-picker-summary {
+  margin-inline-end: auto;
+  color: var(--color-neutral-text-muted);
+  font-size: var(--text-caption);
+}
+
+@media (max-width: 640px) {
+  .ui-picker-list[data-view='grid'] {
+    grid-template-columns: repeat(auto-fill, minmax(var(--picker-tile-min-narrow), 1fr));
+  }
+}

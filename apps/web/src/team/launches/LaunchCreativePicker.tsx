@@ -493,6 +493,11 @@ export function LaunchCreativePicker({
                 : t('launchesSelectCreative')
             }
             single={!catalogMode}
+            // 075: a creative is found by its picture — a large window, tiles first.
+            size="xl"
+            defaultView="grid"
+            viewKey="launch-creatives"
+            kindFilter={!(catalogMode && creatives.length > 0)}
             // A video and a picture cannot share a Launch: once one kind is ticked the other
             // is shown unavailable, not accepted and then refused with the whole choice.
             unavailableWith={(material, chosen) => {

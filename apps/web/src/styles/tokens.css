@@ -529,6 +529,12 @@
      product's long-standing 44px floor; `xs`/`sm` are what dense surfaces
      (the accounts table, explorer rows) use instead of one-off heights. */
   --search-dialog-height: 640px;
+  /* The larger picker (075): choosing a creative by its picture wants most of a laptop's
+     height, not a search box's. */
+  --search-dialog-height-xl: 860px;
+  --picker-search-min: 240px;
+  --picker-tile-min: 168px;
+  --picker-tile-min-narrow: 132px;
   /* Launch cards reserve room for wrapping facts and asynchronous progress. */
   --launch-card-min-width: 280px;
   --launch-card-min-height: 256px;

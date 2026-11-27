@@ -1,14 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import {
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  FileVideo,
-  Folder,
-  Image,
-  Plus
-} from 'lucide-react';
+import { ChevronLeft, FileText, FileVideo, Folder, Image, Plus } from 'lucide-react';
 import type { CatalogMaterialItem, MaterialCategory } from '@video-compressor/shared';
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import {
@@ -16,15 +7,15 @@ import {
   type TeamMaterialSummary,
   type TeamTaskAttachmentMutationResult
 } from '../../api/team';
-import { Modal } from '../../components/Modal';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import {
   Button,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  SearchField
+  PickerDialog,
+  SegmentedControl,
+  type PickerItem,
+  type PickerView
 } from '../../components/ui/index';
+import { useThumbnailSession } from '../explorer/useThumbnailSession';
 import { searchWithLayoutFallback } from '../../lib/layoutFallback';
 import { useI18n } from '../../i18n';
 import { useOptionalTeam } from '../TeamContext';
@@ -111,7 +102,12 @@ export function TaskAttachmentPicker({
   title,
   confirmLabel,
   single = false,
-  unavailableWith
+  unavailableWith,
+  views = ['list', 'grid'],
+  defaultView = 'list',
+  viewKey = 'task-attachments',
+  size = 'lg',
+  kindFilter = false
 }: {
   teamId: string;
   client?: TaskAttachmentPickerClient;
@@ -140,6 +136,13 @@ export function TaskAttachmentPicker({
     material: TeamMaterialSummary,
     chosen: TaskAttachmentCandidate[]
   ) => string | null;
+  /** 075: list and/or tiles; the person's choice is remembered under `viewKey`. */
+  views?: readonly PickerView[];
+  defaultView?: PickerView;
+  viewKey?: string;
+  size?: 'lg' | 'xl';
+  /** «All / Videos / Pictures» beside the search. */
+  kindFilter?: boolean;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -156,10 +159,11 @@ export function TaskAttachmentPicker({
   const [search, setSearch] = useState('');
   const [found, setFound] = useState<TeamMaterialSummary[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [kind, setKind] = useState<'all' | 'video' | 'image'>('all');
+  const thumbnails = useThumbnailSession({ teamId, client: teamApi, enabled: open });
   const term = search.normalize('NFC').trim();
   const searchable = typeof client.searchCatalog === 'function';
   const parentId = path.at(-1)?.id ?? null;
-  const pickerTitleId = 'team-task-attachment-picker-title';
   /** What the list shows: search answers while a term is typed, the folder otherwise. */
   /*
    * A space whose storage needs its owner lists nothing to attach (the server reads only a
@@ -177,9 +181,11 @@ export function TaskAttachmentPicker({
   const shown = useMemo(
     () =>
       (found ? found : materials).filter(
-        material => material.kind === 'folder' || !accept || accept(material)
+        material =>
+          material.kind === 'folder' ||
+          ((!accept || accept(material)) && (kind === 'all' || material.category === kind))
       ),
-    [accept, found, materials]
+    [accept, found, kind, materials]
   );
 
   useEffect(() => {
@@ -279,7 +285,55 @@ export function TaskAttachmentPicker({
     setSelected(new Map());
     setSearch('');
     setFound(null);
+    setKind('all');
   };
+
+  const openFolder = (material: TeamMaterialSummary) => {
+    const entry = { id: material.providerId ?? material.id, name: material.name };
+    if (found) {
+      /* A folder found by name opens at its own place and leaves the search (owner,
+         25.11): the search kept answering over it, so each press stacked the same
+         folder onto the trail again — «Туреччина / Туреччина / Туреччина…». */
+      setPath([...(trailTo?.(material.parentFolderId) ?? []), entry]);
+      setSearch('');
+      setFound(null);
+    } else {
+      setPath(current => (current.at(-1)?.id === entry.id ? current : [...current, entry]));
+    }
+  };
+
+  const byId = new Map(shown.map(material => [material.id, material]));
+  const items: PickerItem[] = shown.map(material => {
+    const isFolder = material.kind === 'folder';
+    const isAttached = attachedMaterialIds.has(material.id);
+    const unavailable =
+      !isFolder && !selected.has(material.id) && unavailableWith
+        ? unavailableWith(material, [...selected.values()])
+        : null;
+    const media = material.category === 'video' || material.category === 'image';
+    return {
+      id: material.id,
+      title: material.name,
+      branch: isFolder,
+      disabled: !isFolder && (isAttached || unavailable !== null),
+      icon: isFolder ? (
+        <Folder size={18} strokeWidth={ICON_STROKE} />
+      ) : (
+        <MediaIcon category={material.category} />
+      ),
+      thumbnailUrl:
+        !isFolder && media && thumbnails ? teamApi.thumbnailUrl(thumbnails, material.id) : null,
+      subtitle: isAttached
+        ? t('teamTaskAttachmentAlreadyAdded')
+        : unavailable
+          ? unavailable
+          : isFolder
+            ? t('teamTaskFolderOpen')
+            : found && pathOf
+              ? `${pathOf(material.parentFolderId)} · ${t(CATEGORY_LABEL[material.category ?? 'other'])}`
+              : t(CATEGORY_LABEL[material.category ?? 'other'])
+    };
+  });
 
   return (
     <>
@@ -309,198 +363,122 @@ export function TaskAttachmentPicker({
         </Button>
       )}
       {open && (
-        <Modal
-          layout="search"
-          nested
-          labelledBy={pickerTitleId}
+        <PickerDialog
+          title={title ?? t('teamTaskAttachmentPickerTitle')}
           onClose={close}
           closeLabel={t('teamCancel')}
           initialFocus="#team-task-picker-root"
-          size="lg"
-        >
-          <div className="team-task-picker-dialog">
-            <div className="team-task-picker-dialog-heading">
-              <h2 id={pickerTitleId}>{title ?? t('teamTaskAttachmentPickerTitle')}</h2>
-            </div>
-            {searchable && (
-              /* The inventory's search box (070, T079): Escape clears a word and, with
-                 nothing left to clear, reaches the dialog, which closes. */
-              <SearchField
-                className="team-task-picker-search-field"
-                value={search}
-                aria-label={t('teamTaskAttachmentSearch')}
-                placeholder={t('teamTaskAttachmentSearch')}
-                clearLabel={t('teamSearchClear')}
-                onChange={setSearch}
+          size={size}
+          mode={single ? 'single' : 'multiple'}
+          views={views}
+          defaultView={defaultView}
+          viewKey={viewKey}
+          viewLabels={{
+            label: t('pickerViewLabel'),
+            list: t('pickerViewList'),
+            grid: t('pickerViewGrid')
+          }}
+          search={
+            searchable
+              ? {
+                  value: search,
+                  onChange: setSearch,
+                  placeholder: t('teamTaskAttachmentSearch'),
+                  clearLabel: t('teamSearchClear')
+                }
+              : undefined
+          }
+          toolbar={
+            kindFilter ? (
+              <SegmentedControl
+                size="sm"
+                label={t('pickerKindLabel')}
+                value={kind}
+                onChange={setKind}
+                options={[
+                  { value: 'all', label: t('pickerKindAll') },
+                  { value: 'video', label: t('pickerKindVideo') },
+                  { value: 'image', label: t('pickerKindImage') }
+                ]}
               />
-            )}
-            {/* The trail is about the open folder, and a search is not in one. */}
-            <div
-              className="team-task-picker-path"
-              data-search-active={found !== null}
-              aria-hidden={found !== null || undefined}
-              inert={found !== null}
-              aria-label={t('teamTaskAttachmentPickerTitle')}
-            >
-              {/* "Root" used to appear twice: once as a standalone action and
-                  again as the first crumb. The standalone one was also the
-                  dialog's initial-focus target while being disabled at the
-                  root, so opening the picker focused nothing. One root, in the
-                  trail, where a path reads. */}
-              {path.length > 0 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="team-task-picker-path-action"
-                  onClick={() => setPath(current => current.slice(0, -1))}
-                >
-                  <ChevronLeft size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                  {t('teamTaskFolderBack')}
-                </Button>
-              )}
-              <nav aria-label={t('teamTaskAttachmentPickerTitle')}>
-                <Button
-                  id="team-task-picker-root"
-                  size="sm"
-                  variant="ghost"
-                  className="team-task-picker-crumb"
-                  onClick={() => setPath([])}
-                >
-                  {t('teamTaskFolderRoot')}
-                </Button>
-                {path.map((folder, index) => (
-                  <span key={folder.id}>
-                    <i aria-hidden="true">/</i>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="team-task-picker-crumb"
-                      onClick={() => setPath(current => current.slice(0, index + 1))}
-                    >
-                      {folder.name}
-                    </Button>
-                  </span>
-                ))}
-              </nav>
-            </div>
-            <div className="modal-search-results">
-              {(loading || searching) && (
-                <LoadingState shape="row" count={5} label={t('teamTaskLoadingPickable')} />
-              )}
-              {error && <ErrorState message={t('teamTaskSearchFailed')} />}
-              {!loading && !searching && !error && shown.length === 0 && (
-                <EmptyState
-                  size="sm"
-                  title={
-                    storageGone
-                      ? t(storageGone.title)
-                      : found === null
-                        ? t('teamTaskFolderEmpty')
-                        : t('teamTaskSearchEmpty')
-                  }
-                  description={storageGone ? t(storageGone.body) : undefined}
-                />
-              )}
-              {!loading && !searching && !error && shown.length > 0 && (
-                <ul className="team-task-picker-results team-task-picker-folder-results">
-                  {shown.map(material => {
-                    const isFolder = material.kind === 'folder';
-                    const isAttached = attachedMaterialIds.has(material.id);
-                    const selectedMaterial = selected.has(material.id);
-                    const unavailable =
-                      !isFolder && !selectedMaterial && unavailableWith
-                        ? unavailableWith(material, [...selected.values()])
-                        : null;
-                    return (
-                      <li key={material.id}>
-                        <Button
-                          variant="ghost"
-                          block
-                          className={`team-task-picker-row ${selectedMaterial ? 'is-selected' : ''} ${
-                            isAttached ? 'is-attached' : ''
-                          } ${isFolder ? 'is-folder' : ''}`.trim()}
-                          aria-pressed={isFolder ? undefined : selectedMaterial}
-                          disabled={isAttached || unavailable !== null}
-                          onClick={() => {
-                            if (isFolder) {
-                              const entry = {
-                                id: material.providerId ?? material.id,
-                                name: material.name
-                              };
-                              if (found) {
-                                /* A folder found by name opens at its own place and leaves the
-                                   search (owner, 25.11): the search kept answering over it, so
-                                   each press stacked the same folder onto the trail again —
-                                   «Туреччина / Туреччина / Туреччина…» — and nothing opened. */
-                                setPath([...(trailTo?.(material.parentFolderId) ?? []), entry]);
-                                setSearch('');
-                                setFound(null);
-                              } else {
-                                setPath(current =>
-                                  current.at(-1)?.id === entry.id ? current : [...current, entry]
-                                );
-                              }
-                            } else {
-                              toggle(material);
-                            }
-                          }}
-                        >
-                          <span className="team-task-picker-item-type" aria-hidden="true">
-                            {isFolder ? (
-                              <Folder size={18} strokeWidth={ICON_STROKE} />
-                            ) : (
-                              <MediaIcon category={material.category} />
-                            )}
-                          </span>
-                          <span className="team-task-picker-item-copy">
-                            <strong>{material.name}</strong>
-                            <small>
-                              {isAttached
-                                ? t('teamTaskAttachmentAlreadyAdded')
-                                : unavailable
-                                  ? unavailable
-                                  : isFolder
-                                    ? t('teamTaskFolderOpen')
-                                    : found && pathOf
-                                      ? `${pathOf(material.parentFolderId)} · ${t(CATEGORY_LABEL[material.category ?? 'other'])}`
-                                      : t(CATEGORY_LABEL[material.category ?? 'other'])}
-                            </small>
-                          </span>
-                          <span className="team-task-picker-check" aria-hidden="true">
-                            {isFolder ? (
-                              <ChevronRight size={14} strokeWidth={ICON_STROKE} />
-                            ) : selectedMaterial ? (
-                              <Check size={14} strokeWidth={ICON_STROKE} />
-                            ) : null}
-                          </span>
-                        </Button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-            <div className="team-dialog-actions team-task-picker-dialog-actions">
-              <Button type="button" variant="ghost" onClick={close}>
-                {t('teamCancel')}
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={selected.size === 0}
-                onClick={() => {
-                  stage([...selected.values()]);
-                  close();
-                }}
-              >
+            ) : undefined
+          }
+          trail={
+            /* The trail is about the open folder, and a search is not in one. */
+            found === null ? (
+              <div className="team-task-picker-path">
+                {path.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="team-task-picker-path-action"
+                    onClick={() => setPath(current => current.slice(0, -1))}
+                  >
+                    <ChevronLeft size={16} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    {t('teamTaskFolderBack')}
+                  </Button>
+                )}
+                <nav aria-label={t('teamTaskAttachmentPickerTitle')}>
+                  <Button
+                    id="team-task-picker-root"
+                    size="sm"
+                    variant="ghost"
+                    className="team-task-picker-crumb"
+                    onClick={() => setPath([])}
+                  >
+                    {t('teamTaskFolderRoot')}
+                  </Button>
+                  {path.map((folder, index) => (
+                    <span key={folder.id}>
+                      <i aria-hidden="true">/</i>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="team-task-picker-crumb"
+                        onClick={() => setPath(current => current.slice(0, index + 1))}
+                      >
+                        {folder.name}
+                      </Button>
+                    </span>
+                  ))}
+                </nav>
+              </div>
+            ) : undefined
+          }
+          items={items}
+          loading={loading || searching}
+          loadingLabel={t('teamTaskLoadingPickable')}
+          error={error ? t('teamTaskSearchFailed') : null}
+          empty={
+            storageGone
+              ? { title: t(storageGone.title), description: t(storageGone.body) }
+              : { title: t(found === null ? 'teamTaskFolderEmpty' : 'teamTaskSearchEmpty') }
+          }
+          selected={new Set(selected.keys())}
+          onPick={item => {
+            const material = byId.get(item.id);
+            if (!material) return;
+            if (material.kind === 'folder') openFolder(material);
+            else toggle(material);
+          }}
+          footer={{
+            summary: selected.size > 0 ? t('pickerSelectedCount', { count: selected.size }) : null,
+            cancelLabel: t('teamCancel'),
+            confirmDisabled: selected.size === 0,
+            confirmLabel: (
+              <>
                 <Plus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
                 {confirmLabel
                   ? confirmLabel(selected.size)
                   : t('teamTaskAddSelected', { count: selected.size })}
-              </Button>
-            </div>
-          </div>
-        </Modal>
+              </>
+            ),
+            onConfirm: () => {
+              stage([...selected.values()]);
+              close();
+            }
+          }}
+        />
       )}
     </>
   );

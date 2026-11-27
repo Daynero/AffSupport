@@ -5,7 +5,6 @@ import { Button } from '../components/ui/index';
 import { ICON_SIZE, ICON_STROKE } from '../components/icons';
 import { useOptionalUpdateCenter, type UpdateOffer } from './UpdateCenter';
 import { tokenDuration } from './genie';
-import './update-center.css';
 
 /** The «What's new» window, put away, lands here and asks the button to glow. */
 export const UPDATE_BUTTON_GLOW = 'soty:update-button:glow';

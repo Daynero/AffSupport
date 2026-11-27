@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
   type InputHTMLAttributes,
+  type KeyboardEvent,
   type ReactNode,
   type TextareaHTMLAttributes
 } from 'react';
@@ -383,6 +384,13 @@ export interface SearchFieldProps {
   clearLabel?: string;
   'aria-label'?: string;
   'aria-labelledby'?: string;
+  /** A search that drives a list of options (075): the list it controls and its active option. */
+  'aria-controls'?: string;
+  'aria-activedescendant'?: string;
+  /** `combobox` when typing narrows a list of options below it (075). */
+  role?: 'combobox';
+  /** Keys for the list the search drives (075); the field's own Escape and Enter still run. */
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 }
 
 /**
@@ -400,6 +408,10 @@ export function SearchField({
   placeholder,
   id,
   clearLabel,
+  'aria-controls': controls,
+  'aria-activedescendant': activeDescendant,
+  role,
+  onKeyDown,
   ...props
 }: SearchFieldProps) {
   return (
@@ -417,7 +429,16 @@ export function SearchField({
         <HeroSearchField.SearchIcon>
           <Search size={16} strokeWidth={1.75} aria-hidden="true" />
         </HeroSearchField.SearchIcon>
-        <HeroSearchField.Input id={id} placeholder={placeholder} />
+        <HeroSearchField.Input
+          id={id}
+          placeholder={placeholder}
+          aria-controls={controls}
+          aria-activedescendant={activeDescendant}
+          role={role}
+          aria-expanded={role === 'combobox' ? true : undefined}
+          aria-autocomplete={role === 'combobox' ? 'list' : undefined}
+          onKeyDown={onKeyDown}
+        />
         <HeroSearchField.ClearButton aria-label={clearLabel}>
           <X size={14} strokeWidth={2} aria-hidden="true" />
         </HeroSearchField.ClearButton>
