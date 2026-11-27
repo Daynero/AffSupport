@@ -1,3 +1,4 @@
+import type { SotyLoad } from '@video-compressor/shared';
 import { useI18n } from '../i18n';
 import { usePower } from '../lib/power';
 import { ReconnectAction } from './ReconnectAction';
@@ -14,7 +15,22 @@ import { Alert } from './ui/index';
 /** Below this the graphics are effectively idle and the extra number is only noise. */
 const GRAPHICS_WORTH_SAYING = 5;
 
-export function PowerReadout() {
+/**
+ * The header's own reading, handed down by the button that shows it.
+ *
+ * Present when the agent publishes Soty's load (`machineLoad` 2): the sentence is then
+ * built from the very reading the button shows, and from the button's own decision whether
+ * there is a figure at all — "Soty is idle" never sits under a button showing 15%, and a
+ * figure never appears here that the button is not showing. Absent for an older agent,
+ * where the throttle's sample is all there is and the button is the plain bolt.
+ */
+export interface PowerReadoutLoad {
+  load: SotyLoad | null;
+  /** Whether the button is showing a figure (the meter's hysteresis, decided once). */
+  showing: boolean;
+}
+
+export function PowerReadout({ sotyLoad = null }: { sotyLoad?: PowerReadoutLoad | null }) {
   const { t } = useI18n();
   const { state, status } = usePower();
 
@@ -37,6 +53,7 @@ export function PowerReadout() {
     if (status === 'offline') return t('powerAgentOffline');
     if (status === 'unsupported') return t('powerAgentOutdated');
     if (status === 'error') return t('powerUsageUnavailable');
+    if (sotyLoad) return sotyLoadText(sotyLoad);
     if (!state) return t('powerUsageMeasuring');
 
     if (state.sample.availability !== 'ok') {
@@ -76,6 +93,33 @@ export function PowerReadout() {
      */
     if (graphics !== null && graphics >= GRAPHICS_WORTH_SAYING) {
       parts.push(t('powerUsageGraphics', { graphics: String(graphics) }));
+    }
+    return parts.join(' · ');
+  }
+
+  function sotyLoadText({ load, showing }: PowerReadoutLoad): string {
+    if (!load || load.availability === 'warming-up') return t('powerUsageMeasuring');
+    if (load.availability !== 'ok') return t('powerUsageUnavailable');
+    const parts: string[] = [];
+    if (showing) {
+      parts.push(t('powerSotyLoad', { percent: String(load.percent) }));
+      // Which of the two it is, where both exist. Where the graphics cannot be attributed
+      // to a process the figure is the processor's alone, and repeating it says nothing.
+      if (load.gpuPercent !== null) {
+        parts.push(
+          t('powerSotyLoadParts', {
+            cpu: String(load.cpuPercent),
+            gpu: String(load.gpuPercent)
+          })
+        );
+      }
+    } else {
+      parts.push(load.activity === 'active' ? t('powerSotyQuiet') : t('powerSotyIdle'));
+    }
+    // The same plain statement as below: the lever is holding work down, which no
+    // percentage can show for work that sits on the graphics processor.
+    if (state?.holdingToLimit) {
+      parts.push(t('powerUsageHolding', { limit: String(state.limitPercent) }));
     }
     return parts.join(' · ');
   }

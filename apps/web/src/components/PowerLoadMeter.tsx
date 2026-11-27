@@ -1,24 +1,27 @@
 import { useState } from 'react';
-import type { MachineLoad } from '@video-compressor/shared';
+import type { SotyLoad } from '@video-compressor/shared';
 
 /**
- * The header power button's load meter: a few bars that rise and fall with how busy the
- * computer is, the figure itself, and the bolt shrunk above it.
+ * The header power button's load meter: a few bars that rise and fall with how hard Soty is
+ * working the computer, the figure itself, and the bolt shrunk above it.
  *
  * Honest first, lively second. The bars' heights average to the reading exactly — only
  * their order changes from one reading to the next, the way an equaliser's bands trade
  * places — and the breathing between readings is a small dip below that height, never a
  * rise above it. Under reduced motion the breathing stops and the level just steps.
  *
- * Below a few percent the machine is idle for any purpose a person has, and the button is
- * the plain bolt it always was. The two thresholds differ so a machine idling at the edge
- * does not make the meter blink on and off every second.
+ * The figure is Soty's own — its processes, not the machine's — so there is no background
+ * to filter out: whatever it shows is Soty working. Below a percent or two Soty is doing
+ * nothing a person would call work (the agent answering the page), and the button is the
+ * plain bolt. The two thresholds differ so a reading idling at the edge does not make the
+ * meter blink on and off every second. The panel's line takes `showing` from here rather
+ * than deciding again, so the button and the sentence beneath it always agree.
  */
 
 /** At or above this the meter appears. */
-export const LOAD_METER_SHOW_AT = 5;
+export const LOAD_METER_SHOW_AT = 2;
 /** Below this it goes away again. */
-export const LOAD_METER_HIDE_BELOW = 3;
+export const LOAD_METER_HIDE_BELOW = 1;
 
 /** Relative band heights; one row per reading, taken in turn. */
 const PROFILES = [
@@ -47,7 +50,7 @@ interface Tracked {
   percent: number;
 }
 
-export function useLoadMeter(load: MachineLoad | null): LoadMeter {
+export function useLoadMeter(load: SotyLoad | null): LoadMeter {
   const reading = load?.availability === 'ok' ? load : null;
   const [tracked, setTracked] = useState<Tracked>({
     sampledAt: null,

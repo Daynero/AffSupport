@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import {
-  MACHINE_LOAD_CHANNEL,
+  SOTY_LOAD_CHANNEL,
   parsePowerLimitRequest,
-  type MachineLoad,
-  type PowerEvent
+  type PowerEvent,
+  type SotyLoad
 } from '@video-compressor/shared';
 import { EventChannel, type ChannelHub } from '../server/sse.js';
 import type { PowerGovernor } from './governor.js';
-import { MachineLoadMonitor } from './machine-load.js';
+import { SotyLoadMonitor } from './soty-load.js';
 
 /**
  * What the routes need from a sampler, expressed structurally so the HTTP layer
@@ -18,11 +18,11 @@ export interface PowerSamplerHandle {
   watch(): () => void;
 }
 
-/** What the routes need from the machine-load monitor; structural for the same reason. */
-export interface MachineLoadHandle {
+/** What the routes need from Soty's load monitor; structural for the same reason. */
+export interface SotyLoadHandle {
   watch(): () => void;
-  snapshot(): MachineLoad;
-  onChange(listener: (load: MachineLoad) => void): () => void;
+  snapshot(): SotyLoad;
+  onChange(listener: (load: SotyLoad) => void): () => void;
 }
 
 export interface PowerRoutesDeps {
@@ -33,8 +33,8 @@ export interface PowerRoutesDeps {
   onError?: (error: unknown, message: string) => void;
   /** The multiplexed fan-out, when one is wired. */
   channelHub?: ChannelHub;
-  /** The whole computer's load; a real monitor when absent and a hub is wired. */
-  machineLoad?: MachineLoadHandle;
+  /** Soty's own load; a real monitor over the governor's tree when absent and a hub is wired. */
+  sotyLoad?: SotyLoadHandle;
 }
 
 /**
@@ -67,9 +67,9 @@ export function registerPowerRoutes(
       stopSampling?.();
       stopSampling = undefined;
     });
-    publishMachineLoad(
+    publishSotyLoad(
       channelHub,
-      deps.machineLoad ?? new MachineLoadMonitor({ onError: deps.onError })
+      deps.sotyLoad ?? new SotyLoadMonitor({ tree: governor, onError: deps.onError })
     );
   }
 
@@ -106,17 +106,17 @@ export function registerPowerRoutes(
 }
 
 /**
- * The machine's load, on the stream only.
+ * Soty's own load, on the stream only.
  *
  * No per-tool endpoint: every agent that has this has the multiplexed stream, and the
  * header asks for it only where `machineLoad` is in the contract. Refcounted to the
  * channel's subscribers like the consumption sampler above — measured while somebody is
  * looking, and not otherwise.
  */
-function publishMachineLoad(hub: ChannelHub, monitor: MachineLoadHandle): void {
+function publishSotyLoad(hub: ChannelHub, monitor: SotyLoadHandle): void {
   let stopWatching: (() => void) | undefined;
   hub.register({
-    name: MACHINE_LOAD_CHANNEL,
+    name: SOTY_LOAD_CHANNEL,
     snapshot: () => monitor.snapshot(),
     onActive: active => {
       if (active) {
@@ -128,6 +128,6 @@ function publishMachineLoad(hub: ChannelHub, monitor: MachineLoadHandle): void {
     }
   });
   monitor.onChange(load => {
-    if (hub.hasListeners(MACHINE_LOAD_CHANNEL)) hub.publish(MACHINE_LOAD_CHANNEL, load);
+    if (hub.hasListeners(SOTY_LOAD_CHANNEL)) hub.publish(SOTY_LOAD_CHANNEL, load);
   });
 }

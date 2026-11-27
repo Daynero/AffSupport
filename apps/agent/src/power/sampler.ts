@@ -1,6 +1,7 @@
 import os from 'node:os';
 import { processCpuSeconds, processMetricsSupported } from '../platform/platform.js';
 import { graphicsUtilizationPercent } from './graphics.js';
+import { consumedPerProcess } from './process-tree.js';
 import type { PowerSample } from '@video-compressor/shared';
 import type { PowerGovernor } from './governor.js';
 
@@ -183,37 +184,18 @@ export class PowerSampler {
   }
 
   /**
-   * CPU seconds consumed since the previous reading, differenced PER PROCESS.
-   *
-   * Summing first and differencing the totals looks equivalent and is not: the
-   * set of tracked PIDs changes between ticks, so the difference of two sums
-   * silently includes processes that only exist in one of them.
-   *
-   * Both directions were wrong and visibly so. A descendant discovered by the
-   * tree walk seconds after it started arrives carrying all the CPU time it has
-   * ever used — Chromium's renderers do exactly this — and the whole lifetime
-   * landed in one tick as a spike toward 100%. A child that exited made the sum
-   * drop, and the clamp turned that tick into a flat 0% while the machine was
-   * still busy.
-   *
-   * A PID present in only one reading therefore contributes nothing: a new one
-   * starts counting from its next tick, and a departed one is simply gone. The
-   * agent's own time is always in both.
+   * CPU seconds consumed since the previous reading, differenced per process (see
+   * `consumedPerProcess` for why the totals must never be differenced instead). The agent's
+   * own time is always in both readings.
    */
   private consumedSince(
     previous: Reading,
     byPid: Map<number, number>,
     selfSeconds: number
   ): number {
-    let consumed = Math.max(0, selfSeconds - previous.selfSeconds);
-    for (const [pid, seconds] of byPid) {
-      const before = previous.byPid.get(pid);
-      if (before === undefined) continue;
-      // A PID the OS recycled onto something else can report less time than it
-      // did a second ago; that is not negative consumption.
-      consumed += Math.max(0, seconds - before);
-    }
-    return consumed;
+    return (
+      Math.max(0, selfSeconds - previous.selfSeconds) + consumedPerProcess(previous.byPid, byPid)
+    );
   }
 
   private unavailable(availability: 'warming-up' | 'unsupported' | 'error'): PowerSample {

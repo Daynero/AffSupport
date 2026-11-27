@@ -164,10 +164,12 @@ export const AGENT_TOOL_CONTRACTS = {
   // control is not a tool page, so support is detected by reading this contract
   // directly (see powerThrottleSupported in apps/web).
   power: 1,
-  // The whole computer's load (CPU and GPU, the larger shown) on the `machine-load` stream
-  // channel, for the header's power button. A capability read from the contract: an older
-  // agent publishes no such channel, and the button stays the plain bolt it was.
-  machineLoad: 1
+  // Soty's own load (its process tree's CPU and GPU, the larger shown) on the `machine-load`
+  // stream channel, for the header's power button. A capability read from the contract: an
+  // older agent publishes no such channel, and the button stays the plain bolt it was.
+  // Revision 1 (1.7.2) published the WHOLE computer's load there — a browser's or a game's
+  // work shown next to Soty's name — so the interface treats it as absent, not as Soty's.
+  machineLoad: 2
 } as const;
 
 export const WEB_TOOL_REQUIREMENTS = {

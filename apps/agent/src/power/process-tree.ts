@@ -60,3 +60,31 @@ function walk(childrenByParent: Map<number, number[]>, roots: readonly number[])
   }
   return [...found];
 }
+
+/**
+ * What a set of processes consumed between two readings of a cumulative counter (CPU
+ * seconds, GPU nanoseconds), differenced PER PROCESS.
+ *
+ * Summing first and differencing the totals looks equivalent and is not: the set of PIDs
+ * changes between readings, so the difference of two sums silently includes processes that
+ * exist in only one of them. A descendant discovered seconds after it started arrives
+ * carrying everything it has ever used — Chromium's renderers do exactly this — and that
+ * whole lifetime would land in one tick as a spike toward 100%. A child that exited would
+ * make the sum drop, and a clamp would turn the tick into a flat 0% while work was running.
+ *
+ * So a PID present in only one reading contributes nothing: a new one starts counting from
+ * its next reading, and a departed one is simply gone. A PID the OS recycled onto something
+ * else can report less than it did a moment ago; that is not negative consumption.
+ */
+export function consumedPerProcess(
+  previous: ReadonlyMap<number, number>,
+  current: ReadonlyMap<number, number>
+): number {
+  let consumed = 0;
+  for (const [pid, value] of current) {
+    const before = previous.get(pid);
+    if (before === undefined) continue;
+    consumed += Math.max(0, value - before);
+  }
+  return consumed;
+}

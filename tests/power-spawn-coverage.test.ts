@@ -39,13 +39,14 @@ const SPAWN_ALLOWLIST = [
   'whisper/tools.ts',
   'files/picker.ts',
   'files/dropped-source.ts',
-  // `ioreg`, once a second, under a two-second ceiling: it reads the GPU
-  // figure the governor reports, and managing the reading would skew it.
+  // `ioreg`, under a two-second ceiling: the device's GPU figure the panel
+  // reports and the per-client GPU time behind Soty's own load meter.
+  // Managing the reading would skew it.
   'power/graphics.ts',
-  // One resident PowerShell that answers a line of GPU Engine counters per
-  // request, for the header's load meter (machine-load): the Windows twin of
-  // the ioreg reading above. Suspending it under the limit would freeze the
-  // very figure that shows the limit at work.
+  // One resident PowerShell that answers Soty's processes' CPU times and GPU
+  // Engine counters per request, for the header's load meter: the Windows
+  // twin of the ioreg and ps readings. Suspending it under the limit would
+  // freeze the very figure that shows the limit at work.
   'power/windows-graphics.ts'
 ];
 

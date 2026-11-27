@@ -5,6 +5,7 @@ import {
   powerModeFor,
   DEFAULT_POWER_LIMIT,
   POWER_LIMIT_MAX,
+  type PowerActivity,
   type PowerSample,
   type PowerState
 } from '@video-compressor/shared';
@@ -222,6 +223,8 @@ export class PowerGovernor {
   private readonly descendantSignals: NonNullable<PowerGovernorOptions['descendantSignals']>;
   private treeTimer: NodeJS.Timeout | null = null;
   private treeInFlight = false;
+  /** When the last walk started; what `refreshTreeIfOlderThan` measures against. */
+  private lastTreeWalkAt = Number.NEGATIVE_INFINITY;
   /** Consumers that need the tree walked for measurement rather than control. */
   private treeWatchers = 0;
 
@@ -527,6 +530,11 @@ export class PowerGovernor {
     return this.childPids().length;
   }
 
+  /** Whether Soty has work under way: a managed child, or a tool that says it is busy. */
+  activity(): PowerActivity {
+    return this.activeChildren() > 0 || this.busy() ? 'active' : 'idle';
+  }
+
   publishSample(sample: PowerSample): void {
     this.latestSample = sample;
     this.onChange?.();
@@ -536,7 +544,7 @@ export class PowerGovernor {
     // Counted once. `state()` is rebuilt on every child starting or finishing,
     // which during a batch is several times a second.
     const activeChildren = this.activeChildren();
-    const activity = activeChildren > 0 || this.busy() ? 'active' : 'idle';
+    const activity: PowerActivity = activeChildren > 0 || this.busy() ? 'active' : 'idle';
     const sample: PowerSample = this.latestSample
       ? { ...this.latestSample, activity }
       : {
@@ -885,6 +893,20 @@ export class PowerGovernor {
     this.treeTimer = null;
   }
 
+  /**
+   * Walks the tree now unless a walk started within `maxAgeMs`, for a reader that wants
+   * the descendants without the control loop's three-second cadence.
+   *
+   * The header's load meter runs whenever a page is on screen, so it pays for a walk at a
+   * third of that rate or less. A tool's own process is registered the moment it spawns and
+   * is counted from then on; only grandchildren (Chromium's renderers) wait for a walk.
+   * While the cycler or the panel already keeps the tree fresh, this costs nothing extra.
+   */
+  refreshTreeIfOlderThan(maxAgeMs: number): void {
+    if (this.now() - this.lastTreeWalkAt < maxAgeMs) return;
+    void this.refreshTree();
+  }
+
   /** Exposed for tests; the interval calls it. */
   async refreshTree(): Promise<void> {
     // A slow process table must not stack walks on top of each other.
@@ -892,6 +914,9 @@ export class PowerGovernor {
     const roots = this.childPids();
     if (roots.length === 0) return;
     this.treeInFlight = true;
+    // When it started, not when it succeeded: a table that fails to read must not be
+    // retried by every reader on every tick.
+    this.lastTreeWalkAt = this.now();
     try {
       const rows = await this.probeProcessTable();
       // One index over the whole table, then one walk per root. Calling

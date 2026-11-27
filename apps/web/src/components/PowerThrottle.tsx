@@ -3,7 +3,7 @@ import { POWER_LIMIT_MAX, POWER_LIMIT_MIN } from '@video-compressor/shared';
 import { analytics } from '../analytics/service';
 import { useI18n } from '../i18n';
 import { usePower } from '../lib/power';
-import { useMachineLoad } from '../lib/machine-load';
+import { useSotyLoad } from '../lib/soty-load';
 import { PowerLever } from './PowerLever';
 import { PowerLoadMeter, useLoadMeter } from './PowerLoadMeter';
 import { PowerReadout, PowerThrottleNotice } from './PowerReadout';
@@ -24,7 +24,9 @@ export function PowerThrottle() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const panelId = useId();
-  const load = useMachineLoad();
+  // One reading for the button and for the panel's line, so they cannot disagree.
+  const sotyLoad = useSotyLoad();
+  const load = sotyLoad.load;
   const meter = useLoadMeter(load);
 
   const limited = limitPercent < POWER_LIMIT_MAX;
@@ -76,7 +78,7 @@ export function PowerThrottle() {
         data-meter={meter.showing ? 'on' : undefined}
         label={t('powerControl')}
         title={
-          load?.availability === 'ok'
+          load?.availability === 'ok' && meter.showing
             ? t('powerLoadTitle', {
                 usage: [
                   t('powerLoadCpu', { percent: load.cpuPercent }),
@@ -121,7 +123,7 @@ export function PowerThrottle() {
               analytics.track('power_limit_changed', { limit_percent: percent });
             }}
           />
-          <PowerReadout />
+          <PowerReadout sotyLoad={sotyLoad.supported ? { load, showing: meter.showing } : null} />
           <PowerThrottleNotice />
           {!limitApplied && !error ? (
             <p className="power-panel__pending">{t('powerLimitNotApplied')}</p>
