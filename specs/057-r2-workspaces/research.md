@@ -1,25 +1,301 @@
-# Research decisions
+# Рішення для плану 057 (редакція 2026-11-27)
 
-2026-11-14. Source-backed findings and live limits are linked; decisions below are design inferences, not implemented behavior.
+Редакція під новий обсяг: переносу немає (FR-055–FR-058), пілот власника на next іде першим
+(US11), швидкість — умова запуску (US7, SC-011). Попередня редакція від 2026-11-14 (перенос на
+місці, організаційні пакети, канонічні таблиці-двійники) лишилась в історії git.
 
-| Decision                                                             | Rationale                                                                                                | Alternatives considered                                                                                          |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Keep team/material IDs, introduce canonical storage entities         | actual non-null Drive fields and many material references make wholesale recreation unsafe               | rewriting IDs breaks tasks/catalog/history; fake provider IDs conceal incompatible semantics                     |
-| One organization package, pooled bytes/unique people/spaces          | matches owner request and avoids triple charging same colleague across spaces                            | old per-space grant only cannot express multi-space limits; global account membership would leak tenant scope    |
-| R2 Standard EU + B2 US East                                          | current price, no minimum duration, independently demonstrable geography                                 | Wasabi90d/min1TB weak for churn; second R2 bucket correlated provider; Hetzner price/regions not fully qualified |
-| Native R2 previews + Soty feed documents                             | Drive currently generates thumbnails and Google spreadsheets                                             | copying only files leaves preview and feed dependencies; mandatory desktop availability fails normal workspace   |
-| Migration in place, fresh separate forever                           | preserves business identities and matches irreversible choice requested                                  | arbitrary merge complex collisions/billing/ACL; bulk clone silently duplicates references                        |
-| 30-day fixed transition then allowlist maintenance                   | fulfills both phase-out and continuing catalog updates                                                   | hard disconnect contradicts user; unrestricted external sync reopens new content                                 |
-| Google external URL bridge explicit, optional transitional exception | provider-owned URLs cannot be redirected and users need continuity                                       | pretending URL unchanged risks broken ads; automatic forced URL switch unobservable to Soty                      |
-| Async replicas + bounded writes + read-only DR                       | affordable and explainable recovery; acknowledges recent unprotected state                               | full active-active needs distributed writer/quota/security consensus and costs beyond need                       |
-| Portable metadata + tombstones/auth restore in DR scope              | object copies cannot recover memberships/catalog routing                                                 | provider PITR alone shares dependency and doesn't back up objects; daily export cannot meet15min objective       |
-| Manual billing retained first                                        | existing administration can issue auditable new grants without adding an unrequested payment integration | adding PSP increases scope/security and taxes without helping storage migration correctness                      |
-| Strict public limits + explicit cost model                           | high churn and tiny-object counts can dominate storage cost                                              | free/cheap unlimited tiers require subsidy and can be abused                                                     |
+Кожне рішення: **Рішення** → **Чому** → **Що відкинули**. Факти про код — гілка `beta`
+(1.7.2), див. [drive-losses.md](drive-losses.md) і [architecture-inventory.md](architecture-inventory.md).
 
-Provider facts/prices: [provider-research.md](provider-research.md). Backend facts: [backend-evidence.md](backend-evidence.md). Actual code/parity: [architecture-inventory.md](architecture-inventory.md). Financial scenario/model: [pricing.md](pricing.md).
+## R1. Де живе ідентичність R2-матеріалу
 
-Uncertainty is resolved as a decision plus measurable gate, not as unspecified architecture: exact host SKU selected against workload, exact production geography read back, supported metadata export/auth restore qualified, customer census measured, prices finalized before selling, external feed integration proven individually. These are implementation/launch evidence tasks. None authorizes provision/deploy now.
+**Рішення.** R2-матеріали — рядки тієї самої `team_materials`
+(`supabase/migrations/20260801092000_drive_vault_catalog.sql:98`), а не таблиці-двійники.
 
-## Owner revision: affordable entry
+- `connection_id` і `drive_file_id` стають nullable. `DROP NOT NULL` дозволяє
+  `scripts/check-migrations-additive.mjs`: аналізатор `scripts/lib/release/migration-compat.mjs`
+  блокує лише `SET NOT NULL`, drop, rename і зміну типу.
+- `teams` отримує `storage_backend` (`drive` типово, `r2`). Перевірка `CHECK` на
+  `team_materials`: Drive-рядок і далі мусить мати Drive-поля, R2-рядок — посилання на об'єкт.
+- Папки, як і сьогодні, — рядки з `kind='folder'`. Для R2-рядка `parent_folder_id` містить
+  uuid батьківської папки-матеріалу як текст, тож індекс `team_materials_parent_idx
+(team_id, parent_folder_id, name)` працює без змін. Корінь простору — папка-матеріал,
+  створена разом із простором.
 
-accessible-v2 replaces the initial price proposal with Solo $5 and independent small storage/person/space increments. Rationale: lower adoption barrier and expansion within the same organization. A target-based cost allowance replaces the earlier arbitrary per-plan support allowance; its lower value is explicitly unmeasured and tested against the old $3 Solo assumption. Six payers at $5 cost more to serve than one organization at $30 with matching total workload, so the business thesis depends on observed conversion/acquisition/retention/expansion rather than a false same-revenue profit claim. Core safety, storage protection and feature parity are unchanged.
+**Чому.** Без переносу не треба зберігати чужі ідентичності — R2-простір завжди новий. На
+`team_materials(id)` посилаються завдання, каталоги (`team_product_catalogs.material_id`),
+запуски, групи, ранги, пошук (`search_tsv`) і зв'язки `team_material_links`. Таблиці-двійники
+вимагали б паралельних каталогів, завдань і публікацій — саме це роздувало стару редакцію до
+72 задач. Старі клієнти R2-рядків не бачать, бо R2-простори відфільтровані на рівні простору (R6).
+
+**Що відкинули.** Канонічні таблиці-двійники з об'єднаним читанням: дорого й без вигоди, коли
+переносу немає. Фіктивні Drive-ID: ховають несумісну семантику.
+
+## R2. Об'єкт, версія і облік
+
+**Рішення.**
+
+- `space_objects` — незмінний блоб у межах простору. Ключ від SHA-256 вмісту:
+  `t/{team_id}/o/{sha256}`. Матеріал посилається на свій об'єкт.
+- Попередні версії — як і сьогодні окремі матеріали зі зв'язком `version_of`.
+- Хто володіє байтами, той записує `space_object_refs`: об'єкт, тип і id власника, категорія.
+- Підсумки на простір і категорію — `space_storage_usage`. Вони оновлюються в тій самій
+  транзакції, що фіксація чи видалення (FR-045).
+- Похідні (мініатюри, постери, прев'ю) — теж об'єкти, з категорією `derivative` і
+  `counted=false`. У пам'ять вони не рахуються (FR-047), але мають власника, тож не стають
+  сиротами (US10).
+
+**Чому.** Ключ від хешу дає незмінну адресу (FR-036) і дедуплікацію всередині простору:
+спільний об'єкт рахується раз (FR-045). Лічильник посилань робить видалення каскадним і
+безпечним для спільного (FR-048).
+
+**Що відкинули.** Ключ від id матеріалу: однаковий вміст тоді коштує двічі. Глобальна
+дедуплікація між просторами: FR-016 її забороняє, і вона відкриває вміст.
+
+## R3. Завантаження
+
+**Рішення.** Браузер і агент вантажать напряму в R2 через S3 multipart.
+
+1. `admit-upload` в edge-функції `space-storage` резервує місце й відкриває multipart у
+   staging-ключі `t/{team}/u/{upload_id}`.
+2. Функція підписує URL частин на ≤10 хв.
+3. `complete-upload` закриває multipart і в одній транзакції фіксує об'єкт, матеріал,
+   посилання, облік і сигнал Realtime.
+
+Клієнт рахує SHA-256 сам (веб — у Web Worker, агент — `node:crypto`) і заявляє його до
+завантаження. Так сервер одразу відповідає «вже є» на дубль. Цілісність у дорозі — контрольна
+сума кожної частини. Повний хеш звіряє раннер похідних, який і так читає файл. До звірки
+об'єкт не стає ціллю дедуплікації й не йде в резерв.
+
+**Чому.** Без edge-relay зникають частини по 2 МіБ і межа 32 МіБ на скачування (FR-039).
+Заявлений хеш потрібен для «без дублів» у «Вхідних» (SC-015). Асинхронна звірка не тримає
+людину.
+
+**Що відкинули.** Хешування на edge: обмеження часу Deno на гігабайтах. Довіра заявленому хешу
+без звірки: одна людина могла б отруїти дедуплікацію свого простору.
+
+**Перевірити до M1** (T001): контрольні суми частин у R2, CORS bucket для двох вебадрес,
+ліміти частин (5 МіБ–5 ГіБ, 10 000 частин).
+
+## R4. Читання приватних файлів і кеш
+
+**Рішення.** Новий вхід Worker `apps/catalog-image-delivery/src/space-read.ts` на окремому
+хості: `files.soty.pp.ua` (prod) і `files-beta.soty.pp.ua` (beta).
+
+- Клієнт отримує від `space-storage` короткий грант читання простору. Це HMAC над user, team,
+  `access_epoch` і строком ≤10 хв.
+- Worker на кожному запиті перевіряє підпис і поточний `access_epoch` простору (кеш епохи
+  ≤30 с). Лише тоді віддає байти: `cache.match` за ключем без гранту або R2 з Range.
+- Відповідь — `Cache-Control: private, max-age=31536000, immutable`.
+- Відкликання доступу підвищує `access_epoch`. Усі видані гранти стають недійсними за ≤30 с.
+- Вихід і зміна акаунта очищують локальний кеш простору й шлють `Clear-Site-Data` на
+  файловому хості.
+
+**Чому.** `<img>` і `<video>` не можуть слати заголовок авторизації, тож грант іде в query, а
+ключ кешу — без нього (FR-036). Перевірка до `cache.match` гарантує, що кешовані байти не
+дістануться неавторизованому запиту. Range напряму з R2 дає старт відео без relay (US7.3).
+
+**Що відкинули.** Presigned GET від R2: не відкликається, а підпис потрапляє в ключ кешу.
+Публічний bucket для приватного: порушує FR-013. Перевірка в БД на кожну мініатюру: 200
+запитів сітки дали б 200 звернень до Supabase.
+
+## R5. Похідні без агента
+
+**Рішення.** Фіксація ставить завдання в `space_derivative_jobs`. Споживач — Cloudflare Queue
+і Container з ffmpeg та libvips (`apps/space-derivatives/`).
+
+- Читає оригінал через біндінг R2.
+- Пише мініатюри (рядок, плитка, повний; WebP), постер, коротке прев'ю відео й метадані:
+  тривалість, роздільність, кодек, fps.
+- Ключ похідної — `t/{team}/d/{sha256}/{recipe_version}/{variant}`, тож той самий вміст
+  вдруге не генерується (FR-038).
+- Стадія видима в матеріалі через наявні `thumbnail_state` і `preview_state`. Збій однієї
+  стадії не ховає файл (FR-041).
+
+**Чому.** Ні Deno edge, ні Worker не запускають ffmpeg. Container живе поруч з R2 (без
+egress), масштабується до нуля й не потребує окремого хостера для пілоту з нульовим бюджетом.
+
+**Що відкинули.** Агент учасника: FR-038 прямо забороняє цю залежність. Cloudflare Media
+Transformations: обмеження розміру відео. VPS як основний шлях: окремий хостер і
+адміністрування. VPS лишається запасним, якщо T001 покаже, що Container не підходить.
+
+**Перевірити до M1** (T001): доступність Containers на акаунті, вартість на пілоті, холодний
+старт. Рішення записати в `evidence/qualification.md`.
+
+## R6. Межа пілоту: next, прод і старі клієнти
+
+Сервер і база спільні для next і проду. Байти вебу після promote їдуть на прод без змін
+(`docs/RELEASE-CHANNEL.md`). Тому межа — не збірка, а три умови.
+
+**Рішення.**
+
+1. **Акаунт.** Таблиця `storage_r2_pilots` за зразком `release_testers`
+   (`supabase/migrations/20261207399800_release_testers.sql`): user, ліміт обсягу, хто видав.
+   Адмін-картка — поруч із `apps/web/src/pages/admin/ReleaseTestersCard.tsx`
+   (`apps/web/src/pages/AdminPage.tsx:385`). Сервер перевіряє дозвіл на кожному створенні
+   й на кожному запиті до сховища пілотного простору (FR-052).
+2. **Клієнт.** Новий клієнт заявляє можливість `storage-r2/1`.
+   - Веб — заголовком у викликах `space-storage`. До T0 R2 показується лише там, де
+     `siteChannel()` (`apps/web/src/lib/config.ts:171`) повертає `next`.
+   - Агент — через наявний контракт інструментів: `AGENT_TOOL_CONTRACTS.teamWorkspace`
+     (`packages/shared/src/release.ts:114`) зростає з 2 до 3, а `WEB_TOOL_REQUIREMENTS`
+     (`release.ts:187`) для R2-простору вимагає 3. Сервер так само вимагає
+     `outputUploadProtocolVersion: 3` (сьогодні `requireProcessUploadProducer` у
+     `supabase/functions/drive-ops/process-output-upload.ts:7` приймає лише 2). Прод-агент
+     із контрактом 2 R2-простір не отримує ні від вебу, ні від claim-ів і відповідає
+     `AGENT_UPDATE_REQUIRED`, як сьогодні.
+3. **Старі шляхи.**
+   - `list_my_teams()` (`supabase/migrations/20261130100000_space_tariffs.sql:655`)
+     R2-простори не повертає. Його `mapTeamContext` (`apps/web/src/api/team.ts:1361`) кидає
+     `INVALID_RESPONSE` на незнайомий рядок. Новий клієнт кличе `list_my_teams_v2()`.
+   - Claim-и фонових робіт і агентські квитки для R2-простору видаються лише клієнту з
+     `storage-r2/1`.
+   - Файлові Drive-шляхи (`drive-ops`, `drive-transfer`, `catalog-sync`) на R2-простір
+     відповідають `STORAGE_BACKEND_MISMATCH`. Каталожні маршрути `drive-ops` — виняток: вони
+     обізнані про сховище (R9, plan.md «Рішення щодо структури»).
+
+**Чому.** Так пілот не помічають ні прод-веб, ні прод-агент (US11.3). Окремого «каналу агента»
+не треба: агент next — це агент нової версії, а прод-агент без R2 — агент контракту 2. А promote збірки з кодом
+M1 до загального запуску нічого не вмикає для інших: створення R2-простору вимагає
+пілотного дозволу, поки не записано T0.
+
+**Що відкинули.** Окремий бекенд для next: його немає. Прапорець у збірці: promote везе ті самі
+байти.
+
+## R7. Realtime замість стрічки змін
+
+**Рішення.** `team_materials` у публікації `supabase_realtime` немає. Простір отримує зміни
+через сигнальні таблиці на одному каналі `team-workspace:${teamId}`
+(`apps/web/src/team/useTeamRealtime.ts:100`), наприклад `team_catalog_video_r2_signals`.
+За тим самим зразком додається `team_space_storage_signals`: папка, ревізія простору, ревізія
+обліку. Рядок вставляється в тій самій транзакції, що фіксація, перейменування, перенос,
+видалення чи готовність похідної. Клієнт за сигналом перечитує лише зачеплену сторінку папки
+й шкалу (SC-013).
+
+Для R2-просторів не викликаються й не показуються: `catalog-sync`, `wake_team_catalog_sync`
+(`apps/web/src/api/team.ts:1810`), `useWakeCatalogSync.ts`, `useExplorerResync.ts`,
+`useFolderResync.ts`, `SyncStatusPanel.tsx` (FR-040). Виключення R2-просторів —
+у `private.claim_catalog_sync_jobs` і `private.invoke_catalog_sync_worker`
+(`supabase/migrations/20261130110000_space_tariffs_background.sql`). Простіше: R2-простір не має рядка
+`team_drive_connections`, а claim іде саме через нього.
+
+**Чому.** Конституція VI: один хост-Realtime-шов, жодного нового опитування в браузері.
+
+## R8. Кеш клієнта
+
+**Рішення.** Сьогодні вебклієнт метадані між відкриттями не кешує: є лише `Map` сесій
+мініатюр у пам'яті (`apps/web/src/team/explorer/useThumbnailSession.ts:32`), стан вигляду в
+localStorage (`apps/web/src/team/persistedView.ts`) і IndexedDB для журналу операцій
+(`apps/web/src/team/explorer/workspaceOperationJournal.ts:214`). 057 додає новий модуль
+`apps/web/src/team/storage/spaceCache.ts` за зразком того журналу.
+
+- Дерево, перша сторінка кожної відкритої папки й лічильники R2-простору лежать в IndexedDB
+  з обмеженням обсягу (LRU).
+- Повторне відкриття показує кеш одразу і звіряє його запитом із ревізією простору
+  (`teams.content_revision`, зростає з кожною фіксацією), а далі — сигналами Realtime (R7).
+- Межа кешу — `apps/web/src/team/private-cache-scope.ts`: вихід, зміна акаунта чи
+  відкликання доступу очищують кеш цього простору.
+- Мініатюри кешує браузер за незмінними адресами (R4).
+- Права, квоту й видалення вирішує лише сервер (FR-037).
+
+## R9. Каталоги в R2-просторі
+
+**Рішення.** Каталог R2-простору — той самий `team_product_catalogs`.
+
+- Замість Google Sheet Soty пише CSV-стрічку. Рядки дає той самий побудовник
+  `buildProductCatalogRows` (`supabase/functions/_shared/product-catalog.ts:805`); при
+  створенні він уже відокремлений від запису Sheets
+  (`supabase/functions/drive-ops/product-catalog.ts:966-978`), при оновленні — `rebuildCatalogRows`
+  (`supabase/functions/_shared/catalog-updater.ts:70`).
+- Файл лежить у публічному bucket каталожних відео (`soty-catalog-videos-{env}-public`) під
+  ключем `feeds/{feed_id}.csv`. `feed_id` — випадкові 128 біт. Кожне оновлення переписує файл.
+- Зона отримує правило кешу для `/feeds/*` з TTL ≤60 с. Доказ:
+  [evidence/meta-feed-from-r2-2026-11-27.md](evidence/meta-feed-from-r2-2026-11-27.md) —
+  Meta приймає стрічку з R2 і підхоплює переписаний файл, а зона без правила ставить
+  `max-age=14400`.
+- Відео й картинки — наявні механізми 050 і 045 (`supabase/functions/_shared/r2-catalog-video.ts`,
+  `_shared/r2-catalog-images.ts`, `apps/catalog-image-delivery`). Джерела читаються з R2
+  простору, а не з Drive (`CatalogVideoDriveReader` у
+  `supabase/functions/catalog-video-r2/worker.ts:41`, гранти в
+  `supabase/functions/drive-ops/catalog-video-process-grants.ts:101-145`).
+- Їхні байти записуються в облік простору (FR-050) тригерами на
+  `private.catalog_video_r2_copies` і `private.catalog_image_storage`.
+- Видалення каталогу видаляє стрічку й чистить кеш одразу, а публічні адреси відео каталогу
+  чистить з кешу зони тим самим `R2_CATALOG_PURGE_TOKEN` (SC-014: 404 за ≤1 хв). Відео вже звільняються одразу
+  (`private.catalog_video_r2_release_removed`, `supabase/migrations/20261207400200_catalog_r2_copy_deleted_on_trash.sql`).
+  Картинки каталогу сьогодні лишаються в бібліотеці простору й рахуються там (FR-048:
+  «спільне з бібліотекою залишається цілим»). Тож «публічні адреси перестають віддавати
+  вміст» (US10.1) стосується того, що належало лише каталогу: стрічки й відео. Картинка
+  бібліотеки чи пулу живе, доки на неї є посилання.
+
+**Що відкинули.** Google Sheet у R2-просторі: FR-050 забороняє Google. Стрічку через
+edge-функцію на кожен запит Meta: зайве навантаження на Supabase.
+
+## R10. Видалення і сироти
+
+**Рішення.**
+
+- Лічильник посилань у `space_object_refs`. Коли посилань на об'єкт 0, рядок іде в
+  `space_object_purges` з `due_at`: одразу — для каталогу й очищеного кошика, через 30 днів —
+  для матеріалу в кошику.
+- pg_cron щохвилини будить `space-storage-sweeper`, той видаляє з R2 за ≤15 хв (SC-014).
+- Щоденна звірка лістингу R2 з обліком прибирає сиріт, старших за 24 год, і пише результат
+  для CLI.
+- Правила життєвого циклу R2: незавершений multipart — 1 доба, staging `t/*/u/*` — 7 діб (FR-049).
+
+## R11. Місткість і тариф (частково відкладено)
+
+**Рішення.** M1: ліміт пілотного простору задає адмін у `storage_r2_pilots` (FR-053). M3:
+наявна видача 034 на простір (`space_tariffs`,
+`supabase/migrations/20261130100000_space_tariffs.sql:55`) отримує місткість
+`storage_bytes` (типово 15 ГБ, за словами власника) і ручні розширення по +10 ГБ.
+
+**Відкладено до окремої фічі:** організаційні пакети, спільна місткість між просторами,
+унікальні люди й ціни з [pricing.md](pricing.md) — FR-015, FR-018, FR-019, FR-022 та US4.2,
+US4.4, US4.5. Текст специфікації лишається.
+
+**Чому.** 034 уже дає ручну видачу, місця, грацію й листи. Новий тарифний каталог без
+платіжного процесора нічого не додає ні пілоту, ні загальному запуску.
+
+## R12. Архів старих просторів
+
+**Рішення.**
+
+- Таблиця політики `storage_launch_policy`: T0, D, хто й коли записав, аудит продовження.
+- Функція `private.space_is_archived(team)`. Її викликає наявний `private.can` для всіх
+  записувальних можливостей: RLS, RPC, `drive-ops/mutation-preflight.ts`, claim-и фонових
+  робіт. Старий веб, старий агент і прямі API отримують одну відповідь `SPACE_ARCHIVED` (FR-057).
+- `catalog-sync`, `catalog-updater` і фонові роботи пропускають архівні простори.
+- T0 записує адмін-RPC `admin_activate_storage_launch()` у ранбуці promote. Повтор нічого не
+  змінює.
+
+**Що відкинули.** Вибіркові блокування до D (FR-056). Allowlist від 2026-11-14 (замінено).
+
+## R13. Діагностика
+
+Сервер не пише в `analytics_events`. Серверна діагностика — це приватні журнали `*_journal`
+і проєкції `public.analytics_*`, як у 050 (`private.catalog_video_r2_journal`). 057 додає
+`private.space_storage_journal` і проєкцію для CLI. Нова команда реєструється так само, як
+`catalog-video-r2`:
+
+- `Capability` у `COVERAGE_REGISTRY` (`scripts/analytics/coverage-registry.ts`);
+- коди в `CODE_MAP` (`scripts/analytics/code-map.ts`);
+- `case` у `scripts/analytics/cli.ts`.
+
+## R14. Резерв і відновлення (M3)
+
+Без змін по суті: R2 EU і Backblaze B2 US East, окремі облікові дані, незмінні версії
+([contracts/recovery.md](contracts/recovery.md)). Обсяг звужено до R2-просторів, рядки про
+міграцію й cutover вилучено.
+
+## Невідоме, яке блокує не дизайн, а етапи
+
+| Що                                                    | Хто закриває       | Блокує |
+| ----------------------------------------------------- | ------------------ | ------ |
+| Контрольні суми частин і CORS у R2                    | T001               | M1     |
+| Containers на акаунті, вартість і холодний старт      | T001               | M1     |
+| Юрисдикція нового bucket (EU), readback               | T001               | M1     |
+| Drive-база швидкості на Goor                          | M2 (заміри SC-011) | M3     |
+| Обмеження share target на iOS і Android (розмір, фон) | M2                 | M3     |
+| B2 Object Lock, окремий акаунт, ціна резерву          | M3                 | запуск |
+| Обсяг і швидкість відновлення на 1 ТБ / 100k об'єктів | M3 (навчання)      | запуск |

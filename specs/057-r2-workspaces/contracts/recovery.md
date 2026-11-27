@@ -1,5 +1,22 @@
 # Protection, failover and recovery contract
 
+## Редакція 2026-11-27 (переважає все нижче там, де суперечить)
+
+- **Етап.** Резерв і відновлення — умова загального запуску (M3), не пілоту. Пілот M1 живе
+  без резерву B2. Інтерфейс пілоту не показує «захищено», лише «збережено» (FR-025).
+- **Обсяг.** Лише R2-простори: оригінали, результати обробки, вкладення, версії й метадані
+  простору. Похідні (мініатюри, постери) відтворюються й у резерв не йдуть (FR-047).
+  Публічні об'єкти каталогів 045/050 відновлюються з оригіналів простору.
+- **Вилучено.** Усе про міграцію, cutover, `migration fixtures`, «міграція не завершується
+  без резерву» і мапу старих Drive-ідентичностей (FR-055). Drive-простори сюди не входять:
+  їхні дані лишаються в Google.
+- **Перша версія.** Реплікація об'єктів у B2 з Object Lock, окремим акаунтом і ключами.
+  Перевірений знімок метаданих. Один навчальний restore drill (SC-010).
+  - Ціль ≤15 хв відставання (FR-025) і повний набір п'яти навчань (FR-028, SC-007) лишаються
+    вимогою запуску.
+  - Якщо 5-хвилинні знімки метаданих не вкладуться в бюджет, навчання записує фактичний RPO,
+    і власник вирішує, чи запускатись. Тихого послаблення цілі немає.
+
 Primary private originals: R2 Standard **EU jurisdiction**. Independent recovery data: B2 **US East**, separate account/admin MFA, keys not stored in the R2 writer environment. Existing buckets have unknown jurisdiction until readback; never infer it from an `eeur` location hint. Existing public buckets continue until explicit validated relocation of links; regional protection claim applies only after all required backup dependencies pass.
 
 ## Protection state and independent metadata

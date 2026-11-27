@@ -1,5 +1,34 @@
 # Diagnostic contract
 
+## Редакція 2026-11-27 (переважає таблицю нижче)
+
+Серверних подій в `analytics_events` немає. Серверні докази — приватний журнал
+`private.space_storage_journal` і проєкція `public.analytics_space_storage`, як у 050
+(`private.catalog_video_r2_journal`, `scripts/analytics/catalog-video-r2.ts`). Клієнтські
+спостереження («показано», «відтворення почалось») ідуть наявним
+`public.ingest_analytics_events` (`apps/web/src/analytics/service.ts`).
+
+| Шлях               | Стадії                                                                                                  | Доказ завершення й негативні випадки                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| створення простору | `requested` → `pilot_checked` → `created` → `visible`                                                   | рядок `teams` + клієнтське `visible`; немає дозволу пілоту, повтор ключа, старий клієнт                                 |
+| завантаження       | `admitted` → `reserved` → `parts_signed` → `completed` → `committed` → `derivatives_queued` → `visible` | `space_objects` + рядок обліку + сигнал; дубль за хешем, квота, обрив посередині, протермінована сесія, відкликана роль |
+| похідні            | `queued` → `running` → `ready`/`unsupported`/`failed`                                                   | ключ похідної + `thumbnail_state`; повтор обмежений, `corrupt` при розбіжності хешу                                     |
+| читання            | `grant_issued` → `authorized` → `served`                                                                | клієнтське `preview_loaded`/`playback_started`; обірване скачування — `unknown`, не успіх                               |
+| видалення          | `trashed` → `purge_queued` → `r2_deleted` → `usage_released`                                            | `space_object_purges.deleted` + різниця обліку; спільний об'єкт лишився, повтор безпечний                               |
+| звірка             | `listed` → `compared` → `orphans_deleted`                                                               | `space_storage_reconciliations`: розбіжність обліку з R2 — помилка, не попередження                                     |
+| стрічка каталогу   | `rows_built` → `feed_written` → `cache_purged` → `external_fetch` (необов'язково)                       | `feed_revision` + `feed_written_at`; збій запису не ламає попередню стрічку                                             |
+| вхідні (M2)        | `detected` → `hashed` → `admitted` → `uploaded` → `committed`                                           | один матеріал на файл; дубль, сон, обрив, знята роль                                                                    |
+| архів (M3)         | `policy_checked` → `write_denied`                                                                       | код `SPACE_ARCHIVED` на всіх шляхах; 0 запусків синхронізації й оновлювачів архівних просторів                          |
+
+**CLI.** M1 додає команду `space-storage`: облік простору, звірка, сироти, черги похідних і
+видалення, затримки фіксації → сигнал. M3 розширює `investigate`, `inspect`, `audit` і
+додає `storage-capacity`. Реєстрація — `COVERAGE_REGISTRY`, `CODE_MAP`, `case` у `cli.ts`.
+
+Рядок `migration` у таблиці 2026-11-14 нижче не діє (FR-055). Рядок `billing/retention` діє
+лише в частині 034-видачі з місткістю (R11).
+
+## (2026-11-14) Original contract
+
 Extend existing typed analytics and authoritative privacy-limited DB projections. Detail90d and existing aggregate retention policy; high-frequency progress aggregated, terminals and critical state never sampled. Original application audit/financial retention is separate from analytics detail. No user content, raw path/name/Drive IDs, URL query tokens, keys or provider payloads in diagnostics. Tenant/resource UUIDs only where current private CLI contract allows, aggregate summaries for repository evidence.
 
 | Journey           | Expected stages                                                                                                          | Terminal proof and negative cases                                                                                                                                                          |

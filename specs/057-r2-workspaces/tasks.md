@@ -1,183 +1,628 @@
-# Tasks: R2 workspaces
+# Задачі: простори Soty на R2
 
-**Status**: planning only; all implementation tasks intentionally unchecked. Tests explicitly required by spec due migration/security/concurrency risk.
-**Input**: spec.md, plan.md, data-model.md, research.md, pricing.md, provider-research.md, architecture-inventory.md and contracts/.
-**Format**: sequential task IDs, story labels in story phases, concrete paths. New paths are planned additions; migration filenames allocated canonically during implementation. `[P]` deliberately omitted for mutations of shared schemas/contracts until dependencies settled.
+**Вхід**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md),
+[data-model.md](data-model.md), [contracts/](contracts/), [quickstart.md](quickstart.md).
+**Редакція**: 2026-11-27, замінює 72 задачі старої моделі переносу. Імплементацію не почато.
 
-## Phase 1 — Setup and qualification
+**Формат**: `- [ ] T### [P] [US#] опис зі шляхом`. `[P]` — можна паралельно (інший файл,
+без незавершених залежностей). Мітка історії — лише у фазах історій.
 
-Establish reproducible safe inputs; no paid infrastructure or production mutation without later explicit activation.
+## Правила виконання
 
-- [ ] T001 Record available live capacity/provider/host constraints and missing inputs first, then finalize qualification after the new census task; create the measured qualification record in `specs/057-r2-workspaces/evidence/qualification.md`; select independent host SKU against quote and metadata export benchmark, disclose country/retention/terms and prices before launch. (FR-023 FR-029 FR-034 SC-010)
-- [ ] T002 Define isolated synthetic source fixtures and provider environment allowlist in `tests/fixtures/workspace-storage.ts` and `config/workspace-storage-environments.json`; refuse production endpoints for load/destructive probes. (FR-031 FR-034 SC-007)
-- [ ] T003 Extend bounded privacy-safe capacity projections via a new additive migration in `supabase/migrations/` and `scripts/analytics/storage-capacity.ts`; wire `scripts/analytics/cli.ts`, exact bytes/coverage/as-of and execute read-only production census after verification. (FR-007 FR-029 FR-032 FR-033 SC-010)
-- [ ] T004 Add provider sandbox contract tests in `tests/workspace-storage-providers.test.ts` for R2 EU/B2 endpoint, full checksums, range/multipart limits, retention/version readback and scoped credentials; document actual supported APIs in feature evidence. (FR-013 FR-023 FR-024 SC-007)
+- **Тести.** Їх вимагає специфікація (безпека, квоти, видалення, паралельність). Кожна
+  задача імплементації має власну тестову задачу. Тест пишеться першим і спершу падає.
+- **Одна важка річ за раз.** Перед запуском — `uptime` і `pgrep -fl "vitest|tsc|supabase"`.
+- **Vitest — лише свої файли:**
+  `npx vitest run tests/<file> --pool=forks --poolOptions.forks.singleFork=true`.
+- **SQL — `npm run test:db`** з файлом задачі. Він бере ізольовану копію схеми.
+- **Повний `npm run verify` локально не запускати.** Його проганяє CI або раннер релізу.
+- **Міграції.**
+  - Лише адитивні. Мітка часу — після найбільшої на гілці; на беті спершу перевірити
+    `supabase_migrations.schema_migrations`, бо там є чужі версії.
+  - Кожна нова таблиця з інвентаря огорожі (ім'я `team_*`/`launch_*`/`catalog_*`, FK на
+    `team_materials`, json/jsonb) отримує тригер `task_cleanup_reference_fence` у тій самій
+    міграції ([data-model.md](data-model.md)).
+  - На беті — через `psql` і запис у `schema_migrations`. Ніколи `db reset`.
+- **Мова.** Код і коміти англійською, тексти інтерфейсу — через `apps/web/src/locales`.
+- **UI.** Лише компоненти `apps/web/src/components/ui/` і токени `apps/web/src/styles/tokens.css`.
 
-## Phase 2 — Foundational identity, authorization and accounting
+## Етап M1 — пілот власника на next
 
-Foundation blocks all stories; existing Drive behavior remains compatible until explicitly changed.
+### Фаза 1 — підготовка
 
-- [ ] T005 Define provider-independent storage states, capabilities, decimal bytes, operation validators and closed error unions in `packages/shared/src/team/storage.ts`, `packages/shared/src/team/transport.ts` and `packages/shared/src/types.ts`; map codes in `scripts/analytics/code-map.ts`. (FR-014 FR-032 FR-033)
-- [ ] T006 Write failing RLS/canonical-link/epoch tests in `supabase/tests/database/workspace-storage.test.sql` and `tests/workspace-storage-contract.test.ts`, including old Drive NOT NULL compatibility and forbidden fabricated provider IDs. (FR-003 FR-011 FR-013 FR-014 SC-002)
-- [ ] T007 Add canonical materials/provider bindings/object versions/replicas/outbox/tombstones via new timestamped additive migrations in `supabase/migrations/`; preserve legacy UUID mappings, parallel canonical domain tables/RPCs for every mandatory-FK descendant (catalog policies/jobs/delivery/baselines/history and attachment links), dual readers and existing constraints; document forward recovery in `ROLLBACK.md`. (FR-003 FR-010 FR-011 FR-023 FR-024)
-- [ ] T008 Add organization/immutable plan/grant/seat/space/reservation/logical-and-physical ledger tables with deterministic lock order in `supabase/migrations/` and regenerate existing Supabase types using repository command. (FR-015 FR-016 FR-017 FR-018 FR-020)
-- [ ] T009 Implement one current-role/plan/policy/authority gate and provider dispatcher in `supabase/functions/_shared/workspace-storage.ts`; apply to compatibility `supabase/functions/drive-ops/mutation-preflight.ts`, old ticket finalization and claims. (FR-005 FR-013 FR-014 FR-017 SC-001)
-- [ ] T010 Implement atomic reserve/commit/release/reconcile primitives and idempotent outbox claims in `supabase/functions/workspace-quotas/`; expiration never frees uncertain provider outcome, security actions bypass spend stops. (FR-008 FR-016 FR-017 FR-030 SC-004)
-- [ ] T011 Scaffold bounded independent service and environment validation in `apps/workspace-storage-worker/` with typed lease/cancel/resource seams, isolated secret scopes and readiness; reuse existing job leases where appropriate. (FR-012 FR-023 FR-030 FR-033)
-- [ ] T012 Create canonical backfill/adoption dry-run and FK/reference audit in `scripts/workspace-storage-adoption.mjs`; it defaults read-only, inventories every actual task/catalog/launch/account/material relation and reports incomplete/unknown coverage. (FR-003 FR-007 FR-011 SC-002)
-- [ ] T013 Create isolated-only load/chaos harness `scripts/workspace-storage-drill.mjs` and fixtures for performance100k objects/50 users,100GB uploads and offered Scale envelope; bound compute, one heavy process and annotate skipped hardware proofs. (FR-011 FR-017 FR-027 FR-029 SC-004 SC-005 SC-006 SC-007)
+- [ ] T001 Кваліфікувати R2 і Cloudflare на beta-акаунті. Новий скрипт `scripts/space-storage-qualify.mjs` відмовляється від будь-якого не-beta bucket. Перевірити: контрольну суму SHA-256 на `UploadPart`, ліміти multipart, CORS для `https://next.soty.pp.ua`, прод- і beta-вебадрес, readback юрисдикції EU для `soty-spaces-beta`, доступність Containers і Queues, вартість і холодний старт ffmpeg-образу. Результат записати в `specs/057-r2-workspaces/evidence/qualification.md`. Якщо Containers не підходять — записати вибір запасного шляху R5 (research.md).
+- [ ] T002 Описати інфраструктуру як код, застосувати лише до beta:
+  - `apps/catalog-image-delivery/wrangler.toml`: маршрут `files-beta.soty.pp.ua/*` і біндінг `SPACE_BUCKET`;
+  - `apps/space-derivatives/wrangler.toml`: Queue `space-derivatives-beta` і Container;
+  - `config/space-storage/r2-lifecycle.json`: multipart 1 доба, `t/*/u/*` 7 діб;
+  - `config/space-storage/r2-cors.json`;
+  - правило кешу зони для `/feeds/*` з TTL ≤60 с — описати в `docs/PRODUCTION.md`.
 
-## Phase 3 — US1: native managed spaces and full parity
+  Прод-ресурси створюються лише в T062.
 
-Independent acceptance: a clean non-Google owner and invited user complete every R2 parity row; prior stories are not required, foundation and qualified fixture infrastructure are.
+- [ ] T003 [P] Контракт `packages/shared/src/team/space-storage.ts`:
+  - стани завантаження, похідних і видалення;
+  - категорії обліку й `ingress`;
+  - можливість `storage-r2/1` і ліміти (частина, кількість частин, паралельність, 100 ГіБ, 100 000 матеріалів);
+  - розбір відповідей як `unknown` → дискримінований результат, байти — десятковим рядком.
 
-- [ ] T014 [US1] Write no-Google provisioning, repeated request, revoked member and private/public isolation regressions in `tests/workspace-storage-create.test.ts` and `tests/workspace-storage-access.test.ts`. (FR-001 FR-011 FR-013 SC-001)
-- [ ] T015 [US1] Implement R2 provisioning/create/status/cleanup in `supabase/functions/workspace-storage/`; durable space origin, quota slot, canonical folders and no Drive picker or root connection. (FR-001 FR-003 FR-015)
-- [ ] T016 [US1] Write multipart/resume/checksum/unknown-completion/quota regression fixtures in `tests/workspace-storage-upload.test.ts`; include declared100GB bound, folder tree, copy and full-file readback. (FR-008 FR-014 FR-017 SC-004)
-- [ ] T017 [US1] Implement admit/part/complete/abort uploads, generation commit, reservation/outbox and bounded staging GC in `supabase/functions/workspace-storage/uploads.ts` and `apps/workspace-storage-worker/src/transfer.ts`. (FR-008 FR-014 FR-016 FR-017 FR-030)
-- [ ] T018 [US1] Implement canonical list/search/folders/rename/move/copy/trash/restore/version/share/reference guards in `supabase/functions/workspace-storage/materials.ts`; metadata-only rename and tenant-safe graph cycles. (FR-011 FR-013 FR-016)
-- [ ] T019 [US1] Implement the normal authenticated streaming Worker entry in `apps/catalog-image-delivery/src/workspace-read.ts` and independently hosted standby read gateway in `apps/workspace-storage-worker/src/read.ts` with shared typed authorization tests; implement export and `supabase/functions/workspace-storage/export.ts`; bounded15min stream reauth and no reusable raw private read links. (FR-011 FR-013 FR-014 SC-006)
-- [ ] T020 [US1] Add typed wrappers and R2 explorer/progress/space controls in `apps/web/src/api/team-storage.ts` and `apps/web/src/team/storage/`; use existing UI tokens/i18n/Realtime reread and accessible error states. (FR-001 FR-011 FR-012 FR-013 SC-001)
-- [ ] T021 [US1] Adapt agent transfer/download/source-cache contracts in `apps/agent/src/team-bridge/transfer.ts`, `download.ts` and `source-cache.ts`; keep platform seams and PowerGovernor, reject stale epochs and preserve local outputs. (FR-011 FR-014 SC-006)
-- [ ] T022 [US1] Adapt process/restitch/landing/foreground catalog outputs in `apps/agent/src/team-bridge/` and `supabase/functions/drive-ops/process-finalize.ts` to canonical provider dispatch with no Google assumption. (FR-011 FR-014 SC-006)
-- [ ] T023 [US1] Adapt task attachments/copy/cleanup, launch/bulk, creative-library, accounts/finance/notebook references in `supabase/functions/drive-ops/` and corresponding `apps/web/src/team/` consumers identified by inventory; prove canonical read/write linkage. (FR-003 FR-011 SC-002 SC-006)
-- [ ] T024 [US1] Write hosted preview safety/failure/agent-offline/HEVC fixtures in `tests/workspace-storage-preview.test.ts`; assert MIME/resource/SSRF/zip-slip bounds and unchanged downloadable original. (FR-012 FR-013 FR-030 SC-005)
-- [ ] T025 [US1] Implement isolated versioned image/video/PDF/landing recipes, bounded retry and preview delivery in `apps/workspace-storage-worker/src/preview/` and adapt `supabase/functions/_shared/preview-warm.ts`. (FR-012 FR-013 FR-030 SC-005)
-- [ ] T026 [US1] Implement Soty-owned feed documents and published asset references in `supabase/functions/workspace-storage/catalog-feed.ts`, adapting `supabase/functions/drive-ops/product-catalog.ts` and existing R2 image/video publication seams without exposing originals. (FR-011 FR-013 FR-016)
-- [ ] T027 [US1] Add feed semantic/content-type/external-consumer and immutable asset-link continuity regressions in `tests/workspace-storage-catalog-feed.test.ts`; preserve current schedules, variants, global images and automatic content within quotas. (FR-011 FR-013 FR-017 SC-006)
-- [ ] T028 [US1] Complete browser/agent parity matrix record in `specs/057-r2-workspaces/evidence/parity.md` and tests in `tests/workspace-storage-parity.test.ts`; every source inventory row has positive and relevant blocked case. (FR-011 FR-012 FR-014 SC-005 SC-006)
+  Коди з [contracts/storage-api.md](contracts/storage-api.md) додати в `packages/shared/src/types.ts`, експорт — у `packages/shared/src/index.ts`. Новий `packages/shared/src/team/space-read-grant.ts`: HMAC-грант на WebCrypto, спільний для Deno і Worker.
 
-## Phase 4 — US4: commercial plans and pooled quotas
+- [ ] T004 [P] Тест для T003 — `tests/space-storage-contract.test.ts`. Розбір відкидає незнайоме. Байти не втрачають точності понад 2^53. Грант: підпис, строк, епоха, чужий простір. Кожен код має переклад і HTTP-статус.
 
-Independent acceptance: seeded organization with several R2 spaces exercises exact bytes/people/slots under100-way concurrency, accepted old credit and term transition.
+### Фаза 2 — основа (блокує всі історії M1)
 
-- [ ] T029 [US4] Write quota/seat/invite/space/credit/term/downgrade/transfer race tests plus Solo $5 and $1/$2 modular add-ons, consolidated vs separate/prorated payment fees, trial-to-Solo seats and cheaper-bundle dominance cases in `tests/workspace-storage-quota.test.ts` and `supabase/tests/database/organization-quotas.test.sql`. (FR-015 FR-016 FR-017 FR-018 FR-020 FR-021 FR-022 SC-004)
-- [ ] T030 [US4] Define immutable accessible-v2 catalog (6 bundles, Solo $5/10GB), independent +10GB/$1, person/$2 and space/$1 add-ons, derived object limits without 2x-base restriction, consolidated quotes/term and14day/10GB trial without autocharge, prohibit add-ons beyond qualified envelope in `packages/shared/src/team/organization-tariffs.ts` and new `supabase/migrations/` seeds; require ratified pricing evidence, do not alter old sold grants. (FR-015 FR-019 FR-020 FR-021 FR-022)
-- [ ] T031 [US4] Implement explicit organization adoption and old manual-grant credit/acceptance/transfer transactions in `supabase/functions/workspace-quotas/grants.ts`; email unknown value never becomes fabricated paid credit. (FR-015 FR-018 FR-020 FR-022)
-- [ ] T032 [US4] Implement unique-person invite reservation/expiry/revoke/accept and atomic space/migration slot counting in `supabase/functions/workspace-quotas/membership.ts` with existing membership guards. (FR-015 FR-017 FR-018 SC-004)
-- [ ] T033 [US4] Integrate canonical logical charges with old catalog image/video uses, variants/trash/versions and background output reservations in `supabase/functions/workspace-quotas/ledger.ts`; global pool/internal replica excluded from customer quota. (FR-016 FR-017 FR-029 SC-004)
-- [ ] T034 [US4] Implement rolling ingestion/object/physical-history/compute budgets, warning and explicit manual override quotes in `supabase/functions/workspace-quotas/budgets.ts`; safe read/export/security controls never subject to destructive spend cap. (FR-017 FR-019 FR-029 FR-030)
-- [ ] T035 [US4] Implement paid expiry/grace90day retention and separate trial30day retention/read-only/notice/purge/ref-count/retention-safe restoration in `supabase/functions/workspace-quotas/lifecycle.ts`; renewed jobs revalidate sources and coalesce missed schedules. (FR-021 FR-022 FR-024)
-- [ ] T036 [US4] Build plan/usage/price/add-on/admin grant/credit and downgrade UI in `apps/web/src/team/storage/OrganizationPlan.tsx` and existing admin tariff surfaces; accessible storage/people/spaces remaining and pending bytes; show $5/$9/$15 entry choices, modular calculator and optional cheaper bundle covering every chosen resource, without silent upgrades. (FR-015 FR-016 FR-018 FR-019 FR-020 FR-021 FR-022)
-- [ ] T037 [US4] Validate preliminary measured invoice/usage/request/churn/preview-cost model including normal Worker CPU/DB requests, independent host network quote, metadata snapshot/chunk/journal bytes and CPU; final commercial acceptance depends on completed recovery/load qualification and monthly/annual/low-account/stress scenarios with reproducible report in `specs/057-r2-workspaces/evidence/commercial-qualification.json`; gate proposed plan/add-on margins, Solo support/fee sensitivity, per-cohort CAC/payback/retention, equal-resource 6x$5 versus 1x$30 comparison and incident cash reserve; distinguish the new efficiency target from measured costs. (FR-019 FR-029 FR-030 FR-034 SC-008 SC-010)
+- [ ] T005 Тест для T006 (пишеться першим) — `supabase/tests/database/space-storage-schema.test.sql`. Перевірити:
+  - `teams.storage_backend` не змінюється після створення;
+  - `CHECK`: Drive-рядок без `drive_file_id` відхилено, R2-рядок без об'єкта відхилено (крім папки й стрічки каталогу);
+  - цикли папок відхилено, батько з іншого простору — теж;
+  - RLS між просторами;
+  - тригери огорожі на `team_space_storage_signals` і `space_uploads`, `private.task_cleanup_coverage_verified()` = true;
+  - облік: інкременти точні, спільний об'єкт рахується раз, `shared_bytes` правильні.
+- [ ] T006 Міграція `supabase/migrations/<ts>_space_storage_foundation.sql` за [data-model.md](data-model.md) M1:
+  - колонки `teams`;
+  - `team_materials`: `DROP NOT NULL` на `connection_id`, `drive_file_id`, новий `CHECK`, `space_object_id`, `material_revision`;
+  - таблиці `storage_r2_pilots` з `admin_list/add/remove_storage_r2_pilot` і `is_storage_r2_pilot()` за зразком `supabase/migrations/20261207399800_release_testers.sql`;
+  - `space_objects`, `space_object_refs`, `space_storage_usage` з тригерами категорій, `space_storage_reservations`, `space_uploads`, `space_derivative_jobs`, `space_object_purges`, `space_storage_reconciliations`;
+  - `team_space_storage_signals` у `supabase_realtime` з RLS, як у `team_catalog_video_r2_signals`;
+  - `private.space_storage_journal`;
+  - тригери огорожі.
 
-## Phase 5 — US5: independent protection and recovery
+  Нотатку відкату додати в `supabase/migrations/ROLLBACK.md`. Тест: T005.
 
-Independent acceptance: synthetic committed workspace+metadata undergoes object-only/cloud-wide/DB/credential/delete faults with proved security and watermark. US2 real cutover depends on this phase.
+- [ ] T007 Тест для T008 (пишеться першим) — `supabase/tests/database/space-storage-access.test.sql`.
+  - `list_my_teams()` не повертає R2-простір, `list_my_teams_v2()` повертає `storage_backend`.
+  - `access_epoch` зростає при видаленні учасника й зміні ролі.
+  - Кожна функція зі списку T008 працює з R2-рядком: `list_team_folder_page`, `list_team_folder_tree`, `list_team_folder_subtree`, `list_team_materials`, `list_team_trashed_materials_v2`. Для R2-рядка вона не повертає null-полів Drive як помилку.
+- [ ] T008 Міграція `supabase/migrations/<ts>_space_storage_access.sql`:
+  - перевизначити `list_my_teams()` з `supabase/migrations/20261130100000_space_tariffs.sql:655` з фільтром `storage_backend='drive'`;
+  - додати `list_my_teams_v2()`;
+  - пілотний пункт у `private.team_workspace_allowed()` (там же, :252): пілотний простір відкритий учасникам із `is_storage_r2_pilot()` без тарифу 034;
+  - тригери `access_epoch`;
+  - R2-гілки (`parent_folder_id` = uuid, без з'єднання з `team_drive_connections`) у функціях списку з T007.
 
-- [ ] T038 [US5] Write replication exact-generation/hash/unknown-result/lock-renewal/delete-denial tests in `tests/workspace-storage-replication.test.ts` with isolated B2 fixtures. (FR-023 FR-024 FR-025 SC-007)
-- [ ] T039 [US5] Implement outbox replica copy/readback/reconcile/retention extension and independent credentials in `apps/workspace-storage-worker/src/replication/`; stamp protected only with joint metadata proof. (FR-023 FR-024 FR-025 FR-030)
-- [ ] T040 [US5] Implement bounded encrypted portable snapshot/journal/checkpoint closure in `apps/workspace-storage-worker/src/metadata/`; supported auth/schema export in one consistent snapshot, protected receipt-membership instead of max sequence, encrypted deduplicated chunks and manifest retention, ≤5min schedule/≤5min completion, separate operational backup role; test rollback/inverted commit order/multirow/auth mutation, builder-pin/GC fencing/manifest response loss/key retention, and refuse unproved replay. (FR-023 FR-024 FR-025 FR-033 SC-007)
-- [ ] T041 [US5] Implement protection watermark/lag admission and degraded states in `supabase/functions/workspace-storage/protection.ts` and web storage state; unchanged old backups retain rolling30d protection. (FR-024 FR-025 FR-030)
-- [ ] T042 [US5] Implement authorized exact-generation B2 fallback and primary circuit breaker in normal `apps/catalog-image-delivery/src/workspace-read.ts` and standby `apps/workspace-storage-worker/src/read.ts`; no fallback for tombstone/403/true404, missing replica explicit. (FR-013 FR-025 FR-026 FR-027)
-- [ ] T043 [US5] Prepare independent recovery host/frontend/read API/DNS/TLS/config/secret/auth redirects deployment definition under `apps/workspace-storage-worker/` and documented fixture evidence; explicit procurement/deploy approval required later. (FR-023 FR-026 FR-027 FR-033 FR-034)
-- [ ] T044 [US5] Implement fenced read-only incident/restore/auth-session-revocation/deny-journal validation/failback workflow in `apps/workspace-storage-worker/src/recovery/` and `scripts/workspace-storage-recovery.mjs`; default inspect/read-only, never automatic writer promotion. (FR-024 FR-026 FR-027 FR-028)
-- [ ] T045 [US5] Write recovery security/revocation/stale-public-feed/no-split-brain/full-ref-restore tests in `tests/workspace-storage-recovery.test.ts`; test lost keys, unavailable auth and independent telemetry outage. (FR-013 FR-023 FR-024 FR-026 FR-028 SC-007)
-- [ ] T046 [US5] Run measured1TB/100k and offered Scale aggregate recovery/load fixtures, incident transfer/cash model and return-to-primary validation; save manifests and RPO/RTO in `specs/057-r2-workspaces/evidence/recovery-qualification.json`. (FR-025 FR-026 FR-027 FR-028 FR-029 SC-005 SC-007 SC-010)
+  Спершу зробити grep-інвентар функцій, що з'єднують `team_drive_connections` або читають `drive_file_id` на шляхах, які кличе R2-клієнт. Список записати в коментар міграції. Тест: T007.
 
-## Phase 6 — US2: migrate existing space safely
+- [ ] T009 [P] Клієнт bucket простору `supabase/functions/_shared/r2-space.ts` поверх `npm:aws4fetch@1.0.20`. Конфігурація — як `readCatalogVideoR2Config` у `supabase/functions/_shared/r2-catalog-video.ts:40`:
+  - змінні `R2_SPACE_ACCOUNT_ID`, `R2_SPACE_ACCESS_KEY_ID`, `R2_SPACE_SECRET_ACCESS_KEY`, `R2_SPACE_BUCKET`;
+  - ім'я bucket мусить дорівнювати `soty-spaces-${CATALOG_IMAGES_ENVIRONMENT}`.
 
-Independent fixture: existing Drive graph migrates preserving IDs/ACL/bytes; core R2 works with Drive revoked, while Google feed bridges have explicit retained/retired acceptance fixtures. Depends on US1 canonical paths and US5 protection before real cutover.
+  Методи: `createMultipart`, `signPart` (з контрольною сумою), `completeMultipart`, `abortMultipart`, `head`, `rangeGet`, `remove`, `listPrefix`. Помилки провайдера санітизувати, як у `CatalogVideoR2`.
 
-- [ ] T047 [US2] Write migration state/manifest/reference/permission/exclusion regressions in `tests/workspace-migration.test.ts` and `supabase/tests/database/workspace-migration.test.sql` before enabling mutators. (FR-003 FR-007 FR-008 FR-009 FR-010 SC-002)
-- [ ] T048 [US2] Add migration/manifest/checkpoint/reserved-slot schemas via `supabase/migrations/` with one successful cutover per source, fresh-target rejection and owner-consented native/export exceptions. (FR-003 FR-007 FR-008)
-- [ ] T049 [US2] Implement complete paginated Drive+canonical reference inventory and delta tokens in `apps/workspace-storage-worker/src/migration/inventory.ts`; shortcuts/native export, unknown bytes, changed root/permissions and catalog external links explicit. (FR-007 FR-009 FR-011 SC-002)
-- [ ] T050 [US2] Implement bounded resumable source-revision copy/hash/readback/retry/pause/cancel in `apps/workspace-storage-worker/src/migration/copy.ts`; never delete originals or duplicate quota on replay. (FR-008 FR-009 FR-030 SC-002)
-- [ ] T051 [US2] Implement freeze/drain/epoch fence/final delta/atomic cutover with post-cutover snapshot containing exact receipt before completion/unfencing, and reconciliation in `supabase/functions/workspace-migrate/`; late old-agent finalize denied and after-commit repair forward only. (FR-009 FR-010 FR-014 SC-002)
-- [ ] T052 [US2] Implement migration cost/capacity/ETA/progress/exception/choice UI and wrappers in `apps/web/src/team/storage/MigrationFlow.tsx` and `apps/web/src/api/team-storage.ts`; fresh never becomes merge target. (FR-002 FR-003 FR-007 FR-008)
-- [ ] T053 [US2] Implement legacy Google feed bridge and external replacement confirmation in `supabase/functions/workspace-migrate/catalog-links.ts` plus `apps/web/src/team/storage/`; mark remaining Google dependency and retain only scoped required tokens. (FR-006 FR-009 FR-011 FR-014)
-- [ ] T054 [US2] Add crash-after-upload/after-commit, concurrent Drive mutation, backup lag, quota/grant change, protocol downgrade and cancel-before/after-cutover faults in `tests/workspace-migration-faults.test.ts`; attach safe CLI expected receipts. (FR-008 FR-009 FR-010 FR-014 SC-002)
-- [ ] T055 [US2] Implement migration admission pacing, budget/backpressure and quota-aware staging reclamation in `apps/workspace-storage-worker/src/migration/admission.ts`; dry-run exact resource/ETA evidence in feature evidence. (FR-007 FR-017 FR-029 FR-030)
+- [ ] T010 [P] Тест для T009 — `tests/space-storage-r2-client.test.ts`: підписи й заголовки контрольних сум, захист імені bucket, санітизація помилок, сторінкування `listPrefix` (фейковий fetch).
+- [ ] T011 Журнал і реєстрація кодів:
+  - `supabase/functions/_shared/space-storage-journal.ts` пише в `private.space_storage_journal` без імен, шляхів і ключів;
+  - коди 057 — у `scripts/analytics/code-map.ts` за зразком `catalog:video_r2:${code}`;
+  - можливість `team.space_storage` — у `scripts/analytics/coverage-registry.ts`.
+- [ ] T012 [P] Тест для T011 — `tests/space-storage-codes.test.ts`: кожен код із `packages/shared/src/team/space-storage.ts` є в `CODE_MAP`. Рядок журналу не містить полів `name`/`path`/`key`.
 
-## Phase 7 — US3: choice gate and Drive maintenance
+### Фаза 3 — US11: пілот власника, ізоляція (P1)
 
-Independent acceptance: seeded legacy fixture at T0/T1±1ms through web, old agent and direct API; no need to migrate to test allowed maintenance.
+**Мета**: власник із дозволом створює R2-простір на next. Інші акаунти, прод-веб і прод-агент
+нічого не помічають.
+**Незалежна перевірка**: [quickstart.md](quickstart.md) M1 крок 1.
 
-- [ ] T056 [US3] Write transition clock, incomplete inventory, external new/revised source including same-size change during byte read, old-agent and fresh-choice tests in `tests/workspace-legacy-policy.test.ts` and `supabase/tests/database/workspace-legacy-policy.test.sql`. (FR-001 FR-002 FR-004 FR-005 FR-006 SC-003)
-- [ ] T057 [US3] Add durable T0/T1 policy and precomputed legacy eligible-version/recipe inventories in `supabase/migrations/`; snapshot-incomplete blocks refresh rather than admitting future versions. (FR-004 FR-005 FR-006 SC-003)
-- [ ] T058 [US3] Enforce revision-pinned or fully verified quarantined legacy byte reads plus maintenance allowlist on every existing mutation/claim/reauth and cutoff finalize in `supabase/functions/_shared/workspace-storage.ts`, `supabase/functions/drive-ops/` and `supabase/functions/catalog-sync/`. (FR-001 FR-005 FR-006 FR-014 SC-003)
-- [ ] T059 [US3] Restrict existing catalog schedule/recipe refresh to frozen eligible sources and bounded technical outputs in `supabase/functions/drive-ops/product-catalog.ts` and catalog workers; preserve stop/revoke/export. (FR-005 FR-006 FR-017 FR-030 SC-003)
-- [ ] T060 [US3] Add owner decision gate, irreversible fresh explanation, exact deadline/read-only labels and member access states in `apps/web/src/team/storage/LegacyTransition.tsx` with compiled uk/en i18n. (FR-002 FR-003 FR-004 FR-005 FR-006)
-- [ ] T061 [US3] Add idempotent deadline notification intents via existing server notification seam in `supabase/functions/` and safe email/banner fixtures in `tests/workspace-legacy-notices.test.ts`; no actual sends without configured release workflow. (FR-004 FR-005 FR-006 FR-031)
+- [ ] T013 [P] [US11] Тест для T015 — `tests/space-storage-create.test.ts`:
+  - `/spaces/create` ідемпотентний за ключем і створює кореневу папку;
+  - без пілоту → `R2_PILOT_REQUIRED`, без `x-soty-capabilities: storage-r2/1` → `CLIENT_UPDATE_REQUIRED`.
 
-## Phase 8 — US6: agent-readable diagnosis
+  Додати `supabase/tests/database/space-storage-pilot.test.sql`:
+  - адмін-RPC лише для адміністратора й з аудитом;
+  - зняття дозволу не видаляє простір;
+  - запрошений без пілоту не відкриває простір.
 
-Independent acceptance: fixture producers/authoritative receipts with missing, duplicate and delayed events are explained by the existing CLI without production writes.
+- [ ] T014 [P] [US11] Тест для T016 — `tests/storage-r2-pilots-card.test.tsx`: список, додавання за поштою з лімітом обсягу, зняття, помилки RPC.
+- [ ] T015 [US11] Edge-функція `supabase/functions/space-storage/`:
+  - `index.ts`: маршрут за шляхом, лише POST, як `routePath()` у `supabase/functions/drive-ops/index.ts:3488`;
+  - `handler.ts`: чисті валідатори;
+  - `create.ts`: `/spaces/create` через RPC `service_create_r2_space` у міграції `supabase/migrations/<ts>_space_storage_create.sql`;
+  - запис `[functions.space-storage]` у `supabase/config.toml`.
 
-- [ ] T062 [US6] Define typed analytics stage/property/privacy bounds in `packages/shared/src/types.ts`, server ingestion allowlist and `scripts/analytics/coverage-registry.ts` for every diagnostics contract journey. (FR-032 FR-033 SC-009)
-- [ ] T063 [US6] Add privacy-limited authoritative migration/quota/protection/preview/incident projection migrations in `supabase/migrations/`; join operation/attempt/generation and declare unknown coverage/watermarks. (FR-032 FR-033 SC-009)
-- [ ] T064 [US6] Wire bounded stage/terminal/visible-result signals and diagnostic receipts in hosted storage worker/functions, `apps/agent/src/team-bridge/` and `apps/web/src/team/storage/`; analytics outages must not block product. (FR-032 FR-033 SC-009)
-- [ ] T065 [US6] Extend `scripts/analytics/investigate.ts`, `workspace.ts`, `code-map.ts`, `coverage-registry.ts`, `cli.ts` and capacity command to explain facts/hypotheses/blind spots and exact estimated-vs-actual costs. (FR-029 FR-032 FR-033 SC-009)
-- [ ] T066 [US6] Add end-to-end collector/projection/CLI privacy and missing-evidence regressions in `tests/workspace-storage-analytics.test.ts` and existing analytics code-map tests; include every critical negative journey and unsupported cohort. (FR-032 FR-033 SC-009)
+  Спільна перевірка запиту — п'ять умов з [contracts/storage-api.md](contracts/storage-api.md). Тест: T013.
 
-## Phase 9 — Cross-cutting acceptance and controlled release
+- [ ] T016 [P] [US11] Адмін-картка `apps/web/src/pages/admin/StorageR2PilotsCard.tsx` за зразком `ReleaseTestersCard.tsx`. Підключити в `apps/web/src/pages/AdminPage.tsx:385` поруч. Тест: T014.
+- [ ] T017 [P] [US11] Тест для T018 — `tests/space-r2-create-flow.test.tsx`:
+  - вибір «На R2» з'являється лише коли `siteChannel()` = `next` і є пілот;
+  - на прод-адресі вибору немає;
+  - `spaceReadiness` вважає R2-простір готовим без Drive;
+  - `listTeams` повертається до `list_my_teams` на `PGRST202`.
+- [ ] T018 [US11] Створення R2-простору у вебі:
+  - `apps/web/src/team/create/CreateSpaceWizard.tsx` і новий `apps/web/src/team/storage/CreateR2SpaceStep.tsx` — без кроку папки Drive;
+  - `spaceReadiness()` у `apps/web/src/team/lobby/SpaceCard.tsx:25`;
+  - `teamApi.listTeams` (`apps/web/src/api/team.ts:2258`) → `list_my_teams_v2` з відступом, як у `apps/web/src/lib/release-tester.ts`;
+  - `TeamContextSnapshot` (`team.ts:285`) отримує `storageBackend`;
+  - `mapTeamContext` (`team.ts:1361`) його розбирає.
 
-No public activation until all story and release gates pass; implementation request and production authorization remain separate.
+  Тест: T017.
 
-- [ ] T067 Run additive migration chain/RLS/provider and touched single-worker tests, formatting/lint/build checks via `npm run verify` and `npm run verify:release`; preserve verification results in feature qualification evidence and resolve failures. (FR-031 SC-001 SC-002 SC-003 SC-004 SC-005 SC-006 SC-007 SC-009)
-- [ ] T068 Update full release capability/protocol/environment/canonical runbook in `packages/shared/src/release.ts`, `docs/PRODUCTION.md`, `docs/RELEASE-CHANNEL.md` and `docs/ANALYTICS_CLI.md`; no version bump/tag/production side effect without release intent. (FR-010 FR-014 FR-031 FR-032)
-- [ ] T069 Execute exact-SHA packaged beta and required Mac ARM/Intel/Windows qualification using canonical runner, validate previous-version compatibility and rollback fencing; write evidence under `specs/057-r2-workspaces/evidence/`. (FR-010 FR-014 FR-031 SC-006 SC-010)
-- [ ] T070 Prepare operator/user runbook `docs/WORKSPACE-STORAGE.md` for migration, fresh choice, maintenance, quota/retention, catalog link replacement, restore and costs; collect G0–G5 evidence with zero unresolved critical/high findings. (FR-002 FR-004 FR-005 FR-019 FR-021 FR-026 FR-034 SC-010)
-- [ ] T071 After separate explicit production release intent only, follow canonical next/canary/promote workflow and record T0/policy plus before/after channel state in `specs/057-r2-workspaces/evidence/release-acceptance.md`; verify each canary and stop criteria, never reset cutoff on rollback. (FR-004 FR-010 FR-031 FR-034 SC-010)
-- [ ] T072 After authorized release, run read-only `investigate`, `audit`, `storage-capacity` at pinned post-release instants, measure maintenance deadline and actual costs/replica lag; record cohort denominators and schedule quarterly restore qualification in `docs/WORKSPACE-STORAGE.md`. (FR-004 FR-005 FR-025 FR-028 FR-029 FR-032 SC-003 SC-008 SC-009 SC-010)
+- [ ] T019 [P] [US11] Тест для T020 — `tests/space-storage-isolation.test.ts` і `supabase/tests/database/space-storage-isolation.test.sql`:
+  - файлові маршрути `drive-ops` і `drive-transfer` на R2-простір → `STORAGE_BACKEND_MISMATCH`;
+  - `outputUploadProtocolVersion: 2` на R2 → `AGENT_UPDATE_REQUIRED`;
+  - claim фонової роботи для R2 агентом контракту 2 не видається;
+  - `catalog-sync` не бере R2-простір.
+- [ ] T020 [US11] Ізоляція старих шляхів:
+  - `drive-ops`: `loadContext` і `rootDestination` (`supabase/functions/drive-ops/index.ts:613`, `:538`) через `service_get_material_operation_context` і `service_get_root_operation_context` — для файлових маршрутів;
+  - `drive-transfer`: `authorizeCaller` (`supabase/functions/drive-transfer/index.ts:1756`);
+  - `requireProcessUploadProducer` (`supabase/functions/drive-ops/process-output-upload.ts:7`) — протокол 3 для R2;
+  - claim-и делегованої фонової роботи (`team_recovery_*`) — вимагають контракт агента 3 для R2;
+  - `private.claim_catalog_sync_jobs` — явна умова `storage_backend='drive'`.
 
-## Dependencies and execution strategy
+  SQL — у міграції `supabase/migrations/<ts>_space_storage_isolation.sql`. Тест: T019.
 
-T001 initial inventory → T002–T004 → T001 qualification completion; T005–T013 foundation → US1 → US4 → US5 → US2 → US3, then US6 final diagnosis and acceptance. US4 model follows foundation and can be exercised on fixtures. US5 protection follows committed-version schema and blocks real US2 cutover. US2 also needs US1 parity + US4 capacity; US3 policy can be tested on legacy fixtures independently, but public T0 requires all six stories. US6 instrumentation is developed with each story, not postponed until launch; its phase assembles cross-layer diagnosis. Cross-cutting acceptance follows all stories, including final commercial evidence after recovery/load measurements. Story tests may use protocol fixtures before integration; real cutover stays blocked until US5. No later-phase executable is required before its task creates it.
+### Фаза 4 — US1: робота в R2-просторі без Google (P1)
 
-**Safe parallel examples after shared prerequisites**: US1 preview fixture and feed fixture files; US2 inventory reader and UI copy prototype against frozen contract; US3 cutoff tests and notification templates; US4 pricing math and UI after ledger API frozen; US5 isolated B2 contract test and recovery-host configuration readback; US6 code-map tests and privacy fixtures. Do not run concurrent edits of shared type/migration/CLI files or heavy local test/build jobs. These are scheduling opportunities, not permission to skip dependencies.
+**Мета**: учасник завантажує, знаходить, перейменовує, переносить, скачує, видаляє й відновлює
+файли. Вкладення, обробка й каталоги працюють без Drive і без агента власника для перегляду.
+**Незалежна перевірка**: quickstart M1 кроки 2, 3, 7, 8.
 
-**MVP**: isolated US1 + atomic quotas + verified independent protection and diagnostics. This can demonstrate the new experience; it is not eligible for public T0 until migration/maintenance/catalog-link and full release gates pass. Active-active writes and payment processor are intentionally outside scope.
+- [ ] T021 [P] [US1] Тест для T023 — `tests/space-storage-upload.test.ts`:
+  - `admit` повертає `exists` для того самого вмісту в тій самій папці;
+  - для іншої папки створює новий матеріал з посиланням на наявний об'єкт;
+  - квота → `STORAGE_QUOTA_EXCEEDED` з `needBytes`;
+  - `parts` знову перевіряє права;
+  - `complete` ідемпотентний, повтор після втрати відповіді;
+  - знята роль між `admit` і `complete` → відмова;
+  - протермінована сесія → `UPLOAD_EXPIRED`.
+- [ ] T022 [P] [US1] Тест для T023 — `supabase/tests/database/space-storage-commit.test.sql`:
+  - фіксація атомарна: об'єкт, матеріал, посилання, облік, сигнал, завдання похідних і `content_revision`;
+  - 100 паралельних резервувань на межі квоти не перевищують її (SC-004 для простору);
+  - `uncertain` не звільняється без звірки.
+- [ ] T023 [US1] Маршрути `/uploads/admit|{id}/parts|{id}/complete|{id}/abort` у `supabase/functions/space-storage/uploads.ts`. RPC `service_admit_space_upload`, `service_complete_space_upload`, `service_abort_space_upload` — у міграції `supabase/migrations/<ts>_space_storage_uploads.sql`. Порядок блокувань: team → material. Тести: T021, T022.
+- [ ] T024 [P] [US1] Тест для T025 — `tests/space-storage-mutate.test.ts` і `supabase/tests/database/space-storage-mutate.test.sql`:
+  - rename, move, create_folder, copy (без копіювання байтів), trash і restore піддерева;
+  - `REVISION_CONFLICT` з поточним станом;
+  - цикли;
+  - права за ролями з `private.can`;
+  - `/trash/empty` одразу ставить об'єкти в чергу на видалення.
+- [ ] T025 [US1] Маршрути `/materials/mutate` і `/trash/empty` у `supabase/functions/space-storage/mutate.ts`. RPC `service_mutate_space_materials`, `service_empty_space_trash`; семантика `folder_trash_root` — як у `supabase/migrations/20260930120000_folder_trash.sql`. Тест: T024.
+- [ ] T026 [P] [US1] Тест для T027 — `tests/space-read-worker.test.ts`:
+  - грант: підпис і строк;
+  - відкликана епоха → 403 за ≤30 с кешу епохи;
+  - простір у гранті ≠ простір у шляху → 403;
+  - ключ кешу без `g`, Range → 206;
+  - безпечне `Content-Disposition`;
+  - `no-store` на помилках;
+  - чужий хост не обслуговується.
+- [ ] T027 [US1] Worker читання й видача гранту:
+  - `apps/catalog-image-delivery/src/space-read.ts`;
+  - вибір обробника за хостом у `apps/catalog-image-delivery/src/index.ts`, біндінг `SPACE_BUCKET`;
+  - маршрут `/read-grant` у `supabase/functions/space-storage/read.ts`;
+  - RPC `service_space_read_epoch(p_team)` для Worker (лише сервісний ключ).
 
-**Task-level refinement**: a task with many existing call sites requires an enumerated checklist in its evidence before changing code; inventory parity rows are not silently dropped to finish a phase. Unknown provider outcome uses read-only reconcile before retry.
+  Тест: T026.
 
-**Total**: 72 tasks. No task is marked implemented by this planning work.
+- [ ] T028 [P] [US1] Тест для T029 — `tests/space-explorer-adapter.test.ts`: R2-простір ніколи не кличе `drive-ops` чи `drive-transfer`. Drive-простір кличе те саме, що й до змін (знімок викликів).
+- [ ] T029 [US1] Клієнт `apps/web/src/api/space-storage.ts` і перемикач за `storageBackend` у `apps/web/src/api/team.ts`:
+  - `startUpload`/`relayUploadChunk`/`finalizeUpload` (:4842–4917);
+  - `renameMaterial`/`moveMaterial`/`copyMaterial`/`trashMaterial`/`restoreMaterial` (:4932–4985);
+  - `requestDownload` (:5009), `previewMaterial` (:5176), `thumbnailUrl` (:4513).
 
-## Requirement coverage
+  У `apps/web/src/team/explorer/useExplorerFileOps.ts` і `CreateFolderDialog.tsx` для R2 — `create_folder` замість `ensure*`. Тест: T028.
 
-| Requirement | Tasks                                                                                          |
-| ----------- | ---------------------------------------------------------------------------------------------- |
-| FR-001      | T014, T015, T020, T056, T058                                                                   |
-| FR-002      | T052, T056, T060, T070                                                                         |
-| FR-003      | T006, T007, T012, T015, T023, T047, T048, T052, T060                                           |
-| FR-004      | T056, T057, T060, T061, T070, T071, T072                                                       |
-| FR-005      | T009, T056, T057, T058, T059, T060, T061, T070, T072                                           |
-| FR-006      | T053, T056, T057, T058, T059, T060, T061                                                       |
-| FR-007      | T003, T012, T047, T048, T049, T052, T055                                                       |
-| FR-008      | T010, T016, T017, T047, T048, T050, T052, T054                                                 |
-| FR-009      | T047, T049, T050, T051, T053, T054                                                             |
-| FR-010      | T007, T047, T051, T054, T068, T069, T071                                                       |
-| FR-011      | T006, T007, T012, T013, T014, T018, T019, T020, T021, T022, T023, T026, T027, T028, T049, T053 |
-| FR-012      | T011, T020, T024, T025, T028                                                                   |
-| FR-013      | T004, T006, T009, T014, T018, T019, T020, T024, T025, T026, T027, T042, T045                   |
-| FR-014      | T005, T006, T009, T016, T017, T019, T021, T022, T028, T051, T053, T054, T058, T068, T069       |
-| FR-015      | T008, T015, T029, T030, T031, T032, T036                                                       |
-| FR-016      | T008, T010, T017, T018, T026, T029, T033, T036                                                 |
-| FR-017      | T008, T009, T010, T013, T016, T017, T027, T029, T032, T033, T034, T055, T059                   |
-| FR-018      | T008, T029, T031, T032, T036                                                                   |
-| FR-019      | T030, T034, T036, T037, T070                                                                   |
-| FR-020      | T008, T029, T030, T031, T036                                                                   |
-| FR-021      | T029, T030, T035, T036, T070                                                                   |
-| FR-022      | T029, T030, T031, T035, T036                                                                   |
-| FR-023      | T001, T004, T007, T011, T038, T039, T040, T043, T045                                           |
-| FR-024      | T004, T007, T035, T038, T039, T040, T041, T044, T045                                           |
-| FR-025      | T038, T039, T040, T041, T042, T046, T072                                                       |
-| FR-026      | T042, T043, T044, T045, T046, T070                                                             |
-| FR-027      | T013, T042, T043, T044, T046                                                                   |
-| FR-028      | T044, T045, T046, T072                                                                         |
-| FR-029      | T001, T003, T013, T033, T034, T037, T046, T055, T065, T072                                     |
-| FR-030      | T010, T011, T017, T024, T025, T034, T037, T039, T041, T050, T055, T059                         |
-| FR-031      | T002, T061, T067, T068, T069, T071                                                             |
-| FR-032      | T003, T005, T062, T063, T064, T065, T066, T068, T072                                           |
-| FR-033      | T003, T005, T011, T040, T043, T062, T063, T064, T065, T066                                     |
-| FR-034      | T001, T002, T037, T043, T070, T071                                                             |
-| SC-001      | T009, T014, T020, T067                                                                         |
-| SC-002      | T006, T012, T023, T047, T049, T050, T051, T054, T067                                           |
-| SC-003      | T056, T057, T058, T059, T067, T072                                                             |
-| SC-004      | T010, T013, T016, T029, T032, T033, T067                                                       |
-| SC-005      | T013, T024, T025, T028, T046, T067                                                             |
-| SC-006      | T013, T019, T021, T022, T023, T027, T028, T067, T069                                           |
-| SC-007      | T002, T004, T013, T038, T040, T045, T046, T067                                                 |
-| SC-008      | T037, T072                                                                                     |
-| SC-009      | T062, T063, T064, T065, T066, T067, T072                                                       |
-| SC-010      | T001, T003, T037, T046, T069, T070, T071, T072                                                 |
+- [ ] T030 [P] [US1] Тест для T031 — `supabase/tests/database/space-storage-attachments.test.sql` і `tests/space-task-attachments.test.tsx`:
+  - вкладення в R2-просторі має посилання категорії `attachments`;
+  - відкріплення не видаляє матеріал, що лишився в провіднику;
+  - `CopyDriveLinkButton` для R2 не показується.
+- [ ] T031 [US1] Вкладення завдань у R2-просторі:
+  - R2-гілка `begin_task_upload` і `attach_team_task_materials` (міграція `supabase/migrations/<ts>_space_storage_attachments.sql`) — папка вкладень є матеріалом простору;
+  - `apps/web/src/team/tasks/TaskAttachmentPicker.tsx`, `TaskAttachmentTile.tsx`, `useAttachmentFolders.ts`;
+  - приховати `apps/web/src/team/library/CopyDriveLinkButton.tsx` для R2, поки нема T069.
+
+  Тест: T030.
+
+- [ ] T032 [P] [US1] Тест для T033 — `tests/agent-r2-transfer.test.ts`:
+  - multipart з контрольними сумами частин і ≤4 паралельними частинами;
+  - продовження з журналу після обриву;
+  - Range-скачування з `files-*`, оновлення гранту на 401;
+  - розбіжність хешу → помилка без фіксації;
+  - навантаження йде через PowerGovernor.
+- [ ] T033 [US1] Агент контракту 3:
+  - новий `apps/agent/src/team-bridge/r2-transfer.ts`;
+  - підключення в `TeamTransferClient` (`apps/agent/src/team-bridge/transfer.ts:124`, `downloadSource` :135, `uploadResult` :376 — `validateGoogleSession` :630 лишається для Drive), `download.ts` (`TeamDownloadBridge.download` :175), `process.ts` (`TeamProcessBridge` :171);
+  - `AGENT_TOOL_CONTRACTS.teamWorkspace` 2 → 3 і `WEB_TOOL_REQUIREMENTS` для R2 у `packages/shared/src/release.ts:114`, `:187`;
+  - маршрути `/agent/source` і `/process/output/start` (протокол 3) у `supabase/functions/space-storage/agent.ts`;
+  - `apps/agent/src/team-bridge/source-cache.ts` (`TeamSourceCache` :53) — ключ за `sha256` об'єкта, тож повторна обробка того самого вмісту не скачує його вдруге (FR-037 для агента).
+
+  Тест: T032.
+
+- [ ] T034 [P] [US1] Тест для T035 — `tests/space-storage-process.test.ts`:
+  - стиснення, транскрипт і перезашивка на R2-простір: старт видає джерело R2;
+  - результат фіксується як матеріал з `processed_from` і категорією `process`;
+  - `quiesced` і повтор фіналізації ідемпотентні.
+- [ ] T035 [US1] Маршрути `/process/start`, `/process/output/finalize`, `/process/output/quiesced` у `supabase/functions/space-storage/process.ts`. Поведінка — як `handleProcessStart` (`supabase/functions/drive-ops/index.ts:2106`), `handleProcessOutputFinalize` (:2471), `handleProcessOutputQuiesced` (:2315). Чисті перевірки взяти з `supabase/functions/drive-ops/handler.ts`, не копіювати. Веб `apps/web/src/api/client.ts` (:704, :1044) передає агенту R2-гранти. Тест: T034.
+- [ ] T036 [P] [US1] Тест для T037 — `tests/catalog-feed-writer.test.ts`:
+  - CSV байт у байт: заголовок `PRODUCT_CATALOG_TEMPLATE`, рядки з `buildProductCatalogRows`;
+  - `text/csv; charset=utf-8`;
+  - перезапис того самого ключа `feeds/{feed_id}.csv` і очищення кешу адреси;
+  - збій запису лишає попередню стрічку;
+  - Google-шлях `CatalogDocumentWriter` дає ті самі виклики, що й до змін.
+- [ ] T037 [US1] Стрічка каталогу:
+  - `supabase/functions/_shared/catalog-feed.ts`: запис у `soty-catalog-videos-{env}-public` через клієнт `CatalogVideoR2` і очищення кешу через `R2_CATALOG_PURGE_TOKEN`;
+  - шов `CatalogDocumentWriter`, винесений з `supabase/functions/drive-ops/product-catalog.ts:966-1028`: Google-гілка без змін, R2-гілка пише стрічку й кладе її адресу в `sheet_url`;
+  - колонки `feed_id`, `feed_revision`, `feed_written_at` у міграції `supabase/migrations/<ts>_space_storage_catalogs.sql`.
+
+  Тест: T036.
+
+- [ ] T038 [P] [US1] Тест для T039 — `tests/catalog-updater-feed.test.ts`. Для каталогу зі стрічкою:
+  - не кличе `takeSheetsReads` і `drive.getFile`;
+  - пише стрічку після `rebuildCatalogRows`;
+  - нетекстові оновлення йдуть у стрічку, а не в комірки Sheets.
+- [ ] T039 [US1] Оновлювач на R2:
+  - `supabase/functions/catalog-updater/worker.ts` (`takeSheetsReads` :86, `drive.getFile` :1017, запис :1049);
+  - `nonvideo-writer.ts` (:170) і `publication-cells.ts` (:145) — гілка стрічки через `supabase/functions/_shared/catalog-feed.ts`.
+
+  Тест: T038.
+
+- [ ] T040 [P] [US1] Тест для T041 — `tests/catalog-r2-sources.test.ts` і `supabase/tests/database/catalog-space-sources.test.sql`:
+  - копія відео каталогу з R2-простору береться з bucket простору, без Drive;
+  - гранти перезашивки й варіацій для агента — URL `files-*`;
+  - імпорт картинок каталогу з матеріалів простору.
+- [ ] T041 [US1] Джерела каталогів з R2:
+  - `CatalogVideoSpaceReader` поруч із `CatalogVideoDriveReader` у `supabase/functions/catalog-video-r2/worker.ts:41`, копіювання між bucket на сервері;
+  - R2-гілка в `supabase/functions/drive-ops/catalog-video-process-grants.ts:101-145`, `supabase/functions/drive-ops/updater-restitch.ts:406` і `drive-ops/index.ts:2257`;
+  - джерело `space_object` в імпорті `supabase/functions/catalog-images/`.
+
+  Тест: T040.
+
+- [ ] T042 [P] [US1] Тест для T043 — `tests/catalog-feed-card.test.tsx`: картка каталогу R2-простору показує й копіює адресу стрічки. Слів «Google» чи «Таблиця Google» немає. Drive-каталог без змін.
+- [ ] T043 [US1] Картка каталогу у вебі: `apps/web/src/team/product-catalog/CatalogCreatedPublicationStatus.tsx`, `CatalogPublicationDialog.tsx` і місця з посиланням на таблицю показують стрічку для R2 (FR-050). Тест: T042.
+
+### Фаза 5 — US7: відчутно швидше (ядро M1) (P1)
+
+**Мета**: пряма передача, похідні при фіксації, кеш і Realtime.
+**Незалежна перевірка**: quickstart M1 кроки 2–5. Повні заміри SC-011 — у M2 (T073).
+
+- [ ] T044 [P] [US7] Тест для T045 — `tests/space-upload-client.test.ts`:
+  - ≤8 паралельних частин;
+  - продовження з журналу IndexedDB після обриву мережі й перезавантаження вкладки;
+  - SHA-256 у Web Worker збігається з еталоном;
+  - `exists` пропускає передачу;
+  - дерево папок зберігає структуру;
+  - скасування закриває multipart.
+- [ ] T045 [US7] Рушій завантаження:
+  - `apps/web/src/team/storage/spaceUpload.ts` і `spaceHash.worker.ts`;
+  - журнал за зразком `apps/web/src/team/explorer/workspaceOperationJournal.ts:214`;
+  - підключення в `apps/web/src/team/explorer/useExplorerUploads.ts` і `ExplorerDropZone.tsx`.
+
+  Тест: T044.
+
+- [ ] T046 [P] [US7] Тест для T047 — `tests/space-derivatives.test.ts`:
+  - ключі рецептів і ідемпотентність за хешем;
+  - обмежені повтори, `unsupported`;
+  - розбіжність повного хешу → `corrupt` і повідомлення;
+  - вихід ffprobe розбирається як `unknown`;
+  - завдання, пропущене Queue, підбирає звірка.
+- [ ] T047 [US7] Застосунок похідних `apps/space-derivatives/`:
+  - `src/consumer.ts` — споживач Queue;
+  - `container/Dockerfile` — ffmpeg і libvips з межами CPU, пам'яті й часу;
+  - `src/recipes.ts` — рядок, плитка й повний WebP, постер, прев'ю при наведенні, факти ffprobe, перша сторінка PDF; непідтримуваний тип явно позначається `unsupported` (FR-012).
+
+  Фіксація публікує завдання в Queue після коміту (`supabase/functions/space-storage/uploads.ts`), а `space-storage-sweeper` підбирає пропущені. Завершення — RPC `service_finish_space_derivative`: `thumbnail_state`/`preview_state`, медіафакти, сигнал, `verified_at` або `corrupt`. Тест: T046.
+
+- [ ] T048 [P] [US7] Тест для T049 — `tests/space-realtime-cache.test.tsx`:
+  - сигнал оновлює сторінку папки на місці без блимання;
+  - тепле відкриття малює кеш до мережі;
+  - LRU тримає обмеження;
+  - вихід і відкликання очищують кеш;
+  - для R2 немає таймерів опитування й «синхронізувати».
+- [ ] T049 [US7] Realtime і кеш:
+  - підписка на `team_space_storage_signals` у `apps/web/src/team/useTeamRealtime.ts:100`;
+  - новий `apps/web/src/team/storage/spaceCache.ts` (IndexedDB) у `apps/web/src/team/explorer/useFolderPage.ts` і `FolderTree.tsx`;
+  - очищення через `apps/web/src/team/private-cache-scope.ts`;
+  - для R2 вимкнути `useWakeCatalogSync.ts` (`TeamContext.tsx:324`), `useExplorerResync.ts`, `useFolderResync.ts`, `SyncStatusPanel.tsx`.
+
+  Тест: T048.
+
+- [ ] T050 [P] [US7] Тест для T051 — `tests/space-media-urls.test.ts`:
+  - незмінні адреси похідних і оригіналу;
+  - оновлення гранту на 401 — рівно один повтор;
+  - браузерне скачування >32 МіБ для R2 дозволене;
+  - `<video>` отримує Range-адресу `files-*`.
+- [ ] T051 [US7] Медіа у вебі:
+  - `apps/web/src/team/preview/MaterialPreview.tsx` (:293, :350) — Range-адреса з `files-*`;
+  - `apps/web/src/team/explorer/useThumbnailSession.ts` — грант замість сесії мініатюр;
+  - `useSelectionDownload.ts` — пряме скачування будь-якого розміру з продовженням;
+  - `usePosterFrames.ts` — постер похідної.
+
+  Тест: T050.
+
+### Фаза 6 — US9: пам'ять простору наочно (P1)
+
+**Мета**: шкала з категоріями, список найбільшого, попередження завчасно.
+**Незалежна перевірка**: quickstart M1 крок 6 (SC-013).
+
+- [ ] T052 [P] [US9] Тест для T053 — `supabase/tests/database/space-storage-usage.test.sql`. Фікстура US9: матеріали, три каталоги по 10 варіацій, вкладення, версії, кошик. Перевірити:
+  - сума сегментів = `usedBytes`;
+  - спільне рахується раз;
+  - `get_catalog_storage_breakdown` дає три числа;
+  - тригери на `private.catalog_video_r2_copies` і `private.catalog_image_storage` правильно змінюють категорію `catalogs`;
+  - картинка пулу позначена спільною.
+- [ ] T053 [US9] Міграція `supabase/migrations/<ts>_space_storage_usage.sql`:
+  - `get_space_storage_summary`, `list_space_storage_items`, `get_catalog_storage_breakdown`;
+  - тригери на таблицях 050/045 лише для R2-просторів;
+  - `private.space_capacity_bytes(team)` — ліміт пілоту.
+
+  Тест: T052.
+
+- [ ] T054 [P] [US9] Тест для T055 — `tests/storage-meter.test.tsx` і новий випадок у `tests/design-components.test.tsx`:
+  - сегменти мають підпис і контраст, а не лише колір;
+  - клавіатурна навігація й підказка (назва, обсяг, частка);
+  - штрихування «Резервується»;
+  - компактний вигляд на вузькому екрані;
+  - світла й темна тема через токени.
+- [ ] T055 [US9] Компонент `apps/web/src/components/ui/StorageMeter.tsx`:
+  - експорт з `apps/web/src/components/ui/index.ts`;
+  - токени `--color-storage-{materials,catalogs,process,attachments,versions,trash,reserved}` для обох тем у `apps/web/src/styles/tokens.css`;
+  - приклад у `apps/web/src/dev/DesignSystemPage.tsx`;
+  - рядок у `specs/021-design-system-redesign/contracts/components.md`.
+
+  Тест: T054.
+
+- [ ] T056 [P] [US9] Тест для T057 — `tests/storage-meter-panel.test.tsx`:
+  - топ-10 і повний список із пошуком і сортуванням за вагою, датою, автором;
+  - відкрити й видалити зі списку;
+  - попередження 80/95/100% з оцінкою «займе ≈ …» у місцях дії;
+  - оновлення за сигналом `usage` без перезавантаження.
+- [ ] T057 [US9] Панель пам'яті:
+  - `apps/web/src/team/storage/StorageMeterPanel.tsx` і `StorageItemsList.tsx` — у стані простору й у `apps/web/src/team/tariffs/SpaceTariffSection.tsx`;
+  - попередження в `useExplorerUploads.ts`, діалогах створення каталогу й генерації варіацій (`apps/web/src/team/product-catalog/`), перезашивці (`apps/web/src/team/restitch/`);
+  - тексти в `apps/web/src/locales`.
+
+  Тест: T056.
+
+### Фаза 7 — US10: видалив — і одразу зникло (P1)
+
+**Мета**: каскадне видалення, кошик 30 днів, жодних сиріт.
+**Незалежна перевірка**: quickstart M1 кроки 7, 9, 10 (SC-014, SC-016).
+
+- [ ] T058 [P] [US10] Тест для T059 — `supabase/tests/database/space-storage-purge.test.sql`:
+  - 0 посилань → черга з правильним `due_at` для кожної причини;
+  - спільний об'єкт лишається;
+  - видалення каталогу під час генерації варіації скасовує результат і не прикріплює його;
+  - повтор видалення ідемпотентний;
+  - відновлення з кошика повертає зв'язки і, якщо місця вже немає, відповідає `STORAGE_QUOTA_EXCEEDED`.
+- [ ] T059 [US10] Прибирач `supabase/functions/space-storage-sweeper/index.ts`. pg_cron щохвилини — у міграції `supabase/migrations/<ts>_space_storage_sweeper.sql` за зразком `private.invoke_catalog_video_r2_worker`. Що робить:
+  - видаляє з R2 за ≤15 хв;
+  - відпрацьовує строк кошика 30 днів;
+  - раз на добу звіряє `listPrefix('t/{team}/')` з обліком: сироти старші 24 год видаляються, відсутні об'єкти — це помилка;
+  - видаляє весь простір, зокрема пілотний.
+
+  При видаленні каталогу стрічка видаляється, а її кеш чиститься одразу. Те саме — для публічних адрес відео каталогу: шлях 050 (`private.catalog_video_r2_release_removed`, `supabase/migrations/20261207400200_catalog_r2_copy_deleted_on_trash.sql`) уже кличе sweep одразу, а T059 додає очищення кешу зони для цих адрес. Мета — 404 за ≤1 хв (SC-014). Тест: T058, T060.
+
+- [ ] T060 [P] [US10] Тест для T059 — `tests/space-storage-sweeper.test.ts` з фейковим R2: пільга для сиріт, частковий збій і повтор, звіт про відсутні, нуль залишку після видалення простору. Видалення каталогу кличе очищення кешу зони для стрічки й кожної унікальної адреси відео.
+- [ ] T061 [P] [US10] CLI `scripts/analytics/space-storage.ts`, `case 'space-storage'` у `scripts/analytics/cli.ts` і проєкція `public.analytics_space_storage` (міграція `supabase/migrations/<ts>_space_storage_analytics.sql`). Показує облік, звірку, сироти, затримку видалення, черги похідних, затримку фіксація → сигнал. Тест — `tests/analytics-space-storage.test.ts` у цій самій задачі: фікстура відповідей, `unsupported`, а не нуль, коли проєкції немає.
+
+### Фаза 8 — приймання M1 і реліз на next
+
+- [ ] T062 Приймання M1 на беті:
+  - міграції через `psql` + `schema_migrations`;
+  - кроки 1–10 [quickstart.md](quickstart.md) M1 через Playwright-драйвер беті;
+  - результат — `specs/057-r2-workspaces/evidence/m1-beta-acceptance-<дата>.md`.
+
+  Потім створити прод-ресурси з T002 (`soty-spaces-production`, маршрут `files.soty.pp.ua`, Queue, Container, правило кешу `/feeds/*`) і повний реліз на next раннером: змінились агент і shared, тож швидкий веб-шлях не підходить. Promote не робиться. Видати пілот власнику.
+
+- [ ] T063 Пілот на next:
+  - власник проходить US7–US10 сам;
+  - перевірка SC-016: прод-веб з акаунтом власника без помилок, 0 змін Drive-просторів, 0 записів T0;
+  - результат — `specs/057-r2-workspaces/evidence/m1-next-pilot-<дата>.md`.
+
+  Знахідки — фікс і перевипуск на next.
+
+## Етап M2 — входи без Drive і доказ швидкості
+
+### Фаза 9 — US8: файли потрапляють у простір без Google (P1)
+
+**Мета**: «Вхідні», телефон, share target. Лише учасники за роллю.
+**Незалежна перевірка**: quickstart M2 кроки 1–2 (SC-015).
+
+- [ ] T064 [P] [US8] Тест для T065 — `tests/agent-inbox.test.ts`:
+  - 1000 файлів з обривом і «сном» (пауза таймерів): кожен рівно раз;
+  - `idempotency_key` = хеш + відносний шлях;
+  - знята роль → нові файли відхилено ≤5 с, зафіксоване лишається;
+  - локальні файли не видаляються без налаштування;
+  - переповнення посередині зупиняє з поясненням.
+- [ ] T065 [US8] «Вхідні» в агенті: новий `apps/agent/src/team-bridge/inbox.ts` (спостерігач, хешування, черга через `r2-transfer.ts`, журнал). Маршрути й стан для вебу — через наявний SSE в `apps/agent/src/team-bridge/routes.ts` і `events.ts`. Тест: T064.
+- [ ] T066 [P] [US8] Тест для T067 — `tests/inbox-ui.test.tsx`: вибір папки простору, перемикач «видаляти після вивантаження» (типово вимкнено), стан кожного файлу в провіднику, агент офлайн — накопичене показано.
+- [ ] T067 [US8] Інтерфейс «Вхідних» — `apps/web/src/team/storage/InboxSettings.tsx`, стан файлів у `apps/web/src/team/explorer/localProgress.ts`. Тест: T066.
+- [ ] T068 [P] [US8] Тест для T069 — `tests/share-target.test.ts`:
+  - `share_target` у маніфесті;
+  - service worker передає файли в чергу завантаження;
+  - великий файл переживає блокування екрана (продовження з журналу T045);
+  - обмеження iOS показане словами.
+- [ ] T069 [US8] Телефон:
+  - `share_target` у `apps/web/public/manifest.webmanifest`;
+  - service worker `apps/web/public/share-target-sw.js`;
+  - сторінка прийому `apps/web/src/team/storage/ShareTargetPage.tsx`;
+  - компактне завантаження в мобільному провіднику (`apps/web/src/team/explorer/ExplorerToolbar.tsx`);
+  - тексти обмежень платформи.
+
+  Тест: T068.
+
+### Фаза 10 — US1: решта замінників Drive (P1)
+
+- [ ] T070 [P] [US1] Тест для T071 — `tests/space-share-links.test.ts` і `supabase/tests/database/space-share-links.test.sql`:
+  - посилання відкривається без акаунта;
+  - строк і відкликання → 404;
+  - ліміт трафіку зупиняє скачування;
+  - власник бачить лічильники;
+  - сторінка посилання не має жодного входу для завантаження (US8.3).
+- [ ] T071 [US1] Посилання Soty (FR-043):
+  - `space_share_links` з тригером огорожі в міграції `supabase/migrations/<ts>_space_share_links.sql`;
+  - маршрути `/share-links` у `supabase/functions/space-storage/share.ts`;
+  - сторінка `/s/{token}` у `apps/catalog-image-delivery/src/space-read.ts`;
+  - замінник `CopyDriveLinkButton` для R2 у `apps/web/src/team/library/` і `TaskAttachmentTile.tsx`.
+
+  Тест: T070.
+
+- [ ] T072 [P] [US1] Тест для T073 — `tests/space-folder-download.test.ts`: «Скачати папку» через агента зберігає структуру й продовжує після обриву. Пояснення втрат з'являються там, де людина шукає можливість.
+- [ ] T073 [US1] «Скачати папку» (FR-051) — режим папки в `apps/agent/src/team-bridge/download.ts` і дія в провіднику. Пояснення кожної «втрати» з [drive-losses.md](drive-losses.md) — `apps/web/src/team/storage/DriveLossNote.tsx` (FR-044). Тест: T072.
+
+### Фаза 11 — US7: доказ швидкості (P1)
+
+- [ ] T074 [US7] Заміри SC-011, скрипт `scripts/space-storage-speed.mjs` (Playwright-драйвер):
+  - десять операцій ≥20 разів на парі Goor ↔ пілотний R2-простір, з тієї самої мережі;
+  - медіана й p95 → `specs/057-r2-workspaces/evidence/speed-sc011-<дата>.md`;
+  - якщо операція повільніша — фікс і повтор.
+
+  Скрипт сам — тест: перевіряє цілі й падає на порушенні.
+
+- [ ] T075 [US7] Звірка SC-012. Кожен рядок [drive-losses.md](drive-losses.md) отримує id тесту (T0xx) або посилання на видиме пояснення. Рядків «невідомо» — 0.
+
+## Етап M3 — умови загального запуску
+
+### Фаза 12 — US3 і US2: 60 днів як раніше, потім архів; чистий старт (P1)
+
+**Незалежна перевірка**: quickstart M3 крок 1 (SC-017).
+
+- [ ] T076 [P] [US3] Тест для T077 — `supabase/tests/database/space-archive.test.sql`. Віртуальний годинник D−1 мс, D, D+1 мс. Перевірити:
+  - до D — 0 нових блокувань;
+  - після D кожна записувальна можливість `private.can` → `SPACE_ARCHIVED`;
+  - читання, пошук і експорт фінансів працюють;
+  - вийти, прибрати учасника, відкликати доступ — дозволено;
+  - claim-и `catalog-sync`, `catalog-updater` і фонових робіт для архіву — 0;
+  - повторна активація T0 нічого не змінює, продовження D — лише вперед з аудитом.
+- [ ] T077 [US3] Міграція `supabase/migrations/<ts>_storage_launch_policy.sql`:
+  - `storage_launch_policy`, `storage_launch_events`, `storage_archive_notices`;
+  - `admin_activate_storage_launch()`, `admin_extend_storage_archive_date()`;
+  - `private.space_is_archived` у `private.can` (`supabase/migrations/20260809150000_team_workspace_access_gate.sql:59`);
+  - виключення в `private.claim_catalog_sync_jobs`, `service_open_catalog_updater_rounds` і claim-ах фонових робіт;
+  - після T0 `create_team` створює лише R2, новий Drive-корінь відхиляється в `supabase/functions/drive-connect/` (FR-001, FR-056).
+
+  Тест: T076.
+
+- [ ] T078 [P] [US3] Тест для T079 — `tests/space-archive.test.ts` і `tests/archive-banner.test.tsx`:
+  - `drive-ops`, `drive-transfer`, `library-ops` і `catalog-updater` повертають `SPACE_ARCHIVED` з поясненням;
+  - банер з датою D і переходом у новий простір;
+  - картка каталогу «Soty більше не оновлює»;
+  - нагадування 30/14/7/1 — без повторів.
+- [ ] T079 [US3] Поверхні архіву:
+  - відображення `SPACE_ARCHIVED` у `supabase/functions/drive-ops/index.ts`, `drive-transfer/index.ts`, `library-ops/`;
+  - `apps/web/src/team/storage/ArchiveBanner.tsx` і примітка на картці каталогу в `apps/web/src/team/product-catalog/`;
+  - нагадування в `supabase/functions/tariff-notices/` через `storage_archive_notices`.
+
+  Тест: T078.
+
+- [ ] T080 [P] [US2] Тест для T081 — `tests/space-create-after-t0.test.tsx`: власник старого простору після T0 створює R2-простір одразу, без вибору «перенести». Підказка пояснює дату D. `ConnectStorageFlow` для нового простору недоступний.
+- [ ] T081 [US2] Створення після T0: `CreateSpaceWizard.tsx` бере політику з `list_my_teams_v2`/`storage_launch_policy`. Пілотна умова з T018 знімається для всіх після T0. Підказка про D — у `apps/web/src/locales`. Тест: T080.
+
+### Фаза 13 — US4 (частково): місткість у видачі 034
+
+- [ ] T082 [P] [US4] Тест для T083 — `supabase/tests/database/space-tariff-storage.test.sql` і `tests/tariff-storage-admin.test.tsx`:
+  - місткість = `storage_bytes + extra_storage_bytes`, типово 15 ГБ;
+  - розширення лише кратні 10 ГБ;
+  - зменшення нижче зайнятого відхилено;
+  - пілотний простір після T0 переходить на тариф без перестворення (FR-054);
+  - після 3 днів грації R2-простір лише для читання й експорту, дані цілі (FR-021, частково).
+- [ ] T083 [US4] Місткість у 034:
+  - міграція `supabase/migrations/<ts>_space_tariff_storage.sql`: колонки `space_tariffs`, `admin_grant_space_tariff_once` і `admin_update_space_tariff` приймають місткість, `private.space_capacity_bytes` для тарифу;
+  - типи в `packages/shared/src/team/tariffs.ts`;
+  - адмінка: `apps/web/src/pages/admin/TariffGrantDialog.tsx`, `TariffEditDialog.tsx`, `tariffModel.ts`;
+  - шкала в `SpaceTariffSection.tsx`.
+
+  Організаційні пакети не робити — вони відкладені (plan.md). Тест: T082.
+
+### Фаза 14 — US5: робота й відновлення при аварії (P1)
+
+- [ ] T084 [P] [US5] Тест для T085 — `tests/space-replication.test.ts` і `supabase/tests/database/space-replicas.test.sql`:
+  - копія в B2 перевірена хешем і довжиною;
+  - стани «збережено, резерв готується» і «захищено» розрізняються;
+  - відставання понад 15 хв видиме;
+  - облікові дані основного записувача не видаляють резерв (фейк);
+  - подовження блокування.
+- [ ] T085 [US5] Реплікація:
+  - споживач Queue `space-replication` в `apps/space-derivatives/src/replicate.ts` копіює зафіксовані оригінали в B2 з Object Lock, ключі окремі;
+  - `space_object_replicas` і `space_restore_points` у міграції `supabase/migrations/<ts>_space_replicas.sql`;
+  - знімок метаданих за [contracts/recovery.md](contracts/recovery.md);
+  - статус у `StorageMeterPanel.tsx`.
+
+  Тест: T084.
+
+- [ ] T086 [US5] Навчання відновлення:
+  - скрипт `scripts/space-storage-drill.mjs` відмовляється від проду;
+  - аварійна адреса лише для читання на незалежному хості;
+  - п'ять навчань FR-028 → `specs/057-r2-workspaces/evidence/restore-drill-<дата>.md` (RPO, RTO, байти, хеші, актуальні права; SC-007, SC-010).
+
+  Скрипт перевіряє цілі сам і падає на порушенні.
+
+### Фаза 15 — US6: агент пояснює кожен збій (P1)
+
+- [ ] T087 [P] [US6] Тест для T088 — `tests/analytics-space-storage-investigate.test.ts`. Фікстури: гонка квоти, втрачений грант, розбіжність хешу, відставання резерву, невидимий результат, загублений сигнал. Очікується правильна доведена стадія або конкретна сліпа зона (SC-009).
+- [ ] T088 [US6] Розширити `scripts/analytics/investigate.ts`, `inspect`, `audit` у `scripts/analytics/cli.ts` і додати `storage-capacity` (`scripts/analytics/storage-capacity.ts`) за [contracts/diagnostics.md](contracts/diagnostics.md). Тест: T087.
+
+### Фаза 16 — запуск
+
+- [ ] T089 Перевірки запуску:
+  - матриця паритету [architecture-inventory.md](architecture-inventory.md) для R2 на macOS arm64, x64 і Windows x64 (SC-006);
+  - навантаження SC-005 на беті скриптом `scripts/space-storage-load.mjs`;
+  - звіт фактичних витрат R2, B2 і Containers для власника (FR-029, FR-034, окремий рядок для пілоту FR-053);
+  - результат — `specs/057-r2-workspaces/evidence/launch-gates-<дата>.md`.
+- [ ] T090 Повний реліз: beta → next → promote — лише на слово власника. Одразу після promote — `admin_activate_storage_launch()`, запис T0 і D у `evidence/launch-<дата>.md`, перевірка аудиту після релізу. Нагадування стартують від T0.
+
+## Залежності
+
+- **Фази M1.**
+  - Фаза 1 → Фаза 2 → US11 (фаза 3).
+  - US1 (фаза 4) залежить від US11: `space-storage` і створення простору.
+  - US7 (фаза 5) залежить від T023, T027, T029.
+  - US9 (фаза 6) залежить від T006 і T023.
+  - US10 (фаза 7) залежить від T023, T025, T037.
+  - Фаза 8 — після всіх фаз M1.
+- **M2** починається після T063. T065 залежить від T033, T069 — від T045, T074 — від T063.
+- **M3** починається після M2. Виняток: T084–T086 і T087–T088 можна вести паралельно з M2.
+  T090 — останнє.
+- **Огорожа прибирання** — у кожній міграції з новою таблицею з інвентаря. Перевіряють T005 і
+  власні SQL-тести.
+
+## Паралельні можливості
+
+- **Фаза 1:** T003/T004 паралельно з T001/T002.
+- **Фаза 2:** T009/T010 і T011/T012 паралельно з міграціями T006/T008.
+- **US1:** гілка агента (T032–T035), гілка каталогів (T036–T043) і гілка вебу (T028–T031)
+  незалежні після T023/T025.
+- **US7:** застосунок похідних (T046/T047) паралельно з вебом (T044/T045, T048–T051).
+- **US9:** компонент (T054/T055) паралельно з SQL (T052/T053).
+- **M3:** резерв (T084–T086) і діагностика (T087/T088) незалежні від архіву (T076–T081).
+
+Приклад для US1: «T032 тест агента» + «T036 тест стрічки» + «T028 тест адаптера» одночасно.
+Потім T033, T037, T029.
+
+## Стратегія
+
+1. **MVP = M1.** Власник працює в R2 на next. Кожна фаза M1 перевіряється окремо за
+   quickstart, а приймання — у T062/T063.
+2. **M2** доводить, що нічого не загубилось і стало швидше. Без SC-011 запуску немає.
+3. **M3** — лише після M2. Promote — на слово власника.
+
+## Відповідність задач вимогам
+
+| Вимога                                 | Задачі                                                |
+| -------------------------------------- | ----------------------------------------------------- |
+| FR-001, FR-056                         | T077, T080, T081                                      |
+| FR-004, FR-006, FR-057, FR-058         | T076–T079, T090                                       |
+| FR-011                                 | T021–T043, T070–T073, T089                            |
+| FR-012, FR-038, FR-041                 | T046, T047                                            |
+| FR-013, FR-014                         | T019, T020, T026, T027, T050                          |
+| FR-016, FR-017, FR-045, FR-047, FR-050 | T005, T006, T021–T023, T052, T053                     |
+| FR-021 (частково)                      | T082, T083                                            |
+| FR-023–FR-028, FR-030                  | T084–T086                                             |
+| FR-029, FR-034, FR-053                 | T089                                                  |
+| FR-031, FR-052, FR-054                 | T013–T020, T062, T063                                 |
+| FR-032, FR-033                         | T011, T012, T061, T087, T088                          |
+| FR-035, SC-011                         | T074                                                  |
+| FR-036, FR-037, FR-039, FR-040         | T026, T027, T044, T045, T048–T051                     |
+| FR-042                                 | T064–T069                                             |
+| FR-043, FR-044, FR-051, SC-012         | T070–T073, T075                                       |
+| FR-046                                 | T054, T055                                            |
+| FR-048, FR-049, SC-014                 | T058–T060                                             |
+| FR-055                                 | задач немає (переносу немає)                          |
+| SC-001                                 | T013, T015, T080, T081                                |
+| SC-004                                 | T022, T082                                            |
+| SC-005, SC-006                         | T089                                                  |
+| SC-007, SC-010                         | T086                                                  |
+| SC-009                                 | T087, T088                                            |
+| SC-013                                 | T052, T056, T062                                      |
+| SC-015                                 | T064, T065                                            |
+| SC-016                                 | T019, T059, T063                                      |
+| SC-017                                 | T076, T078                                            |
+| Відкладено (plan.md)                   | FR-015, FR-018, FR-019, FR-020, FR-022, SC-008        |
+| Втратило силу                          | FR-002, FR-003, FR-005, FR-007–FR-010, SC-002, SC-003 |

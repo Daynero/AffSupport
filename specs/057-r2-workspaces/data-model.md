@@ -1,52 +1,131 @@
-# Data model and invariants
+# Модель даних 057 (редакція 2026-11-27)
 
-Design only. All additions are forward-only, RLS-guarded and additive first. Timestamped SQL paths in tasks use the next canonical migration timestamp at implementation time; no fabricated migration has been added now. Byte values use SQL bigint/numeric checked bounds and decimal-string JSON, never JavaScript floating arithmetic.
+Лише дизайн. Усі зміни адитивні: нові таблиці й колонки, `DROP NOT NULL` там, де сказано
+(дозволено `scripts/check-migrations-additive.mjs`). Байти — `bigint`, у JSON — десятковий
+рядок. Мітки часу міграцій призначаються під час імплементації — після найбільшої на цільовій
+гілці (на `beta` зараз `20261224390000`). На беті вже лежать чужі версії з незлитих гілок,
+тому перед вибором треба перевірити `supabase_migrations.schema_migrations`.
 
-| Entity                        | Main fields / constraints                                                                                                                                              | Lifecycle                                                                                                          |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `billing_organizations`       | id, owner_user_id, currency, policy_revision; explicit membership separate from workspace access                                                                       | active → grace → readonly → purge_pending → purged; legal/security hold distinct                                   |
-| `organization_plan_versions`  | immutable id, published_at, limits bytes/people/spaces/objects/ingestion, price/term, feature set                                                                      | draft → offered → retired, existing grants pin version                                                             |
-| `organization_grants`         | org, plan_version, starts/expires/grace_end, source manual/trial/payment, dedupe receipt, old_grant mapping, credit amount/currency                                    | quoted → accepted → active → ended/revoked; no payment inference                                                   |
-| `organization_seats`          | org, canonical user or normalized invited identity, reservation expiry; one active seat identity/org                                                                   | reserved → active → released; casefold email per existing identity rules, no ad-hoc alias merging                  |
-| `workspace_storage_bindings`  | team UUID, org, origin fresh/migrated, backend drive/r2, authority_epoch, policy_revision, migration_id, region_policy                                                 | provisioning → active ↔ frozen → maintenance/read_only; monotonic epoch                                            |
-| `workspace_materials`         | canonical id/team, kind file/folder/native_export, parent material UUID, current_version, legacy_material_id mapping, display fields                                   | active → trash → purged; parent same tenant, no cycles                                                             |
-| `workspace_object_versions`   | immutable UUID, material, byte_count, SHA256, trusted content type, source revision, primary object locator, committed_at, quota charge key                            | reserved → uploading → verifying → committed → retired → purge_pending → purged; quarantine/failed separate        |
-| `object_replicas`             | version, provider, object/version locator, size/hash, verified_at, lock_until, replication_seq                                                                         | queued → copying → verifying → replica_verified → stale/repair/expired; joint protected is object+snapshot outcome |
-| `workspace_previews`          | version+recipe_version unique, output_version, type, attempts, terminal code, CPU/bytes cost                                                                           | queued/running/ready/unsupported/failed; no stale-source publish                                                   |
-| `workspace_publications`      | stable catalog/material identity, publication_epoch, immutable version references, visibility/revoked_at, feed format, external link transition receipt                | draft → prepared → visible → revoked/retired; public != original ACL                                               |
-| `quota_reservations`          | org, operation, bytes upper_bound, slots/seat/object counters, lease, usage window, physical budget, idempotency                                                       | reserved → committed/released; uncertain needs reconciliation before expiry release                                |
-| `quota_ledger`                | org+canonical logical charge unique, exact bytes, reservation/operation, generation; physical usage ledger separate by provider/category                               | append-only deltas with reconciliation checkpoints; no delete to correct history                                   |
-| `storage_jobs/outbox`         | job kind, operation/attempt/parent, tenant, expected epoch/source version, lease owner/expires, cursor, bytes progress, budget, bounded retry                          | queued → leased → retry_wait/blocked/failed/cancelled/succeeded; fencing counter on reclaim                        |
-| `workspace_migrations`        | unique source team, reserved org slot, dry-run snapshot, status, immutable cutover receipt, old/new epoch                                                              | see migration contract; at most one successful migration/team                                                      |
-| `migration_manifest_entries`  | migration+canonical material/source revision unique, required/excluded, reason/owner consent, size/hash/export format, dest version, replica receipt, reference checks | discovered → copied → verified → protected; excluded separately never counted verified                             |
-| `legacy_cutoff_inventory`     | team, T1 policy id, source/version identity, catalog id, allowed recipe snapshot, snapshot_complete                                                                    | immutable snapshot + bounded technical derivative journal; no new original eligibility                             |
-| `restore_points`              | sequence/watermark, portable DB snapshot+replay segment identities, schema/release, referenced version manifest, hashes, encryption key ref, tombstone watermark       | building → verified → restorable → expired; never restorable before joint dependency closure                       |
-| `recovery_epochs`             | environment, writer epoch, incident, mode healthy/readonly/recovering, route target, acceptance receipts                                                               | manual fenced transitions; no promotion of backup as writer in v1                                                  |
-| `storage_tombstones`          | tenant/resource/version, revoked epoch, deletion reason, legal purge due, replicated seq                                                                               | logical deny now, physical purge after refs/retention; protected independent journal                               |
-| `storage_diagnostic_receipts` | pseudonymous scope, operation/attempt/stage, code, counts, bytes, build, occurred/received, source watermark                                                           | bounded detail + aggregate per platform analytics policy                                                           |
+Рішення, з яких випливає модель, — [research.md](research.md) R1–R12.
 
-## Compatibility model
+**Огорожа прибирання.** Таблиця потрапляє в інвентар `private.task_cleanup_reference_tables()`
+(`supabase/migrations/20261206139980_recovery_retirement_receipts.sql:30`), якщо виконується
+будь-яка з умов:
 
-Existing `team_materials` requires Drive fields. Add canonical companion tables and backfill their IDs from current material UUIDs; retain originals and FK compatibility rows for Drive. Move new R2 readers/writers to the canonical union. All tasks/launch/catalog foreign references need an additive canonical link table and dual-read adapter before R2 activation. Mandatory-FK domain rows require parallel canonical tables/RPCs, not just links: new catalog and publication policy/job/delivery/baseline/history records reference canonical materials directly. Existing `team_product_catalogs.material_id` and private publication constraints still point to `team_materials`; new R2 inserts must never target those legacy tables. Inventory all mandatory descendants/trigger functions; preserve existing business IDs and expose a canonical union by storage authority. Newly created R2 task attachments and other non-null material descendants follow the same parallel-link/domain pattern. Backfill mirrored canonical rows idempotently; only one authority writes each domain record. Retain old Drive history and bridges rather than copying mutable state into two writers. No synthetic Drive ID, no secretly nullable old constraint in an additive-only release. Old writer paths require capability/authority checks. A later cleanup release may replace old constraints only after readers/writers and actual legacy references retire; maintained Drive prevents global deletion of its schema.
+- ім'я починається з `team_`, `launch_` чи `catalog_`;
+- є FK на `team_materials`;
+- є колонка json або jsonb.
 
-Canonical reference migration creates mappings for every FK/reference listed by source inventory and a verifier for orphans/type mismatches; a count of copied materials alone cannot prove completeness. Existing R2 publication version IDs are imported as physical references; matching public checksum does not grant private ownership. Public global white-image assets stay platform overhead.
+Така таблиця мусить отримати тригер `task_cleanup_reference_fence` → `private.guard_task_cleanup_reference()`
+у тій самій міграції (зразок: `supabase/migrations/20261223100000_ai_credits.sql:82`). Інакше
+прибирання вкладень вимикається для всієї бази. Колонка «Огорожа» нижче каже, чи потрібен тригер.
 
-## Transactions and reconciliation
+## M1 — пілот
 
-1. Reserve quota + operation receipt + outbox in one DB transaction, locks in deterministic org→workspace→material order. Membership/invite operations serialize same org seat identity.
-2. Stream upload outside transaction; object key is opaque tenant/version UUID, not name/path. Object created before SQL finalization is uncommitted and unreadable.
-3. Complete rechecks epoch, permission, plan revision and actual bytes/hash. Commit version + ledger delta + current pointer + replication/preview outbox atomically. Failure after provider write is reconciled, never blindly duplicated.
-4. Immutable retired objects can be physically shared within tenant by hash but retention/ref-count must remain exact. Global content hashes never become cross-tenant lookup endpoints.
-5. Reservation lease expiration means eligible for investigation, not automatic release if multipart/provider completion uncertain. 24h idle multipart abort/reconcile, 7d retained failed staging upper bound; active leased jobs excluded. Alert on failure to purge; do not conceal physical costs.
-6. Restore carries revoked memberships, object tombstones, billing grants and policy epochs. Never recalculate historical invoice data from mutable current plan rows. Current security deny overrides old backup allow.
-7. Purge job requires ref-count zero, user retention ended, known deletion intent, backup lock expired and fresh epoch; retry idempotent. Delete request immediately hides content, physical backend may remain for30–31d as disclosed. Access logs do not retain content.
+### Зміни наявних таблиць
 
-## Organization adoption and space counting
+| Таблиця                 | Зміна                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `teams`                 | `storage_backend text not null default 'drive'` (`drive`/`r2`), `storage_pilot boolean not null default false`, `content_revision bigint not null default 0`, `access_epoch bigint not null default 0`, `storage_root_material_id uuid` (корінь R2-простору). Backend після створення не змінюється (тригер).                                         |
+| `team_materials`        | `DROP NOT NULL` на `connection_id`, `drive_file_id`. Нові `space_object_id uuid` (FK `space_objects`) і `material_revision bigint not null default 0`. `CHECK`: Drive-рядок має `connection_id` і `drive_file_id`; R2-рядок — папка, або має `space_object_id`, або є стрічкою каталогу. Для R2 `parent_folder_id` = uuid батьківської папки текстом. |
+| `team_product_catalogs` | `feed_id text unique` (128 біт, base32), `feed_revision bigint`, `feed_written_at timestamptz`. Для R2-каталогу `sheet_url` = публічна адреса стрічки (https, тож наявна перевірка проходить), Google Sheet не створюється.                                                                                                                           |
 
-Owner explicitly groups owned spaces into one billing org; no cross-owner merge. Existing per-space grants remain valid through term or accepted credit migration. Active R2 + reserved migrations + fresh provisioning consume spaces; successful in-place migration consumes one slot, not source+destination. Failed/cancelled migration releases its slot only after staging references and uncertain work reconcile. Legacy maintenance spaces excluded. R2 trash/read-only spaces still consume slots until logical deletion acknowledged; recreation cannot evade retention/physical limits. Unique person seats count owner + distinct active/reserved org identities, while per-space roles remain independent. Archived Drive-only members do not consume R2 people until adopted or invited into an R2 space. Migrating all current members needs sufficient seats before copying, no forced unannounced member removal.
+Інваріанти:
 
-Transfer ownership requires both parties' authorization, target plan/capacity, no in-flight migration, no outstanding uncertain operations, and atomic org/seat/ledger rebind; audit and price quote before commit. Suspension/cancellation of billing never removes the owner's read/export ability during the retention term.
+- У R2-простору немає рядка `team_drive_connections`. Через це `catalog-sync` його не бере.
+- Дерево без циклів. Батько належить тому самому простору й теж R2.
+- Перейменування й перенос — лише рядок у БД. Байти й адреси не змінюються.
+- `material_revision` зростає з кожною зміною. Мутація з чужою ревізією отримує `REVISION_CONFLICT` (FR-040).
+- `content_revision` простору зростає з кожною фіксацією, видаленням і готовністю похідної (кеш, R8).
+- `access_epoch` зростає з кожним видаленням учасника, зміною ролі чи відкликанням (R4).
 
-## Modular commercial configuration (accessible-v2)
+### Нові таблиці
 
-A grant pins base plan_version plus add-on quantities/price_version, billing term and accepted quote. Storage/person/space increments are independent; seats never duplicate across workspace membership. Derived object quota is min(total storage_GB*200,1,000,000), per-space100k stays separate. Quote computes exact minor currency units with explicit proration/rounding and one consolidated settlement identity; no float currency arithmetic or second fixed fee per line item. Removing add-ons is a prospective quota reduction subject to the same usage checks as downgrade. Extra space adds no people/bytes. Bundle suggestions compare all dimensions and only become active after acceptance. Global qualified workload ceilings replace the previous per-base2x limit.
+| Таблиця                         | Поля й обмеження                                                                                                                                                                                                                                                                           | Стани                                                                            | Огорожа       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------- |
+| `storage_r2_pilots`             | `user_id` pk → auth.users, `max_space_bytes bigint not null`, `added_by`, `added_at`, `removed_at`. RLS увімкнено, гранти відкликано, як у `release_testers`                                                                                                                               | активний / знятий (знятий не видаляє простори)                                   | ні            |
+| `space_objects`                 | `id`, `team_id`, `sha256 text` (64 hex), `byte_size`, `content_type`, `r2_key`, `verified_at`, медіафакти (`duration_ms`, `width`, `height`, `codec`, `fps`), `created_at`. Унікальність (`team_id`, `sha256`) серед непрочищених                                                          | `committed` → `verified` → `purge_pending` → `purged`; `corrupt` (хеш не збігся) | ні            |
+| `space_object_refs`             | pk (`object_id`, `owner_kind`, `owner_id`), `team_id`, `category`, `counted boolean`. `owner_kind`: `material`, `task_attachment`, `process_output`, `derivative`                                                                                                                          | рядок є — посилання живе                                                         | ні            |
+| `space_storage_usage`           | pk (`team_id`, `category`), `bytes`, `objects`, `shared_bytes`, `revision`. Категорії: `materials`, `catalogs`, `process`, `attachments`, `versions`, `trash`                                                                                                                              | лише інкременти з тригерів                                                       | ні            |
+| `space_storage_reservations`    | `id`, `team_id`, `operation_id` unique, `bytes`, `purpose` (`upload`, `process_output`, `catalog_generation`), `expires_at`, `created_by`                                                                                                                                                  | `reserved` → `committed` / `released`; `uncertain` до звірки                     | ні            |
+| `space_uploads`                 | `id`, `team_id`, `reservation_id`, `declared_sha256`, `declared_bytes`, `name`, `content_type`, `parent_material_id` (FK `team_materials`), `r2_upload_id`, `staging_key`, `ingress` (`explorer`, `agent_output`, `inbox`, `mobile`, `share_target`), `actor_id`, `idempotency_key` unique | `open` → `completing` → `committed`; `aborted`, `expired`, `rejected`            | так (FK)      |
+| `space_derivative_jobs`         | pk (`object_id`, `recipe_version`), `team_id`, `attempts`, `error_code`, `lease_until`                                                                                                                                                                                                     | `queued` → `running` → `ready` / `unsupported` / `failed` (обмежені повтори)     | ні            |
+| `space_object_purges`           | `object_id` pk, `team_id`, `r2_key`, `due_at`, `reason` (`trash_expired`, `trash_emptied`, `catalog_deleted`, `space_deleted`, `orphan`), `attempts`                                                                                                                                       | `due` → `deleted` / `failed`                                                     | ні            |
+| `space_storage_reconciliations` | `id`, `team_id` (null — весь bucket), `started_at`, `finished_at`, `listed`, `ledger`, `orphans_found`, `orphans_deleted`, `missing`                                                                                                                                                       | `running` → `done` / `failed`                                                    | ні            |
+| `team_space_storage_signals`    | `id`, `team_id`, `kind` (`content`, `usage`, `derivative`), `folder_id`, `revision`, `created_at`. У публікації `supabase_realtime`, RLS як у `team_catalog_video_r2_signals`                                                                                                              | лише вставка, прибирання старших за добу                                         | так (`team_`) |
+| `private.space_storage_journal` | `operation_id`, `attempt`, `stage`, `outcome`, `code`, `bytes`, `team_id`, `ingress`, `client` (web/agent і версія), `occurred_at`. Без імен, шляхів і ключів                                                                                                                              | лише вставка, 90 діб                                                             | ні            |
+
+### Облік пам'яті
+
+- **Що рахується** (FR-047): кожен об'єкт рахується раз на простір. Категорію визначає перше
+  посилання за пріоритетом: `materials` > `catalogs` > `process` > `attachments` > `versions`
+  > `trash`. Якщо посилань кілька, байти потрапляють і в `shared_bytes`.
+- **Що не рахується:** посилання `derivative` (`counted=false`) — мініатюри, постери й прев'ю
+  провідника, які Soty відтворить сама — і незафіксовані завантаження. Опубліковані медіа
+  каталогу (варіації, постери й картинки в стрічці) — це не похідні провідника, вони
+  рахуються в `catalogs` (US9.1, FR-047).
+  Останні показує сегмент «Резервується» — це сума `space_storage_reservations` у стані
+  `reserved`.
+- **Каталоги 050/045** (FR-050). Тригери на `private.catalog_video_r2_copies` (стани
+  `planned`…`retiring`, ті самі, що в `private.catalog_video_r2_team_used_bytes`) і на
+  `private.catalog_image_storage` додають і віднімають байти в категорії `catalogs` для
+  R2-простору.
+  - Картинки пулу (`private.catalog_global_images`) рахуються в кожному просторі, що їх
+    використовує, раз і з позначкою «спільне».
+  - Мініатюри Drive (`team-thumbnail-cache`, «Soty Cache») до R2-простору не належать: там
+    мініатюри — це похідні з `space_objects`.
+- **Місткість.** `private.space_capacity_bytes(team)`: у пілоті — `max_space_bytes` власника
+  з `storage_r2_pilots`; у M3 — `space_tariffs.storage_bytes + extra_storage_bytes`.
+- **Резервування** (FR-017). `admit-upload` бере блокування простору в порядку team → material.
+  Перевірка: `used + reserved + declared ≤ capacity`, інакше `STORAGE_QUOTA_EXCEEDED`.
+  Протерміноване резервування з відкритим multipart звільняється лише після звірки (`uncertain`).
+- **Видалення** (FR-048). Коли зникає останнє посилання, об'єкт іде в `space_object_purges`.
+  - Через 30 днів — для матеріалу в кошику.
+  - Одразу — для очищеного кошика, каталогу й простору.
+  - `space-storage-sweeper` видаляє об'єкт з R2 і ставить `purged`. Повтор безпечний.
+
+### Ключі R2 (bucket `soty-spaces-{env}`, EU jurisdiction — перевірити readback)
+
+| Ключ                                     | Що                                     | Життя                               |
+| ---------------------------------------- | -------------------------------------- | ----------------------------------- |
+| `t/{team}/u/{upload_id}`                 | staging multipart                      | lifecycle 7 діб, multipart — 1 доба |
+| `t/{team}/o/{sha256}`                    | оригінал, результат обробки, вкладення | доки є посилання                    |
+| `t/{team}/d/{sha256}/{recipe}/{variant}` | мініатюри, постер, прев'ю              | разом з оригіналом                  |
+
+Стрічки каталогів лежать окремо, у публічному `soty-catalog-videos-{env}-public` під ключем
+`feeds/{feed_id}.csv`.
+
+## M2 — входи й паритет
+
+| Таблиця             | Поля                                                                                                                                                                                 | Стани                            | Огорожа  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | -------- |
+| `space_share_links` | `id`, `team_id`, `material_id` (FK `team_materials`), `token_hash`, `mode` (`view`, `download`), `expires_at`, `revoked_at`, `created_by`, `requests`, `bytes_served`, `bytes_limit` | `active` → `expired` / `revoked` | так (FK) |
+
+«Вхідні» не мають серверної таблиці. Цільова папка й журнал файлів живуть в агенті. Кожен
+файл іде через `space_uploads` з `ingress='inbox'` і `idempotency_key` = хеш + шлях відносно
+папки. Тому повтор після сну чи обриву не дає дубля (SC-015).
+
+## M3 — загальний запуск
+
+| Таблиця / зміна           | Поля                                                                                                                        | Огорожа |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `storage_launch_policy`   | singleton: `t0_at`, `archive_at` (= T0 + 60×24 год), `activated_by`, `activated_at`. Продовження лише вперед, з аудитом     | ні      |
+| `storage_launch_events`   | аудит активації й продовжень: хто, коли, стара й нова дата, причина                                                         | ні      |
+| `storage_archive_notices` | (`team_id`, `user_id`, `offset_days` ∈ 30/14/7/1/0), `sent_at`, `result` — за зразком `space_tariff_notices`                | ні      |
+| `space_tariffs`           | + `storage_bytes bigint not null default 15000000000`, `extra_storage_bytes bigint not null default 0` (кратно 10^10)       | —       |
+| `space_object_replicas`   | `object_id`, `provider` (`b2`), `version_id`, `verified_at`, `lock_until`, стан `queued` → `copying` → `verified`; `failed` | ні      |
+| `space_restore_points`    | за [contracts/recovery.md](contracts/recovery.md)                                                                           | ні      |
+
+Правило архіву: `private.space_is_archived(team)` = `storage_backend='drive'` і
+`now() ≥ storage_launch_policy.archive_at`. Його викликає `private.can` для записувальних
+можливостей. Читання, пошук, прев'ю, скачування й експорт фінансів не зачеплені. Вихід,
+прибирання учасника й відкликання доступу дозволені ([contracts/legacy-policy.md](contracts/legacy-policy.md)).
+
+## Чого в моделі більше немає
+
+Відкладено разом із тарифною моделлю ([pricing.md](pricing.md), FR-015/018/019/022):
+`billing_organizations`, `organization_plan_versions`, `organization_grants`, `organization_seats`.
+
+Знято рішенням про відмову від переносу (FR-055): `workspace_migrations`,
+`migration_manifest_entries`, `legacy_cutoff_inventory`, `workspace_storage_bindings`
+з епохами авторитету, таблиці-двійники `workspace_materials` та `workspace_object_versions`.

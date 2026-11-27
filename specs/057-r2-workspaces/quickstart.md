@@ -1,16 +1,101 @@
-# Future validation guide — no implementation executed
+# Перевірка 057 — сценарії (редакція 2026-11-27)
 
-Prerequisites: clean implementation checkout, Node/workspace dependencies, local Supabase for disposable schema tests, isolated R2 EU/B2 US East fixtures with scoped test-only credentials, independently reachable recovery test host/DNS, packaged beta auth/entitlements. No production URL accepted by destructive/load/fault fixtures. Current planning checkout does not yet contain proposed tests/commands.
+Реалізації ще немає. Тут — як доводити кожен етап, коли код з'явиться. Деталі полів —
+[data-model.md](data-model.md), маршрути — [contracts/storage-api.md](contracts/storage-api.md).
 
-1. Read `spec.md`, contracts, parity inventory and tasks. Complete setup/qualification gates first; record exact provider placement, account quota, current prices and secret-scope readbacks without secrets.
-2. Run future touched Vitest files with one worker (example `npx vitest run tests/workspace-storage-quota.test.ts --maxWorkers=1`), followed by `npm run verify`. Tests must fail first for meaningful regression scenarios, not mirror implementation.
-3. `npm run test:db` requires running local stack and uses disposable isolated DB. Verify additive migration chain, RLS cross-tenant access,100-way quota/invite/space races, canonical material references, unknown-outcome retries and monotonic cutover.
-4. Provider fixture:100GB file boundary, chunk loss/resume, full SHA256, unsupported MIME, many tiny files, revoked upload completion, private/public distinction, B2 lock and forbidden backup delete, exact-generation range reads. Use synthetic bytes only.
-5. Browser+agent matrix: new no-Google space, all parity inventory rows; Mac ARM/x64 and Windows x64 per release policy; role/tariff/network/agent-offline combinations. Hosted previews work without owner agent. Observe authoritative outcomes and UI separately.
-6. Legacy virtual-clock fixture at T0/T1±1ms; absent/incomplete cutoff capture; external new file/same-size new revision; active predeadline upload; new catalog denied, existing allowed refresh, legacy Google feed bridge and replacement feed consumer proof.
-7. Migration fixture: complete manifest/reference graph, source mutation/revocation, failed replica, crash after provider upload and after SQL commit, concurrent writes, cancellation, grant change, old native finalize, lost Realtime event. Check byte/reference equality, one charge/slot, no Drive original deletion, no cutover without recoverable metadata.
-8. Planned `node scripts/workspace-storage-drill.mjs --environment=isolated --scenario=all` must refuse production and provision only owned fixtures with explicit test config. Inject five recovery failures, record RPO/RTO/bytes/checksums/current ACL, cost and full repatriation ETA. Independent observer reads recovery host with Cloudflare blocked. This command is to be created by T013, not available today.
-9. Run existing read-only `investigate`, `inspect`, `audit`, `team-workspace` and proposed `storage-capacity` against fixture roles. Compare recorded stage/code/coverage with expected injected failure and ensure secrets/content absent. Unsupported/missing evidence never passes.
-10. `npm run verify:release`, exact-SHA packaged-beta and required platform proofs via canonical `docs/PRODUCTION.md`; no production action during validation. Future authorized rollout checks release-channel status before/after next/promote. Inspect partial/unknown outcome before retry. Record T0 only on policy-activating promote.
+## Правила машини й бази
 
-Acceptance artifacts: safe JSON receipts + schema/source/build IDs + provider hashes/regions + parity matrix + measured cost scenarios + restore manifests + external reader proof + diagnostic findings. Artifacts do not include credentials/customer contents/raw file paths. Keep heavy commands one at a time, nice15 where applicable and existing resource/headroom governance. No installer or source changes are part of this planning deliverable.
+- Перед кожним важким кроком: `uptime` і `pgrep -fl "vitest|tsc|supabase"`. Одночасно лише
+  один важкий процес.
+- Vitest — лише цільові файли й лише в одному процесі:
+  `npx vitest run tests/<file>.test.ts --pool=forks --poolOptions.forks.singleFork=true`.
+- SQL-тести — `npm run test:db`. Він бере ізольовану копію схеми (`scripts/test-db-isolated.mjs`)
+  і не чіпає беті.
+- Повний гейт — `npm run verify` (той самий, що в CI). Локально його не запускати: його
+  проганяє CI або раннер релізу.
+- Бета-база: нові міграції накочуються через `psql` і запис у
+  `supabase_migrations.schema_migrations`. Не через `migration up` і ніколи не через `db reset`.
+- Прод-базу й прод-bucket під час перевірки не чіпати. Пілот на next — це прод-дані, тож
+  тільки в пілотному просторі власника.
+
+## M1 — пілот власника
+
+1. **Ізоляція пілоту.**
+   - Акаунт без запису в `storage_r2_pilots` не бачить «На R2» на next. Прямий
+     `POST space-storage/spaces/create` повертає `R2_PILOT_REQUIRED`.
+   - Прод-адреса з тим самим акаунтом не бачить R2-простору: `list_my_teams()` його не
+     повертає, а жоден екран не падає.
+   - Агент контракту 2 отримує `AGENT_UPDATE_REQUIRED`.
+2. **Провідник.**
+   - Завантажити 0-байтовий файл, 5 ГБ відео й теку з 300 файлами.
+   - Обірвати мережу посередині великого файлу й продовжити.
+   - Повторити той самий файл: «вже є», без другого об'єкта.
+   - Перейменувати, перенести, видалити, відновити.
+   - Друге вікно бачить кожну зміну за ≤2 с без перезавантаження.
+3. **Скачування й відео.**
+   - Файл 2 ГБ скачується в браузері без агента. Після обриву скачування продовжується.
+   - Відео стартує й перемотується Range-запитами до `files.soty.pp.ua`. У мережевій
+     панелі немає `drive-transfer`.
+4. **Похідні.**
+   - Мініатюра картинки готова за ≤10 с, постер відео — за ≤30 с. Агент власника при
+     цьому вимкнений.
+   - Повторне завантаження того самого вмісту в іншу папку не запускає генерацію вдруге.
+5. **Кеш.**
+   - Друге відкриття простору показує дерево й сітку з кешу до відповіді сервера.
+   - Сітка 200 мініатюр у теплому кеші не робить мережевих запитів за байтами.
+   - Вихід з акаунта очищує кеш.
+6. **Шкала пам'яті (SC-013).**
+   - Фікстура: матеріали, три каталоги по 10 варіацій, вкладення, версії, кошик.
+   - Сума сегментів дорівнює `usedBytes`, а `space-storage` CLI показує 0 розбіжностей зі
+     звіркою R2.
+   - Наведення й клавіатура показують назву, обсяг і частку сегмента. Клік відкриває
+     топ-10 категорії.
+7. **Каталог (SC-014).**
+   - Створити каталог із 10 варіаціями. Стрічка за `sheet_url` віддає CSV.
+   - Видалити каталог: картка зникла за ≤1 с, стрічка віддає 404 за ≤1 хв.
+   - Унікальні відео зникли з R2 за ≤15 хв. Спільна картинка лишилась.
+   - Повторити з обривом мережі й паралельно з генерацією варіації.
+8. **Вкладення й обробка.**
+   - Вкладення завдання з R2-простору відкривається й скачується.
+   - Стиснення, транскрипт і перезашивка агентом next читають джерело з R2 і пишуть
+     результат у R2. Результат видно в категорії «Результати обробки».
+9. **Сироти.** Створити незавершений multipart і об'єкт без рядка обліку. Щоденна звірка
+   знаходить і прибирає їх після пільги. CLI це показує.
+10. **Видалення пілоту.** Видалити пілотний простір. Облік — 0 байт, лістинг
+    `t/{team}/` порожній (SC-016).
+
+## M2 — входи й швидкість
+
+1. **«Вхідні» (SC-015).**
+   - 1000 файлів, разом 10 ГБ, з обривом мережі й сном ноутбука. Кожен файл з'являється
+     рівно раз, у кожного є стан.
+   - Зняти право завантаження: нові файли відхиляються за ≤5 с, зафіксоване лишається.
+2. **Телефон.**
+   - Мобільний провідник і «Поділитися → Soty» на iOS Safari й Android Chrome.
+   - Великий файл переживає блокування екрана. Обмеження платформи показане словами.
+3. **Посилання Soty.** Відкривається без акаунта. Після відкликання чи строку — 404.
+   Ліміт трафіку спрацьовує.
+4. **Швидкість (SC-011).**
+   - Десять операцій на парі Goor (Drive) і пілотний R2-простір, з тієї самої мережі.
+   - Кожну операцію виміряти ≥20 разів, записати медіану й p95.
+   - Результат — `evidence/speed-sc011-<дата>.md`.
+   - R2 ніде не повільніший. Чотири операції швидші щонайменше втричі за медіаною.
+
+## M3 — загальний запуск
+
+1. **Архів (SC-017).**
+   - Віртуальний годинник: D−1 мс, D, D+1 мс.
+   - До D у старому просторі все працює, є банер і нагадування 30/14/7/1.
+   - Після D старий веб, агент контракту 2, прямий PostgREST і фонові роботи отримують
+     `SPACE_ARCHIVED` на кожен запис. Читання, пошук, прев'ю, скачування й експорт фінансів
+     працюють.
+   - `catalog-sync` і `catalog-updater` не запускаються для архіву.
+2. **Місткість у 034.**
+   - Видача з 15 ГБ і +10 ГБ: шкала показує 25 ГБ.
+   - На межі 100 паралельних завантажень жодне не перевищує ліміт (SC-004 для простору).
+3. **Резерв.** Restore drill за [contracts/recovery.md](contracts/recovery.md): записати RPO,
+   RTO, байти, хеші й актуальні права.
+4. **Діагностика.** `investigate`, `inspect`, `audit`, `storage-capacity` на фікстурах
+   відмов дають правильну стадію або явну сліпу зону (SC-009).
+5. **Реліз.** Повний раннер: бета → next → promote. T0 записується лише після promote, що
+   вмикає політику.

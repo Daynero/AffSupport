@@ -1,36 +1,108 @@
-# Storage and workspace contracts
+# Контракт сховища R2-простору (редакція 2026-11-27)
 
-Proposed typed extensions; reuse existing auth/error envelopes, transport and operation receipts. Private routes require current authenticated membership, org entitlement, workspace authority epoch and bounded input. No arbitrary bucket/key/URL accepted from a client. Existing Drive routes delegate to same policy guard. Protocol/capability requirements come from shared release contract, not guessed agent versions.
+Замінює редакцію 2026-11-14: без організацій, квот-пакетів, міграції та епох авторитету.
+Типи — у `packages/shared/src/team/space-storage.ts` (новий). Розбір невідомого входу —
+дискримінованим результатом (конституція I). Помилки — наявний конверт `{ error: CODE }`
+(конституція V): 202 — асинхронне, 403 — права, архів чи пілот, 409 — стан, ревізія чи квота,
+413 — заявлений розмір понад ліміт, 503 — залежність.
 
-| Operation                           | Inputs                                                                    | Result / invariants                                                                                                         |
-| ----------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `workspace-storage create`          | org, name, origin=fresh, decision receipt, idempotency key                | 202 state snapshot; atomic slot reserve, repeated key same space; no provider selector                                      |
-| `workspace-storage admit-upload`    | team/material parent, declared length/type, operation_id, expected epoch  | reservation+opaque upload session, allowed chunk sizes/expiry/max bytes; rights/quotas checked server-side                  |
-| `workspace-storage upload-parts`    | upload session, part number, length/hash                                  | scoped write-only URL ≤10min to exact uncommitted version; verify part layout and expiry; no list/read privilege            |
-| `workspace-storage complete-upload` | session, ordered part receipts, full content digest                       | 202 verifying, then committed state only after trusted server streaming SHA256/size; multipart ETag not content hash        |
-| `workspace-storage mutate`          | rename/move/copy/trash/restore, canonical IDs, expected material revision | state snapshot; compare-and-swap, folder cycle/tenant/ref protections, per-action policy                                    |
-| `workspace-storage read`            | canonical version, optional Range                                         | gateway authorizes current ACL/revocation then streams R2 or verified exact-generation B2; no content keys in response logs |
-| `workspace-storage export`          | team selection, operation ID                                              | 202 async archive/manifest; scoped download, original bytes + metadata/open formats, partial failures explicit              |
-| `workspace-storage status`          | operation ID                                                              | snapshot with durable/protected/visible states and normalized retryable code                                                |
-| `workspace-quotas quote`            | plan/add-ons/org/term                                                     | price version, exact capacities, old credit, expiry; no charge or mutation                                                  |
-| `workspace-quotas grant`            | admin authorized grant + quote id + idempotency receipt                   | atomic plan revision, immutable financial history; explicit accepted terms required                                         |
-| `workspace-storage preview`         | version+recipe                                                            | existing ready derivative or accepted pending state, unsupported/failed separate, retry bounded                             |
-| `catalog-feed/{stable_id}`          | published feed id/format/current publication epoch                        | compatible feed bytes and content type, version receipt; public policy, bounded cache and revoke guard                      |
+Кожен виклик перевіряє на сервері:
 
-Client status uses existing Supabase Realtime team subscription; reconnect authoritative reread. Upload progress remains local network state, never server-relayed fake percentages. Existing agent SSE remains owner of local processing progress. Backend queues lease/poll with bounded cadence; no new browser recurring polling.
+1. Людина — учасник простору з роллю, що дозволяє дію (`private.can`).
+2. Простір — R2, інакше `STORAGE_BACKEND_MISMATCH`.
+3. Пілотний простір і немає T0 → у людини є запис у `storage_r2_pilots`, інакше `R2_PILOT_REQUIRED`.
+4. Клієнт заявив `storage-r2/1` (заголовок `x-soty-capabilities`), інакше `CLIENT_UPDATE_REQUIRED`.
+5. Простір не заблокований тарифом (034) і не архівний.
 
-## Security and limits
+Клієнт ніколи не передає bucket, ключ чи URL сховища.
 
-Normal private downloads are proxied through a dedicated current-authorizing Cloudflare Worker entry in `apps/catalog-image-delivery/src/workspace-read.ts`, separate from its anonymous public-alias handler; the independent Node gateway is used only in disaster mode. Both consume the same typed authorization/read policy contract, and gateway capacity/CPU/DB authorization costs are measured. No normal bulk-download bytes are routed through an unpriced VPS egress path. Private downloads are proxied through current-authorizing gateway, so revocation affects the next request immediately; no reusable raw private object read URLs. An already streaming download can have delivered bytes and cannot be recalled. Bound streams at 15min reauthorization/resume checkpoints, support ranges and transparent resume. Public feed/cache revoke SLA ≤60s; public assets downloaded by third parties cannot be recalled. Stable public references must pass revocation routing rather than expose private originals. Existing immutable public URLs whose revocation cannot be guaranteed are explicitly inventoried and shown as exceptions, never relabeled private.
+## Edge-функція `space-storage` (POST, маршрут за шляхом, як у `drive-ops`)
 
-Full upload SHA256 computed in trusted bounded worker, not believed from client; new version stays unavailable until checked. Signed uploads may transfer after membership revoke until expiry, but cannot commit; GC reclaims them. Same key/session retry cannot overwrite committed bytes. Maximum object100GB plus per-consumer narrower limits. Stream body bounds, CORS/origin checks, MIME sniffing, Content-Disposition filename safety, archive zip-slip/bomb defense and HTML/PDF sandbox egress-deny.
+| Шлях                     | Вхід                                                                                                                      | Результат і інваріанти                                                                                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/spaces/create`         | `name`, `idempotencyKey`                                                                                                  | Знімок простору. Створює `teams` з `storage_backend='r2'` і кореневу папку. Повтор із тим самим ключем повертає той самий простір                                                                                               |
+| `/uploads/admit`         | `teamId`, `parentMaterialId`, `name`, `contentType`, `bytes`, `sha256`, `ingress`, `idempotencyKey`                       | `{ kind: 'exists', materialId }`, якщо такий вміст уже є в цій папці. Інакше `{ kind: 'session', uploadId, partBytes, partCount, expiresAt }`. Місце зарезервоване. `STORAGE_QUOTA_EXCEEDED` повертає `needBytes` і `freeBytes` |
+| `/uploads/{id}/parts`    | `partNumbers[]` (≤100 за раз)                                                                                             | Підписані PUT-URL частин на ≤10 хв, з контрольною сумою частини. Права й квота перевіряються знову                                                                                                                              |
+| `/uploads/{id}/complete` | `parts[]` (номер, ETag, контрольна сума)                                                                                  | `CompleteMultipartUpload`. Потім одна транзакція: об'єкт, матеріал, посилання, облік, сигнал, завдання похідних. Повертає знімок матеріалу. Повтор повертає той самий матеріал                                                  |
+| `/uploads/{id}/abort`    | —                                                                                                                         | Закриває multipart, звільняє резерв                                                                                                                                                                                             |
+| `/materials/mutate`      | `action` (`rename`, `move`, `create_folder`, `trash`, `restore`, `copy`), `materialIds`, `expectedRevision`, цільові поля | Знімок. Порівнює ревізію (`REVISION_CONFLICT` з поточним станом). Перевіряє цикли й тенант. `copy` додає посилання на той самий об'єкт, байти не копіюються                                                                     |
+| `/trash/empty`           | `teamId`, необов'язково `materialIds`                                                                                     | Видаляє з кошика остаточно, ставить об'єкти в чергу на видалення одразу. Шкала оновлюється в тій самій транзакції                                                                                                               |
+| `/read-grant`            | `teamId`                                                                                                                  | `{ grant, expiresAt, filesOrigin }`. Грант читання простору на ≤10 хв (HMAC над user, team, `access_epoch`)                                                                                                                     |
+| `/agent/source`          | `materialId`, тикет агента                                                                                                | URL читання з Range для агента (той самий Worker) і очікувані `bytes`/`sha256`                                                                                                                                                  |
+| `/process/output/start`  | тикет, `bytes`, `sha256`, `contentType`, `outputUploadProtocolVersion: 3`                                                 | Сесія multipart, як у `/uploads/admit`, з `ingress='agent_output'`. Протокол 2 на R2-просторі → `AGENT_UPDATE_REQUIRED`                                                                                                         |
 
-Preview MVP: raster thumbnail and video poster (bounded FFmpeg decode), browser-compatible video plays original via authorized range; unsupported HEVC needs bounded compatible preview proxy, never mandatory full original transcode. PDF first-page thumbnail and safe original download; text snippet only in authorized product response, never telemetry. HTML/landing uses existing isolated rendering rules, no remote URLs/SSRF or ambient credentials. Untrusted jobs run with CPU/memory/time/output ceilings and a versioned allowlist of formats. Generated preview bytes count internal cost and diagnostic object/CPU budgets.
+## RPC (PostgREST)
 
-Closed errors include `STORAGE_QUOTA_EXCEEDED`, `STORAGE_OBJECT_LIMIT`, `STORAGE_INGESTION_LIMIT`, `SPACE_LIMIT_REACHED`, `SEAT_LIMIT_REACHED`, `STORAGE_AUTHORITY_CHANGED`, `LEGACY_WRITE_DISABLED`, `MIGRATION_TARGET_NOT_EMPTY_OR_FRESH`, `SOURCE_CHANGED`, `SOURCE_UNAVAILABLE`, `CHECKSUM_MISMATCH`, `REPLICA_UNVERIFIED`, `PROTECTION_LAG`, `RECOVERY_READ_ONLY`, `CATALOG_EXTERNAL_URL_UNCONFIRMED`, `PROVIDER_OUTCOME_UNKNOWN`. Register each in shared code list, analytics code map and tested HTTP/UI mapping; use 409 state/quotas except413 declared-size limits,403 authorization/legacy,503 unavailable,202 async.
+| RPC                                                                                                                              | Що повертає                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_my_teams_v2()`                                                                                                             | Як `list_my_teams()`, плюс `storage_backend`, `storage_pilot`, `content_revision`. Старий `list_my_teams()` R2-простори не повертає           |
+| `list_team_folder_page`, `list_team_folder_tree`, `list_team_folder_subtree`, `list_team_trashed_materials_v2`                   | Без зміни сигнатур. Для R2-простору працюють за `parent_folder_id` = uuid і без з'єднання з `team_drive_connections`                          |
+| `get_space_storage_summary(p_team)`                                                                                              | `capacityBytes`, `usedBytes`, `reservedBytes`, сегменти `{ category, bytes, objects, sharedBytes }`, `revision`. Сума сегментів = `usedBytes` |
+| `list_space_storage_items(p_team, p_category, p_sort, p_search, p_cursor)`                                                       | Сторінка речей категорії: тип, id, назва, байти, автор, дата. Сортування за вагою, датою, автором. Перші 10 — найбільші                       |
+| `get_catalog_storage_breakdown(p_catalog)`                                                                                       | `totalBytes`, `sharedBytes`, `freedOnDeleteBytes` (US9.3)                                                                                     |
+| `admin_list_storage_r2_pilots()`, `admin_add_storage_r2_pilot(p_email, p_max_bytes)`, `admin_remove_storage_r2_pilot(p_user_id)` | За зразком `admin_*_release_tester`. Лише адміністратор, з аудитом                                                                            |
 
-## Modular quote acceptance
+## Worker `space-read` (`apps/catalog-image-delivery/src/space-read.ts`)
 
-`workspace-quotas quote` accepts base plan version, independent storage/person/space add-on quantities and billing term. It returns each line, total recurring price, total bytes/people/spaces/objects, effective date, proration and one settlement identity; $5 Solo +10GB/$1 +person/$2 +space/$1 must quote $9/month,20GB,2people,2spaces. Extra space does not multiply GB or seats. A suggested cheaper bundle must dominate every selected dimension and requires explicit acceptance. Quotes beyond qualified global limits refuse with a reason; no2x-base Solo cap. Replayed grant/unknown settlement never double-adds capacity. Include separate tiny-payment/processor minimum and trial three-seat→Solo one-seat fixtures; prices in the accepted quote remain binding.
+- **Маршрути.** `GET`/`HEAD` `https://files[-beta].soty.pp.ua/t/{team}/o/{sha256}` і
+  `/t/{team}/d/{sha256}/{recipe}/{variant}` з `?g={grant}`. Для скачування додається
+  `&dl={name}`: тоді `Content-Disposition: attachment` з безпечним іменем.
+- **Порядок.** Перевірити підпис і строк гранту, потім `access_epoch` простору, потім що
+  `team` у гранті збігається з `team` у шляху. Лише після цього `cache.match` за URL без
+  `g`, або читання R2 з Range.
+- **Заголовки.** `Cache-Control: private, max-age=31536000, immutable`, `Accept-Ranges: bytes`.
+- **Помилки** — `no-store`. Протермінований грант → 401: клієнт бере новий і повторює раз.
+  Чужий простір чи відкликана епоха → 403. Видалений об'єкт → 404.
+- **Межі.** Без меж розміру відповіді для `o/*`: Range і потокова віддача. Сам Worker
+  нічого не пише в R2.
+- **Грант в адресі.** Хост файлів відповідає `Referrer-Policy: no-referrer`. Worker і
+  журнал ніколи не записують `g` чи повну адресу з ним. Грант живе ≤10 хв і відкриває лише
+  один простір. Тому витік з історії браузера обмежений строком і відкликається епохою.
+- **Чого не можна відкликати.** Байти, які людина вже скачала, чи копію в її браузерному
+  HTTP-кеші відкликати неможливо. Відкликання діє на кожне нове читання (FR-013). Вихід з
+  акаунта шле `Clear-Site-Data: "cache"` з файлового хоста. Видалення учасника цього
+  зробити за нього не може — це названо в поясненні відкликання.
 
-Separate upgrade settlement below $1 is not submitted; the quote offers consolidated changes or next-renewal application without silent price rounding. Separate immediate settlement fees are modeled explicitly and do not inherit consolidated marginal-margin claims.
+## Стрічка каталогу
+
+`GET https://catalog-videos[-beta].soty.pp.ua/feeds/{feed_id}.csv` віддає
+`text/csv; charset=utf-8`. Колонки ті самі, що в Google-шаблоні Meta
+(`PRODUCT_CATALOG_TEMPLATE`). Правило кешу зони — TTL ≤60 с для `/feeds/*`. Видалення
+каталогу видаляє об'єкт і чистить кеш цієї адреси (`R2_CATALOG_PURGE_TOKEN`), тож адреса
+віддає 404 за ≤1 хв (SC-014).
+
+## Посилання Soty (M2)
+
+- **Створення.** `POST /share-links` в `space-storage`: `materialId`, `mode`, `expiresAt` →
+  `{ url, id }`. Відкликання — `POST /share-links/{id}/revoke`.
+- **Сторінка.** `https://files.soty.pp.ua/s/{token}` показує перегляд без акаунта.
+  Скачування рахує `bytes_served` і зупиняється на `bytes_limit` (FR-043).
+
+## Коди
+
+Нові коди — у `packages/shared/src/types.ts`, у мапі транспорту команди і в
+`scripts/analytics/code-map.ts`:
+
+- `STORAGE_BACKEND_MISMATCH`
+- `R2_PILOT_REQUIRED`
+- `CLIENT_UPDATE_REQUIRED`
+- `STORAGE_QUOTA_EXCEEDED`
+- `STORAGE_OBJECT_TOO_LARGE`
+- `REVISION_CONFLICT`
+- `UPLOAD_EXPIRED`
+- `CHECKSUM_MISMATCH`
+- `SPACE_ARCHIVED`
+- `SHARE_LINK_EXPIRED`
+- `SHARE_LINK_LIMIT`
+
+Для кожного є тест відображення в HTTP і UI.
+
+## Ліміти (оприлюднені, FR-017)
+
+- Об'єкт — до 100 ГіБ.
+- Частина — 16 МіБ типово. 64 МіБ, якщо файл більший за 50 ГіБ.
+- Не більше 10 000 частин.
+- Не більше 8 паралельних частин на файл у браузері й 4 в агенті.
+- Не більше 100 000 матеріалів на простір.
+
+Значення живуть у `packages/shared/src/team/space-storage.ts` як константи (конституція I).
