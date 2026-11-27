@@ -3,6 +3,7 @@ import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from './catalog-global-images.js';
 import { CATALOG_IMAGE_ERROR_CODES } from './catalog-images.js';
 import { CATALOG_VIDEO_R2_ERROR_CODES } from './catalog-video-r2.js';
 import { RESTITCH_RECOVERY_ERROR_CODES } from './restitch-recovery-errors.js';
+import { SPACE_STORAGE_ERROR_CODES } from './space-storage.js';
 import {
   LANGUAGE_CODES,
   TEAM_OPERATION_KINDS,
@@ -189,6 +190,8 @@ export const TEAM_ERROR_CODES = [
   'DRIVE_UNAVAILABLE',
   ...TEAM_DRIVE_STORAGE_ERROR_CODES,
   ...TEAM_CATALOG_HANG_ERROR_CODES,
+  // 057 — Soty spaces on R2; seeded by 20261226100000_space_storage_error_codes.sql.
+  ...SPACE_STORAGE_ERROR_CODES,
   'NEEDS_REAUTH',
   ...TEAM_COMMERCIAL_ERROR_CODES,
   'DELIVERY_UNAVAILABLE',

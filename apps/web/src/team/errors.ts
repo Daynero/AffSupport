@@ -203,7 +203,19 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   SPACE_BLOCKED: 'tariffErrorSpaceBlocked',
   TARIFF_BOUND: 'tariffErrorBound',
   LEGACY_SPACES_REMAIN: 'tariffErrorLegacyRemain',
-  TARIFF_DATE_INVALID: 'tariffErrorDateInvalid'
+  TARIFF_DATE_INVALID: 'tariffErrorDateInvalid',
+  // 057 — Soty spaces on R2.
+  STORAGE_BACKEND_MISMATCH: 'spaceStorageErrorBackendMismatch',
+  R2_PILOT_REQUIRED: 'spaceStorageErrorPilotRequired',
+  CLIENT_UPDATE_REQUIRED: 'spaceStorageErrorClientUpdate',
+  STORAGE_QUOTA_EXCEEDED: 'spaceStorageErrorQuota',
+  STORAGE_OBJECT_TOO_LARGE: 'spaceStorageErrorTooLarge',
+  REVISION_CONFLICT: 'spaceStorageErrorRevisionConflict',
+  UPLOAD_EXPIRED: 'spaceStorageErrorUploadExpired',
+  CHECKSUM_MISMATCH: 'spaceStorageErrorChecksum',
+  SPACE_ARCHIVED: 'spaceStorageErrorArchived',
+  SHARE_LINK_EXPIRED: 'spaceStorageErrorShareExpired',
+  SHARE_LINK_LIMIT: 'spaceStorageErrorShareLimit'
 };
 
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);

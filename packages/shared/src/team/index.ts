@@ -55,3 +55,6 @@ export * from './ai-credits.js';
 export * from './launches/fields.js';
 export * from './assistant.js';
 export * from './assistant-apply.js';
+export * from './space-storage.js';
+export * from './space-storage-md5.js';
+export * from './space-read-grant.js';

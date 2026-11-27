@@ -1,6 +1,7 @@
 export { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from './team/catalog-global-images.js';
 export * from './native-app-updates.js';
 export { STITCH_ERROR_CODES, type StitchErrorCode } from './stitch-errors.js';
+export { SPACE_STORAGE_ERROR_CODES, type SpaceStorageErrorCode } from './team/space-storage.js';
 
 export type JobStatus =
   | 'analyzing'

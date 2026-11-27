@@ -47,7 +47,7 @@
 
   Прод-ресурси створюються лише в T062.
 
-- [ ] T003 [P] Контракт `packages/shared/src/team/space-storage.ts`:
+- [x] T003 [P] Контракт `packages/shared/src/team/space-storage.ts`:
   - стани завантаження, похідних і видалення;
   - категорії обліку й `ingress`;
   - можливість `storage-r2/1` і ліміти (частина, кількість частин, паралельність, 100 ГіБ, 100 000 матеріалів, байти й розміри кожного варіанта похідної);
@@ -56,7 +56,7 @@
 
   Коди з [contracts/storage-api.md](contracts/storage-api.md) додати в `packages/shared/src/types.ts`, експорт — у `packages/shared/src/index.ts`. Новий `packages/shared/src/team/space-read-grant.ts`: HMAC-грант на WebCrypto, спільний для Deno і Worker.
 
-- [ ] T004 [P] Тест для T003 — `tests/space-storage-contract.test.ts`. Розбір відкидає незнайоме. Байти не втрачають точності понад 2^53. Грант: підпис, строк, епоха, чужий простір. Кожен код має переклад і HTTP-статус.
+- [x] T004 [P] Тест для T003 — `tests/space-storage-contract.test.ts`. Розбір відкидає незнайоме. Байти не втрачають точності понад 2^53. Грант: підпис, строк, епоха, чужий простір. Кожен код має переклад і HTTP-статус.
 
 ### Фаза 2 — основа (блокує всі історії M1)
 

@@ -4509,6 +4509,23 @@ export const en = {
   tariffErrorLegacyRemain:
     'Some spaces are still open only by the old rule. Confirm to pause them.',
   tariffErrorDateInvalid: 'The end date cannot be in the past.',
+  spaceStorageErrorBackendMismatch:
+    'This space keeps its files in Soty, not in Google Drive, so this action is not available here.',
+  spaceStorageErrorPilotRequired:
+    'Spaces on Soty storage are in a closed pilot. Ask the administrator for access.',
+  spaceStorageErrorClientUpdate:
+    'This version of Soty cannot open spaces on Soty storage. Reload the page or update Soty.',
+  spaceStorageErrorQuota:
+    'There is not enough room in the space for this file. Free up space or empty the trash.',
+  spaceStorageErrorTooLarge: 'The file is larger than 100 GB, so Soty cannot store it.',
+  spaceStorageErrorRevisionConflict:
+    'Someone changed this a moment ago. The latest version is shown — try again.',
+  spaceStorageErrorUploadExpired: 'The upload took too long and was stopped. Start it again.',
+  spaceStorageErrorChecksum: 'The file arrived damaged and was not saved. Upload it again.',
+  spaceStorageErrorArchived:
+    'This space is archived: files can be opened and downloaded, but not changed.',
+  spaceStorageErrorShareExpired: 'This link has expired.',
+  spaceStorageErrorShareLimit: 'This link has reached its download limit.',
   tariffContactAdmin: 'Write to the administrator',
   tariffContactChoose: 'Where to write',
   tariffContactTelegram: 'Telegram',

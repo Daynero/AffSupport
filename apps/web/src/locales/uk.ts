@@ -4483,6 +4483,23 @@ export const uk: Record<keyof typeof en, string> = {
   tariffErrorLegacyRemain:
     'Деякі простори ще відкриті лише старим правилом. Підтвердьте, щоб призупинити їх.',
   tariffErrorDateInvalid: 'Дата кінця не може бути в минулому.',
+  spaceStorageErrorBackendMismatch:
+    'Цей простір зберігає файли в Soty, а не в Google Drive, тож тут ця дія недоступна.',
+  spaceStorageErrorPilotRequired:
+    'Простори зі сховищем Soty — у закритому пілоті. Попросіть адміністратора про доступ.',
+  spaceStorageErrorClientUpdate:
+    'Ця версія Soty не відкриває простори зі сховищем Soty. Перезавантажте сторінку або оновіть Soty.',
+  spaceStorageErrorQuota:
+    'У просторі не вистачає місця для цього файлу. Звільніть місце або очистіть кошик.',
+  spaceStorageErrorTooLarge: 'Файл більший за 100 ГБ, тож Soty не може його зберегти.',
+  spaceStorageErrorRevisionConflict:
+    'Хтось щойно це змінив. Показано свіжу версію — спробуйте ще раз.',
+  spaceStorageErrorUploadExpired: 'Завантаження тривало задовго й зупинилося. Почніть його знову.',
+  spaceStorageErrorChecksum: 'Файл дійшов пошкодженим і не збережений. Завантажте його ще раз.',
+  spaceStorageErrorArchived:
+    'Простір в архіві: файли можна відкривати й скачувати, але не змінювати.',
+  spaceStorageErrorShareExpired: 'Термін дії цього посилання минув.',
+  spaceStorageErrorShareLimit: 'Посилання вичерпало ліміт скачувань.',
   tariffContactAdmin: 'Написати адміністратору',
   tariffContactChoose: 'Куди написати',
   tariffContactTelegram: 'Telegram',

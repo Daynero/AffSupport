@@ -31,6 +31,7 @@ import {
   TEAM_ASSISTANT_ERROR_CODES,
   TEAM_DRIVE_STORAGE_ERROR_CODES,
   TEAM_CATALOG_HANG_ERROR_CODES,
+  SPACE_STORAGE_ERROR_CODES,
   TEAM_INVITATION_DELIVERY_STATES,
   TEAM_INVITATION_STATES,
   TEAM_MATERIAL_LIFECYCLES,
@@ -89,7 +90,9 @@ const extensionCodes = new Set([
   // 2026-11-24: a full Google storage, hand-written the same way.
   ...TEAM_DRIVE_STORAGE_ERROR_CODES,
   // 072: a catalog that would hang says why, hand-written the same way.
-  ...TEAM_CATALOG_HANG_ERROR_CODES
+  ...TEAM_CATALOG_HANG_ERROR_CODES,
+  // 057: Soty spaces on R2, hand-written the same way.
+  ...SPACE_STORAGE_ERROR_CODES
 ]);
 const baselineErrorCodes = TEAM_ERROR_CODES.filter(code => !extensionCodes.has(code));
 if (
@@ -117,7 +120,8 @@ if (
       TEAM_TRANSLATION_ERROR_CODES.length +
       TEAM_ASSISTANT_ERROR_CODES.length +
       TEAM_DRIVE_STORAGE_ERROR_CODES.length +
-      TEAM_CATALOG_HANG_ERROR_CODES.length
+      TEAM_CATALOG_HANG_ERROR_CODES.length +
+      SPACE_STORAGE_ERROR_CODES.length
 )
   fail('Duplicate team error code');
 
