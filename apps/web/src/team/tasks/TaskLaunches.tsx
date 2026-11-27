@@ -9,6 +9,8 @@ import { useI18n } from '../../i18n';
 import { navigateTo } from '../../lib/navigation';
 import { teamErrorMessageFor } from '../errors';
 import { LaunchCard } from '../launches/LaunchCard';
+import { campaignCountLabel } from '../launches/campaignCountLabel';
+import { launchCardLabels, launchCardState } from '../launches/launchPresentation';
 import { buildTeamRoute, emptyTeamRouteQuery } from '../routes';
 
 /** What a launch is called in a list: its offer, else its creative, else its account. */
@@ -190,13 +192,17 @@ export function TaskLaunchPicker({
     };
   }, [query, teamId]);
 
-  const day = new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
+  // Launches of one offer read the same by name; when they were made and how far they got
+  // is what tells them apart (beta, 27.11: seven rows of «Clothing · g1 · img1 · 15 лист.»).
+  const when = new Intl.DateTimeFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
     day: '2-digit',
-    month: 'short'
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit'
   });
   const items: PickerItem[] = (found ?? []).map(launch => {
     const isAttached = attached.has(launch.id);
-    const date = launch.launchDate ?? launch.createdAt;
+    const made = launch.createdAt ?? launch.launchDate;
     return {
       id: launch.id,
       title: launchTitle(launch),
@@ -205,9 +211,13 @@ export function TaskLaunchPicker({
       subtitle: isAttached
         ? t('taskLaunchesAlready')
         : [
+            t(launchCardLabels[launchCardState(launch)]),
             launch.accountName,
             launch.creativeAlias !== launchTitle(launch) ? launch.creativeAlias : '',
-            date && Number.isFinite(Date.parse(date)) ? day.format(new Date(date)) : ''
+            launch.campaignCount
+              ? `${launch.campaignCount} ${campaignCountLabel(language, launch.campaignCount)}`
+              : '',
+            made && Number.isFinite(Date.parse(made)) ? when.format(new Date(made)) : ''
           ]
             .filter(Boolean)
             .join(' · ')
