@@ -3780,3 +3780,13 @@ fresh setup. Every other live delegation of the computer still refuses automatic
 name after a sign-out had withdrawn it, and PERMISSION_DENIED kept background work off for good.
 Undo by restoring `and d.revoked_at is null` to the renewal check; such desktops then need their
 journal removed by hand again.
+
+## 20261225110000 — a walked scan waiting for its feed is not a failed scan
+
+Patches `public.get_team_storage_health(uuid)` and `private.claim_catalog_sync_jobs(text, integer,
+integer)` (through `pg_get_functiondef`, failing if the text they replace is missing). Health: a
+finite scan pending behind the replay barrier reads as indexing while the space's change feed
+confirms progress within 15 minutes, not `sync_failed`. Scheduler: a feed that such a scan waits for
+is claimed before every other ready job. No table or column. Undo by re-running both functions from
+their previous definitions (20260924100000 and the 034 patch of the claim); a scan waiting for a
+slow feed then reads «Останнє сканування не вдалося» again after 15 minutes.

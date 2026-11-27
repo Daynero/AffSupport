@@ -160,6 +160,35 @@ describe('bounded catalog scheduler', () => {
     expect(selected.filter(id => id === canonicalJobs[0])).toHaveLength(1);
   });
 
+  // Production 2026-11-27: a walked scan waits for its space's feed to pass the replay barrier;
+  // that feed's turn came once in six to eight minutes, behind every other space's polling.
+  it('serves first the feed a walked scan is waiting for', async () => {
+    const [waiting] = await db.root<{ id: string }>(
+      `insert into private.catalog_sync_jobs
+        (connection_id,job_kind,phase,cursor,state,replay_after,next_attempt_at)
+       values ($1,'initial','change_replay','{}','pending',1,now()) returning id`,
+      [connections[5]]
+    );
+    await db.root(
+      'update private.catalog_sync_jobs set next_attempt_at = now() where id = any($1)',
+      [[manualJob, ...canonicalJobs]]
+    );
+    try {
+      const [picked] = await claim();
+      expect(picked?.job_id).toBe(canonicalJobs[5]);
+      await release(picked!);
+    } finally {
+      await db.root(
+        "update private.catalog_sync_jobs set state = 'succeeded', completed_at = now() where id = $1",
+        [waiting!.id]
+      );
+      await db.root(
+        "update private.catalog_sync_jobs set next_attempt_at = now() + interval '1 day' where id = any($1)",
+        [[manualJob, ...canonicalJobs]]
+      );
+    }
+  });
+
   it('projects an unprogressing canonical job as delayed rather than healthy', async () => {
     await db.root(
       `update public.team_drive_connections set initial_sync_state = 'ready',

@@ -197,6 +197,60 @@ describe('get_team_storage_health', () => {
     });
   });
 
+  // Production 2026-11-27 (DimSok): a scan that had walked every folder and was waiting, as
+  // designed, for the space's change feed read «Останнє сканування не вдалося» after 15 minutes
+  // while the feed was still confirming progress every few minutes.
+  it('keeps a walked scan waiting behind the replay barrier indexing while its feed moves', async () => {
+    const { teamId, connectionId } = await makeSpace('Health barrier');
+    await addMaterial(teamId, connectionId!, { id: 'fb1', kind: 'folder' });
+    await harness.root(
+      `update public.team_materials set folder_indexed_at = clock_timestamp() where team_id = $1`,
+      [teamId]
+    );
+    await harness.root(
+      `update public.team_drive_connections set initial_sync_state = 'scanning' where id = $1`,
+      [connectionId]
+    );
+    await harness.root(
+      `insert into private.catalog_sync_jobs
+         (connection_id, job_kind, phase, state, replay_after, updated_at, last_progress_at)
+       values ($1, 'initial', 'change_replay', 'pending', 240,
+         clock_timestamp() - interval '40 minutes', clock_timestamp() - interval '40 minutes')`,
+      [connectionId]
+    );
+    // The space's one canonical feed, confirming progress three minutes ago.
+    const [feed] = await harness.root<{ id: string }>(
+      `insert into private.catalog_sync_jobs
+         (connection_id, job_kind, phase, state, last_progress_at)
+       values ($1, 'incremental', 'incremental', 'pending', clock_timestamp() - interval '3 minutes')
+       on conflict do nothing returning id`,
+      [connectionId]
+    );
+    const feedId =
+      feed?.id ??
+      (
+        await harness.root<{ id: string }>(
+          `update private.catalog_sync_jobs set state = 'pending', attempts = 0,
+             last_progress_at = clock_timestamp() - interval '3 minutes'
+           where connection_id = $1 and job_kind = 'incremental' returning id`,
+          [connectionId]
+        )
+      )[0]!.id;
+    expect((await health(teamId)).kind).toBe('indexing');
+
+    // A feed that has stopped confirming progress is a stalled scan again.
+    await harness.root(
+      `update private.catalog_sync_jobs set last_progress_at = clock_timestamp() - interval '40 minutes'
+        where id = $1`,
+      [feedId]
+    );
+    expect(await health(teamId)).toEqual({
+      kind: 'attention',
+      reason: 'sync_failed',
+      fixer: 'manager'
+    });
+  });
+
   it('is indexing while any folder has not been listed', async () => {
     const { teamId, connectionId } = await makeSpace('Health indexing');
     await harness.root(
