@@ -1,0 +1,157 @@
+{
+  "ok": true,
+  "command": "audit",
+  "generated_at": "2026-11-14T07:15:16.487Z",
+  "period": {
+    "token": "30d",
+    "start": "2026-10-15T07:14:04.551Z",
+    "end": "2026-11-14T07:14:04.551Z",
+    "label": "last 30 days",
+    "as_of": "2026-11-14T07:14:04.551Z"
+  },
+  "data": {
+    "registry_size": 119,
+    "summary": {
+      "covered": 74,
+      "partial": 17,
+      "uncovered": 28,
+      "declared_but_never_emitted": 0
+    },
+    "completeness": "complete",
+    "delivery": {
+      "reports": 77,
+      "rejected": 37,
+      "evicted": 322,
+      "expired": 571,
+      "by_event": [
+        {
+          "event_name": "agent_connected",
+          "rejected_reports": 0,
+          "evicted_reports": 1
+        },
+        {
+          "event_name": "agent_disconnected",
+          "rejected_reports": 0,
+          "evicted_reports": 1
+        },
+        {
+          "event_name": "error_occurred",
+          "rejected_reports": 3,
+          "evicted_reports": 4
+        },
+        {
+          "event_name": "home_viewed",
+          "rejected_reports": 0,
+          "evicted_reports": 1
+        },
+        {
+          "event_name": "link_check_completed",
+          "rejected_reports": 0,
+          "evicted_reports": 1
+        },
+        {
+          "event_name": "link_check_started",
+          "rejected_reports": 0,
+          "evicted_reports": 6
+        },
+        {
+          "event_name": "operation_cancelled",
+          "rejected_reports": 0,
+          "evicted_reports": 2
+        },
+        {
+          "event_name": "operation_completed",
+          "rejected_reports": 11,
+          "evicted_reports": 1
+        },
+        {
+          "event_name": "operation_failed",
+          "rejected_reports": 3,
+          "evicted_reports": 2
+        },
+        {
+          "event_name": "operation_stage_completed",
+          "rejected_reports": 0,
+          "evicted_reports": 5
+        },
+        {
+          "event_name": "operation_started",
+          "rejected_reports": 20,
+          "evicted_reports": 8
+        },
+        {
+          "event_name": "setting_changed",
+          "rejected_reports": 0,
+          "evicted_reports": 3
+        },
+        {
+          "event_name": "team_account_stage",
+          "rejected_reports": 0,
+          "evicted_reports": 2
+        },
+        {
+          "event_name": "team_launch_action",
+          "rejected_reports": 0,
+          "evicted_reports": 2
+        },
+        {
+          "event_name": "tool_impression",
+          "rejected_reports": 0,
+          "evicted_reports": 1
+        },
+        {
+          "event_name": "user_signed_in",
+          "rejected_reports": 0,
+          "evicted_reports": 1
+        }
+      ],
+      "note": "sums of the client-side counters carried by analytics_delivery_report"
+    },
+    "schema": {
+      "events": {
+        "attempt_id": true,
+        "agent_instance_id": true,
+        "agent_platform": true
+      },
+      "tables": {
+        "analytics_catalog_video_session_authorities": true,
+        "analytics_catalog_video_sets": true,
+        "analytics_catalog_growth_video_recipes": true,
+        "analytics_catalog_video_children": true,
+        "analytics_catalog_video_publications": true,
+        "analytics_catalog_video_baselines": true,
+        "analytics_material_historical_observations": true,
+        "analytics_catalog_generations": true,
+        "analytics_commercial_access": true,
+        "analytics_launch_cleanup": true,
+        "analytics_launch_assignments": true,
+        "analytics_launch_assignment_events": true,
+        "analytics_translation_retirement": true,
+        "analytics_catalog_text_schedule": true,
+        "analytics_catalog_text_schedule_journal": true,
+        "analytics_catalog_text_schedule_coverage": true,
+        "analytics_catalog_image_storage": true,
+        "analytics_catalog_image_optimization": true,
+        "analytics_catalog_image_journal": true,
+        "analytics_catalog_video_r2_journal": true,
+        "analytics_catalog_video_r2_copies": true,
+        "analytics_catalog_video_r2_purges": true,
+        "analytics_catalog_video_r2_coverage": true,
+        "analytics_recovery_retirement": true,
+        "analytics_recovery_execution": true,
+        "analytics_process_output_cleanup": true,
+        "analytics_membership_access_signals": true,
+        "analytics_workspace_recovery": true,
+        "agent_journal_records": true,
+        "analytics_daily_events": true,
+        "analytics_daily_tool_outcomes": true,
+        "analytics_catalog_sync_jobs": true,
+        "analytics_restitch_selection_slots": true,
+        "analytics_material_group_execution": true,
+        "analytics_workspace_operations": true,
+        "analytics_launch_generations": true
+      },
+      "missing": []
+    }
+  }
+}

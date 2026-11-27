@@ -1,0 +1,80 @@
+{
+  "ok": true,
+  "command": "team-workspace",
+  "generated_at": "2026-11-14T07:14:17.947Z",
+  "period": {
+    "token": "30d",
+    "start": "2026-10-15T07:14:04.551Z",
+    "end": "2026-11-14T07:14:04.551Z",
+    "label": "last 30 days"
+  },
+  "data": {
+    "storage": {
+      "storage_connected": 13,
+      "index_completed": 136,
+      "previews_ready": 1564,
+      "attention": 28,
+      "attention_reasons": [
+        {
+          "reason": "sync_failed",
+          "count": 23
+        },
+        {
+          "reason": "root_missing",
+          "count": 5
+        }
+      ]
+    },
+    "sc001": {
+      "attempts": 63,
+      "successes": 0,
+      "success_rate": 0,
+      "status": "fail"
+    },
+    "sc005": {
+      "attempts": 0,
+      "successes": 0,
+      "success_rate": null,
+      "status": "insufficient",
+      "cues": []
+    },
+    "sc009": {
+      "windows": [
+        {
+          "window_index": 1,
+          "denominator": 0,
+          "numerator": 0,
+          "rate": null,
+          "status": "insufficient"
+        },
+        {
+          "window_index": 2,
+          "denominator": 0,
+          "numerator": 0,
+          "rate": null,
+          "status": "insufficient"
+        },
+        {
+          "window_index": 3,
+          "denominator": 0,
+          "numerator": 0,
+          "rate": null,
+          "status": "insufficient"
+        },
+        {
+          "window_index": 4,
+          "denominator": 0,
+          "numerator": 0,
+          "rate": null,
+          "status": "insufficient"
+        }
+      ],
+      "all_windows_pass": null
+    },
+    "delivery_lag_ms": {
+      "p50": 1333,
+      "p95": 3654,
+      "samples": 316935
+    }
+  }
+}

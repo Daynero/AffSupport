@@ -1,0 +1,1446 @@
+{
+  "revision": "accessible-v2",
+  "currency": "USD",
+  "units": "decimal GB",
+  "status": "scenario, not measured cost",
+  "assumptions": {
+    "derivatives": 0.1,
+    "backup_only_history": 0.3,
+    "r2_per_gb": 0.015,
+    "b2_per_gb": 0.00695,
+    "class_a_million_per_tb": 0.25,
+    "class_a_price_per_million": 4.5,
+    "class_b_million_per_tb": 5,
+    "class_b_million_floor_per_org": 0.5,
+    "class_b_price_per_million": 0.36,
+    "compute_transfer_reserve_per_tb": 5,
+    "non_byte_allowance_per_org": 0.5,
+    "non_byte_allowance_per_person": 0.2,
+    "non_byte_allowance_per_space": 0.1,
+    "allowance_status": "new automation efficiency target; old $3 Solo allowance remains stress case",
+    "operating_reserve": 0.15,
+    "fee_percent": 0.035,
+    "fee_fixed": 0.3,
+    "annual_discount": 0.15,
+    "annual_fee_policy": "conservative .30 every equivalent month, even if billed once/year",
+    "shared_fixed_monthly_low": 150,
+    "shared_fixed_monthly_high": 300
+  },
+  "plans": [
+    {
+      "name": "Solo",
+      "monthly_usd": 5,
+      "storage_gb": 10,
+      "people": 1,
+      "spaces": 1,
+      "objects": 2000
+    },
+    {
+      "name": "Solo+",
+      "monthly_usd": 9,
+      "storage_gb": 50,
+      "people": 1,
+      "spaces": 2,
+      "objects": 10000
+    },
+    {
+      "name": "Mini Team",
+      "monthly_usd": 15,
+      "storage_gb": 100,
+      "people": 3,
+      "spaces": 3,
+      "objects": 20000
+    },
+    {
+      "name": "Team",
+      "monthly_usd": 29,
+      "storage_gb": 200,
+      "people": 5,
+      "spaces": 5,
+      "objects": 40000
+    },
+    {
+      "name": "Studio",
+      "monthly_usd": 59,
+      "storage_gb": 500,
+      "people": 10,
+      "spaces": 10,
+      "objects": 100000
+    },
+    {
+      "name": "Scale",
+      "monthly_usd": 119,
+      "storage_gb": 1000,
+      "people": 20,
+      "spaces": 20,
+      "objects": 200000
+    }
+  ],
+  "addons": [
+    {
+      "kind": "storage",
+      "quantity": 10,
+      "monthly_usd": 1
+    },
+    {
+      "kind": "storage",
+      "quantity": 50,
+      "monthly_usd": 5
+    },
+    {
+      "kind": "storage",
+      "quantity": 100,
+      "monthly_usd": 10
+    },
+    {
+      "kind": "storage",
+      "quantity": 500,
+      "monthly_usd": 49
+    },
+    {
+      "kind": "storage",
+      "quantity": 1000,
+      "monthly_usd": 95
+    },
+    {
+      "kind": "person",
+      "quantity": 1,
+      "monthly_usd": 2
+    },
+    {
+      "kind": "space",
+      "quantity": 1,
+      "monthly_usd": 1
+    }
+  ],
+  "scenarios": [
+    {
+      "plan": "Solo",
+      "occupancy": 0.25,
+      "term": "monthly",
+      "logical_gb": 2.5,
+      "revenue": 5,
+      "modeled_variable_cost": 1.695021,
+      "contribution_usd": 3.304979,
+      "contribution_margin_pct": 66.0996
+    },
+    {
+      "plan": "Solo",
+      "occupancy": 0.25,
+      "term": "annual-month-equivalent",
+      "logical_gb": 2.5,
+      "revenue": 4.25,
+      "modeled_variable_cost": 1.668771,
+      "contribution_usd": 2.581229,
+      "contribution_margin_pct": 60.7348
+    },
+    {
+      "plan": "Solo",
+      "occupancy": 0.5,
+      "term": "monthly",
+      "logical_gb": 5.0,
+      "revenue": 5,
+      "modeled_variable_cost": 1.788041,
+      "contribution_usd": 3.211959,
+      "contribution_margin_pct": 64.2392
+    },
+    {
+      "plan": "Solo",
+      "occupancy": 0.5,
+      "term": "annual-month-equivalent",
+      "logical_gb": 5.0,
+      "revenue": 4.25,
+      "modeled_variable_cost": 1.761791,
+      "contribution_usd": 2.488209,
+      "contribution_margin_pct": 58.5461
+    },
+    {
+      "plan": "Solo",
+      "occupancy": 1,
+      "term": "monthly",
+      "logical_gb": 10,
+      "revenue": 5,
+      "modeled_variable_cost": 1.974082,
+      "contribution_usd": 3.025918,
+      "contribution_margin_pct": 60.5183
+    },
+    {
+      "plan": "Solo",
+      "occupancy": 1,
+      "term": "annual-month-equivalent",
+      "logical_gb": 10,
+      "revenue": 4.25,
+      "modeled_variable_cost": 1.947832,
+      "contribution_usd": 2.302168,
+      "contribution_margin_pct": 54.1686
+    },
+    {
+      "plan": "Solo+",
+      "occupancy": 0.25,
+      "term": "monthly",
+      "logical_gb": 12.5,
+      "revenue": 9,
+      "modeled_variable_cost": 2.322103,
+      "contribution_usd": 6.677897,
+      "contribution_margin_pct": 74.1989
+    },
+    {
+      "plan": "Solo+",
+      "occupancy": 0.25,
+      "term": "annual-month-equivalent",
+      "logical_gb": 12.5,
+      "revenue": 7.65,
+      "modeled_variable_cost": 2.274853,
+      "contribution_usd": 5.375147,
+      "contribution_margin_pct": 70.2634
+    },
+    {
+      "plan": "Solo+",
+      "occupancy": 0.5,
+      "term": "monthly",
+      "logical_gb": 25.0,
+      "revenue": 9,
+      "modeled_variable_cost": 2.787206,
+      "contribution_usd": 6.212794,
+      "contribution_margin_pct": 69.031
+    },
+    {
+      "plan": "Solo+",
+      "occupancy": 0.5,
+      "term": "annual-month-equivalent",
+      "logical_gb": 25.0,
+      "revenue": 7.65,
+      "modeled_variable_cost": 2.739956,
+      "contribution_usd": 4.910044,
+      "contribution_margin_pct": 64.1836
+    },
+    {
+      "plan": "Solo+",
+      "occupancy": 1,
+      "term": "monthly",
+      "logical_gb": 50,
+      "revenue": 9,
+      "modeled_variable_cost": 3.717412,
+      "contribution_usd": 5.282587,
+      "contribution_margin_pct": 58.6954
+    },
+    {
+      "plan": "Solo+",
+      "occupancy": 1,
+      "term": "annual-month-equivalent",
+      "logical_gb": 50,
+      "revenue": 7.65,
+      "modeled_variable_cost": 3.670162,
+      "contribution_usd": 3.979837,
+      "contribution_margin_pct": 52.024
+    },
+    {
+      "plan": "Mini Team",
+      "occupancy": 0.25,
+      "term": "monthly",
+      "logical_gb": 25.0,
+      "revenue": 15,
+      "modeled_variable_cost": 3.572206,
+      "contribution_usd": 11.427794,
+      "contribution_margin_pct": 76.1853
+    },
+    {
+      "plan": "Mini Team",
+      "occupancy": 0.25,
+      "term": "annual-month-equivalent",
+      "logical_gb": 25.0,
+      "revenue": 12.75,
+      "modeled_variable_cost": 3.493456,
+      "contribution_usd": 9.256544,
+      "contribution_margin_pct": 72.6003
+    },
+    {
+      "plan": "Mini Team",
+      "occupancy": 0.5,
+      "term": "monthly",
+      "logical_gb": 50.0,
+      "revenue": 15,
+      "modeled_variable_cost": 4.502413,
+      "contribution_usd": 10.497587,
+      "contribution_margin_pct": 69.9839
+    },
+    {
+      "plan": "Mini Team",
+      "occupancy": 0.5,
+      "term": "annual-month-equivalent",
+      "logical_gb": 50.0,
+      "revenue": 12.75,
+      "modeled_variable_cost": 4.423662,
+      "contribution_usd": 8.326338,
+      "contribution_margin_pct": 65.3046
+    },
+    {
+      "plan": "Mini Team",
+      "occupancy": 1,
+      "term": "monthly",
+      "logical_gb": 100,
+      "revenue": 15,
+      "modeled_variable_cost": 6.362825,
+      "contribution_usd": 8.637175,
+      "contribution_margin_pct": 57.5812
+    },
+    {
+      "plan": "Mini Team",
+      "occupancy": 1,
+      "term": "annual-month-equivalent",
+      "logical_gb": 100,
+      "revenue": 12.75,
+      "modeled_variable_cost": 6.284075,
+      "contribution_usd": 6.465925,
+      "contribution_margin_pct": 50.7131
+    },
+    {
+      "plan": "Team",
+      "occupancy": 0.25,
+      "term": "monthly",
+      "logical_gb": 50.0,
+      "revenue": 29,
+      "modeled_variable_cost": 5.682412,
+      "contribution_usd": 23.317588,
+      "contribution_margin_pct": 80.4055
+    },
+    {
+      "plan": "Team",
+      "occupancy": 0.25,
+      "term": "annual-month-equivalent",
+      "logical_gb": 50.0,
+      "revenue": 24.65,
+      "modeled_variable_cost": 5.530162,
+      "contribution_usd": 19.119837,
+      "contribution_margin_pct": 77.5653
+    },
+    {
+      "plan": "Team",
+      "occupancy": 0.5,
+      "term": "monthly",
+      "logical_gb": 100.0,
+      "revenue": 29,
+      "modeled_variable_cost": 7.542825,
+      "contribution_usd": 21.457175,
+      "contribution_margin_pct": 73.9903
+    },
+    {
+      "plan": "Team",
+      "occupancy": 0.5,
+      "term": "annual-month-equivalent",
+      "logical_gb": 100.0,
+      "revenue": 24.65,
+      "modeled_variable_cost": 7.390575,
+      "contribution_usd": 17.259425,
+      "contribution_margin_pct": 70.018
+    },
+    {
+      "plan": "Team",
+      "occupancy": 1,
+      "term": "monthly",
+      "logical_gb": 200,
+      "revenue": 29,
+      "modeled_variable_cost": 11.47065,
+      "contribution_usd": 17.52935,
+      "contribution_margin_pct": 60.446
+    },
+    {
+      "plan": "Team",
+      "occupancy": 1,
+      "term": "annual-month-equivalent",
+      "logical_gb": 200,
+      "revenue": 24.65,
+      "modeled_variable_cost": 11.3184,
+      "contribution_usd": 13.3316,
+      "contribution_margin_pct": 54.0836
+    },
+    {
+      "plan": "Studio",
+      "occupancy": 0.25,
+      "term": "monthly",
+      "logical_gb": 125.0,
+      "revenue": 59,
+      "modeled_variable_cost": 11.299781,
+      "contribution_usd": 47.700219,
+      "contribution_margin_pct": 80.8478
+    },
+    {
+      "plan": "Studio",
+      "occupancy": 0.25,
+      "term": "annual-month-equivalent",
+      "logical_gb": 125.0,
+      "revenue": 50.15,
+      "modeled_variable_cost": 10.990031,
+      "contribution_usd": 39.159969,
+      "contribution_margin_pct": 78.0857
+    },
+    {
+      "plan": "Studio",
+      "occupancy": 0.5,
+      "term": "monthly",
+      "logical_gb": 250.0,
+      "revenue": 59,
+      "modeled_variable_cost": 16.209563,
+      "contribution_usd": 42.790437,
+      "contribution_margin_pct": 72.5262
+    },
+    {
+      "plan": "Studio",
+      "occupancy": 0.5,
+      "term": "annual-month-equivalent",
+      "logical_gb": 250.0,
+      "revenue": 50.15,
+      "modeled_variable_cost": 15.899812,
+      "contribution_usd": 34.250187,
+      "contribution_margin_pct": 68.2955
+    },
+    {
+      "plan": "Studio",
+      "occupancy": 1,
+      "term": "monthly",
+      "logical_gb": 500,
+      "revenue": 59,
+      "modeled_variable_cost": 26.029125,
+      "contribution_usd": 32.970875,
+      "contribution_margin_pct": 55.8828
+    },
+    {
+      "plan": "Studio",
+      "occupancy": 1,
+      "term": "annual-month-equivalent",
+      "logical_gb": 500,
+      "revenue": 50.15,
+      "modeled_variable_cost": 25.719375,
+      "contribution_usd": 24.430625,
+      "contribution_margin_pct": 48.7151
+    },
+    {
+      "plan": "Scale",
+      "occupancy": 0.25,
+      "term": "monthly",
+      "logical_gb": 250.0,
+      "revenue": 119,
+      "modeled_variable_cost": 21.759562,
+      "contribution_usd": 97.240437,
+      "contribution_margin_pct": 81.7147
+    },
+    {
+      "plan": "Scale",
+      "occupancy": 0.25,
+      "term": "annual-month-equivalent",
+      "logical_gb": 250.0,
+      "revenue": 101.15,
+      "modeled_variable_cost": 21.134812,
+      "contribution_usd": 80.015187,
+      "contribution_margin_pct": 79.1055
+    },
+    {
+      "plan": "Scale",
+      "occupancy": 0.5,
+      "term": "monthly",
+      "logical_gb": 500.0,
+      "revenue": 119,
+      "modeled_variable_cost": 31.579125,
+      "contribution_usd": 87.420875,
+      "contribution_margin_pct": 73.4629
+    },
+    {
+      "plan": "Scale",
+      "occupancy": 0.5,
+      "term": "annual-month-equivalent",
+      "logical_gb": 500.0,
+      "revenue": 101.15,
+      "modeled_variable_cost": 30.954375,
+      "contribution_usd": 70.195625,
+      "contribution_margin_pct": 69.3976
+    },
+    {
+      "plan": "Scale",
+      "occupancy": 1,
+      "term": "monthly",
+      "logical_gb": 1000,
+      "revenue": 119,
+      "modeled_variable_cost": 51.21825,
+      "contribution_usd": 67.78175,
+      "contribution_margin_pct": 56.9595
+    },
+    {
+      "plan": "Scale",
+      "occupancy": 1,
+      "term": "annual-month-equivalent",
+      "logical_gb": 1000,
+      "revenue": 101.15,
+      "modeled_variable_cost": 50.5935,
+      "contribution_usd": 50.5565,
+      "contribution_margin_pct": 49.9817
+    }
+  ],
+  "addon_scenarios": [
+    {
+      "kind": "storage",
+      "quantity": 10,
+      "monthly_usd": 1,
+      "term": "monthly",
+      "revenue": 1,
+      "marginal_cost": 0.427782,
+      "contribution_margin_pct": 57.2218
+    },
+    {
+      "kind": "storage",
+      "quantity": 10,
+      "monthly_usd": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 0.85,
+      "marginal_cost": 0.422532,
+      "contribution_margin_pct": 50.2903
+    },
+    {
+      "kind": "storage",
+      "quantity": 50,
+      "monthly_usd": 5,
+      "term": "monthly",
+      "revenue": 5,
+      "marginal_cost": 2.138912,
+      "contribution_margin_pct": 57.2218
+    },
+    {
+      "kind": "storage",
+      "quantity": 50,
+      "monthly_usd": 5,
+      "term": "annual-month-equivalent",
+      "revenue": 4.25,
+      "marginal_cost": 2.112662,
+      "contribution_margin_pct": 50.2903
+    },
+    {
+      "kind": "storage",
+      "quantity": 100,
+      "monthly_usd": 10,
+      "term": "monthly",
+      "revenue": 10,
+      "marginal_cost": 4.277825,
+      "contribution_margin_pct": 57.2218
+    },
+    {
+      "kind": "storage",
+      "quantity": 100,
+      "monthly_usd": 10,
+      "term": "annual-month-equivalent",
+      "revenue": 8.5,
+      "marginal_cost": 4.225325,
+      "contribution_margin_pct": 50.2903
+    },
+    {
+      "kind": "storage",
+      "quantity": 500,
+      "monthly_usd": 49,
+      "term": "monthly",
+      "revenue": 49,
+      "marginal_cost": 21.354125,
+      "contribution_margin_pct": 56.4202
+    },
+    {
+      "kind": "storage",
+      "quantity": 500,
+      "monthly_usd": 49,
+      "term": "annual-month-equivalent",
+      "revenue": 41.65,
+      "marginal_cost": 21.096875,
+      "contribution_margin_pct": 49.3472
+    },
+    {
+      "kind": "storage",
+      "quantity": 1000,
+      "monthly_usd": 95,
+      "term": "monthly",
+      "revenue": 95,
+      "marginal_cost": 42.60325,
+      "contribution_margin_pct": 55.1545
+    },
+    {
+      "kind": "storage",
+      "quantity": 1000,
+      "monthly_usd": 95,
+      "term": "annual-month-equivalent",
+      "revenue": 80.75,
+      "marginal_cost": 42.1045,
+      "contribution_margin_pct": 47.8582
+    },
+    {
+      "kind": "person",
+      "quantity": 1,
+      "monthly_usd": 2,
+      "term": "monthly",
+      "revenue": 2,
+      "marginal_cost": 0.3,
+      "contribution_margin_pct": 85.0
+    },
+    {
+      "kind": "person",
+      "quantity": 1,
+      "monthly_usd": 2,
+      "term": "annual-month-equivalent",
+      "revenue": 1.7,
+      "marginal_cost": 0.2895,
+      "contribution_margin_pct": 82.9706
+    },
+    {
+      "kind": "space",
+      "quantity": 1,
+      "monthly_usd": 1,
+      "term": "monthly",
+      "revenue": 1,
+      "marginal_cost": 0.15,
+      "contribution_margin_pct": 85.0
+    },
+    {
+      "kind": "space",
+      "quantity": 1,
+      "monthly_usd": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 0.85,
+      "marginal_cost": 0.14475,
+      "contribution_margin_pct": 82.9706
+    }
+  ],
+  "six_vs_one": {
+    "basis": "same total 60GB, 6 people, 6 spaces, 3M reads/month; single $30 organization is a counterfactual, not a new public SKU",
+    "six_solo": {
+      "revenue": 30,
+      "cost": 11.844495,
+      "contribution": 18.155505
+    },
+    "one_30_org": {
+      "revenue": 30,
+      "cost": 7.469495,
+      "contribution": 22.530505
+    },
+    "extra_cost_six": 4.375,
+    "solo_customers_to_match_one_contribution": 8
+  },
+  "allowance_stress": [
+    {
+      "total_non_byte_allowance": 0.8,
+      "cost": 1.974082,
+      "contribution": 3.025918
+    },
+    {
+      "total_non_byte_allowance": 3,
+      "cost": 4.504082,
+      "contribution": 0.495918
+    },
+    {
+      "total_non_byte_allowance": 5,
+      "cost": 6.804082,
+      "contribution": -1.804082
+    }
+  ],
+  "cohorts": [
+    {
+      "paying_solo": 10,
+      "revenue": 50,
+      "variable_cost": 19.740825,
+      "after_fixed_150": -119.740825,
+      "after_fixed_300": -269.740825
+    },
+    {
+      "paying_solo": 50,
+      "revenue": 250,
+      "variable_cost": 98.704125,
+      "after_fixed_150": 1.295875,
+      "after_fixed_300": -148.704125
+    },
+    {
+      "paying_solo": 100,
+      "revenue": 500,
+      "variable_cost": 197.40825,
+      "after_fixed_150": 152.59175,
+      "after_fixed_300": 2.59175
+    },
+    {
+      "paying_solo": 1000,
+      "revenue": 5000,
+      "variable_cost": 1974.0825,
+      "after_fixed_150": 2875.9175,
+      "after_fixed_300": 2725.9175
+    }
+  ],
+  "thresholds": {
+    "solo_allowance_for_55pct_monthly_margin": 1.039928,
+    "paying_solo_to_cover_shared_150": 50,
+    "paying_solo_to_cover_shared_300": 100,
+    "three_month_solo_contribution_cac_ceiling_before_fixed": 9.077753
+  },
+  "base_plus_addon_scenarios": [
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "monthly",
+      "revenue": 6,
+      "modeled_variable_cost": 2.381165,
+      "contribution_margin_pct": 60.3139
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "annual-month-equivalent",
+      "revenue": 5.1,
+      "modeled_variable_cost": 2.349665,
+      "contribution_margin_pct": 53.9281
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "monthly",
+      "revenue": 10,
+      "modeled_variable_cost": 4.009495,
+      "contribution_margin_pct": 59.9051
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "annual-month-equivalent",
+      "revenue": 8.5,
+      "modeled_variable_cost": 3.956995,
+      "contribution_margin_pct": 53.4471
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "monthly",
+      "revenue": 15,
+      "modeled_variable_cost": 6.065607,
+      "contribution_margin_pct": 59.5626
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "annual-month-equivalent",
+      "revenue": 12.75,
+      "modeled_variable_cost": 5.986857,
+      "contribution_margin_pct": 53.0443
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "monthly",
+      "revenue": 54,
+      "modeled_variable_cost": 23.141907,
+      "contribution_margin_pct": 57.1446
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "annual-month-equivalent",
+      "revenue": 45.9,
+      "modeled_variable_cost": 22.858407,
+      "contribution_margin_pct": 50.1995
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "monthly",
+      "revenue": 100,
+      "modeled_variable_cost": 44.391032,
+      "contribution_margin_pct": 55.609
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "annual-month-equivalent",
+      "revenue": 85.0,
+      "modeled_variable_cost": 43.866032,
+      "contribution_margin_pct": 48.3929
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 7,
+      "modeled_variable_cost": 2.274083,
+      "contribution_margin_pct": 67.5131
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 5.95,
+      "modeled_variable_cost": 2.237332,
+      "contribution_margin_pct": 62.3978
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 6,
+      "modeled_variable_cost": 2.124082,
+      "contribution_margin_pct": 64.5986
+    },
+    {
+      "plan": "Solo",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 5.1,
+      "modeled_variable_cost": 2.092582,
+      "contribution_margin_pct": 58.969
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "monthly",
+      "revenue": 10,
+      "modeled_variable_cost": 4.124495,
+      "contribution_margin_pct": 58.7551
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "annual-month-equivalent",
+      "revenue": 8.5,
+      "modeled_variable_cost": 4.071995,
+      "contribution_margin_pct": 52.0942
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "monthly",
+      "revenue": 14,
+      "modeled_variable_cost": 5.752825,
+      "contribution_margin_pct": 58.9084
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "annual-month-equivalent",
+      "revenue": 11.9,
+      "modeled_variable_cost": 5.679325,
+      "contribution_margin_pct": 52.2746
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "monthly",
+      "revenue": 19,
+      "modeled_variable_cost": 7.891738,
+      "contribution_margin_pct": 58.4645
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "annual-month-equivalent",
+      "revenue": 16.15,
+      "modeled_variable_cost": 7.791988,
+      "contribution_margin_pct": 51.7524
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "monthly",
+      "revenue": 58,
+      "modeled_variable_cost": 24.968038,
+      "contribution_margin_pct": 56.9517
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "annual-month-equivalent",
+      "revenue": 49.3,
+      "modeled_variable_cost": 24.663538,
+      "contribution_margin_pct": 49.9725
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "monthly",
+      "revenue": 104,
+      "modeled_variable_cost": 46.217162,
+      "contribution_margin_pct": 55.5604
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "annual-month-equivalent",
+      "revenue": 88.4,
+      "modeled_variable_cost": 45.671162,
+      "contribution_margin_pct": 48.3358
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 11,
+      "modeled_variable_cost": 4.017412,
+      "contribution_margin_pct": 63.4781
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 9.35,
+      "modeled_variable_cost": 3.959662,
+      "contribution_margin_pct": 57.6507
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 10,
+      "modeled_variable_cost": 3.867412,
+      "contribution_margin_pct": 61.3259
+    },
+    {
+      "plan": "Solo+",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 8.5,
+      "modeled_variable_cost": 3.814912,
+      "contribution_margin_pct": 55.1187
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "monthly",
+      "revenue": 16,
+      "modeled_variable_cost": 6.790607,
+      "contribution_margin_pct": 57.5587
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "annual-month-equivalent",
+      "revenue": 13.6,
+      "modeled_variable_cost": 6.706607,
+      "contribution_margin_pct": 50.6867
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "monthly",
+      "revenue": 20,
+      "modeled_variable_cost": 8.501738,
+      "contribution_margin_pct": 57.4913
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "annual-month-equivalent",
+      "revenue": 17.0,
+      "modeled_variable_cost": 8.396738,
+      "contribution_margin_pct": 50.6074
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "monthly",
+      "revenue": 25,
+      "modeled_variable_cost": 10.64065,
+      "contribution_margin_pct": 57.4374
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "annual-month-equivalent",
+      "revenue": 21.25,
+      "modeled_variable_cost": 10.5094,
+      "contribution_margin_pct": 50.544
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "monthly",
+      "revenue": 64,
+      "modeled_variable_cost": 27.71695,
+      "contribution_margin_pct": 56.6923
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "annual-month-equivalent",
+      "revenue": 54.4,
+      "modeled_variable_cost": 27.38095,
+      "contribution_margin_pct": 49.6674
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "monthly",
+      "revenue": 110,
+      "modeled_variable_cost": 48.966075,
+      "contribution_margin_pct": 55.4854
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "annual-month-equivalent",
+      "revenue": 93.5,
+      "modeled_variable_cost": 48.388575,
+      "contribution_margin_pct": 48.2475
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 17,
+      "modeled_variable_cost": 6.662825,
+      "contribution_margin_pct": 60.8069
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 14.45,
+      "modeled_variable_cost": 6.573575,
+      "contribution_margin_pct": 54.5081
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 16,
+      "modeled_variable_cost": 6.512825,
+      "contribution_margin_pct": 59.2948
+    },
+    {
+      "plan": "Mini Team",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 13.6,
+      "modeled_variable_cost": 6.428825,
+      "contribution_margin_pct": 52.7292
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "monthly",
+      "revenue": 30,
+      "modeled_variable_cost": 11.898433,
+      "contribution_margin_pct": 60.3386
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "annual-month-equivalent",
+      "revenue": 25.5,
+      "modeled_variable_cost": 11.740933,
+      "contribution_margin_pct": 53.9571
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "monthly",
+      "revenue": 34,
+      "modeled_variable_cost": 13.609562,
+      "contribution_margin_pct": 59.9719
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "annual-month-equivalent",
+      "revenue": 28.9,
+      "modeled_variable_cost": 13.431062,
+      "contribution_margin_pct": 53.5257
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "monthly",
+      "revenue": 39,
+      "modeled_variable_cost": 15.748475,
+      "contribution_margin_pct": 59.6193
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "annual-month-equivalent",
+      "revenue": 33.15,
+      "modeled_variable_cost": 15.543725,
+      "contribution_margin_pct": 53.1109
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "monthly",
+      "revenue": 78,
+      "modeled_variable_cost": 32.824775,
+      "contribution_margin_pct": 57.917
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "annual-month-equivalent",
+      "revenue": 66.3,
+      "modeled_variable_cost": 32.415275,
+      "contribution_margin_pct": 51.1082
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "monthly",
+      "revenue": 124,
+      "modeled_variable_cost": 54.0739,
+      "contribution_margin_pct": 56.392
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "annual-month-equivalent",
+      "revenue": 105.4,
+      "modeled_variable_cost": 53.4229,
+      "contribution_margin_pct": 49.3141
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 31,
+      "modeled_variable_cost": 11.77065,
+      "contribution_margin_pct": 62.0302
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 26.35,
+      "modeled_variable_cost": 11.6079,
+      "contribution_margin_pct": 55.9472
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 30,
+      "modeled_variable_cost": 11.62065,
+      "contribution_margin_pct": 61.2645
+    },
+    {
+      "plan": "Team",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 25.5,
+      "modeled_variable_cost": 11.46315,
+      "contribution_margin_pct": 55.0465
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "monthly",
+      "revenue": 60,
+      "modeled_variable_cost": 26.456907,
+      "contribution_margin_pct": 55.9052
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "annual-month-equivalent",
+      "revenue": 51.0,
+      "modeled_variable_cost": 26.141907,
+      "contribution_margin_pct": 48.7414
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "monthly",
+      "revenue": 64,
+      "modeled_variable_cost": 28.168038,
+      "contribution_margin_pct": 55.9874
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "annual-month-equivalent",
+      "revenue": 54.4,
+      "modeled_variable_cost": 27.832037,
+      "contribution_margin_pct": 48.8382
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "monthly",
+      "revenue": 69,
+      "modeled_variable_cost": 30.30695,
+      "contribution_margin_pct": 56.0769
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "annual-month-equivalent",
+      "revenue": 58.65,
+      "modeled_variable_cost": 29.9447,
+      "contribution_margin_pct": 48.9434
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "monthly",
+      "revenue": 108,
+      "modeled_variable_cost": 47.38325,
+      "contribution_margin_pct": 56.1266
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "annual-month-equivalent",
+      "revenue": 91.8,
+      "modeled_variable_cost": 46.81625,
+      "contribution_margin_pct": 49.0019
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "monthly",
+      "revenue": 154,
+      "modeled_variable_cost": 68.632375,
+      "contribution_margin_pct": 55.4335
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "annual-month-equivalent",
+      "revenue": 130.9,
+      "modeled_variable_cost": 67.823875,
+      "contribution_margin_pct": 48.1865
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 61,
+      "modeled_variable_cost": 26.329125,
+      "contribution_margin_pct": 56.8375
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 51.85,
+      "modeled_variable_cost": 26.008875,
+      "contribution_margin_pct": 49.8382
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 60,
+      "modeled_variable_cost": 26.179125,
+      "contribution_margin_pct": 56.3681
+    },
+    {
+      "plan": "Studio",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 51.0,
+      "modeled_variable_cost": 25.864125,
+      "contribution_margin_pct": 49.286
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "monthly",
+      "revenue": 120,
+      "modeled_variable_cost": 51.646032,
+      "contribution_margin_pct": 56.9616
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 10,
+      "term": "annual-month-equivalent",
+      "revenue": 102.0,
+      "modeled_variable_cost": 51.016032,
+      "contribution_margin_pct": 49.9843
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "monthly",
+      "revenue": 124,
+      "modeled_variable_cost": 53.357162,
+      "contribution_margin_pct": 56.97
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 50,
+      "term": "annual-month-equivalent",
+      "revenue": 105.4,
+      "modeled_variable_cost": 52.706162,
+      "contribution_margin_pct": 49.9942
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "monthly",
+      "revenue": 129,
+      "modeled_variable_cost": 55.496075,
+      "contribution_margin_pct": 56.9798
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 100,
+      "term": "annual-month-equivalent",
+      "revenue": 109.65,
+      "modeled_variable_cost": 54.818825,
+      "contribution_margin_pct": 50.0056
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "monthly",
+      "revenue": 168,
+      "modeled_variable_cost": 72.572375,
+      "contribution_margin_pct": 56.8022
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 500,
+      "term": "annual-month-equivalent",
+      "revenue": 142.8,
+      "modeled_variable_cost": 71.690375,
+      "contribution_margin_pct": 49.7967
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "monthly",
+      "revenue": 214,
+      "modeled_variable_cost": 93.8215,
+      "contribution_margin_pct": 56.1582
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "storage",
+      "quantity": 1000,
+      "term": "annual-month-equivalent",
+      "revenue": 181.9,
+      "modeled_variable_cost": 92.698,
+      "contribution_margin_pct": 49.039
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 121,
+      "modeled_variable_cost": 51.51825,
+      "contribution_margin_pct": 57.4229
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "person",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 102.85,
+      "modeled_variable_cost": 50.883,
+      "contribution_margin_pct": 50.527
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "monthly",
+      "revenue": 120,
+      "modeled_variable_cost": 51.36825,
+      "contribution_margin_pct": 57.1931
+    },
+    {
+      "plan": "Scale",
+      "addon_kind": "space",
+      "quantity": 1,
+      "term": "annual-month-equivalent",
+      "revenue": 102.0,
+      "modeled_variable_cost": 50.73825,
+      "contribution_margin_pct": 50.2566
+    }
+  ],
+  "small_payment_stress": [
+    {
+      "description": "10GB addon one extra full-month $1 invoice",
+      "revenue": 1,
+      "cost": 0.727782,
+      "contribution": 0.272218
+    },
+    {
+      "description": "10 percent period of 10GB addon, separate $0.10 charge",
+      "revenue": 0.1,
+      "cost": 0.342778,
+      "contribution": -0.242778
+    }
+  ]
+}

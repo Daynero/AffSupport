@@ -1,0 +1,71 @@
+{
+  "ok": true,
+  "command": "catalog-trends",
+  "generated_at": "2026-11-14T07:14:58.277Z",
+  "period": {
+    "token": "30d",
+    "start": "2026-10-15T07:14:04.551Z",
+    "end": "2026-11-14T07:14:04.551Z",
+    "label": "last 30 days",
+    "as_of": "2026-11-14T07:14:04.551Z"
+  },
+  "data": {
+    "status": "ok",
+    "totals": {
+      "distinct_actors": 8,
+      "interval_changes": 58,
+      "confirmed_changes": 453,
+      "unknown_actor_changes": 234
+    },
+    "current": {
+      "catalogs": 586,
+      "distribution": [
+        {
+          "catalogs": 586,
+          "interval": "off",
+          "raw_intervals": [
+            {
+              "count": 586,
+              "interval": null
+            }
+          ],
+          "distinct_last_editors": 7
+        }
+      ],
+      "known_last_editors": 7,
+      "unknown_last_editors": 544
+    },
+    "coverage": {
+      "as_of": "2026-11-14T07:14:04.551Z",
+      "observed_since": "2026-10-24T20:01:49.732128+00:00",
+      "installed_at": "2026-10-24T20:01:49.016704+00:00",
+      "capture_enabled": true,
+      "schema_version": 1,
+      "history_complete": false,
+      "timezone": "UTC",
+      "baseline_rows": 900,
+      "omitted_unobserved_days": 9,
+      "unknown_actor_changes": 234,
+      "notes": [
+        "History starts at the first authoritative observation, not at account or catalog creation. Baselines are excluded from confirmed changes and transitions.",
+        "Current means active, nondeleted catalog state reconstructed at as_of. Distinct last editors describe attribution, not ownership; unknown_last_editors counts catalogs with unknown attribution.",
+        "Interval popularity counts confirmed cadence changes; distinct actors are deduplicated per interval and can appear in multiple intervals. Alias-only changes do not count as preference changes.",
+        "First/latest observed selections span catalogs and the requested period; they are not a single user preference or the true first choice.",
+        "UTC calendar days; daily end states only include catalogs already observed by that day. Earlier unavailable history is unknown.",
+        "Daily charts retain at most the latest 366 observed UTC days, with omitted counts explicit. Other aggregate counts cover the entire window. User rows are ranked by confirmed activity; timelines contain the most recent bounded sample for those users, sorted by catalog and time.",
+        "The client UI funnel is separate, lossy evidence. Use the existing catalog_manager flow/attempt diagnostic seams for browser delivery; this journal does not prove UI visibility."
+      ]
+    },
+    "truncation": {
+      "timeline_total": 219,
+      "timeline_returned": 219,
+      "timeline_limit": 2000,
+      "users_total": 8,
+      "users_returned": 8,
+      "users_limit": 20,
+      "daily_days_total": 22,
+      "daily_days_returned": 22,
+      "daily_days_limit": 366
+    }
+  }
+}

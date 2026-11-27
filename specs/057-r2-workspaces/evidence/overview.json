@@ -1,0 +1,133 @@
+{
+  "ok": true,
+  "command": "overview",
+  "generated_at": "2026-11-14T07:14:50.994Z",
+  "period": {
+    "token": "30d",
+    "start": "2026-10-15T07:14:45.881Z",
+    "end": "2026-11-14T07:14:45.881Z",
+    "label": "last 30 days"
+  },
+  "data": {
+    "total_users": 56,
+    "new_users": 17,
+    "active_users": 38,
+    "sessions": 1804,
+    "total_events": 316931,
+    "tool_opens": 514,
+    "compression_batches": 103,
+    "videos_added": 710,
+    "videos_compressed": 645,
+    "compressions_completed": 645,
+    "compressions_failed": 8,
+    "top_locales": [
+      {
+        "name": "uk",
+        "count": 315232
+      },
+      {
+        "name": "en",
+        "count": 732
+      }
+    ],
+    "top_platforms": [
+      {
+        "name": "macos",
+        "count": 202873
+      },
+      {
+        "name": "windows",
+        "count": 114058
+      }
+    ],
+    "top_app_versions": [
+      {
+        "name": "1.4.3",
+        "count": 54917
+      },
+      {
+        "name": "1.4.2",
+        "count": 51911
+      },
+      {
+        "name": "1.3.3",
+        "count": 38465
+      },
+      {
+        "name": "1.3.0",
+        "count": 24791
+      },
+      {
+        "name": "1.4.0",
+        "count": 21492
+      },
+      {
+        "name": "1.2.10",
+        "count": 18436
+      },
+      {
+        "name": "1.4.1",
+        "count": 18417
+      },
+      {
+        "name": "1.2.9",
+        "count": 16451
+      },
+      {
+        "name": "1.3.2",
+        "count": 16138
+      },
+      {
+        "name": "1.2.7",
+        "count": 15591
+      }
+    ],
+    "top_agent_versions": [
+      {
+        "name": "1.3.3",
+        "count": 39090
+      },
+      {
+        "name": "1.4.2",
+        "count": 30289
+      },
+      {
+        "name": "1.3.0",
+        "count": 25624
+      },
+      {
+        "name": "1.4.3",
+        "count": 25341
+      },
+      {
+        "name": "1.2.9",
+        "count": 17127
+      },
+      {
+        "name": "1.3.2",
+        "count": 16939
+      },
+      {
+        "name": "1.2.10",
+        "count": 16426
+      },
+      {
+        "name": "1.4.1",
+        "count": 15088
+      },
+      {
+        "name": "1.2.7",
+        "count": 11163
+      },
+      {
+        "name": "1.4.0",
+        "count": 9472
+      }
+    ],
+    "delivery_lag_ms": {
+      "p50": 1333,
+      "p95": 3654,
+      "samples": 316931
+    }
+  }
+}
