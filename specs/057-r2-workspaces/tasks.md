@@ -60,14 +60,14 @@
 
 ### Фаза 2 — основа (блокує всі історії M1)
 
-- [ ] T005 Тест для T006 (пишеться першим) — `supabase/tests/database/space-storage-schema.test.sql`. Перевірити:
+- [x] T005 Тест для T006 (пишеться першим) — `supabase/tests/database/space-storage-schema.test.sql`. Перевірити:
   - `teams.storage_backend` не змінюється після створення;
   - `CHECK`: Drive-рядок без `drive_file_id` відхилено, R2-рядок без об'єкта відхилено (крім папки й стрічки каталогу);
   - цикли папок відхилено, батько з іншого простору — теж;
   - RLS між просторами;
   - тригери огорожі на `team_space_storage_signals` і `space_uploads`, `private.task_cleanup_coverage_verified()` = true;
   - облік: інкременти точні, спільний об'єкт рахується раз, `shared_bytes` правильні.
-- [ ] T006 Міграція `supabase/migrations/<ts>_space_storage_foundation.sql` за [data-model.md](data-model.md) M1:
+- [x] T006 Міграція `supabase/migrations/<ts>_space_storage_foundation.sql` за [data-model.md](data-model.md) M1:
   - колонки `teams`;
   - `team_materials`: `DROP NOT NULL` на `connection_id`, `drive_file_id`, новий `CHECK`, `space_object_id`, `material_revision`;
   - таблиці `storage_r2_pilots` з `admin_list/add/remove_storage_r2_pilot` і `is_storage_r2_pilot()` за зразком `supabase/migrations/20261207399800_release_testers.sql`;

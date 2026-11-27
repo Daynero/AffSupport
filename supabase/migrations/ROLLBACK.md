@@ -3769,3 +3769,32 @@ a created output that is a material of a space (any lifecycle) is settled as kep
 launch whose only unfinished generation is `canceled_with_cleanup_pending` can be deleted. No
 table or column. Undo by re-running both functions from 20261207171000 and 20261201167000; a
 generation already closed stays closed, and the checkpoint mark is read by nothing.
+
+## 20261226100000 — 057 storage codes
+
+Additive: twelve rows in `public.team_error_codes` (`SPACE_STORAGE_ERROR_CODES`). Leave them in
+place on rollback; an older client maps an unknown code to its generic sentence.
+
+## 20261226110000 — 057 foundation of R2 spaces
+
+Adds `teams.storage_backend` (fixed after creation), `storage_pilot`, `content_revision`,
+`access_epoch`, `storage_root_material_id`; makes `team_materials.connection_id` and
+`drive_file_id` nullable with `team_materials_storage_shape_check`, `space_object_id` and
+`material_revision`; new tables `space_objects`, `space_object_refs`, `space_storage_usage`,
+`space_storage_reservations`, `space_uploads`, `space_upload_derivatives`,
+`space_derivative_jobs`, `space_object_purges`, `space_storage_reconciliations`,
+`team_space_storage_signals` (Realtime, fenced), `storage_r2_pilots`,
+`private.storage_r2_pilot_events`, `private.space_storage_journal`; the pilot admin RPCs, the
+journal RPC and an hourly retention cron `soty-space-storage-retention`. Replaces
+`private.fence_process_output_adoption()` with the same body plus an early return for a row
+without `drive_file_id`.
+
+While no R2 space exists, every new trigger on `team_materials` is inert (it fires only for rows
+without a connection) and Drive behaviour is unchanged. Undo, only while no `teams` row has
+`storage_backend = 'r2'`: `select cron.unschedule('soty-space-storage-retention')`; drop the
+triggers `team_materials_space_shape`, `team_drive_connections_backend`,
+`teams_storage_backend_fixed`; drop the new tables (signals out of `supabase_realtime` first) and
+functions; drop the two new `team_materials` columns and constraint; re-run
+`private.fence_process_output_adoption()` from 20261206138000. Do not restore `NOT NULL` on the
+two Drive columns once an R2 row has existed — delete those rows first. The new `teams` columns
+may stay: nothing old reads them.
