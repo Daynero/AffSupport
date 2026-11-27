@@ -20,9 +20,12 @@ export type SpaceReadiness = 'ready' | 'setup_incomplete' | 'preparing';
  * sign-in used to say "being set up" to the owner, forever, with nothing to press).
  *
  * A connection that needs signing in again is browsable for everyone (011, FR-033): the catalog
- * indexed once stays readable, and the shell says what is wrong.
+ * indexed once stays readable, and the shell says what is wrong. A space on Soty storage (057)
+ * never has a Drive connection and is ready as soon as it is created.
  */
 export function spaceReadiness(space: TeamContextSnapshot): SpaceReadiness {
+  // 057: an R2 space has no folder to connect; it is whole the moment it exists.
+  if (space.storageBackend === 'r2') return 'ready';
   if (space.connectionState === 'connected' || space.connectionState === 'needs_reauth') {
     return 'ready';
   }

@@ -11,6 +11,11 @@ import { useTeam } from '../TeamContext';
 import type { DrivePanelClient } from '../drive/DriveConnectionPanel';
 import { SpaceNameStep } from './SpaceNameStep';
 import { ConnectStorageFlow } from '../storage/ConnectStorageFlow';
+import {
+  CreateR2SpaceStep,
+  useR2SpaceCreation,
+  type SpaceStorageChoice
+} from '../storage/CreateR2SpaceStep';
 
 export type CreateSpaceWizardClient = {
   createTeam: (name: string) => Promise<TeamContextSnapshot>;
@@ -24,6 +29,12 @@ export type CreateSpaceWizardClient = {
   deleteDraftTeam: (teamId: string) => Promise<true>;
   /** Names a space after its folder when the suggested name was left as it was (024). */
   renameTeam?: (teamId: string, name: string) => Promise<string>;
+  /**
+   * 057 (US11): a pilot's space on Soty storage. Both are optional: a client without them
+   * (tests, older surfaces) never offers the choice.
+   */
+  isStorageR2Pilot?: () => Promise<boolean>;
+  createR2Space?: (name: string, idempotencyKey: string) => Promise<TeamContextSnapshot>;
 } & DrivePanelClient;
 
 /** The suggested name, in either language, with the number a second or third one gets. */
@@ -32,7 +43,9 @@ const SUGGESTED_NAME = /^(My space|Мій простір)( \d+)?$/u;
 type Step = { kind: 'name' } | { kind: 'folder'; teamId: string };
 
 /**
- * Linear create-space flow: name (required) → connect folder (required) → done.
+ * Linear create-space flow: name (required) → connect folder (required) → done. A pilot of
+ * Soty storage (057) also chooses where the files live in the name step; on Soty storage the
+ * space is whole once named, so that path is one step and has no folder.
  * The team row is created when the name is committed (the folder step needs a
  * team id); an abandoned flow therefore leaves a resumable "setup-incomplete"
  * space, never a ready one. `resumeTeamId` re-enters directly at the folder
@@ -64,8 +77,14 @@ export function CreateSpaceWizard({
   // The draft this flow created, so Back can restore what was typed and a
   // corrected name can replace it instead of piling up abandoned spaces.
   const [draft, setDraft] = useState<TeamContextSnapshot | null>(null);
+  const r2Available = useR2SpaceCreation(client.isStorageR2Pilot, resumeTeamId === null);
+  const [storage, setStorage] = useState<SpaceStorageChoice>('drive');
+  const onR2 = r2Available && storage === 'r2' && client.createR2Space !== undefined;
+  // One key for the whole run: a retry after a lost reply returns the space already made.
+  const r2Key = useRef<string | null>(null);
 
   const stepNumber = step.kind === 'name' ? 1 : 2;
+  const totalSteps = onR2 ? 1 : 2;
   /*
    * A name to start from (024), so the first step can be a single press: "My space", or "My space
    * 2" beside one already called that. Left as it is, the space takes the chosen folder's name
@@ -90,6 +109,10 @@ export function CreateSpaceWizard({
    * (`create_team` refuses a duplicate name among your own spaces).
    */
   const submitName = async (name: string): Promise<TeamContextSnapshot> => {
+    if (onR2 && client.createR2Space) {
+      r2Key.current ??= crypto.randomUUID();
+      return client.createR2Space(name, r2Key.current);
+    }
     const resumed = resumeTeamId ? teams.find(team => team.id === resumeTeamId) : undefined;
     if (resumed) {
       if (resumed.name === name) return resumed;
@@ -108,6 +131,19 @@ export function CreateSpaceWizard({
   };
 
   const handleCreated = (created: TeamContextSnapshot) => {
+    if (created.storageBackend === 'r2') {
+      replaceTeams([...teams.filter(team => team.id !== created.id), created]);
+      if (onboarding.current) {
+        completeTeamOnboardingFlow(onboarding.current, {
+          invitePersisted: false,
+          rootConfirmed: true,
+          syncQueued: false,
+          outcome: 'success'
+        });
+      }
+      onCreated(created.id);
+      return;
+    }
     setDraft(created);
     replaceTeams([...teams.filter(team => team.id !== created.id), created]);
     setStep({ kind: 'folder', teamId: created.id });
@@ -145,11 +181,11 @@ export function CreateSpaceWizard({
       <header className="team-create-wizard-header">
         <h1 id="team-create-title">{heading ?? t('teamCreateSpaceTitle')}</h1>
         <p className="team-create-progress" aria-live="polite">
-          {t('teamCreateStepProgress', { current: stepNumber, total: 2 })}
+          {t('teamCreateStepProgress', { current: stepNumber, total: totalSteps })}
         </p>
         {/* The line above already says which step this is; the bar is the same
             fact drawn, so it is not announced a second time. */}
-        <Progress decorative value={(stepNumber / 2) * 100} size="xs" />
+        <Progress decorative value={(stepNumber / totalSteps) * 100} size="xs" />
       </header>
 
       {step.kind === 'name' ? (
@@ -158,7 +194,12 @@ export function CreateSpaceWizard({
           onCreated={handleCreated}
           onCancel={onCancel}
           initialName={draft?.name ?? resumeName ?? suggestedName}
-        />
+          hint={onR2 ? t('teamCreateStepNameHintR2') : undefined}
+        >
+          {r2Available && client.createR2Space && !draft && (
+            <CreateR2SpaceStep value={storage} onChange={setStorage} />
+          )}
+        </SpaceNameStep>
       ) : (
         <>
           {resumeName && <p className="team-create-resume-name">{resumeName}</p>}

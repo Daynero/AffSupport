@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import type { TeamContextSnapshot } from '../../api/team';
 import { TeamApiError } from '../../api/team';
 import { useI18n } from '../../i18n';
@@ -13,13 +13,19 @@ export function SpaceNameStep({
   createTeam,
   onCreated,
   onCancel,
-  initialName = ''
+  initialName = '',
+  hint,
+  children
 }: {
   createTeam: (name: string) => Promise<TeamContextSnapshot>;
   onCreated: (team: TeamContextSnapshot) => void;
   onCancel: () => void;
   /** What was typed before stepping forward, restored when stepping back. */
   initialName?: string;
+  /** In place of the Drive wording, when the space will not take a folder's name (057). */
+  hint?: string;
+  /** Drawn under the name: the storage choice a pilot gets (057). */
+  children?: ReactNode;
 }) {
   const { t } = useI18n();
   const [name, setName] = useState(initialName);
@@ -43,7 +49,11 @@ export function SpaceNameStep({
           ? t('teamNameConflict')
           : code === 'PERMISSION_DENIED'
             ? t('teamSpaceSaveDenied')
-            : t('teamLoadFailed')
+            : code === 'R2_PILOT_REQUIRED'
+              ? t('spaceStorageErrorPilotRequired')
+              : code === 'CLIENT_UPDATE_REQUIRED'
+                ? t('spaceStorageErrorClientUpdate')
+                : t('teamLoadFailed')
       );
     } finally {
       setSubmitting(false);
@@ -55,7 +65,7 @@ export function SpaceNameStep({
       as="form"
       className="team-create-step"
       title={t('teamCreateStepNameTitle')}
-      description={t('teamCreateStepNameHint')}
+      description={hint ?? t('teamCreateStepNameHint')}
       onSubmit={event => void submit(event)}
     >
       <FormField label={t('teamName')} htmlFor="create-space-name" required>
@@ -70,6 +80,7 @@ export function SpaceNameStep({
           onChange={event => setName(event.target.value)}
         />
       </FormField>
+      {children}
       {error && <ErrorState className="team-inline-error" message={error} />}
       <div className="team-create-actions">
         <Button color="neutral" variant="ghost" onClick={onCancel}>

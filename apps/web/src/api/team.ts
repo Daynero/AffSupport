@@ -202,7 +202,8 @@ import type {
 import { parseFolderSyncStatus, type FolderSyncStatus } from '../team/syncStatus';
 import { parseUpdaterInterval, type UpdaterInterval } from '../team/catalog-updater/limits';
 import type { Database, Json } from '../lib/database.types';
-import { publicConfig } from '../lib/config';
+import { publicConfig, siteChannel } from '../lib/config';
+import { listsR2Spaces, spaceStorageRequestHeaders } from './space-storage';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
 import { memberAttempt } from '../team/members/diagnostics';
 import {
@@ -284,6 +285,11 @@ export interface TeamContextSnapshot {
   permissions: TeamPermissions;
   connectionState:
     'none' | 'pending' | 'connected' | 'needs_reauth' | 'unavailable' | 'detached' | 'root_missing';
+  /**
+   * 057: where the space's files live. Absent from the old list (`list_my_teams`), which only
+   * ever returns Drive spaces, so absent means Drive.
+   */
+  storageBackend?: 'drive' | 'r2';
 }
 
 export type UnknownGuard<T> = (value: unknown) => value is T;
@@ -959,14 +965,21 @@ export async function invokeTeamFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
   guard: UnknownGuard<T>,
-  options: { method?: 'GET' | 'POST'; signal?: AbortSignal } = {}
+  options: {
+    method?: 'GET' | 'POST';
+    signal?: AbortSignal;
+    /** 057: what a request declares beyond the session (`x-soty-capabilities`). */
+    headers?: Record<string, string>;
+  } = {}
 ): Promise<T> {
   const supabase = requireSupabaseClient();
+  const extra = {
+    ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.headers ? { headers: options.headers } : {})
+  };
   const { data, error } = await supabase.functions.invoke(
     functionName,
-    options.method === 'GET'
-      ? { method: 'GET', ...(options.signal ? { signal: options.signal } : {}) }
-      : { body, ...(options.signal ? { signal: options.signal } : {}) }
+    options.method === 'GET' ? { method: 'GET', ...extra } : { body, ...extra }
   );
   let payload = data;
   if (error && data === null) {
@@ -1004,7 +1017,10 @@ export function isTeamContextSnapshot(value: unknown): value is TeamContextSnaps
       'unavailable',
       'detached',
       'root_missing'
-    ].includes(String(item.connectionState))
+    ].includes(String(item.connectionState)) ||
+    (item.storageBackend !== undefined &&
+      item.storageBackend !== 'drive' &&
+      item.storageBackend !== 'r2')
   ) {
     return false;
   }
@@ -1361,12 +1377,14 @@ export function parseSpaceRemovalPreview(value: unknown): SpaceRemovalPreview | 
 function mapTeamContext(value: unknown): TeamContextSnapshot | null {
   const row = asRecord(value);
   if (!row) return null;
+  const storageBackend = row.storage_backend ?? row.storageBackend;
   const mapped = {
     id: row.id,
     name: row.name,
     role: row.role,
     permissions: row.permissions,
-    connectionState: row.connection_state ?? row.connectionState
+    connectionState: row.connection_state ?? row.connectionState,
+    ...(storageBackend === undefined ? {} : { storageBackend })
   };
   return isTeamContextSnapshot(mapped) ? mapped : null;
 }
@@ -1782,6 +1800,49 @@ function isTransientServerFailure(error: { message: string; code?: string }): bo
   );
 }
 /** One authenticated, abortable RPC seam; each consumer still validates its own payload. */
+/** 057: set once PostgREST says `list_my_teams_v2` is not there, so the old list is asked directly. */
+let teamListV2Missing = false;
+
+/**
+ * The rows of the team list. Away from the production address the v2 list also returns R2
+ * spaces with their backend; on it, and against a database without v2 (PGRST202), the old list
+ * returns Drive spaces only — the same answer as before 057.
+ */
+async function listTeamRows(options: { signal?: AbortSignal }): Promise<unknown> {
+  if (!teamListV2Missing && listsR2Spaces(siteChannel())) {
+    const { data, error } = await withFreshSession(
+      () => abortable(requireSupabaseClient().rpc('list_my_teams_v2', {}), options),
+      options
+    );
+    if (error?.code !== 'PGRST202') {
+      throwRpc(error);
+      return data;
+    }
+    teamListV2Missing = true;
+  }
+  return invokeTeamRpc('list_my_teams', {}, options);
+}
+
+interface CreatedR2Space {
+  teamId: string;
+  name: string;
+  role: string;
+  permissions: Record<string, unknown>;
+  storageBackend: 'r2';
+}
+
+function isCreatedR2Space(value: unknown): value is CreatedR2Space {
+  const row = asRecord(value);
+  return (
+    row !== null &&
+    typeof row.teamId === 'string' &&
+    typeof row.name === 'string' &&
+    typeof row.role === 'string' &&
+    asRecord(row.permissions) !== null &&
+    row.storageBackend === 'r2'
+  );
+}
+
 export async function invokeTeamRpc<
   Name extends keyof Database['public']['Functions'],
   Args extends Database['public']['Functions'][NoInfer<Name>]['Args']
@@ -2257,11 +2318,47 @@ export const teamApi = {
   getGlobalCatalogImageReadiness,
   catalogVideoR2: catalogVideoR2Client,
   async listTeams(options: { signal?: AbortSignal } = {}): Promise<TeamContextSnapshot[]> {
-    const data = (await invokeTeamRpc('list_my_teams', {}, options)) ?? [];
+    const data = (await listTeamRows(options)) ?? [];
     if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
     const teams = data.map(mapTeamContext);
     if (teams.some(team => team === null)) throw new TeamApiError('INVALID_RESPONSE', false);
     return teams.filter((team): team is TeamContextSnapshot => team !== null);
+  },
+
+  /** 057 (US11): does this person hold the permit to create spaces on Soty storage (R2)? */
+  async isStorageR2Pilot(): Promise<boolean> {
+    try {
+      const { data, error } = await withFreshSession(() =>
+        requireSupabaseClient().rpc('is_storage_r2_pilot')
+      );
+      // Before the release that adds the pilot, the function is missing: nobody is a pilot.
+      return !error && data === true;
+    } catch {
+      return false;
+    }
+  },
+
+  /**
+   * 057 (US11): creates a space whose files live on Soty storage (R2) — no Drive folder step.
+   * The same key returns the same space, so the wizard keeps one key for its whole run.
+   */
+  async createR2Space(name: string, idempotencyKey: string): Promise<TeamContextSnapshot> {
+    const created = await invokeTeamFunction(
+      'space-storage/spaces/create',
+      { name, idempotencyKey },
+      isCreatedR2Space,
+      { headers: spaceStorageRequestHeaders() }
+    );
+    const team = mapTeamContext({
+      id: created.teamId,
+      name: created.name,
+      role: created.role,
+      permissions: created.permissions,
+      connection_state: 'none',
+      storage_backend: 'r2'
+    });
+    if (!team) throw new TeamApiError('INVALID_RESPONSE', false);
+    return team;
   },
 
   async createTeam(name: string): Promise<TeamContextSnapshot> {

@@ -3379,6 +3379,13 @@ export const en = {
   teamCreateStepNameTitle: 'Name your space',
   teamCreateStepNameHint:
     'Leave it as it is and the space takes the name of the folder you choose next. It can be changed later.',
+  teamCreateStepNameHintR2: 'The space is ready as soon as it has a name. It can be changed later.',
+  teamCreateStorageLabel: 'Where the files live',
+  teamCreateStorageDrive: 'In a Google Drive folder',
+  teamCreateStorageDriveHint: 'Soty works with a folder you choose in your Google Drive next.',
+  teamCreateStorageR2: 'On Soty storage',
+  teamCreateStorageR2Hint:
+    'Soty keeps the files itself, with no Google Drive folder. A pilot: the space opens on the test version only.',
   teamCreateStepFolderTitle: 'Connect a Google Drive folder',
   teamCreateStepFolderHint: 'Choose the Google Drive folder this space works with.',
   teamCreateContinue: 'Continue',

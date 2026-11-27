@@ -129,12 +129,12 @@
   Спільна перевірка запиту — п'ять умов з [contracts/storage-api.md](contracts/storage-api.md). Тест: T013.
 
 - [x] T016 [P] [US11] Адмін-картка `apps/web/src/pages/admin/StorageR2PilotsCard.tsx` за зразком `ReleaseTestersCard.tsx`. Підключити в `apps/web/src/pages/AdminPage.tsx:385` поруч. Тест: T014.
-- [ ] T017 [P] [US11] Тест для T018 — `tests/space-r2-create-flow.test.tsx`:
+- [x] T017 [P] [US11] Тест для T018 — `tests/space-r2-create-flow.test.tsx`:
   - вибір «На R2» з'являється лише коли `siteChannel()` = `next` і є пілот;
   - на прод-адресі вибору немає;
   - `spaceReadiness` вважає R2-простір готовим без Drive;
   - `listTeams` повертається до `list_my_teams` на `PGRST202`.
-- [ ] T018 [US11] Створення R2-простору у вебі:
+- [x] T018 [US11] Створення R2-простору у вебі:
   - `apps/web/src/team/create/CreateSpaceWizard.tsx` і новий `apps/web/src/team/storage/CreateR2SpaceStep.tsx` — без кроку папки Drive;
   - `spaceReadiness()` у `apps/web/src/team/lobby/SpaceCard.tsx:25`;
   - `teamApi.listTeams` (`apps/web/src/api/team.ts:2258`) → `list_my_teams_v2` з відступом, як у `apps/web/src/lib/release-tester.ts`;
@@ -142,6 +142,13 @@
   - `mapTeamContext` (`team.ts:1361`) його розбирає.
 
   Тест: T017.
+
+  Рішення 2026-11-28 (імплементація): вибір «У сховищі Soty» — у кроці назви, а не окремим
+  кроком, тож R2-простір створюється за один крок. Крім `next`, його бачить пілот і на
+  непродакшн-стеку (`siteChannel()` = `other`, середовище не `production`, тобто бета), бо
+  пілот спершу доводиться на беті; копія прод-сайту, яку віддає агент, вибору не має. На
+  прод-адресі `listTeams` питає лише `list_my_teams`, тож R2-простір там прихований (FR-053),
+  а `is_storage_r2_pilot` навіть не викликається.
 
 - [x] T019 [P] [US11] Тест для T020 — `tests/space-storage-isolation.test.ts` і `supabase/tests/database/space-storage-isolation.test.sql`:
   - файлові маршрути `drive-ops` і `drive-transfer` на R2-простір → `STORAGE_BACKEND_MISMATCH`;

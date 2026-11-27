@@ -223,6 +223,17 @@ const RPC: Record<string, (args: Record<string, unknown>) => unknown> = {
   can_access_team_workspace: () => mockAccessMode() === 'workspace',
   list_my_invitations: () => [],
   list_my_teams: () => (mockAccessMode() === 'workspace' ? TEAMS : []),
+  // 057: the list a non-production address asks for; the seed has Drive spaces only.
+  list_my_teams_v2: () =>
+    mockAccessMode() === 'workspace'
+      ? TEAMS.map(team => ({
+          ...team,
+          storage_backend: 'drive',
+          storage_pilot: false,
+          content_revision: 0
+        }))
+      : [],
+  is_storage_r2_pilot: () => false,
   list_team_members: () => MEMBERS,
   list_team_invitations: () => [],
   list_team_audit: () => [],

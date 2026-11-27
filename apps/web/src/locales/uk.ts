@@ -3362,6 +3362,15 @@ export const uk: Record<keyof typeof en, string> = {
   teamCreateStepNameTitle: 'Назвіть простір',
   teamCreateStepNameHint:
     'Можна лишити як є — простір назветься так само, як папка, яку ви оберете далі. Змінити можна будь-коли.',
+  teamCreateStepNameHintR2:
+    'Простір буде готовий, щойно отримає назву. Змінити її можна будь-коли.',
+  teamCreateStorageLabel: 'Де лежатимуть файли',
+  teamCreateStorageDrive: 'У папці Google Drive',
+  teamCreateStorageDriveHint:
+    'Soty працюватиме з папкою, яку ви оберете далі на своєму Google Drive.',
+  teamCreateStorageR2: 'У сховищі Soty',
+  teamCreateStorageR2Hint:
+    'Файли зберігає сама Soty, папка Google Drive не потрібна. Це пілот: простір відкривається лише в тестовій версії.',
   teamCreateStepFolderTitle: 'Підключіть папку Google Drive',
   teamCreateStepFolderHint: 'Оберіть папку Google Drive, з якою працюватиме простір.',
   teamCreateContinue: 'Далі',
