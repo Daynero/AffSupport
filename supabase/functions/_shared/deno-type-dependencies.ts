@@ -24,3 +24,7 @@ import '../../../packages/shared/dist/team/agent-finance.d.ts';
 import '../../../packages/shared/dist/team/agent-finance-report.d.ts';
 // 073: the catalog image optimizer and the R2 worker strip metadata on the way out.
 import '../../../packages/shared/dist/media-metadata.d.ts';
+// 057: the space bucket client, the read grant and the storage journal.
+import '../../../packages/shared/dist/team/space-storage.d.ts';
+import '../../../packages/shared/dist/team/space-storage-md5.d.ts';
+import '../../../packages/shared/dist/team/space-read-grant.d.ts';

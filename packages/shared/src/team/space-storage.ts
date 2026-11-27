@@ -186,7 +186,9 @@ export const SPACE_STORAGE_ERROR_CODES = [
   'CHECKSUM_MISMATCH',
   'SPACE_ARCHIVED',
   'SHARE_LINK_EXPIRED',
-  'SHARE_LINK_LIMIT'
+  'SHARE_LINK_LIMIT',
+  /** The bucket did not answer or refused for a reason that is not the caller's. Retryable. */
+  'STORAGE_UNAVAILABLE'
 ] as const;
 export type SpaceStorageErrorCode = (typeof SPACE_STORAGE_ERROR_CODES)[number];
 
@@ -202,7 +204,8 @@ export const SPACE_STORAGE_ERROR_STATUS: Readonly<Record<SpaceStorageErrorCode, 
   CHECKSUM_MISMATCH: 409,
   SPACE_ARCHIVED: 403,
   SHARE_LINK_EXPIRED: 410,
-  SHARE_LINK_LIMIT: 429
+  SHARE_LINK_LIMIT: 429,
+  STORAGE_UNAVAILABLE: 503
 };
 
 /** Journal vocabulary for `private.space_storage_journal` (T011). */

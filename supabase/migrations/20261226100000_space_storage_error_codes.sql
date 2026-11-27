@@ -13,5 +13,6 @@ insert into public.team_error_codes (code) values
   ('CHECKSUM_MISMATCH'),
   ('SPACE_ARCHIVED'),
   ('SHARE_LINK_EXPIRED'),
-  ('SHARE_LINK_LIMIT')
+  ('SHARE_LINK_LIMIT'),
+  ('STORAGE_UNAVAILABLE')
 on conflict (code) do nothing;

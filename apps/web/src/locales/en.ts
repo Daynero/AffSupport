@@ -4526,6 +4526,7 @@ export const en = {
     'This space is archived: files can be opened and downloaded, but not changed.',
   spaceStorageErrorShareExpired: 'This link has expired.',
   spaceStorageErrorShareLimit: 'This link has reached its download limit.',
+  spaceStorageErrorUnavailable: 'Soty storage is not answering right now. Try again in a minute.',
   tariffContactAdmin: 'Write to the administrator',
   tariffContactChoose: 'Where to write',
   tariffContactTelegram: 'Telegram',

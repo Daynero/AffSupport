@@ -4500,6 +4500,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Простір в архіві: файли можна відкривати й скачувати, але не змінювати.',
   spaceStorageErrorShareExpired: 'Термін дії цього посилання минув.',
   spaceStorageErrorShareLimit: 'Посилання вичерпало ліміт скачувань.',
+  spaceStorageErrorUnavailable: 'Сховище Soty зараз не відповідає. Спробуйте ще раз за хвилину.',
   tariffContactAdmin: 'Написати адміністратору',
   tariffContactChoose: 'Куди написати',
   tariffContactTelegram: 'Telegram',

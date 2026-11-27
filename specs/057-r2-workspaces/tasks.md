@@ -91,13 +91,13 @@
 
   Спершу зробити grep-інвентар функцій, що з'єднують `team_drive_connections` або читають `drive_file_id` на шляхах, які кличе R2-клієнт. Список записати в коментар міграції. Тест: T007.
 
-- [ ] T009 [P] Клієнт bucket простору `supabase/functions/_shared/r2-space.ts` поверх `npm:aws4fetch@1.0.20`. Конфігурація — як `readCatalogVideoR2Config` у `supabase/functions/_shared/r2-catalog-video.ts:40`:
+- [x] T009 [P] Клієнт bucket простору `supabase/functions/_shared/r2-space.ts` поверх `npm:aws4fetch@1.0.20`. Конфігурація — як `readCatalogVideoR2Config` у `supabase/functions/_shared/r2-catalog-video.ts:40`:
   - змінні `R2_SPACE_ACCOUNT_ID`, `R2_SPACE_ACCESS_KEY_ID`, `R2_SPACE_SECRET_ACCESS_KEY`, `R2_SPACE_BUCKET`;
   - ім'я bucket мусить дорівнювати `soty-spaces-${CATALOG_IMAGES_ENVIRONMENT}`.
 
   Методи: `createMultipart`, `signPart` (з `Content-MD5`), `completeMultipart`, `abortMultipart`, `listParts`, `head`, `rangeGet`, `remove`, `listPrefix`. Помилки провайдера санітизувати, як у `CatalogVideoR2`.
 
-- [ ] T010 [P] Тест для T009 — `tests/space-storage-r2-client.test.ts`: підписи й заголовок `Content-MD5`, ETag частин з `ListParts`, захист імені bucket, санітизація помилок, сторінкування `listPrefix` (фейковий fetch).
+- [x] T010 [P] Тест для T009 — `tests/space-storage-r2-client.test.ts`: підписи й заголовок `Content-MD5`, ETag частин з `ListParts`, захист імені bucket, санітизація помилок, сторінкування `listPrefix` (фейковий fetch).
 - [ ] T011 Журнал і реєстрація кодів:
   - `supabase/functions/_shared/space-storage-journal.ts` пише в `private.space_storage_journal` без імен, шляхів і ключів;
   - коди 057 — у `scripts/analytics/code-map.ts` за зразком `catalog:video_r2:${code}`;

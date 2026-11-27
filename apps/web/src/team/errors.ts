@@ -215,7 +215,8 @@ const COPY: Record<TeamErrorCode, TranslationKey> = {
   CHECKSUM_MISMATCH: 'spaceStorageErrorChecksum',
   SPACE_ARCHIVED: 'spaceStorageErrorArchived',
   SHARE_LINK_EXPIRED: 'spaceStorageErrorShareExpired',
-  SHARE_LINK_LIMIT: 'spaceStorageErrorShareLimit'
+  SHARE_LINK_LIMIT: 'spaceStorageErrorShareLimit',
+  STORAGE_UNAVAILABLE: 'spaceStorageErrorUnavailable'
 };
 
 const KNOWN = new Set<string>(TEAM_ERROR_CODES);
