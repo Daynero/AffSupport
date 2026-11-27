@@ -98,11 +98,11 @@
   Методи: `createMultipart`, `signPart` (з `Content-MD5`), `completeMultipart`, `abortMultipart`, `listParts`, `head`, `rangeGet`, `remove`, `listPrefix`. Помилки провайдера санітизувати, як у `CatalogVideoR2`.
 
 - [x] T010 [P] Тест для T009 — `tests/space-storage-r2-client.test.ts`: підписи й заголовок `Content-MD5`, ETag частин з `ListParts`, захист імені bucket, санітизація помилок, сторінкування `listPrefix` (фейковий fetch).
-- [ ] T011 Журнал і реєстрація кодів:
+- [x] T011 Журнал і реєстрація кодів:
   - `supabase/functions/_shared/space-storage-journal.ts` пише в `private.space_storage_journal` без імен, шляхів і ключів;
   - коди 057 — у `scripts/analytics/code-map.ts` за зразком `catalog:video_r2:${code}`;
   - можливість `team.space_storage` — у `scripts/analytics/coverage-registry.ts`.
-- [ ] T012 [P] Тест для T011 — `tests/space-storage-codes.test.ts`: кожен код із `packages/shared/src/team/space-storage.ts` є в `CODE_MAP`. Рядок журналу не містить полів `name`/`path`/`key`.
+- [x] T012 [P] Тест для T011 — `tests/space-storage-codes.test.ts`: кожен код із `packages/shared/src/team/space-storage.ts` є в `CODE_MAP`. Рядок журналу не містить полів `name`/`path`/`key`.
 
 ### Фаза 3 — US11: пілот власника, ізоляція (P1)
 

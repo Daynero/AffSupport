@@ -4,6 +4,7 @@ import { STITCH_ERROR_CODES } from '../../packages/shared/src/stitch-errors.js';
 import { GLOBAL_CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-global-images.js';
 import { CATALOG_IMAGE_ERROR_CODES } from '../../packages/shared/src/team/catalog-images.js';
 import { CATALOG_VIDEO_R2_REASONS } from '../../packages/shared/src/team/catalog-video-r2.js';
+import { SPACE_STORAGE_ERROR_CODES } from '../../packages/shared/src/team/space-storage.js';
 import {
   AUTH_SESSION_MUTATION_CODES,
   MACOS_STARTUP_CODES,
@@ -1883,6 +1884,31 @@ function build(): Record<string, CodeLocation> {
         code === 'UNKNOWN'
           ? 'Missing or malformed stage evidence is unknown, never proof that the copy stopped there; read the copy state and tombstones directly.'
           : 'The catalog kept its Drive link. Check the copy state, verified parts and full_hash_verified before retrying; the next update retries on its own.'
+    };
+  }
+  // 057 — Soty spaces on R2: the closed codes of space-storage and its journal.
+  for (const code of [...SPACE_STORAGE_ERROR_CODES, 'UNKNOWN']) {
+    map[`space:storage:${code}`] = {
+      files:
+        code === 'STORAGE_UNAVAILABLE' || code === 'CHECKSUM_MISMATCH'
+          ? [
+              'supabase/functions/_shared/r2-space.ts',
+              'packages/shared/src/team/space-storage.ts',
+              'supabase/functions/_shared/space-storage-journal.ts'
+            ]
+          : [
+              'packages/shared/src/team/space-storage.ts',
+              'supabase/functions/_shared/space-storage-journal.ts',
+              'supabase/migrations/20261226110000_space_storage_foundation.sql'
+            ],
+      check:
+        code === 'UNKNOWN'
+          ? 'A storage journal row without a closed code is unknown evidence, never proof that the operation stopped there; read the upload, reservation and object state directly.'
+          : code === 'CHECKSUM_MISMATCH'
+            ? 'The content identity recomputed from the part ETags R2 listed differs from the one the client declared; nothing was committed. Compare the part count and size before suspecting the client hash.'
+            : code === 'STORAGE_UNAVAILABLE'
+              ? 'The space bucket did not answer or refused our own credentials. A non-retryable refusal is configuration; check the function secrets and bucket name before retrying.'
+              : 'Read the storage journal stages of this operation and the space state (backend, pilot, quota, revision) before retrying.'
     };
   }
   map['catalog:image:POOL_REMOVED'] = {

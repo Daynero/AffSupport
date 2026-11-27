@@ -670,6 +670,37 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
     note: 'Current source policy retires weekly replacement in favor of per-image automatic content. This does not prove the deployed worker version or historical success. Retained failures stay queryable. Content-free schedule and immutable run journal explain enabled state, next due time, claims, lease recovery, fenced atomic commit, failure and cancellation. catalog-texts reads this evidence with bounded period/as-of queries; missing capture is explicit.'
   },
   {
+    id: 'team.space_storage',
+    tool: 'team',
+    title: 'Team · Soty space storage on R2',
+    stages: [
+      'create',
+      'admit',
+      'parts',
+      'complete',
+      'commit',
+      'abort',
+      'mutate',
+      'trash_empty',
+      'read_grant',
+      'derivative',
+      'purge',
+      'reconcile'
+    ],
+    stageEvents: {},
+    start: [],
+    terminal: [],
+    platforms: BOTH,
+    producerStatus: 'pending_producer',
+    source: 'authoritative_table',
+    unobservable: [
+      'A committed upload in the journal does not prove the browser saw the new material: Realtime signal delivery and the client cache are not journaled.',
+      'Reads through the space-read Worker are not journaled per request; only grant issuance is. A lost journal row is a blind spot, never a failed operation.',
+      'Bytes a member already downloaded, or a copy in their browser cache, cannot be observed or revoked.'
+    ],
+    note: '057 M1. private.space_storage_journal holds one content-free row per stage: operation, attempt, closed stage, outcome and code, exact bytes, space, ingress and client kind with version. Names, paths, bucket keys, URLs and grants are refused by the writer. Producers land with the space-storage edge function (T015 onward); until then the capability is pending.'
+  },
+  {
     id: 'team.catalog_video_r2',
     tool: 'team',
     title: 'Team · resumable R2 video publication',
