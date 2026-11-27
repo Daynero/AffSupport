@@ -71,6 +71,10 @@ verify_jwt = false
 [functions.team-recovery]
 verify_jwt = false
 
+# Soty spaces on R2 (057): verifies the caller's JWT itself, like the space functions.
+[functions.space-storage]
+verify_jwt = false
+
 # 045: handler authenticates user routes; the scheduled worker requires its named secret.
 [functions.catalog-images]
 verify_jwt = false

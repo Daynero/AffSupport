@@ -698,7 +698,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'Reads through the space-read Worker are not journaled per request; only grant issuance is. A lost journal row is a blind spot, never a failed operation.',
       'Bytes a member already downloaded, or a copy in their browser cache, cannot be observed or revoked.'
     ],
-    note: '057 M1. private.space_storage_journal holds one content-free row per stage: operation, attempt, closed stage, outcome and code, exact bytes, space, ingress and client kind with version. Names, paths, bucket keys, URLs and grants are refused by the writer. Producers land with the space-storage edge function (T015 onward); until then the capability is pending.'
+    note: '057 M1. private.space_storage_journal holds one content-free row per stage: operation, attempt, closed stage, outcome and code, exact bytes, space, ingress and client kind with version. Names, paths, bucket keys, URLs and grants are refused by the writer. The space-storage edge function journals the create stage (T015); the other stages land with their routes, so the capability stays pending until then.'
   },
   {
     id: 'team.catalog_video_r2',

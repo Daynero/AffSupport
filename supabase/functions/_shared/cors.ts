@@ -62,7 +62,7 @@ export function corsHeadersForRequest(
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-headers':
-      'authorization, apikey, content-type, content-range, range, x-client-info, x-idempotency-key, x-wishly-transfer-grant, x-wishly-upload-session',
+      'authorization, apikey, content-type, content-range, range, x-client-info, x-idempotency-key, x-wishly-transfer-grant, x-wishly-upload-session, x-soty-capabilities, x-soty-client',
     'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
     'access-control-max-age': '600',
     vary: 'Origin'

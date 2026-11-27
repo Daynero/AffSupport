@@ -1898,6 +1898,7 @@ function build(): Record<string, CodeLocation> {
             ]
           : [
               'packages/shared/src/team/space-storage.ts',
+              'supabase/functions/space-storage/handler.ts',
               'supabase/functions/_shared/space-storage-journal.ts',
               'supabase/migrations/20261226110000_space_storage_foundation.sql'
             ],

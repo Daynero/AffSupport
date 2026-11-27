@@ -110,7 +110,7 @@
 нічого не помічають.
 **Незалежна перевірка**: [quickstart.md](quickstart.md) M1 крок 1.
 
-- [ ] T013 [P] [US11] Тест для T015 — `tests/space-storage-create.test.ts`:
+- [x] T013 [P] [US11] Тест для T015 — `tests/space-storage-create.test.ts`:
   - `/spaces/create` ідемпотентний за ключем і створює кореневу папку;
   - без пілоту → `R2_PILOT_REQUIRED`, без `x-soty-capabilities: storage-r2/1` → `CLIENT_UPDATE_REQUIRED`.
 
@@ -120,7 +120,7 @@
   - запрошений без пілоту не відкриває простір.
 
 - [ ] T014 [P] [US11] Тест для T016 — `tests/storage-r2-pilots-card.test.tsx`: список, додавання за поштою з лімітом обсягу, зняття, помилки RPC.
-- [ ] T015 [US11] Edge-функція `supabase/functions/space-storage/`:
+- [x] T015 [US11] Edge-функція `supabase/functions/space-storage/`:
   - `index.ts`: маршрут за шляхом, лише POST, як `routePath()` у `supabase/functions/drive-ops/index.ts:3488`;
   - `handler.ts`: чисті валідатори;
   - `create.ts`: `/spaces/create` через RPC `service_create_r2_space` у міграції `supabase/migrations/<ts>_space_storage_create.sql`;

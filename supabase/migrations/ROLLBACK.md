@@ -3812,3 +3812,11 @@ function is unchanged. Undo by re-running the previous bodies (20261130100000 fo
 and the gate, 20261128100000, 20260906080000, 20260906130000, 20260815113000 and 20261207150000
 for the lists) and dropping the new function and triggers; an R2 space then shows to every
 client as a Drive space without a connection.
+
+## 20261226130000 — 057 creating an R2 space
+
+Adds `private.space_create_requests` (idempotency of a creation per person and key),
+`private.space_created_snapshot`, `public.service_create_r2_space` and
+`public.service_space_storage_context` (both service-only). No existing function or table
+changes. Undo by dropping the three functions and the table; spaces already created stay, and a
+retry with an old key then creates a new space instead of returning the old one.
