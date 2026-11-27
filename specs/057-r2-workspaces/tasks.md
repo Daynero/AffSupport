@@ -31,13 +31,13 @@
 ### Фаза 1 — підготовка
 
 - [ ] T001 Кваліфікувати R2 і Cloudflare на beta-акаунті. Новий скрипт `scripts/space-storage-qualify.mjs` відмовляється від будь-якого не-beta bucket. Перевірити:
-  - R2 перевіряє `x-amz-checksum-sha256` на `UploadPart` і повертає контрольні суми частин у `ListParts`/`CompleteMultipartUpload` — на цьому стоїть `content_id` (research.md R3);
+  - **відкрита перевірка (R3, редакція 2026-11-28):** R2 відхиляє `UploadPart` з невірним `Content-MD5` (`400 BadDigest`) і повертає ETag частини = MD5 її байтів в `UploadPart`, `ListParts` і `CompleteMultipartUpload` — на цьому стоїть `content_id`. `x-amz-checksum-sha256` R2 не підтримує (501 у кваліфікації 050), його не перевіряти;
   - ліміти multipart;
   - CORS для `https://next.soty.pp.ua`, прод- і beta-вебадрес;
   - readback юрисдикції EU для `soty-spaces-beta`;
   - межі безкоштовного плану Workers (запити на добу, CPU на запит) для `space-read`.
 
-  Containers, Queues і платний план не використовуються (research.md R5). Результат — `specs/057-r2-workspaces/evidence/qualification.md`. Якщо R2 не перевіряє контрольні суми частин — записати вимкнення дедуплікації за R3.
+  Containers, Queues і платний план не використовуються (research.md R5). Результат — `specs/057-r2-workspaces/evidence/qualification.md`. Якщо R2 не перевіряє `Content-MD5` або ETag частини не є її MD5 — записати вимкнення дедуплікації за R3.
 
 - [ ] T002 Описати інфраструктуру як код, застосувати лише до beta:
   - `apps/catalog-image-delivery/wrangler.toml`: маршрут `files-beta.soty.pp.ua/*` і біндінг `SPACE_BUCKET`;
@@ -51,7 +51,7 @@
   - стани завантаження, похідних і видалення;
   - категорії обліку й `ingress`;
   - можливість `storage-r2/1` і ліміти (частина, кількість частин, паралельність, 100 ГіБ, 100 000 матеріалів, байти й розміри кожного варіанта похідної);
-  - обчислення `content_id` з розміру частини й SHA-256 частин (research.md R3) — одна функція для вебу, агента й сервера;
+  - обчислення `content_id` з розміру частини, довжини й ETag (MD5) частин (research.md R3, редакція 2026-11-28) — одна функція для вебу, агента й сервера;
   - розбір відповідей як `unknown` → дискримінований результат, байти — десятковим рядком.
 
   Коди з [contracts/storage-api.md](contracts/storage-api.md) додати в `packages/shared/src/types.ts`, експорт — у `packages/shared/src/index.ts`. Новий `packages/shared/src/team/space-read-grant.ts`: HMAC-грант на WebCrypto, спільний для Deno і Worker.
@@ -95,9 +95,9 @@
   - змінні `R2_SPACE_ACCOUNT_ID`, `R2_SPACE_ACCESS_KEY_ID`, `R2_SPACE_SECRET_ACCESS_KEY`, `R2_SPACE_BUCKET`;
   - ім'я bucket мусить дорівнювати `soty-spaces-${CATALOG_IMAGES_ENVIRONMENT}`.
 
-  Методи: `createMultipart`, `signPart` (з контрольною сумою), `completeMultipart`, `abortMultipart`, `head`, `rangeGet`, `remove`, `listPrefix`. Помилки провайдера санітизувати, як у `CatalogVideoR2`.
+  Методи: `createMultipart`, `signPart` (з `Content-MD5`), `completeMultipart`, `abortMultipart`, `listParts`, `head`, `rangeGet`, `remove`, `listPrefix`. Помилки провайдера санітизувати, як у `CatalogVideoR2`.
 
-- [ ] T010 [P] Тест для T009 — `tests/space-storage-r2-client.test.ts`: підписи й заголовки контрольних сум, захист імені bucket, санітизація помилок, сторінкування `listPrefix` (фейковий fetch).
+- [ ] T010 [P] Тест для T009 — `tests/space-storage-r2-client.test.ts`: підписи й заголовок `Content-MD5`, ETag частин з `ListParts`, захист імені bucket, санітизація помилок, сторінкування `listPrefix` (фейковий fetch).
 - [ ] T011 Журнал і реєстрація кодів:
   - `supabase/functions/_shared/space-storage-journal.ts` пише в `private.space_storage_journal` без імен, шляхів і ключів;
   - коди 057 — у `scripts/analytics/code-map.ts` за зразком `catalog:video_r2:${code}`;
@@ -219,7 +219,7 @@
   Тест: T030.
 
 - [ ] T032 [P] [US1] Тест для T033 — `tests/agent-r2-transfer.test.ts`:
-  - multipart з контрольними сумами частин і ≤4 паралельними частинами;
+  - multipart з `Content-MD5` частин і ≤4 паралельними частинами;
   - продовження з журналу після обриву;
   - Range-скачування з `files-*`, оновлення гранту на 401;
   - розбіжність хешу → помилка без фіксації;
@@ -283,12 +283,12 @@
 - [ ] T044 [P] [US7] Тест для T045 — `tests/space-upload-client.test.ts`:
   - ≤8 паралельних частин;
   - продовження з журналу IndexedDB після обриву мережі й перезавантаження вкладки;
-  - `content_id` (SHA-256 частин у Web Worker) збігається з еталоном і з тим, що сервер рахує з контрольних сум R2;
+  - `content_id` (MD5 частин у Web Worker) збігається з еталоном і з тим, що сервер рахує з ETag частин від R2;
   - `exists` пропускає передачу;
   - дерево папок зберігає структуру;
   - скасування закриває multipart.
 - [ ] T045 [US7] Рушій завантаження:
-  - `apps/web/src/team/storage/spaceUpload.ts` і `spaceHash.worker.ts` (SHA-256 частин і `content_id`);
+  - `apps/web/src/team/storage/spaceUpload.ts` і `spaceHash.worker.ts` (MD5 частин і `content_id`);
   - журнал за зразком `apps/web/src/team/explorer/workspaceOperationJournal.ts:214`;
   - підключення в `apps/web/src/team/explorer/useExplorerUploads.ts` і `ExplorerDropZone.tsx`.
 
