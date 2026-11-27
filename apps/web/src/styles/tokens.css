@@ -470,6 +470,15 @@
      agent's once-a-second readings, so the meter reads as live rather than stepping.
      Under reduced motion the breathing stops and only the level moves. */
   --motion-meter-breath: 1100ms;
+  /* The «What's new» window put away (074): it is drawn into the header's update
+     button the way a macOS window drops into the Dock — accelerating, narrowing
+     faster than it shortens — then the button glows a moment and settles, so the
+     eye follows where the update went. Over the ceiling on purpose: the motion is
+     the message. Under reduced motion both collapse and the window simply fades. */
+  --motion-genie: 620ms;
+  --ease-genie: cubic-bezier(0.55, 0.05, 0.8, 0.3);
+  --motion-update-glow: 2000ms;
+  --shadow-update-glow: 0 0 0 3px var(--color-primary-border), 0 0 18px 6px var(--color-highlight);
 
   /* Not a motion but a wait: how long something may take before the screen
      says it is still coming. Under it a quiet holder is enough, and a sentence
@@ -766,6 +775,7 @@
     --motion-press: 1ms;
     --motion-spring: 1ms;
     --stagger-step: 0ms;
+    --motion-genie: 1ms;
   }
 }
 

@@ -15,6 +15,8 @@ import AccountPage from './pages/AccountPage';
 import AdminPage from './pages/AdminPage';
 import { ToolSetupState } from './components/ToolSetupState';
 import ReleaseUpdateNotice from './components/ReleaseUpdateNotice';
+import { UpdateCenterProvider } from './updates/UpdateCenter';
+import { WhatsNewOverlay } from './updates/WhatsNewOverlay';
 import { NextChannelBadge } from './components/NextChannelBadge';
 import { ReleaseTesterGate } from './components/ReleaseTesterGate';
 import { teamApi } from './api/team';
@@ -47,16 +49,19 @@ registerRoutePreparer(path => {
 export default function ProtectedSoty({ path, route = path }: { path: string; route?: string }) {
   return (
     <AgentProvider>
-      <PowerProvider>
-        <ReleaseTesterGate>
-          <TeamProvider client={teamApi}>
-            <ApplicationShell path={path} route={route} />
-          </TeamProvider>
-          <ReleaseUpdateNotice />
-          <ProfileOnboarding />
-        </ReleaseTesterGate>
-        <NextChannelBadge />
-      </PowerProvider>
+      <UpdateCenterProvider>
+        <PowerProvider>
+          <ReleaseTesterGate>
+            <TeamProvider client={teamApi}>
+              <ApplicationShell path={path} route={route} />
+            </TeamProvider>
+            <ReleaseUpdateNotice />
+            <WhatsNewOverlay />
+            <ProfileOnboarding />
+          </ReleaseTesterGate>
+          <NextChannelBadge />
+        </PowerProvider>
+      </UpdateCenterProvider>
     </AgentProvider>
   );
 }

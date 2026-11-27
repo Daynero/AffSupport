@@ -6,6 +6,7 @@ import { useI18n, type TranslationKey } from '../i18n';
 import { installedReleaseStatus } from '../release-manifest';
 import { useNativeAppUpdate } from '../updates/useNativeAppUpdate';
 import { OPEN_NATIVE_APP_UPDATE } from '../updates/openNativeAppUpdate';
+import { useOptionalUpdateCenter } from '../updates/UpdateCenter';
 import { Button, IconButton, Modal, Switch } from './ui/index';
 import { StageProgress, type ProgressStage } from './ui/StageProgress';
 import { ICON_SIZE, ICON_STROKE } from './icons';
@@ -85,11 +86,12 @@ export function NativeAppUpdateNotice({ fallback }: { fallback?: ReactNode }) {
   // A live host can require a newer tool contract while its updater remains usable.
   const connected =
     agent.connection === 'connected' || agent.connection === 'agent_update_required';
-  const { state, error, pending, act, refresh } = useNativeAppUpdate(
-    supported,
-    connected,
-    agent.agentBuildId
-  );
+  // 074: under the update center the page has one reader of the updater, and the
+  // header button carries the offer; this keeps only the details dialog and the
+  // fallbacks. Alone (a test, a page without the center) it reads for itself.
+  const center = useOptionalUpdateCenter();
+  const own = useNativeAppUpdate(supported && !center, connected, agent.agentBuildId);
+  const { state, error, pending, act, refresh } = center?.native ?? own;
   const recovery = agent.agentRuntime?.nativeAppUpdateStatus === 'recovery_required';
   const completedAttempt =
     state?.nativeSuccess && state.attemptId ? `${state.installationId}:${state.attemptId}` : null;
@@ -237,7 +239,7 @@ export function NativeAppUpdateNotice({ fallback }: { fallback?: ReactNode }) {
     <>
       <aside
         className="release-update-notice native-update-notice"
-        hidden={open}
+        hidden={open || Boolean(center)}
         role="region"
         aria-labelledby={id}
       >

@@ -24,6 +24,11 @@ vi.mock('../apps/web/src/pages/AccountPage.js', async () => {
 vi.mock('../apps/web/src/pages/AdminPage.js', () => ({ default: () => null }));
 vi.mock('../apps/web/src/auth/AuthScreens.js', () => ({ ProfileOnboarding: () => null }));
 vi.mock('../apps/web/src/components/ReleaseUpdateNotice.js', () => ({ default: () => null }));
+vi.mock('../apps/web/src/updates/UpdateCenter.js', () => ({
+  UpdateCenterProvider: ({ children }: { children: React.ReactNode }) => children,
+  useOptionalUpdateCenter: () => null
+}));
+vi.mock('../apps/web/src/updates/WhatsNewOverlay.js', () => ({ WhatsNewOverlay: () => null }));
 vi.mock('../apps/web/src/components/LocalAppDialog.js', () => ({ default: () => null }));
 vi.mock('../apps/web/src/AgentContext.js', async () => {
   const ReactModule = await import('react');

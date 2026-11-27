@@ -9,6 +9,7 @@ import { siteChannel } from '../lib/config';
 import { useReleaseTester } from '../lib/release-tester';
 import { Button, IconButton } from './ui/index';
 import { X } from 'lucide-react';
+import { useOptionalUpdateCenter } from '../updates/UpdateCenter';
 
 const DISMISSED_RELEASE_KEY = 'wishly.release-notice.dismissed.v1';
 
@@ -63,7 +64,11 @@ function LegacyReleaseUpdateNotice() {
   const onMainSite = siteChannel() === 'production';
   const tester = useReleaseTester(onMainSite && status === 'newer');
   const returnToStable = onMainSite && status === 'newer' && tester === 'not_tester';
+  // 074: the offer lives in the header button and «What's new»; this notice is left
+  // with the one thing they do not say — going back to stable after a rollback.
+  const center = useOptionalUpdateCenter();
   const visible =
+    (!center || returnToStable) &&
     Boolean(manifest) &&
     Boolean(agentVersion) &&
     connection !== 'checking' &&

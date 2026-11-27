@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useIntakeHeight } from './components/useIntakeHeight';
 import { openNativeAppUpdate } from './updates/openNativeAppUpdate';
+import { HeaderUpdateButton } from './updates/HeaderUpdateButton';
 import { AlertTriangle, Ban, Broom, Check, Files, Loader, Pause, Play, Trash2 } from 'lucide-react';
 import {
   COMPRESSION_LIFECYCLE,
@@ -977,6 +978,8 @@ export function Header({
             not looking at pixels. */}
         {!narrow && <LanguageSwitch />}
         <ConnectionBadge state={connection} t={t} narrow={narrow} reconnect={reconnect} />
+        {/* 074: the update lives beside the agent's status until it is installed. */}
+        <HeaderUpdateButton narrow={narrow} />
         <UserMenu />
       </div>
     </header>

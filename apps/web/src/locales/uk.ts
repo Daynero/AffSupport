@@ -5256,5 +5256,27 @@ export const uk: Record<keyof typeof en, string> = {
   spaceHealthStoragePartial: 'Перевірено лише частково',
   spaceHealthStorageDisconnected: 'Не підключено',
   spaceHealthStorageStale: 'Стан застарів на {count} хв',
-  spaceHealthStorageUnknown: 'Ще не перевірено'
+  spaceHealthStorageUnknown: 'Ще не перевірено',
+  updateButtonUpdate: 'Оновити',
+  updateButtonInstall: 'Встановити',
+  updateButtonOpenInstaller: 'Відкрийте інсталятор',
+  updateButtonDownloading: 'Завантаження',
+  updateButtonWaiting: 'Чекає',
+  updateButtonInstalling: 'Встановлення',
+  updateButtonAttention: 'Оновлення',
+  updateButtonReady: 'Оновлено',
+  updateHintAvailable: 'Вийшла Soty {version} — натисніть, щоб оновити',
+  updateHintRequired: 'Ця версія Soty більше не підтримується — оновіть до {version}',
+  updateHintOpenInstaller:
+    'Інсталятор Soty {version} завантажено — відкрийте його із «Завантажень»',
+  updateHintAttention: 'Оновлення потребує уваги — натисніть, щоб побачити подробиці',
+  updateHintReady: 'Soty оновлено до {version}',
+  updateHintProgress: 'Оновлення до {version} триває — натисніть, щоб побачити подробиці',
+  whatsNewEyebrow: 'Нова версія',
+  whatsNewTitle: 'Soty {version} готова',
+  whatsNewFallbackBody: 'Виправлення й покращення, щоб Soty працювала швидше й надійніше.',
+  whatsNewUpdate: 'Оновити',
+  whatsNewLater: 'Пізніше',
+  whatsNewNativeNote: 'Soty дочекається поточної роботи й перезапуститься сама.',
+  whatsNewInstallerNote: 'Завантажиться інсталятор — відкрийте його, щоб оновити Soty.'
 };
