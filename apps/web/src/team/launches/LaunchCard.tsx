@@ -13,9 +13,12 @@ import {
   AlertCircle,
   Square,
   Link2,
+  ListPlus,
+  ListTodo,
   MoreHorizontal,
   Trash2
 } from 'lucide-react';
+import type { TeamLaunchTaskLink } from '../../api/team';
 import { teamTaskDate, type LaunchSummary } from '@video-compressor/shared';
 import {
   Button,
@@ -37,9 +40,16 @@ export function LaunchCard({
   selected = false,
   onSelectedChange,
   queueState,
-  actionsDisabled = false
+  actionsDisabled = false,
+  tasks,
+  onOpenTask,
+  onAddToTask
 }: {
   value: LaunchSummary;
+  /** 076: the tasks this launch is in (a chip opens the first). */
+  tasks?: readonly TeamLaunchTaskLink[];
+  onOpenTask?: (taskId: string) => void;
+  onAddToTask?: () => void;
   onOpen: () => void;
   onCopyLink?: () => void;
   onDelete?: () => void;
@@ -197,7 +207,7 @@ export function LaunchCard({
             <span className="launch-card-account-label">{accountChipLabel}</span>
           </span>
         )}
-        {(onCopyLink || onDelete) && (
+        {(onCopyLink || onDelete || onAddToTask) && (
           <>
             <IconButton
               ref={menuAnchor}
@@ -218,6 +228,16 @@ export function LaunchCard({
               placement="start-top"
               label={t('launchesCardActions')}
               items={[
+                ...(onAddToTask
+                  ? [
+                      {
+                        id: 'task',
+                        label: t('launchesToTask'),
+                        icon: <ListPlus size={ICON_SIZE} />,
+                        onSelect: onAddToTask
+                      }
+                    ]
+                  : []),
                 ...(onCopyLink
                   ? [
                       {
@@ -273,6 +293,26 @@ export function LaunchCard({
               <span>{language === 'uk' ? 'Advantage+' : 'Advantage+'}</span>
             ) : null}
           </span>
+          {tasks && tasks.length > 0 && (
+            <Button
+              size="xs"
+              variant="soft"
+              color="neutral"
+              className="launch-card-task"
+              title={tasks.map(task => task.title).join('\n')}
+              aria-label={t('launchesInTask', { task: tasks[0]!.title })}
+              leading={<ListTodo size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />}
+              onClick={event => {
+                event.stopPropagation();
+                onOpenTask?.(tasks[0]!.taskId);
+              }}
+            >
+              <span className="launch-card-task-title">{tasks[0]!.title}</span>
+              {tasks.length > 1 && (
+                <span className="launch-card-task-more">+{tasks.length - 1}</span>
+              )}
+            </Button>
+          )}
         </span>
       </div>
       <div className="launch-card-progress">

@@ -3631,8 +3631,7 @@ text is missing); redefines `private.note_catalog_variant_round_wait` (final cod
 AGENT_REQUIRED/AGENT_ID_CONFLICT wait 2 hours with a growing pause) and
 `private.settle_catalog_round_limits` (sets no computer took up: 6 hours, or 1 hour after the computer
 reported a stop). Undo by removing the three preflight lines, dropping the helper, restoring
-`note_catalog_variant_round_wait` from 20261207175000 and `settle_catalog_round_limits` from
-20261224200000.
+`note_catalog_variant_round_wait` from 20261207175000 and `settle_catalog_round_limits` from 20261224200000.
 
 ## 20261224210000 — publish again, Drive coming back, creation preflight (072, П3/П6)
 
@@ -3642,8 +3641,7 @@ trigger `team_drive_connections_requeue_catalog_publications` with
 `private.team_drive_connection_requeue_catalog_publications`, and `public.team_catalog_creation_preflight`;
 requeues once the `target_unavailable` jobs whose connection is already connected; redefines
 `public.service_read_initial_catalog_video` (adds `waitReason`/`backgroundStalled`). No table or column.
-Undo: drop the trigger and the four functions, restore `service_read_initial_catalog_video` from
-20261207240000. Requeued jobs simply publish or block again; the web hides
+Undo: drop the trigger and the four functions, restore `service_read_initial_catalog_video` from 20261207240000. Requeued jobs simply publish or block again; the web hides
 «Опублікувати ще раз» and the preflight when the functions are missing (PGRST202).
 
 ## 20261224260000 — DISK_FULL and AGENT_STALLED codes (072, П6)
@@ -3769,3 +3767,12 @@ a created output that is a material of a space (any lifecycle) is settled as kep
 launch whose only unfinished generation is `canceled_with_cleanup_pending` can be deleted. No
 table or column. Undo by re-running both functions from 20261207171000 and 20261201167000; a
 generation already closed stays closed, and the checkpoint mark is read by nothing.
+
+## 20261225100000 — launches in tasks (076)
+
+Adds `public.team_task_launches (team_id, task_id, launch_id, attached_by, attached_at)` with RLS
+(members read; writes only through definer functions), the attachment-cleanup fence trigger, and
+five functions: `attach_team_task_launches`, `create_team_task_with_launches`,
+`detach_team_task_launch`, `list_team_task_launch_ids`, `list_team_launch_tasks` (and the private
+helper `private.task_launch_ids`). Nothing existing changes. Undo by dropping the five functions,
+the helper and the table: tasks and launches stay as they are, only the links between them go.

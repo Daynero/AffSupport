@@ -35,7 +35,8 @@ import {
   Select
 } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
-import { MoreHorizontal, Trash2 } from 'lucide-react';
+import { CopyPlus, MoreHorizontal, Trash2 } from 'lucide-react';
+import { TaskLaunches } from './TaskLaunches';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import {
   attachTaskMaterialsInChunks,
@@ -237,7 +238,8 @@ export function TaskEditor({
   onTagsChange,
   onLabelsChange,
   onLabelCreated,
-  onDelete
+  onDelete,
+  onRepeat
 }: {
   teamId: string;
   task: TeamTaskSummary;
@@ -256,6 +258,8 @@ export function TaskEditor({
   onLabelCreated?: () => void;
   /** Deletes the task; absent when the viewer may not. */
   onDelete?: (task: TeamTaskSummary) => Promise<void>;
+  /** 076 US4: a fresh copy of this task, opened for editing (instead of Trello's templates). */
+  onRepeat?: (task: TeamTaskSummary) => Promise<void>;
 }) {
   const { t } = useI18n();
   const { push, update } = useToasts();
@@ -1300,7 +1304,7 @@ export function TaskEditor({
                     button in the middle of the form was the loudest thing on a
                     screen about a brief. It still confirms — a task cannot be
                     given back whole, so an Undo would be a quieter lie (021, R3). */}
-                  {canEdit && onDelete && (
+                  {canEdit && (onDelete || onRepeat) && (
                     <>
                       <IconButton
                         title=""
@@ -1323,19 +1327,39 @@ export function TaskEditor({
                         anchor={editorMenuTrigger}
                         label={t('teamTaskEditorMenu')}
                         items={[
-                          {
-                            id: 'delete',
-                            label: t('teamTaskDelete'),
-                            destructive: true,
-                            icon: (
-                              <Trash2
-                                size={ICON_SIZE}
-                                strokeWidth={ICON_STROKE}
-                                aria-hidden="true"
-                              />
-                            ),
-                            onSelect: () => setConfirmingDelete(true)
-                          }
+                          ...(onRepeat
+                            ? [
+                                {
+                                  id: 'repeat',
+                                  label: t('teamTaskRepeat'),
+                                  icon: (
+                                    <CopyPlus
+                                      size={ICON_SIZE}
+                                      strokeWidth={ICON_STROKE}
+                                      aria-hidden="true"
+                                    />
+                                  ),
+                                  onSelect: () => void onRepeat(task)
+                                }
+                              ]
+                            : []),
+                          ...(onDelete
+                            ? [
+                                {
+                                  id: 'delete',
+                                  label: t('teamTaskDelete'),
+                                  destructive: true,
+                                  icon: (
+                                    <Trash2
+                                      size={ICON_SIZE}
+                                      strokeWidth={ICON_STROKE}
+                                      aria-hidden="true"
+                                    />
+                                  ),
+                                  onSelect: () => setConfirmingDelete(true)
+                                }
+                              ]
+                            : [])
                         ]}
                       />
                     </>
@@ -1449,6 +1473,8 @@ export function TaskEditor({
                   onLabelCreated={onLabelCreated}
                 />
               </div>
+              {/* 076: the launches that are this task's work. */}
+              <TaskLaunches teamId={teamId} taskId={task.id} canEdit={canEdit} />
               <FormField
                 className="team-task-brief-field"
                 label={t('teamTaskDescription')}

@@ -1248,6 +1248,14 @@ export interface TeamProcessStartInput {
   toolContractVersion: number;
 }
 
+/** 076: a launch's place in a task, for its card. */
+export interface TeamLaunchTaskLink {
+  launchId: string;
+  taskId: string;
+  title: string;
+  status: TeamTaskSummary['status'];
+}
+
 export interface TeamTaskAttachmentMutationResult {
   attached: string[];
   alreadyAttached: string[];
@@ -5552,6 +5560,110 @@ export const teamApi = {
     const result = taskAttachmentMutationResult(data);
     if (!result) throw new TeamApiError('INVALID_RESPONSE', false);
     return result;
+  },
+
+  /** 076: put these launches into a task (already there is not an error). */
+  async attachTaskLaunches(input: {
+    teamId: string;
+    taskId: string;
+    launchIds: string[];
+  }): Promise<{ attached: string[]; alreadyAttached: string[] }> {
+    const launchIds = [...new Set(input.launchIds)];
+    if (launchIds.length < 1 || launchIds.length > 100)
+      throw new TeamApiError('INVALID_INPUT', false);
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('attach_team_task_launches', {
+        p_team: input.teamId,
+        p_task: input.taskId,
+        p_launches: launchIds
+      })
+    );
+    throwRpc(error);
+    const record = data as { attached?: unknown; alreadyAttached?: unknown } | null;
+    const ids = (value: unknown) =>
+      Array.isArray(value) && value.every(id => typeof id === 'string')
+        ? (value as string[])
+        : null;
+    const attached = ids(record?.attached);
+    const alreadyAttached = ids(record?.alreadyAttached);
+    if (!attached || !alreadyAttached) throw new TeamApiError('INVALID_RESPONSE', false);
+    return { attached, alreadyAttached };
+  },
+
+  /** 076: a new task made of these launches, in one step. */
+  async createTaskWithLaunches(input: {
+    teamId: string;
+    title: string;
+    launchIds: string[];
+  }): Promise<TeamTaskSummary> {
+    return taskRpc('task_create', async () => {
+      const title = input.title.normalize('NFC').trim().replace(/\s+/g, ' ');
+      const launchIds = [...new Set(input.launchIds)];
+      if (title.length < 1 || title.length > 160 || launchIds.length < 1 || launchIds.length > 100)
+        throw new TeamApiError('INVALID_INPUT', false);
+      const { data, error } = await withFreshSession(() =>
+        requireSupabaseClient().rpc('create_team_task_with_launches', {
+          p_team: input.teamId,
+          p_title: title,
+          p_launches: launchIds
+        })
+      );
+      throwRpc(error);
+      const task = mapTeamTask(data);
+      if (!task) throw new TeamApiError('INVALID_RESPONSE', false);
+      return task;
+    });
+  },
+
+  async detachTaskLaunch(teamId: string, taskId: string, launchId: string): Promise<void> {
+    const { error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('detach_team_task_launch', {
+        p_team: teamId,
+        p_task: taskId,
+        p_launch: launchId
+      })
+    );
+    throwRpc(error);
+  },
+
+  /** 076: the task's launches, oldest link first (deleted launches are left out). */
+  async listTaskLaunchIds(teamId: string, taskId: string): Promise<string[]> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_task_launch_ids', { p_team: teamId, p_task: taskId })
+    );
+    throwRpc(error);
+    if (!Array.isArray(data) || data.some(id => typeof id !== 'string'))
+      throw new TeamApiError('INVALID_RESPONSE', false);
+    return data as string[];
+  },
+
+  /** 076: which tasks these launches are in, for the chips on their cards. */
+  async listLaunchTasks(teamId: string, launchIds: string[]): Promise<TeamLaunchTaskLink[]> {
+    if (launchIds.length === 0) return [];
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('list_team_launch_tasks', {
+        p_team: teamId,
+        p_launches: launchIds.slice(0, 100)
+      })
+    );
+    throwRpc(error);
+    if (!Array.isArray(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    return data.flatMap(row => {
+      const value = row as Record<string, unknown>;
+      return typeof value.launchId === 'string' &&
+        typeof value.taskId === 'string' &&
+        typeof value.title === 'string' &&
+        typeof value.status === 'string'
+        ? [
+            {
+              launchId: value.launchId,
+              taskId: value.taskId,
+              title: value.title,
+              status: value.status as TeamTaskSummary['status']
+            }
+          ]
+        : [];
+    });
   },
 
   async beginTaskUpload(teamId: string, taskId: string, requestKey: string): Promise<void> {

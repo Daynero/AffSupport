@@ -783,6 +783,28 @@ export function TaskSpace({
             void labels.refetch();
           }}
           onLabelCreated={() => void labels.refetch()}
+          onRepeat={
+            can('edit') && client.copyTasks
+              ? async task => {
+                  try {
+                    const [copy] = await client.copyTasks!({
+                      teamId,
+                      taskIds: [task.id],
+                      idempotencyKey: crypto.randomUUID()
+                    });
+                    await tasks.refetch();
+                    if (copy) {
+                      draft.current = null;
+                      if (controlled) onOpenTaskChange?.(copy);
+                      else setLocalOpenId(copy);
+                    }
+                    push({ tone: 'success', text: t('teamTaskRepeated') });
+                  } catch (cause) {
+                    push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+                  }
+                }
+              : undefined
+          }
           onDelete={
             can('edit')
               ? async task => {

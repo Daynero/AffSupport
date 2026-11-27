@@ -265,6 +265,21 @@
 .launch-list-toolbar > .ui-button {
   margin-left: auto;
 }
+/* 076: the task a launch is in — a way to it, as wide as the card allows. */
+.launch-card .launch-card-task {
+  max-width: 100%;
+  min-width: 0;
+}
+.launch-card .launch-card-task-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.launch-card .launch-card-task-more {
+  flex: none;
+  color: var(--color-neutral-text-muted);
+}
 .launch-card-content {
   display: flex;
   min-width: 0;

@@ -125,3 +125,44 @@
   margin: calc(0px - var(--space-1));
   padding: var(--space-1);
 }
+
+/* 076: the launches that are this task's work. */
+.team-task-launches {
+  display: grid;
+  gap: var(--space-2);
+}
+.team-task-launches-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.team-task-launches-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-label);
+}
+.team-task-launches-count {
+  color: var(--color-neutral-text-muted);
+  font-weight: var(--weight-body);
+}
+.team-task-launches-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--task-launch-card-min), 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-task-launches-list > li {
+  position: relative;
+  min-width: 0;
+}
+.team-task-launches-remove {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+}

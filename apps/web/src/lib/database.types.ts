@@ -8236,6 +8236,18 @@ export type GeneratedDatabase = {
       };
       assistant_launch_marks: { Args: { p_team: string; p_ids: string[] }; Returns: string[] };
       assistant_review_launched: { Args: { p_card: string; p_batch_key: string }; Returns: Json };
+      detach_team_task_launch: {
+        Args: { p_launch: string; p_task: string; p_team: string };
+        Returns: undefined;
+      };
+      list_team_launch_tasks: {
+        Args: { p_launches: string[]; p_team: string };
+        Returns: Json;
+      };
+      list_team_task_launch_ids: {
+        Args: { p_task: string; p_team: string };
+        Returns: string[];
+      };
       save_launch_offer_defaults_masked: {
         Args: {
           p_team: string;
@@ -8554,6 +8566,10 @@ export type GeneratedDatabase = {
         Args: { p_label: string; p_task: string; p_team: string };
         Returns: Json;
       };
+      attach_team_task_launches: {
+        Args: { p_launches: string[]; p_task: string; p_team: string };
+        Returns: Json;
+      };
       attach_team_task_materials: {
         Args: { p_materials: string[]; p_task: string; p_team: string };
         Returns: Json;
@@ -8791,6 +8807,32 @@ export type GeneratedDatabase = {
           p_team: string;
           p_title: string;
         };
+        Returns: {
+          assignee_id: string | null;
+          assignee_label_snapshot: string | null;
+          completed_at: string | null;
+          created_at: string;
+          created_by: string;
+          id: string;
+          note: string | null;
+          progress_manually_set: boolean;
+          progress_max: number;
+          progress_value: number;
+          status: string;
+          task_date: string | null;
+          team_id: string;
+          title: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: '*';
+          to: 'team_tasks';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      create_team_task_with_launches: {
+        Args: { p_launches: string[]; p_team: string; p_title: string };
         Returns: {
           assignee_id: string | null;
           assignee_label_snapshot: string | null;

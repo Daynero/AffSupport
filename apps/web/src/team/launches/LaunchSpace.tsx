@@ -11,7 +11,16 @@ import { useLaunchListSelection } from './useLaunchListSelection.js';
 import { useOptionalToasts } from '../../components/toast';
 import { launchBatchLoading, launchMutation } from './analytics';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Copy, Link2, ListChecks, MoreHorizontal, Play, Plus, Trash2 } from 'lucide-react';
+import {
+  Copy,
+  Link2,
+  ListChecks,
+  ListPlus,
+  MoreHorizontal,
+  Play,
+  Plus,
+  Trash2
+} from 'lucide-react';
 import {
   LAUNCH_BATCH_MAX_ITEMS,
   type LaunchDetail,
@@ -47,6 +56,8 @@ import { TaskFiltersButton } from '../tasks/TaskFiltersButton';
 import { encodeDateFilter, parseStoredDateFilter, type TaskDateFilter } from '../tasks/useTasks';
 import { boundedText, persistedViewKey, usePersistedState } from '../persistedView';
 import { LaunchCard } from './LaunchCard';
+import { LaunchesToTaskDialog, taskHref } from './LaunchesToTask';
+import { useLaunchTaskLinks } from './useLaunchTaskLinks';
 import { useLaunchMarqueeSelection } from './useLaunchMarqueeSelection';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { LaunchListFilter } from './LaunchListFilter';
@@ -151,6 +162,12 @@ function LaunchSpaceContent({
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<Awaited<ReturnType<typeof launchApi.list>>['items']>([]);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
+  // 076: launches go into a task — the chooser's launches, and which task each card is in.
+  const [toTask, setToTask] = useState<readonly string[] | null>(null);
+  const taskLinks = useLaunchTaskLinks(
+    teamId,
+    items.map(item => item.id)
+  );
   const launchMarquee = useLaunchMarqueeSelection(items, selectedIds, setSelectedIds);
   const [archiveTarget, setArchiveTarget] = useState<ArchiveTarget | null>(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
@@ -796,6 +813,23 @@ function LaunchSpaceContent({
                     </span>
                   </Button>
                 )}
+                {can('edit') && (
+                  <Button
+                    size="sm"
+                    color="neutral"
+                    variant="ghost"
+                    className="team-board-selection-act"
+                    aria-label={t('launchesToTask')}
+                    leading={
+                      <ListPlus size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
+                    }
+                    onClick={() => setToTask([...selectedIds])}
+                  >
+                    <span className="team-board-selection-act-label ui-selection-act-label">
+                      {t('launchesToTask')}
+                    </span>
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   color="neutral"
@@ -983,6 +1017,9 @@ function LaunchSpaceContent({
               key={value.id}
               value={durableCardValue(value, batchItemFor(value.id))}
               onOpen={() => route(value.id)}
+              tasks={taskLinks.links.get(value.id)}
+              onOpenTask={taskId => navigateTo(taskHref(teamId, taskId))}
+              onAddToTask={can('edit') ? () => setToTask([value.id]) : undefined}
               selected={selectedIds.has(value.id)}
               onSelectedChange={(selected, modifiers) =>
                 selection.select(value.id, selected, modifiers?.shiftKey)
@@ -1171,6 +1208,17 @@ function LaunchSpaceContent({
             }}
           />
         </Modal>
+      )}
+      {toTask && (
+        <LaunchesToTaskDialog
+          teamId={teamId}
+          launchIds={toTask}
+          onClose={() => setToTask(null)}
+          onDone={() => {
+            setSelectedIds(new Set());
+            taskLinks.refresh();
+          }}
+        />
       )}
     </section>
   );

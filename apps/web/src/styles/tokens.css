@@ -535,6 +535,8 @@
   --picker-search-min: 240px;
   --picker-tile-min: 168px;
   --picker-tile-min-narrow: 132px;
+  /* A launch card inside a task (076). */
+  --task-launch-card-min: 220px;
   /* Launch cards reserve room for wrapping facts and asynchronous progress. */
   --launch-card-min-width: 280px;
   --launch-card-min-height: 256px;
