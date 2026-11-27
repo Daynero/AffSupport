@@ -22,28 +22,28 @@ create index team_task_launches_launch_idx on public.team_task_launches (team_id
 
 RPC (усі `security definer`, `search_path = ''`, помилки — наявні коди `PERMISSION_DENIED` / `INVALID_INPUT` / `NOT_FOUND`):
 
-| Функція | Що робить |
-| --- | --- |
-| `attach_team_task_launches(p_team, p_task, p_launches uuid[])` → `jsonb {attached, alreadyAttached}` | `private.can(p_team,'edit')`; 1–100 id; запуски цього простору й не архівовані; `on conflict do nothing` |
-| `create_team_task_with_launches(p_team, p_title, p_launches uuid[])` → task row (як `create_team_task`) | створює завдання через `create_team_task` і прив'язує в одній транзакції |
-| `detach_team_task_launch(p_team, p_task, p_launch)` → void | edit |
-| `list_team_task_launch_ids(p_team, p_task)` → `uuid[]` | view; лише неархівовані, за `attached_at` |
-| `list_team_launch_tasks(p_team, p_launches uuid[])` → `jsonb [{launchId, taskId, title, status}]` | view; для чипів на картках (≤100) |
+| Функція                                                                                                 | Що робить                                                                                                |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `attach_team_task_launches(p_team, p_task, p_launches uuid[])` → `jsonb {attached, alreadyAttached}`    | `private.can(p_team,'edit')`; 1–100 id; запуски цього простору й не архівовані; `on conflict do nothing` |
+| `create_team_task_with_launches(p_team, p_title, p_launches uuid[])` → task row (як `create_team_task`) | створює завдання через `create_team_task` і прив'язує в одній транзакції                                 |
+| `detach_team_task_launch(p_team, p_task, p_launch)` → void                                              | edit                                                                                                     |
+| `list_team_task_launch_ids(p_team, p_task)` → `uuid[]`                                                  | view; лише неархівовані, за `attached_at`                                                                |
+| `list_team_launch_tasks(p_team, p_launches uuid[])` → `jsonb [{launchId, taskId, title, status}]`       | view; для чипів на картках (≤100)                                                                        |
 
 Права: «view» для читання як у завдань (`private.can(p_team,'view')`), запуски читаються через наявний `list_launches` з фільтром `ids`.
 
 ## Веб
 
-| Файл | Зміна |
-| --- | --- |
-| `api/team.ts` | `attachTaskLaunches`, `createTaskWithLaunches`, `detachTaskLaunch`, `listTaskLaunchIds`, `listLaunchTasks` |
-| `team/tasks/TaskLaunches.tsx` | новий блок «Запуски» в редакторі: `launchesApi.list(teamId, {ids})`, компактні `LaunchCard`, «Прибрати», «+ Додати» |
-| `team/tasks/TaskLaunchPicker.tsx` | вибір запусків (075 `PickerDialog` multiple) — `launchesApi.list` з пошуком |
-| `team/tasks/TaskEditor.tsx` | блок під тегами акаунтів; пункт «Повторити завдання» в меню |
-| `team/launches/LaunchesToTask.tsx` | вибір завдання (075 single) + «+ Нове завдання» → attach / create-with |
-| `team/launches/LaunchSpace.tsx` | «У завдання…» на смузі масових дій |
-| `team/launches/LaunchCard.tsx` | чип завдання; пункт меню «У завдання…» |
-| `locales/{uk,en}.ts` | тексти |
+| Файл                               | Зміна                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `api/team.ts`                      | `attachTaskLaunches`, `createTaskWithLaunches`, `detachTaskLaunch`, `listTaskLaunchIds`, `listLaunchTasks`          |
+| `team/tasks/TaskLaunches.tsx`      | новий блок «Запуски» в редакторі: `launchesApi.list(teamId, {ids})`, компактні `LaunchCard`, «Прибрати», «+ Додати» |
+| `team/tasks/TaskLaunchPicker.tsx`  | вибір запусків (075 `PickerDialog` multiple) — `launchesApi.list` з пошуком                                         |
+| `team/tasks/TaskEditor.tsx`        | блок під тегами акаунтів; пункт «Повторити завдання» в меню                                                         |
+| `team/launches/LaunchesToTask.tsx` | вибір завдання (075 single) + «+ Нове завдання» → attach / create-with                                              |
+| `team/launches/LaunchSpace.tsx`    | «У завдання…» на смузі масових дій                                                                                  |
+| `team/launches/LaunchCard.tsx`     | чип завдання; пункт меню «У завдання…»                                                                              |
+| `locales/{uk,en}.ts`               | тексти                                                                                                              |
 
 ## Тести
 

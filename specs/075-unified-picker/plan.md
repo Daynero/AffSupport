@@ -10,28 +10,35 @@
 interface PickerItem {
   id: string;
   title: string;
-  subtitle?: ReactNode;          // шлях, статус, «уже додано», причина недоступності
-  icon?: ReactNode;              // значок типу
-  thumbnailUrl?: string | null;  // лише для плитки
-  branch?: boolean;              // тека: відкривається, не відмічається
+  subtitle?: ReactNode; // шлях, статус, «уже додано», причина недоступності
+  icon?: ReactNode; // значок типу
+  thumbnailUrl?: string | null; // лише для плитки
+  branch?: boolean; // тека: відкривається, не відмічається
   disabled?: boolean;
   disabledReason?: string;
 }
 interface PickerDialogProps {
-  title: string; open: boolean; onClose(): void;
+  title: string;
+  open: boolean;
+  onClose(): void;
   search?: { value: string; onChange(v: string): void; placeholder: string; clearLabel: string };
-  toolbar?: ReactNode;                     // фільтри (SegmentedControl тощо)
-  trail?: ReactNode;                       // хлібні крихти
-  views?: ('list' | 'grid')[];             // які подання доступні
-  viewKey?: string;                        // ключ запам'ятовування подання
+  toolbar?: ReactNode; // фільтри (SegmentedControl тощо)
+  trail?: ReactNode; // хлібні крихти
+  views?: ('list' | 'grid')[]; // які подання доступні
+  viewKey?: string; // ключ запам'ятовування подання
   defaultView?: 'list' | 'grid';
-  items: PickerItem[]; loading?: boolean; error?: { message: string; retry?(): void } | null;
+  items: PickerItem[];
+  loading?: boolean;
+  error?: { message: string; retry?(): void } | null;
   empty: { title: string; description?: string };
-  selection: ReadonlySet<string>; mode: 'single' | 'multiple';
-  onToggle(item: PickerItem): void; onOpen?(item: PickerItem): void;
-  leading?: ReactNode;                     // рядок «+ Нове …» над результатами
+  selection: ReadonlySet<string>;
+  mode: 'single' | 'multiple';
+  onToggle(item: PickerItem): void;
+  onOpen?(item: PickerItem): void;
+  leading?: ReactNode; // рядок «+ Нове …» над результатами
   confirm: { label: string; disabled?: boolean; onConfirm(): void; loading?: boolean };
-  cancelLabel: string; size?: 'lg' | 'xl';
+  cancelLabel: string;
+  size?: 'lg' | 'xl';
 }
 ```
 
@@ -42,12 +49,12 @@ interface PickerDialogProps {
 
 ## Переведення
 
-| Вікно | Файл | Що стається |
-| --- | --- | --- |
-| Вкладення / креатив | `team/tasks/TaskAttachmentPicker.tsx` | дані лишаються (теки, пошук, accept, unavailableWith), розмітка → `PickerDialog`; мініатюри через `useThumbnailSession`; фільтр типу; `views` = list+grid; `defaultView` від виклику (`LaunchCreativePicker` → grid) |
-| Додати в завдання | `team/tasks/AddToTask.tsx` | діалог → `PickerDialog` single, рядок «+ Нове завдання» через `leading` |
-| Запуски для завдання | новий у 076 | `PickerDialog` multiple |
-| Акаунти | `team/tasks/TaskAccountPicker.tsx` | спроба переведення; підсумок у findings.md |
+| Вікно                | Файл                                  | Що стається                                                                                                                                                                                                          |
+| -------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Вкладення / креатив  | `team/tasks/TaskAttachmentPicker.tsx` | дані лишаються (теки, пошук, accept, unavailableWith), розмітка → `PickerDialog`; мініатюри через `useThumbnailSession`; фільтр типу; `views` = list+grid; `defaultView` від виклику (`LaunchCreativePicker` → grid) |
+| Додати в завдання    | `team/tasks/AddToTask.tsx`            | діалог → `PickerDialog` single, рядок «+ Нове завдання» через `leading`                                                                                                                                              |
+| Запуски для завдання | новий у 076                           | `PickerDialog` multiple                                                                                                                                                                                              |
+| Акаунти              | `team/tasks/TaskAccountPicker.tsx`    | спроба переведення; підсумок у findings.md                                                                                                                                                                           |
 
 ## Ризики
 

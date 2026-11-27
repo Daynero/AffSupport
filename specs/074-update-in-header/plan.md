@@ -29,21 +29,21 @@ AgentProvider
 
 ## Файли
 
-| Файл | Зміна |
-| --- | --- |
-| `apps/web/src/updates/UpdateCenter.tsx` | новий: провайдер, `useUpdateCenter()`, обчислення `offer`, `start()`, авто-accept |
-| `apps/web/src/updates/HeaderUpdateButton.tsx` | нова кнопка |
-| `apps/web/src/updates/WhatsNewOverlay.tsx` | нове вікно |
-| `apps/web/src/updates/genie.ts` | анімація |
-| `apps/web/src/updates/release-highlights.ts` | зміст «що нового» за версією + загальний запасний варіант |
-| `apps/web/src/updates/update-center.css` | стилі (лише токени) |
-| `apps/web/src/App.tsx` | `Header`: `<HeaderUpdateButton/>` після `ConnectionBadge` |
-| `apps/web/src/ProtectedSoty.tsx` | `UpdateCenterProvider`, `WhatsNewOverlay` |
-| `apps/web/src/components/NativeAppUpdateNotice.tsx` | бере стан із провайдера; плашка лише для fallback-ів |
-| `apps/web/src/components/ReleaseUpdateNotice.tsx` | legacy-плашка лише для повернення на стабільну |
-| `apps/web/src/styles/tokens.css` | `--motion-genie`, `--ease-genie`, `--motion-update-glow`, `--shadow-update-glow` + reduced-motion |
-| `apps/web/src/locales/{uk,en}.ts` | тексти |
-| `tests/update-center.test.tsx` | новий |
+| Файл                                                | Зміна                                                                                             |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `apps/web/src/updates/UpdateCenter.tsx`             | новий: провайдер, `useUpdateCenter()`, обчислення `offer`, `start()`, авто-accept                 |
+| `apps/web/src/updates/HeaderUpdateButton.tsx`       | нова кнопка                                                                                       |
+| `apps/web/src/updates/WhatsNewOverlay.tsx`          | нове вікно                                                                                        |
+| `apps/web/src/updates/genie.ts`                     | анімація                                                                                          |
+| `apps/web/src/updates/release-highlights.ts`        | зміст «що нового» за версією + загальний запасний варіант                                         |
+| `apps/web/src/updates/update-center.css`            | стилі (лише токени)                                                                               |
+| `apps/web/src/App.tsx`                              | `Header`: `<HeaderUpdateButton/>` після `ConnectionBadge`                                         |
+| `apps/web/src/ProtectedSoty.tsx`                    | `UpdateCenterProvider`, `WhatsNewOverlay`                                                         |
+| `apps/web/src/components/NativeAppUpdateNotice.tsx` | бере стан із провайдера; плашка лише для fallback-ів                                              |
+| `apps/web/src/components/ReleaseUpdateNotice.tsx`   | legacy-плашка лише для повернення на стабільну                                                    |
+| `apps/web/src/styles/tokens.css`                    | `--motion-genie`, `--ease-genie`, `--motion-update-glow`, `--shadow-update-glow` + reduced-motion |
+| `apps/web/src/locales/{uk,en}.ts`                   | тексти                                                                                            |
+| `tests/update-center.test.tsx`                      | новий                                                                                             |
 
 ## Ризики
 
