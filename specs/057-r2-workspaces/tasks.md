@@ -78,11 +78,11 @@
 
   Нотатку відкату додати в `supabase/migrations/ROLLBACK.md`. Тест: T005.
 
-- [ ] T007 Тест для T008 (пишеться першим) — `supabase/tests/database/space-storage-access.test.sql`.
+- [x] T007 Тест для T008 (пишеться першим) — `supabase/tests/database/space-storage-access.test.sql`.
   - `list_my_teams()` не повертає R2-простір, `list_my_teams_v2()` повертає `storage_backend`.
   - `access_epoch` зростає при видаленні учасника й зміні ролі.
   - Кожна функція зі списку T008 працює з R2-рядком: `list_team_folder_page`, `list_team_folder_tree`, `list_team_folder_subtree`, `list_team_materials`, `list_team_trashed_materials_v2`. Для R2-рядка вона не повертає null-полів Drive як помилку.
-- [ ] T008 Міграція `supabase/migrations/<ts>_space_storage_access.sql`:
+- [x] T008 Міграція `supabase/migrations/<ts>_space_storage_access.sql`:
   - перевизначити `list_my_teams()` з `supabase/migrations/20261130100000_space_tariffs.sql:655` з фільтром `storage_backend='drive'`;
   - додати `list_my_teams_v2()`;
   - пілотний пункт у `private.team_workspace_allowed()` (там же, :252): пілотний простір відкритий учасникам із `is_storage_r2_pilot()` без тарифу 034;

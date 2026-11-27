@@ -3798,3 +3798,17 @@ functions; drop the two new `team_materials` columns and constraint; re-run
 `private.fence_process_output_adoption()` from 20261206138000. Do not restore `NOT NULL` on the
 two Drive columns once an R2 row has existed — delete those rows first. The new `teams` columns
 may stay: nothing old reads them.
+
+## 20261226120000 — 057 who sees an R2 space
+
+Replaces `public.list_my_teams()` (now `storage_backend = 'drive'` only),
+`private.team_workspace_allowed(uuid)` (a pilot space opens to pilot users only),
+`public.list_team_folder_page`, `list_team_folder_tree`, `list_team_folder_subtree`,
+`list_team_materials` and `list_team_trashed_materials_v2` (an R2 branch at the top; the Drive
+branch is the previous body). Adds `public.list_my_teams_v2()`, the R2 list helpers
+`private.space_list_folder_*`, and the `access_epoch` triggers on `team_members`, `teams` and
+`storage_r2_pilots`. No table or column. While no R2 space exists the result of every replaced
+function is unchanged. Undo by re-running the previous bodies (20261130100000 for the team list
+and the gate, 20261128100000, 20260906080000, 20260906130000, 20260815113000 and 20261207150000
+for the lists) and dropping the new function and triggers; an R2 space then shows to every
+client as a Drive space without a connection.
