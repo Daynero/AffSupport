@@ -103,7 +103,36 @@ export function useCatalogManagerTrash({
     onChanged?.();
   }, [receiptFingerprint, registry.reload, onChanged]);
   const deleteSelected = async () => {
-    const ids = confirmDelete;
+    const detached = new Set(
+      rows
+        .filter(
+          row => confirmDelete.includes(row.catalogId) && row.driveConnection?.state === 'detached'
+        )
+        .map(row => row.catalogId)
+    );
+    const ids = confirmDelete.filter(id => !detached.has(id));
+    // A catalog in the previous Drive folder cannot be trashed on Drive (Soty has no access to
+    // that folder any more): it is taken out of Soty instead (production 2026-11-27).
+    if (detached.size) {
+      await withBusy([...detached], async () => {
+        try {
+          for (const catalogId of detached) {
+            if (!owner.current()) return;
+            await teamApi.forgetDetachedCatalog(teamId, catalogId);
+            setSelected(current => new Set([...current].filter(id => id !== catalogId)));
+          }
+          if (!ids.length) setConfirmDelete([]);
+        } catch (error) {
+          if (owner.current()) push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+        } finally {
+          if (owner.current()) {
+            registry.reload();
+            onChanged?.();
+          }
+        }
+      });
+      if (!ids.length || !owner.current()) return;
+    }
     await withBusy(ids, async () => {
       if (managerTrash) {
         const group = await managerTrash.start(

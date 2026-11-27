@@ -4964,6 +4964,26 @@ export const teamApi = {
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
   },
 
+  /**
+   * Takes a catalog left in the space's previous (detached) Drive folder out of Soty. Drive is not
+   * touched — Soty has no access to that folder any more; the sheet stays there.
+   */
+  async forgetDetachedCatalog(teamId: string, catalogId: string): Promise<void> {
+    const { data, error } = await withFreshSession(() =>
+      requireSupabaseClient().rpc('forget_team_detached_catalog', {
+        p_team: teamId,
+        p_catalog: catalogId
+      })
+    );
+    throwRpc(error);
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      (data as { forgotten?: unknown }).forgotten !== true
+    )
+      throw new TeamApiError('INVALID_RESPONSE', false);
+  },
+
   async trashMaterial(input: {
     teamId: string;
     materialId: string;

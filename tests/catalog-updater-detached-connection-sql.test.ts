@@ -260,3 +260,46 @@ it('one unreachable round that cannot be closed does not stop the others', async
     );
   }
 });
+
+// Production 2026-11-27 (DimSok): a catalog in the space's previous Drive folder could not be
+// deleted from the manager («У вас немає дозволу на цю дію») — Drive refuses a folder Soty no
+// longer has. It is now taken out of Soty itself; the sheet stays where it is on Drive.
+it('takes a catalog in a detached folder out of Soty without touching Drive', async () => {
+  const catalog = await newCatalog(connected);
+  const forget = (as: string) =>
+    db.asUser<{ r: { forgotten: boolean } }>(
+      as,
+      'select public.forget_team_detached_catalog($1,$2) r',
+      [team, catalog]
+    );
+  // A catalog in the folder the space uses is deleted through Drive, never forgotten.
+  await expect(forget(owner)).rejects.toThrow(/WRONG_STATE/u);
+  await db.root(
+    "update public.team_drive_connections set state='detached',detached_at=clock_timestamp() where id=$1",
+    [connected]
+  );
+  try {
+    await expect(forget('c2500000-0000-4000-8000-000000000099')).rejects.toThrow(
+      /PERMISSION_DENIED/u
+    );
+    expect((await forget(owner))[0]!.r).toMatchObject({ forgotten: true });
+    // Idempotent, and gone from the manager's list.
+    expect((await forget(owner))[0]!.r).toMatchObject({ forgotten: true });
+    expect(
+      await db.root('select lifecycle,missing_reason from public.team_materials where id=$1', [
+        catalog
+      ])
+    ).toEqual([{ lifecycle: 'missing', missing_reason: 'removed' }]);
+    const listed = await db.asUser<{ catalog_id: string }>(
+      owner,
+      'select catalog_id from public.list_team_product_catalogs($1)',
+      [team]
+    );
+    expect(listed.map(row => row.catalog_id)).not.toContain(catalog);
+  } finally {
+    await db.root(
+      "update public.team_drive_connections set state='connected',detached_at=null where id=$1",
+      [connected]
+    );
+  }
+});

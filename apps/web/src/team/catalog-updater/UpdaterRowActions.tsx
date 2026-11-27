@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
-import { DropdownMenu, IconButton } from '../../components/ui/index';
+import { ConfirmDialog, DropdownMenu, IconButton } from '../../components/ui/index';
+import { useToasts } from '../../components/toast';
+import { teamErrorMessageFor } from '../errors';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { useI18n } from '../../i18n';
 import { materialMenuEntries } from '../materials/MaterialActionMenu';
@@ -76,6 +78,27 @@ export function UpdaterRowActions({
   const { teams, activeTeam } = useTeam();
   const space = spaceOf(teams, activeTeam, teamId);
   const agent = useOptionalAgent();
+  const { push } = useToasts();
+  /*
+   * A catalog in the space's previous Drive folder cannot be trashed on Drive — Soty has no access
+   * to that folder any more, and the person read «У вас немає дозволу на цю дію» (production
+   * 2026-11-27). Delete takes it out of Soty instead; the sheet stays on Drive.
+   */
+  const detached = row.driveConnection?.state === 'detached';
+  const [confirmForget, setConfirmForget] = useState(false);
+  const [forgetting, setForgetting] = useState(false);
+  const forget = async () => {
+    setForgetting(true);
+    try {
+      await teamApi.forgetDetachedCatalog(teamId, row.catalogId);
+      setConfirmForget(false);
+      onChanged();
+    } catch (error) {
+      push({ tone: 'error', text: teamErrorMessageFor(error, t) });
+    } finally {
+      setForgetting(false);
+    }
+  };
 
   const ref: MaterialRef = {
     id: row.catalogId,
@@ -112,6 +135,7 @@ export function UpdaterRowActions({
     context,
     {
       ...host.handlers,
+      ...(detached ? { trash: () => setConfirmForget(true) } : {}),
       ...(onRename ? { rename: onRename } : {}),
       open: () => window.open(row.sheetUrl, '_blank', 'noopener,noreferrer'),
       detail: () => setDetailOpen(true),
@@ -189,6 +213,18 @@ export function UpdaterRowActions({
         ]}
       />
       {host.dialogs}
+      {confirmForget && (
+        <ConfirmDialog
+          nested
+          title={t('catalogUpdaterDeleteSelected')}
+          body={t('catalogDeleteDetachedNote')}
+          confirmLabel={t('catalogUpdaterDeleteSelected')}
+          cancelLabel={t('teamCancel')}
+          busy={forgetting}
+          onCancel={() => setConfirmForget(false)}
+          onConfirm={() => void forget()}
+        />
+      )}
       {detailOpen && (
         <MaterialDetailDialog
           nested

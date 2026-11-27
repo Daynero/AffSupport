@@ -3790,3 +3790,12 @@ confirms progress within 15 minutes, not `sync_failed`. Scheduler: a feed that s
 is claimed before every other ready job. No table or column. Undo by re-running both functions from
 their previous definitions (20260924100000 and the 034 patch of the claim); a scan waiting for a
 slow feed then reads «Останнє сканування не вдалося» again after 15 minutes.
+
+## 20261225120000 — a catalog in the previous Drive folder can be taken out of Soty
+
+Adds `public.forget_team_detached_catalog(uuid, uuid)` (members who may delete): a catalog whose
+Drive connection is detached is marked removed in Soty exactly as the sync marks a sheet deleted on
+Drive (`lifecycle` 'missing', `missing_reason` 'removed', audit `catalog.forgotten`); Drive is not
+touched and the sheet stays in that folder. Any other catalog answers WRONG_STATE. Undo with
+`drop function public.forget_team_detached_catalog(uuid, uuid)`; a catalog already taken out is
+brought back by setting its `lifecycle` to 'active' and `missing_reason`/`missing_at` to null.

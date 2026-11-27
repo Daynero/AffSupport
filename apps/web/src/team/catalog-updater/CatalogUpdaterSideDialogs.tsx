@@ -212,13 +212,19 @@ export function CatalogUpdaterSideDialogs({
         <ConfirmDialog
           nested
           title={t('catalogUpdaterDeleteSelected')}
-          body={
+          body={[
+            t(catalogDeleteConfirmKey(language, confirmDelete.length), {
+              count: confirmDelete.length
+            }),
             confirmDelete.some(id => videoR2.row(id).enabled)
-              ? `${t(catalogDeleteConfirmKey(language, confirmDelete.length), { count: confirmDelete.length })} ${t('catalogVideoR2DeleteWarning')}`
-              : t(catalogDeleteConfirmKey(language, confirmDelete.length), {
-                  count: confirmDelete.length
-                })
-          }
+              ? t('catalogVideoR2DeleteWarning')
+              : null,
+            confirmDelete.some(id => rowsById.get(id)?.driveConnection?.state === 'detached')
+              ? t('catalogDeleteDetachedNote')
+              : null
+          ]
+            .filter(Boolean)
+            .join(' ')}
           confirmLabel={t('catalogUpdaterDeleteSelected')}
           cancelLabel={t('teamCancel')}
           busy={busyIds.size > 0}

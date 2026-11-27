@@ -485,6 +485,8 @@ export const en = {
   catalogVideoR2StatusDrive: 'Drive',
   catalogVideoR2StatusPending: 'Copy in progress',
   catalogVideoR2StatusCopied: 'Copy ready, sheet still on Drive',
+  catalogDeleteDetachedNote:
+    'Catalogs in the previous Drive folder are only taken out of Soty: it no longer has access to that folder, so their sheets stay there on Google Drive.',
   catalogVideoR2DeleteWarning:
     'Catalogs with an R2 video are deleted for good: the R2 video is removed at once, the links to it in the sheet stop working, and the catalog does not appear in the Soty trash.',
   catalogVideoR2AvailabilityFailed: 'Could not check whether copying the video to R2 is available.',

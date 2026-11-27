@@ -8954,6 +8954,7 @@ export type GeneratedDatabase = {
           sync_job_id: string;
         }[];
       };
+      forget_team_detached_catalog: { Args: { p_catalog: string; p_team: string }; Returns: Json };
       get_drive_connection_status: {
         Args: { p_team: string };
         Returns: {

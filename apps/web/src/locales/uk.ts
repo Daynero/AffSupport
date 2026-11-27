@@ -481,6 +481,8 @@ export const uk: Record<keyof typeof en, string> = {
   catalogVideoR2StatusDrive: 'Drive',
   catalogVideoR2StatusPending: 'Копія готується',
   catalogVideoR2StatusCopied: 'Копія готова, таблиця ще на Drive',
+  catalogDeleteDetachedNote:
+    'Каталоги з попередньої папки Drive Soty лише прибере зі списку: доступу до тієї папки в нього вже немає, тож таблиці лишаться там на Google Drive.',
   catalogVideoR2DeleteWarning:
     'Каталоги з відео в R2 видаляються остаточно: відео з R2 зникає одразу, посилання на нього в таблиці перестають працювати, а в кошику Soty такого каталогу не буде.',
   catalogVideoR2AvailabilityFailed: 'Не вдалося перевірити, чи доступне копіювання відео в R2.',
