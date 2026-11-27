@@ -22,6 +22,7 @@ import {
 import { ToastProvider } from '../components/toast';
 import { TariffsPanel } from './admin/TariffsPanel';
 import { ReleaseTestersCard } from './admin/ReleaseTestersCard';
+import { StorageR2PilotsCard } from './admin/StorageR2PilotsCard';
 import { AiBudgetPanel } from './admin/AiBudgetPanel';
 import { ImagePoolPanel } from './admin/ImagePoolPanel';
 import { TariffsSkeleton } from './admin/TariffsSkeleton';
@@ -383,6 +384,7 @@ export default function AdminPage() {
           ) : overview ? (
             <div className={`admin-loaded${sawSkeleton.current ? ' content-appear' : ''}`}>
               <ReleaseTestersCard />
+              <StorageR2PilotsCard />
               <Card className="admin-card" aria-labelledby="team-waitlist-heading">
                 <div className="admin-card-heading">
                   <div>

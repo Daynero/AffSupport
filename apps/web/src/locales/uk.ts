@@ -1422,6 +1422,21 @@ export const uk: Record<keyof typeof en, string> = {
   adminReleaseTestersUnknown:
     'Немає акаунта з таким email. Попросіть людину спершу один раз увійти в Soty.',
   adminReleaseTestersError: 'Не вдалося зберегти. Спробуйте ще раз.',
+  adminStorageR2PilotsTitle: 'Пілот сховища Soty',
+  adminStorageR2PilotsSubtitle:
+    'Ці акаунти можуть створювати простори, файли яких лежать у сховищі Soty, а не на Google Диску, — лише на {origin}. Кожен їхній простір обмежений обсягом, указаним тут. Якщо прибрати людину, створені нею простори лишаються.',
+  adminStorageR2PilotsEmail: 'Email учасника пілоту',
+  adminStorageR2PilotsLimit: 'Ліміт простору, ГБ',
+  adminStorageR2PilotsLimitColumn: 'Ліміт',
+  adminStorageR2PilotsLimitValue: '{size} ГБ',
+  adminStorageR2PilotsAdd: 'Додати до пілоту',
+  adminStorageR2PilotsRemove: 'Прибрати',
+  adminStorageR2PilotsEmpty: 'У пілоті нікого немає.',
+  adminStorageR2PilotsUnknown:
+    'Немає акаунта з таким email. Попросіть людину спершу один раз увійти в Soty.',
+  adminStorageR2PilotsBadLimit: 'Укажіть ліміт від 1 до {max} ГБ.',
+  adminStorageR2PilotsError: 'Не вдалося зберегти. Спробуйте ще раз.',
+  adminStorageR2PilotsLoadError: 'Не вдалося завантажити список пілоту. Оновіть сторінку.',
   openSoty: 'Відкрити Soty',
   checkAgain: 'Перевірити ще раз',
   linkReconnect: 'Перепідключити',

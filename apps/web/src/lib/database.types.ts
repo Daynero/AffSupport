@@ -8302,6 +8302,10 @@ export type GeneratedDatabase = {
         };
       };
       admin_add_release_tester: { Args: { p_email: string }; Returns: string };
+      admin_add_storage_r2_pilot: {
+        Args: { p_email: string; p_max_bytes: number };
+        Returns: string;
+      };
       admin_catalog_global_pool: {
         Args: { p_action: string; p_payload?: Json };
         Returns: Json;
@@ -8367,6 +8371,16 @@ export type GeneratedDatabase = {
       admin_list_space_requests: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_list_space_tariff_events: { Args: { p_id: string }; Returns: Json };
       admin_list_space_tariffs: { Args: Record<PropertyKey, never>; Returns: Json };
+      admin_list_storage_r2_pilots: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          added_at: string;
+          email: string;
+          max_space_bytes: string;
+          removed_at: string | null;
+          user_id: string;
+        }[];
+      };
       admin_list_tariff_plans: { Args: Record<PropertyKey, never>; Returns: Json };
       admin_list_tariff_seats: { Args: { p_team: string }; Returns: Json };
       admin_list_team_workspace_waitlist: {
@@ -8438,6 +8452,7 @@ export type GeneratedDatabase = {
         Returns: Json;
       };
       admin_remove_release_tester: { Args: { p_user_id: string }; Returns: boolean };
+      admin_remove_storage_r2_pilot: { Args: { p_user_id: string }; Returns: boolean };
       admin_remove_tariff_member: { Args: { p_team: string; p_user: string }; Returns: boolean };
       admin_revoke_tariff_invitation: { Args: { p_invitation: string }; Returns: boolean };
       admin_set_account_status: {
@@ -9292,6 +9307,7 @@ export type GeneratedDatabase = {
       };
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
       is_release_tester: { Args: Record<PropertyKey, never>; Returns: boolean };
+      is_storage_r2_pilot: { Args: Record<PropertyKey, never>; Returns: boolean };
       issue_landing_preview_grant: {
         Args: {
           p_actor: string;
@@ -9452,6 +9468,19 @@ export type GeneratedDatabase = {
           name: string;
           permissions: Json;
           role: string;
+        }[];
+      };
+      list_my_teams_v2: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          connection_state: string;
+          content_revision: number;
+          id: string;
+          name: string;
+          permissions: Json;
+          role: string;
+          storage_backend: string;
+          storage_pilot: boolean;
         }[];
       };
       list_my_unfinished_product_catalog_creations: {

@@ -119,7 +119,7 @@
   - зняття дозволу не видаляє простір;
   - запрошений без пілоту не відкриває простір.
 
-- [ ] T014 [P] [US11] Тест для T016 — `tests/storage-r2-pilots-card.test.tsx`: список, додавання за поштою з лімітом обсягу, зняття, помилки RPC.
+- [x] T014 [P] [US11] Тест для T016 — `tests/storage-r2-pilots-card.test.tsx`: список, додавання за поштою з лімітом обсягу, зняття, помилки RPC.
 - [x] T015 [US11] Edge-функція `supabase/functions/space-storage/`:
   - `index.ts`: маршрут за шляхом, лише POST, як `routePath()` у `supabase/functions/drive-ops/index.ts:3488`;
   - `handler.ts`: чисті валідатори;
@@ -128,7 +128,7 @@
 
   Спільна перевірка запиту — п'ять умов з [contracts/storage-api.md](contracts/storage-api.md). Тест: T013.
 
-- [ ] T016 [P] [US11] Адмін-картка `apps/web/src/pages/admin/StorageR2PilotsCard.tsx` за зразком `ReleaseTestersCard.tsx`. Підключити в `apps/web/src/pages/AdminPage.tsx:385` поруч. Тест: T014.
+- [x] T016 [P] [US11] Адмін-картка `apps/web/src/pages/admin/StorageR2PilotsCard.tsx` за зразком `ReleaseTestersCard.tsx`. Підключити в `apps/web/src/pages/AdminPage.tsx:385` поруч. Тест: T014.
 - [ ] T017 [P] [US11] Тест для T018 — `tests/space-r2-create-flow.test.tsx`:
   - вибір «На R2» з'являється лише коли `siteChannel()` = `next` і є пілот;
   - на прод-адресі вибору немає;

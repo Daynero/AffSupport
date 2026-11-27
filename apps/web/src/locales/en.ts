@@ -1437,6 +1437,21 @@ export const en = {
   adminReleaseTestersUnknown:
     'There is no account with this email. Ask the person to sign in to Soty once first.',
   adminReleaseTestersError: 'Could not save. Try again.',
+  adminStorageR2PilotsTitle: 'Soty storage pilot',
+  adminStorageR2PilotsSubtitle:
+    'These accounts can create spaces whose files live on Soty storage instead of Google Drive, on {origin} only. Each of their spaces is limited to the size set here. Removing someone keeps the spaces they made.',
+  adminStorageR2PilotsEmail: 'Pilot email',
+  adminStorageR2PilotsLimit: 'Space limit, GB',
+  adminStorageR2PilotsLimitColumn: 'Limit',
+  adminStorageR2PilotsLimitValue: '{size} GB',
+  adminStorageR2PilotsAdd: 'Add to pilot',
+  adminStorageR2PilotsRemove: 'Remove',
+  adminStorageR2PilotsEmpty: 'Nobody is in the pilot.',
+  adminStorageR2PilotsUnknown:
+    'There is no account with this email. Ask the person to sign in to Soty once first.',
+  adminStorageR2PilotsBadLimit: 'Set a limit from 1 to {max} GB.',
+  adminStorageR2PilotsError: 'Could not save. Try again.',
+  adminStorageR2PilotsLoadError: 'Could not load the pilot list. Reload the page.',
   openSoty: 'Open Soty',
   checkAgain: 'Check again',
   // 032 — the link between this page and the local app, and why it is not there.
