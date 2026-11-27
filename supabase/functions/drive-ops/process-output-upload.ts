@@ -4,7 +4,22 @@ import { isRecord } from '../_shared/validation.ts';
 import { PROCESS_OUTPUT_NONCE_KEY } from './process-output-recovery.ts';
 
 type Rpc = (name: string, args: Record<string, unknown>) => Promise<unknown>;
-export function requireProcessUploadProducer(body: Record<string, unknown>): string {
+/**
+ * The producer of a new process output must speak upload protocol 2 (an MD5 the Drive upload is
+ * checked against). 057: an R2 space takes outputs only through space-storage with protocol 3,
+ * so here an older agent is told to update, and a protocol-3 agent that reached drive-ops is
+ * told it has the wrong backend — drive-ops never writes into an R2 space.
+ */
+export function requireProcessUploadProducer(
+  body: Record<string, unknown>,
+  storageBackend: 'drive' | 'r2' = 'drive'
+): string {
+  if (storageBackend === 'r2') {
+    throw new TeamFunctionError(
+      body.outputUploadProtocolVersion === 3 ? 'STORAGE_BACKEND_MISMATCH' : 'AGENT_UPDATE_REQUIRED',
+      { retryable: false }
+    );
+  }
   if (
     body.outputUploadProtocolVersion !== 2 ||
     typeof body.checksum !== 'string' ||

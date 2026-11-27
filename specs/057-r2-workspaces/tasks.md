@@ -143,12 +143,12 @@
 
   Тест: T017.
 
-- [ ] T019 [P] [US11] Тест для T020 — `tests/space-storage-isolation.test.ts` і `supabase/tests/database/space-storage-isolation.test.sql`:
+- [x] T019 [P] [US11] Тест для T020 — `tests/space-storage-isolation.test.ts` і `supabase/tests/database/space-storage-isolation.test.sql`:
   - файлові маршрути `drive-ops` і `drive-transfer` на R2-простір → `STORAGE_BACKEND_MISMATCH`;
   - `outputUploadProtocolVersion: 2` на R2 → `AGENT_UPDATE_REQUIRED`;
   - claim фонової роботи для R2 агентом контракту 2 не видається;
   - `catalog-sync` не бере R2-простір.
-- [ ] T020 [US11] Ізоляція старих шляхів:
+- [x] T020 [US11] Ізоляція старих шляхів:
   - `drive-ops`: `loadContext` і `rootDestination` (`supabase/functions/drive-ops/index.ts:613`, `:538`) через `service_get_material_operation_context` і `service_get_root_operation_context` — для файлових маршрутів;
   - `drive-transfer`: `authorizeCaller` (`supabase/functions/drive-transfer/index.ts:1756`);
   - `requireProcessUploadProducer` (`supabase/functions/drive-ops/process-output-upload.ts:7`) — протокол 3 для R2;

@@ -181,7 +181,21 @@ export async function handleRecovery(
         throw new TeamFunctionError('AGENT_UPDATE_REQUIRED');
     };
     const requestId = uuid(body.requestId);
-    const authorized = object(await deps.rpc('claim', hash, { requestId }));
+    // 057: the team workspace contract the agent speaks. An R2 space is claimed only by
+    // contract 3; an agent that says nothing is today's contract 2, and the database refuses it
+    // with AGENT_UPDATE_REQUIRED there.
+    const workspace = body.teamWorkspaceContractVersion;
+    const authorized = object(
+      await deps.rpc('claim', hash, {
+        requestId,
+        ...(typeof workspace === 'number' &&
+        Number.isSafeInteger(workspace) &&
+        workspace >= 1 &&
+        workspace <= 1000
+          ? { teamWorkspaceContract: workspace }
+          : {})
+      })
+    );
     if (authorized.replay !== undefined) {
       assertCompatible(authorized.replay);
       return authorized.replay;

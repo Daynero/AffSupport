@@ -3820,3 +3820,17 @@ Adds `private.space_create_requests` (idempotency of a creation per person and k
 `public.service_space_storage_context` (both service-only). No existing function or table
 changes. Undo by dropping the three functions and the table; spaces already created stay, and a
 retry with an old key then creates a new space instead of returning the old one.
+
+## 20261226140000 — 057 the Drive paths refuse an R2 space
+
+Replaces `public.service_get_material_operation_context` and
+`public.service_get_root_operation_context` (plpgsql now; the previous query behind
+`private.require_drive_space`), patches `public.service_team_recovery` ('claim' calls
+`private.require_recovery_workspace_contract` first) and `private.claim_catalog_sync_jobs` (a
+join on `teams.storage_backend = 'drive'`), and adds `public.service_space_storage_backend`.
+For a Drive space every answer is unchanged. Undo by re-running the two context functions from
+20260801102000 and 20260829110000, re-running the two patched functions without their
+`space_storage_claim_contract` / `space_storage_drive_only` lines (pg_get_functiondef and replace,
+as the patch did), and dropping the three new functions; an R2 space then answers the Drive paths
+with an empty context (PERMISSION_DENIED) instead of STORAGE_BACKEND_MISMATCH. Edge functions
+from this release read a missing `service_space_storage_backend` as Drive.

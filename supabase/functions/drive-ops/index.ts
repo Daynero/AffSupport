@@ -120,6 +120,7 @@ import {
   consolidateGeneratedFolders
 } from '../_shared/drive-cache.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
+import { spaceStorageBackendOf } from '../_shared/space-storage-backend.ts';
 import {
   readDriveCredential,
   refreshGoogleAccessToken,
@@ -2359,6 +2360,10 @@ async function handleProcessOutputStart(
   const operation = await getOperation(service, operationId, grant.actorId);
   if (operation.toolId === 'translation')
     throw new TeamFunctionError('FEATURE_RETIRED', { retryable: false });
+  // 057: the output of a run in an R2 space never goes to Drive. A contract-2 agent is told to
+  // update before anything is prepared; the check always throws for an R2 space.
+  if ((await spaceStorageBackendOf(service, operation.teamId, grant.actorId)) === 'r2')
+    requireProcessUploadProducer(body, 'r2');
   if (
     operation.kind !== 'process' ||
     operation.state !== 'running' ||

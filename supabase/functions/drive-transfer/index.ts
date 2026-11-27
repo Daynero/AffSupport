@@ -35,6 +35,7 @@ import {
   type OAuthProductionSignals
 } from '../_shared/auth.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
+import { requireDriveSpace } from '../_shared/space-storage-backend.ts';
 import {
   readDriveCredential,
   refreshGoogleAccessToken,
@@ -1017,6 +1018,8 @@ async function handleThumbnailSession(
   const teamId = parseUuid(body.teamId);
   if (!teamId.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   const { userId } = await authorizeCaller(request, service);
+  // 057: an R2 space has no Drive thumbnails; its own previews come from space-storage.
+  await requireDriveSpace(service, teamId.value, userId);
   await rpcValue(caller, 'assert_team_member', { p_team: teamId.value });
   const ticket = randomTicket();
   const expiresAt = new Date(Date.now() + THUMBNAIL_SESSION_TTL_MS).toISOString();
@@ -1484,6 +1487,7 @@ async function handleLandingRenderStart(
     throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   }
   const { userId } = await authorizeCaller(request, service);
+  await requireDriveSpace(service, teamId.value, userId);
   requireDriveOAuthGate(productionSignals(request), Deno.env.get('DRIVE_OAUTH_MODE'));
   const material = previewMaterial(
     await rpcValue(caller, 'get_material_preview', {
@@ -1571,6 +1575,7 @@ async function handleLandingRenderTokens(
     throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
   }
   const { userId } = await authorizeCaller(request, service);
+  await requireDriveSpace(service, teamId.value, userId);
   requireDriveOAuthGate(productionSignals(request), Deno.env.get('DRIVE_OAUTH_MODE'));
   const listed = await rpcValue(caller, 'list_landing_renders', {
     p_team: teamId.value,
@@ -1754,6 +1759,8 @@ Deno.serve(async request => {
       throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     }
     const { userId } = await authorizeCaller(request, configured.service);
+    // 057: every material route below is Drive's; an R2 space is served by space-storage.
+    await requireDriveSpace(configured.service, teamId.value, userId);
     if (parsed.value.action === 'landing_validation') {
       const operationId = parsed.value.operationId;
       const operation = parseUuid(operationId);
