@@ -46,7 +46,11 @@ const definiteRejection = (error: unknown) =>
     'WRONG_STATE',
     'STALE_RESULT',
     'CATALOG_UPDATE_RECONCILIATION_REQUIRED',
-    'CATALOG_COMMAND_UNSUPPORTED'
+    'CATALOG_COMMAND_UNSUPPORTED',
+    // The run's preflight refuses these before it writes anything: no live background work for
+    // this member, or a desktop too old for it. Not an uncertain outcome to check later.
+    'AGENT_REQUIRED',
+    'AGENT_UPDATE_REQUIRED'
   ].includes(error.code);
 
 /** Only this owner resumes command receipts; refreshes keep the existing registry read owner. */

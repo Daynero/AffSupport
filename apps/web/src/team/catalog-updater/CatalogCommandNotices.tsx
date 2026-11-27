@@ -1,7 +1,8 @@
 import type { CatalogRegistryRow } from '../../api/team';
-import { Button } from '../../components/ui/index';
+import { Alert, Button } from '../../components/ui/index';
 import type { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
+import { catalogErrorMessageFor } from '../catalogFixActions';
 import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
 import type { captureCatalogMutationOwner } from './captureCatalogMutationOwner';
 import type { useCatalogCommands } from './useCatalogCommands';
@@ -62,47 +63,58 @@ export function CatalogCommandNotices({
             push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
         };
         return (
-          <div key={state.intent.commandId} className="team-inline-error" role="status">
-            <p id={captionId}>
-              {t(state.phase === 'working' ? 'catalogCommandChecking' : 'catalogCommandUnknown', {
-                count: state.intent.catalogIds.length
-              })}
-              {names && (
-                <>
-                  {' '}
-                  {names}
-                  {state.intent.catalogIds.length > 3
-                    ? ` ${t('catalogCommandMore', { count: state.intent.catalogIds.length - 3 })}`
-                    : ''}
-                </>
-              )}
-            </p>
-            {state.phase === 'unknown' && code && code !== 'PROCESS_RESULT_UNCERTAIN' && (
-              <p className="field-hint">
-                {t('catalogCommandLastProblem', { message: teamErrorMessageFor(state.error, t) })}
-              </p>
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-describedby={captionId}
-              disabled={state.phase === 'working'}
-              onClick={() => void recover('check')}
-            >
-              {t('catalogCommandCheck')}
-            </Button>
-            {mayRun && (
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-describedby={captionId}
-                disabled={state.phase === 'working'}
-                onClick={() => void recover('cancel')}
-              >
-                {t('catalogCommandCancel')}
-              </Button>
-            )}
-          </div>
+          // An Alert, not a bare flex row (production 2026-11-27): the sentence, the last problem
+          // and two long-labelled buttons on one line ran into each other at laptop widths.
+          <Alert
+            key={state.intent.commandId}
+            color="warning"
+            live="status"
+            className="catalog-command-notice"
+            title={
+              <span id={captionId}>
+                {t(state.phase === 'working' ? 'catalogCommandChecking' : 'catalogCommandUnknown', {
+                  count: state.intent.catalogIds.length
+                })}
+                {names && (
+                  <>
+                    {' '}
+                    {names}
+                    {state.intent.catalogIds.length > 3
+                      ? ` ${t('catalogCommandMore', { count: state.intent.catalogIds.length - 3 })}`
+                      : ''}
+                  </>
+                )}
+              </span>
+            }
+            action={
+              <span className="catalog-command-notice-actions">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-describedby={captionId}
+                  disabled={state.phase === 'working'}
+                  onClick={() => void recover('check')}
+                >
+                  {t('catalogCommandCheck')}
+                </Button>
+                {mayRun && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-describedby={captionId}
+                    disabled={state.phase === 'working'}
+                    onClick={() => void recover('cancel')}
+                  >
+                    {t('catalogCommandCancel')}
+                  </Button>
+                )}
+              </span>
+            }
+          >
+            {state.phase === 'unknown' && code && code !== 'PROCESS_RESULT_UNCERTAIN'
+              ? t('catalogCommandLastProblem', { message: catalogErrorMessageFor(state.error, t) })
+              : undefined}
+          </Alert>
         );
       })}
       {commands.refreshing.length > 0 && (

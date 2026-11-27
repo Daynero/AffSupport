@@ -5,7 +5,7 @@ import { ReconnectAction } from '../components/ReconnectAction';
 import { Button, uiClasses } from '../components/ui/index';
 import { useI18n, type TranslationKey, type Translate } from '../i18n';
 import { internalLink } from '../lib/navigation';
-import { teamErrorMessage, teamErrorMessageFor } from './errors';
+import { teamErrorCodeOf, teamErrorMessage, teamErrorMessageFor } from './errors';
 import { spaceRouteFor } from './SpaceSettingsLink';
 import type { TeamSettingsTab } from './routes';
 import { useOptionalTeam } from './TeamContext';
@@ -83,6 +83,16 @@ const CATALOG_COPY: Readonly<Record<string, TranslationKey>> = {
   NEEDS_REAUTH: 'catalogWaitNeedsReauth',
   SPACE_BLOCKED: 'catalogWaitSpaceBlocked'
 };
+
+/**
+ * The catalog reading of a thrown error: a refused «Оновити зараз» with AGENT_REQUIRED means no
+ * computer with background work for this space, not «Soty is not running here» (production
+ * 2026-11-27: Soty was connected, its background work was not).
+ */
+export function catalogErrorMessageFor(error: unknown, t: Translate): string {
+  const code = teamErrorCodeOf(error);
+  return code && CATALOG_COPY[code] ? t(CATALOG_COPY[code]) : teamErrorMessageFor(error, t);
+}
 
 /** Where a full Google storage is cleaned up; it is the owner's Google account. */
 export const GOOGLE_STORAGE_URL = 'https://drive.google.com/settings/storage';

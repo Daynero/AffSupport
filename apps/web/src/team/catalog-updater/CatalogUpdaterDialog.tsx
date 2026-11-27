@@ -19,6 +19,7 @@ import { Alert, Button } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
+import { catalogErrorMessageFor } from '../catalogFixActions';
 import { useTeam } from '../TeamContext';
 import { navigateTo, BEFORE_NAVIGATION_EVENT } from '../../lib/navigation';
 import { spaceRouteFor } from '../SpaceSettingsLink';
@@ -462,7 +463,7 @@ function CatalogUpdaterDialogScope({
     }
     return commands.submit(ids).then(outcome => {
       if (owner.current() && outcome.kind === 'rejected')
-        push({ tone: 'error', text: teamErrorMessageFor(outcome.error, t) });
+        push({ tone: 'error', text: catalogErrorMessageFor(outcome.error, t) });
     });
   };
 

@@ -7,7 +7,7 @@ import type { CatalogDriveConnectionInfo } from '../../api/catalog-manager-runti
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
 import { Alert, Badge, Button, Collapse, Link, type UiColor } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
-import { CatalogFixButton, catalogCodeMessage } from '../catalogFixActions';
+import { CatalogFixButton, catalogCodeMessage, catalogErrorMessageFor } from '../catalogFixActions';
 import { teamErrorMessageFor } from '../errors';
 import './catalog-manager-activity.css';
 
@@ -102,7 +102,7 @@ function CatalogStatusDetailsScope({
       setAttempts(null);
       setRevision(value => value + 1);
     } catch (cause) {
-      setRetryError(teamErrorMessageFor(cause, t));
+      setRetryError(catalogErrorMessageFor(cause, t));
       // A lost command reply must be reconciled before offering another mutation.
       setAttempts(null);
       setRevision(value => value + 1);

@@ -189,7 +189,14 @@ it('ignores an old team receipt when the hook is reused without an actor change'
   expect(view.result.current.states).toEqual([]);
 });
 
-it.each(['STALE_RESULT', 'CATALOG_UPDATE_RECONCILIATION_REQUIRED'] as const)(
+// AGENT_REQUIRED / AGENT_UPDATE_REQUIRED: the run's preflight refused before anything was written
+// (production 2026-11-27) — it used to read as «не підтверджено» with «Перевірити стан» forever.
+it.each([
+  'STALE_RESULT',
+  'CATALOG_UPDATE_RECONCILIATION_REQUIRED',
+  'AGENT_REQUIRED',
+  'AGENT_UPDATE_REQUIRED'
+] as const)(
   'keeps an explicit transactional %s refusal distinct from a lost acknowledgement',
   async code => {
     const { TeamApiError } = await import('../apps/web/src/api/team');
