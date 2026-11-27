@@ -3104,7 +3104,11 @@
   max-width: min(340px, calc(100vw - var(--space-4)));
   overflow: hidden;
 }
-.ui-menu-popover > .ui-menu {
+/* DropdownMenu wraps the menu in a `display: contents` div (Tab handling), so the menu is
+   not a direct child: without the second selector the rule never matched and a long menu
+   on a short screen was clipped with no way to reach its last actions (owner, 27.11). */
+.ui-menu-popover > .ui-menu,
+.ui-menu-popover > .contents > .ui-menu {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
