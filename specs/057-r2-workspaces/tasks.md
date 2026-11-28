@@ -472,6 +472,31 @@
   R2-просторі.
 - [ ] T104 [US1] Ці три шляхи для R2 (зараз відмовляють `MULTI_CREATIVE_UNSUPPORTED` /
   `STORAGE_BACKEND_MISMATCH` до запису). Тест: T103.
+  **Стан T101–T104 (2026-11-28, п'ята сесія): не почато, бо кожен — окремий конвеєр.** Точний
+  обсяг, щоб брати з цього місця:
+  - T102 (відкладена публікація). Відмовляють `assertSpaceCatalogRequest`/`spaceCatalogVariations`
+    (`catalog-space-source.ts`) і `spaceCatalogVideoAuthority.prepare` (`catalog-space-variants.ts`).
+    Треба: (1) R2-ціль публікації — `catalog_publication_targets` знає лише `video_set`
+    (Drive-набір `catalog_video_sets`) і `source` (версія Drive-джерела): потрібен вид для
+    `space_catalog_variant_sets` і для джерела-об'єкта простору (`content_id`); (2) R2-аналог
+    `service_begin/finish_initial_catalog_publication` без `catalog_initial_publication_checks`
+    (`file_id`/`connection_id`/`root_folder_id`) і без legacy-adoption-блоку — політика й завдання
+    одразу `waiting`; `registerCreated` R2-авторитету реєструє їх у тій самій транзакції, що
+    `service_link_space_catalog_feed`; (3) робітник публікації (`catalog-updater`,
+    `service_claim_catalog_publication_jobs` → `publication-cells.ts`) для каталогу зі стрічкою
+    бере адреси R2-копій цілі (`service_space_catalog_variant_links` / копія джерела) і пише
+    `applyFeedPublicationCells`, перевіряє `verifyFeedPublicationCells`, без Drive-базової
+    перевірки (`catalog-publication-baseline.ts`); (4) до строку оновлювач тримає порожні клітинки
+    відео (`held`), як на Drive; (5) діалог R2 показує «Опублікувати пізніше» (зараз ховає), uk+en.
+  - T104, каталог картинок: `publishCreativeImages` у `spaceCatalogDeps` — `undefined`; потрібна
+    публікація картинок простору в публічний bucket каталогів (як 045 для Drive-пулу) і облік у
+    `catalogs` (як T111 для відео).
+  - T104, кілька креативів (062): авторитет простору приймає один набір (`catalogPlanVideoSets` > 1 →
+    `MULTI_CREATIVE_UNSUPPORTED`); потрібен набір на сегмент (`plan.segments`), адреси за сегментами
+    і `failedOrdinal`, без перезашивки — копія кожного джерела.
+  - T104, каталоги запусків: ключ `launch:` у `drive-ops /product-catalog/create` завжди йде Drive-
+    гілкою (`launch-catalog.ts`, `launch-created-catalog-video.ts`, Drive-контекст запуску);
+    потрібна R2-гілка запуску через `createSpaceProductCatalog`.
 - [ ] T105 [US1] Приймання на беті (частина T062): каталог з 10 варіаціями в пілотному R2-просторі,
   агент arm64 і Windows, видалення каталогу — 0 об'єктів у bucket простору й у публічному.
 - [x] T106 [P] [US1] Тест для T107 — фонове доведення варіацій R2-каталогу:
