@@ -120,7 +120,9 @@ export const AGENT_TOOL_CONTRACTS = {
   landingOptimizer: 2,
   landingPreview: 2,
   transcription: 6,
-  teamWorkspace: 2,
+  // 3 (057): reads and writes a Soty space on R2 — the source from the files host with Range,
+  // the result as a multipart with Content-MD5 parts. Contract 2 stays what it was for Drive.
+  teamWorkspace: 3,
   // Background landing renders for team spaces (011). Absent from
   // WEB_TOOL_REQUIREMENTS for the same reason as `power`: it is a capability
   // read directly from the contract (teamBackgroundRenderSupported in shared),
@@ -186,6 +188,29 @@ export const WEB_TOOL_REQUIREMENTS = {
   // Feature-specific callers gate the new landing-render routes on contract 2.
   teamWorkspace: { teamWorkspace: 1 }
 } as const;
+
+/**
+ * The team workspace contract of the landing render and gallery routes (011). They arrived with
+ * contract 2 and did not change in 3, so they are gated on 2 rather than on the current
+ * contract: a contract-2 agent keeps rendering Drive landings.
+ */
+export const TEAM_LANDING_RENDER_CONTRACT = 2;
+
+/**
+ * 057: the team workspace contract that reads and writes an R2 space (`space-storage`).
+ *
+ * Deliberately not a WEB_TOOL_REQUIREMENTS entry. That map is byte-compared against the signed
+ * stable.json, so a new key would hold every web-only release until an agent release published
+ * it; and the requirement is not a tool page — it is a property of the space a run is in. The
+ * web asks it per run (an R2 space) and the server refuses an older protocol on its own
+ * (`/process/output/start` answers protocol 2 with AGENT_UPDATE_REQUIRED, the recovery claim of
+ * an R2 job needs 3).
+ */
+export const SPACE_STORAGE_AGENT_CONTRACT = 3;
+
+export function spaceStorageAgentSupported(contracts: Partial<Record<string, number>>): boolean {
+  return (contracts.teamWorkspace ?? 0) >= SPACE_STORAGE_AGENT_CONTRACT;
+}
 
 export type ToolContractName = keyof typeof AGENT_TOOL_CONTRACTS;
 export type ToolContracts = Partial<Record<ToolContractName, number>>;

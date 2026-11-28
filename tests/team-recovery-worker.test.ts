@@ -957,6 +957,10 @@ describe('background recovery worker', () => {
     await f.worker.idle();
     expect(f.fetcher).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(f.fetcher.mock.calls[0][1]?.body)).restitchContractVersion).toBe(2);
+    // 057: the claim says which workspace contract this agent speaks (R2 work needs 3).
+    expect(JSON.parse(String(f.fetcher.mock.calls[0][1]?.body)).teamWorkspaceContractVersion).toBe(
+      3
+    );
     await vi.advanceTimersByTimeAsync(29000);
     await f.worker.idle();
     expect(f.fetcher).toHaveBeenCalledTimes(1);

@@ -6,6 +6,8 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { TeamFileOperationResult, TeamTransferGrant } from '@video-compressor/shared';
 import type { TeamSourceCache } from './source-cache.js';
+import { isSpaceAgentSourceUrl, isSpaceStorageBase, SpaceR2Transfer } from './r2-transfer.js';
+import { TeamSourceIntegrityError } from './source-integrity.js';
 
 const MAX_RANGE_BYTES = 32 * 1024 * 1024;
 const MAX_TRANSFER_BYTES = 100 * 1024 * 1024 * 1024;
@@ -15,15 +17,7 @@ const UPLOAD_CHUNK_MULTIPLE = 256 * 1024;
 // each upload buffer bounded and retaining progress between acknowledgements.
 const UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024;
 
-/** Safe local diagnostic detail; contains no source identity or content. */
-export type TeamSourceIntegrityReason = 'checksum_invalid' | 'checksum_mismatch' | 'size_mismatch';
-export class TeamSourceIntegrityError extends Error {
-  readonly reason: TeamSourceIntegrityReason;
-  constructor(reason: TeamSourceIntegrityReason) {
-    super(reason === 'checksum_invalid' ? 'INVALID_RESPONSE' : 'SOURCE_CHANGED');
-    this.reason = reason;
-  }
-}
+export { TeamSourceIntegrityError, type TeamSourceIntegrityReason } from './source-integrity.js';
 
 export interface TeamSourceDownloadRequest {
   operationId: string;
@@ -118,18 +112,36 @@ export interface TeamTransferClientOptions {
    * Sources already held on this computer, by content identity. When the first ranged read
    * names bytes the cache holds, the rest of the download is read from disk (verified).
    */
-  sourceCache?: Pick<TeamSourceCache, 'place' | 'keep'>;
+  sourceCache?: Pick<TeamSourceCache, 'place' | 'keep'> &
+    Partial<Pick<TeamSourceCache, 'placeContent' | 'keepContent'>>;
+  /** 057: the R2 half, injectable for tests; built from the options above otherwise. */
+  space?: SpaceR2Transfer;
 }
 
 export class TeamTransferClient {
   readonly #fetch: typeof fetch;
   readonly #temporaryRoot: string;
   readonly #sourceCache: Pick<TeamSourceCache, 'place' | 'keep'> | null;
+  readonly #space: SpaceR2Transfer;
 
   constructor(options: TeamTransferClientOptions = {}) {
     this.#fetch = options.fetchImpl ?? fetch;
     this.#temporaryRoot = options.temporaryRoot ?? os.tmpdir();
     this.#sourceCache = options.sourceCache ?? null;
+    const cache = options.sourceCache;
+    this.#space =
+      options.space ??
+      new SpaceR2Transfer({
+        fetchImpl: this.#fetch,
+        temporaryRoot: this.#temporaryRoot,
+        sourceCache:
+          cache?.placeContent && cache.keepContent
+            ? {
+                placeContent: cache.placeContent.bind(cache),
+                keepContent: cache.keepContent.bind(cache)
+              }
+            : null
+      });
   }
 
   async downloadSource(
@@ -139,6 +151,9 @@ export class TeamTransferClient {
     request = { ...request, grant: { ...request.grant } };
     validateOperationId(request.operationId);
     validateTransferGrant(request.grant, ['process_input', 'download_range']);
+    // 057: a source in an R2 space is named by space-storage, never by drive-transfer.
+    if (isSpaceAgentSourceUrl(request.transferUrl))
+      return this.#space.downloadSource(request, signal);
     const maximumBytes = request.maxTotalBytes ?? MAX_TRANSFER_BYTES;
     const maximumRetries = request.maxRetries ?? 4;
     if (
@@ -379,6 +394,8 @@ export class TeamTransferClient {
   ): Promise<TeamFileOperationResult> {
     validateOperationId(request.operationId);
     validateTransferGrant(request.finalizeGrant, ['finalize']);
+    // 057: the output of a run in an R2 space goes to R2 through space-storage (protocol 3).
+    if (isSpaceStorageBase(request.cloudBaseUrl)) return this.#space.uploadResult(request, signal);
     const baseUrl = cloudBaseUrl(request.cloudBaseUrl);
     throwIfAborted(signal);
     const { source, checksum } = await fingerprintUpload(request.file, request.sizeBytes, signal);
@@ -498,6 +515,7 @@ export class TeamTransferClient {
     finalizeGrant: TeamTransferGrant;
   }): Promise<void> {
     validateOperationId(request.operationId);
+    if (isSpaceStorageBase(request.cloudBaseUrl)) return this.#space.ackUploadQuiescence(request);
     const baseUrl = cloudBaseUrl(request.cloudBaseUrl);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);

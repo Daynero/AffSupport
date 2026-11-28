@@ -20,6 +20,7 @@ import { constants } from 'node:fs';
 import { copyFile, link, mkdir, readdir, rename, rm, stat, utimes } from 'node:fs/promises';
 import path from 'node:path';
 import { applicationSupportRoot } from '../files/support-dir.js';
+import { spaceContentOfFile } from './space-content.js';
 
 const DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const DEFAULT_MAX_ENTRY_BYTES = 2 * 1024 * 1024 * 1024;
@@ -32,6 +33,10 @@ export interface TeamSourceCacheOptions {
 
 function validChecksum(checksum: string): boolean {
   return /^[a-f0-9]{32}$/iu.test(checksum);
+}
+
+function validContentId(contentId: string): boolean {
+  return /^[a-f0-9]{64}$/u.test(contentId);
 }
 
 /** Hard link where the volume allows it, otherwise a clone (APFS) or a plain copy. */
@@ -105,8 +110,55 @@ export class TeamSourceCache {
   /** Keeps a just-verified download for the next operation over the same bytes. Never throws. */
   async keep(checksum: string, sizeBytes: number, file: string): Promise<void> {
     if (!validChecksum(checksum) || !Number.isSafeInteger(sizeBytes) || sizeBytes < 1) return;
+    await this.#keepAt(this.pathFor(checksum, sizeBytes), sizeBytes, file);
+  }
+
+  /**
+   * 057 (F11): a file of a Soty space, by its `content_id`. An R2 space names its bytes by
+   * content, not by a Drive MD5, so the same video run through a tool again — or a copy of it
+   * elsewhere in the space, which is the same object — is read from disk instead of downloaded.
+   */
+  contentPathFor(contentId: string, sizeBytes: number): string {
+    return path.join(this.#directory, `space-${contentId}-${sizeBytes}.bin`);
+  }
+
+  /** As `place`, verified by recomputing the content id of the placed copy. */
+  async placeContent(
+    contentId: string,
+    sizeBytes: number,
+    destination: string,
+    signal: AbortSignal
+  ): Promise<boolean> {
+    if (!validContentId(contentId) || !Number.isSafeInteger(sizeBytes) || sizeBytes < 1)
+      return false;
+    const held = this.contentPathFor(contentId, sizeBytes);
+    try {
+      const stats = await stat(held);
+      if (!stats.isFile() || stats.size !== sizeBytes) return false;
+      await placeFile(held, destination);
+      signal.throwIfAborted();
+      if ((await spaceContentOfFile(destination, sizeBytes, signal)).contentId !== contentId)
+        throw new Error('CHECKSUM_MISMATCH');
+      const now = new Date();
+      await utimes(held, now, now).catch(() => undefined);
+      return true;
+    } catch (error) {
+      await rm(destination, { force: true }).catch(() => undefined);
+      if (error instanceof Error && error.message === 'CHECKSUM_MISMATCH')
+        await rm(held, { force: true }).catch(() => undefined);
+      if (signal.aborted) throw signal.reason ?? new Error('PROCESS_CANCELED');
+      return false;
+    }
+  }
+
+  /** Keeps a download whose content id was just verified. Never throws. */
+  async keepContent(contentId: string, sizeBytes: number, file: string): Promise<void> {
+    if (!validContentId(contentId) || !Number.isSafeInteger(sizeBytes) || sizeBytes < 1) return;
+    await this.#keepAt(this.contentPathFor(contentId, sizeBytes), sizeBytes, file);
+  }
+
+  async #keepAt(target: string, sizeBytes: number, file: string): Promise<void> {
     if (sizeBytes > this.#maxEntryBytes) return;
-    const target = this.pathFor(checksum, sizeBytes);
     try {
       const existing = await stat(target).catch(() => null);
       if (existing?.isFile() && existing.size === sizeBytes) return;

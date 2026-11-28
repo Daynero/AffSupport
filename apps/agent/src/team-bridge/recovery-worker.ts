@@ -6,6 +6,7 @@ import {
 } from './catalog-variant-recovery.js';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
+  AGENT_TOOL_CONTRACTS,
   isRecord,
   parseTeamTransferGrant,
   parseMaterialRestitchPrep,
@@ -1417,6 +1418,9 @@ export class TeamRecoveryWorker {
         (await this.#call(r.endpoint, 'claim', secrets.claim, {
           requestId,
           restitchContractVersion: RESTITCH_CONTRACT_VERSION,
+          // 057: the workspace contract this agent speaks; an R2 space's work is claimed only by
+          // contract 3, and an agent that says nothing is treated as contract 2.
+          teamWorkspaceContractVersion: AGENT_TOOL_CONTRACTS.teamWorkspace,
           ...(this.options.screenRefusals
             ? { screenRefusals: await this.options.screenRefusals(r.teamId) }
             : {})

@@ -53,6 +53,9 @@ import {
 } from '../packages/shared/src/team/index';
 import {
   AGENT_TOOL_CONTRACTS,
+  SPACE_STORAGE_AGENT_CONTRACT,
+  spaceStorageAgentSupported,
+  TEAM_LANDING_RENDER_CONTRACT,
   WEB_TOOL_REQUIREMENTS,
   toolContractCompatible
 } from '../packages/shared/src/release';
@@ -219,12 +222,21 @@ describe('team contract', () => {
   });
 
   it('negotiates teamWorkspace independently of existing agent tools', () => {
-    expect(AGENT_TOOL_CONTRACTS.teamWorkspace).toBe(2);
+    expect(AGENT_TOOL_CONTRACTS.teamWorkspace).toBe(3);
     expect(WEB_TOOL_REQUIREMENTS.teamWorkspace).toEqual({ teamWorkspace: 1 });
     expect(toolContractCompatible('teamWorkspace', {})).toBe(false);
     expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 1 })).toBe(true);
     expect(toolContractCompatible('teamWorkspace', { teamWorkspace: 2 })).toBe(true);
     expect(toolContractCompatible('compressor', { compressor: 3, imageEmbedding: 2 })).toBe(true);
+  });
+
+  it('asks contract 3 only of a run in an R2 space (057)', () => {
+    expect(SPACE_STORAGE_AGENT_CONTRACT).toBe(3);
+    expect(spaceStorageAgentSupported({ teamWorkspace: 2 })).toBe(false);
+    expect(spaceStorageAgentSupported({ teamWorkspace: 3 })).toBe(true);
+    // The landing routes did not change with R2: a contract-2 agent still serves them.
+    expect(TEAM_LANDING_RENDER_CONTRACT).toBe(2);
+    expect(WEB_TOOL_REQUIREMENTS).not.toHaveProperty('spaceStorage');
   });
 
   it('keeps the applied error-code seed immutable and verifies the complete additive catalog', async () => {
