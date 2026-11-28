@@ -532,6 +532,7 @@
 ### Фаза 8 — приймання M1 і реліз на next
 
 - [ ] T062 Приймання M1 на беті:
+  - **Edge-функції запускаються по-справжньому.** `deno check` не входить у `npm run verify`, а на цій машині немає deno. Тому кожен новий і змінений маршрут `space-storage`, `drive-ops` (каталоги R2), `catalog-updater` і `catalog-images` треба викликати на беті через `supabase functions serve`. Помилка імпорту чи типів, яку не бачать vitest-тести, має проявитись тут, а не на next.
   - **Перед будь-яким деплоєм Worker-а з біндінгом:** створити `soty-spaces-production` і розкоментувати `[[r2_buckets]] SPACE_BUCKET` у `apps/catalog-image-delivery/wrangler.toml`. До того біндінг вимкнено, бо wrangler не деплоїть біндінг до неіснуючого кошика, а цей Worker віддає живі картинки каталогів.
   - міграції через `psql` + `schema_migrations`;
   - у env функцій беті `SPACE_FILES_ORIGIN=http://127.0.0.1:54321/functions/v1/space-storage/files`
