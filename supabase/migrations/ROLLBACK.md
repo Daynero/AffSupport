@@ -3631,8 +3631,7 @@ text is missing); redefines `private.note_catalog_variant_round_wait` (final cod
 AGENT_REQUIRED/AGENT_ID_CONFLICT wait 2 hours with a growing pause) and
 `private.settle_catalog_round_limits` (sets no computer took up: 6 hours, or 1 hour after the computer
 reported a stop). Undo by removing the three preflight lines, dropping the helper, restoring
-`note_catalog_variant_round_wait` from 20261207175000 and `settle_catalog_round_limits` from
-20261224200000.
+`note_catalog_variant_round_wait` from 20261207175000 and `settle_catalog_round_limits` from 20261224200000.
 
 ## 20261224210000 — publish again, Drive coming back, creation preflight (072, П3/П6)
 
@@ -3642,8 +3641,7 @@ trigger `team_drive_connections_requeue_catalog_publications` with
 `private.team_drive_connection_requeue_catalog_publications`, and `public.team_catalog_creation_preflight`;
 requeues once the `target_unavailable` jobs whose connection is already connected; redefines
 `public.service_read_initial_catalog_video` (adds `waitReason`/`backgroundStalled`). No table or column.
-Undo: drop the trigger and the four functions, restore `service_read_initial_catalog_video` from
-20261207240000. Requeued jobs simply publish or block again; the web hides
+Undo: drop the trigger and the four functions, restore `service_read_initial_catalog_video` from 20261207240000. Requeued jobs simply publish or block again; the web hides
 «Опублікувати ще раз» and the preflight when the functions are missing (PGRST202).
 
 ## 20261224260000 — DISK_FULL and AGENT_STALLED codes (072, П6)
@@ -3834,3 +3832,39 @@ For a Drive space every answer is unchanged. Undo by re-running the two context 
 as the patch did), and dropping the three new functions; an R2 space then answers the Drive paths
 with an empty context (PERMISSION_DENIED) instead of STORAGE_BACKEND_MISMATCH. Edge functions
 from this release read a missing `service_space_storage_backend` as Drive.
+
+## 20261226150000 — 057 uploads into an R2 space
+
+Adds `space_uploads.verified_content_id` and `object_etag`, the admit/attach/session/
+completing/complete/reject/abort service functions, the reference triggers on R2 rows of
+`team_materials` (`team_materials_space_refs`, `team_materials_space_refs_deleted`, both
+`when connection_id is null`), the purge-queue trigger on `space_object_refs` and private
+helpers; replaces the R2-only `private.space_list_folder_page` and `private.space_list_folder_tree`
+(folder key = its id, plus `contentId` and `materialRevision`). A Drive space executes none of
+it. Undo by dropping the two triggers on `team_materials` and the one on `space_object_refs`, the
+new functions and the two columns, and re-running the two list functions from 20261226120000;
+R2 references then stop following materials and the meter stops moving.
+
+## 20261226160000 — 057 changing an R2 space
+
+Adds `service_mutate_space_materials`, `service_empty_space_trash` and the R2-folder cascade
+trigger `cascade_space_folder_trash` (`when connection_id is null`). The Drive cascade is
+untouched. Undo by dropping the trigger and the functions; trashing an R2 folder then no longer
+hides its children.
+
+## 20261226170000 — 057 the access epoch for the files host
+
+Adds the service-only `service_space_read_epoch(uuid)`. Undo by dropping it; the space-read
+Worker then answers 503 for every read.
+
+## 20261226180000 — 057 task attachments in an R2 space
+
+Makes `private.task_owned_uploads.upload_operation_id` and `drive_file_id` nullable, adds
+`space_upload_id` with a check that one source is set, adds triggers on `space_uploads`
+(task capture) and `team_task_attachments` (attachment references), and redefines
+`private.task_cleanup_has_reference` (a null Drive id no longer turns the match unknown; a
+material's own space upload receipt is not a reference) and `public.service_claim_task_cleanup`
+(an R2 file is trashed in SQL and settled at once). Both bodies are otherwise the
+20261205122000 ones, so a Drive material is answered as before. Undo by re-running those two
+functions from 20261205122000 and dropping the two triggers and the column; R2 task uploads
+then stay as ordinary materials and their cleanups are never claimed.
