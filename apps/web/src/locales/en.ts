@@ -5401,5 +5401,16 @@ export const en = {
   spaceStorageWarnFree: '{free} free.',
   spaceStorageWarnWontFit: 'Won’t fit: needs ≈ {size}, {free} free.',
   spaceStorageWarnFull: 'Nothing new fits until you free up space.',
-  spaceStorageFreeUp: 'Free up space'
+  spaceStorageFreeUp: 'Free up space',
+  spaceStorageDeleteCatalog: 'Delete catalog',
+  spaceStorageDeleteCatalogTitle: 'Delete catalog “{name}”?',
+  spaceStorageDeleteCatalogBody:
+    'It goes to the trash for 30 days, and its videos stop playing at once. What only it holds ({size}) is freed when the trash is emptied; {shared} is shared with other catalogs or the picture library and stays.',
+  spaceStorageDeleteCatalogForeverBody:
+    'Frees {size} at once: its feed, videos and variations. {shared} is shared and stays. The catalog cannot be brought back.',
+  spaceStorageEmptyTrash: 'Empty trash',
+  spaceStorageEmptyTrashTitle: 'Empty the trash?',
+  spaceStorageEmptyTrashBody:
+    'Frees {size} at once. Nothing in it can be brought back; whatever a task or a catalog still uses stays in the trash.',
+  spaceStorageTrashEmptied: 'Trash emptied'
 } as const;

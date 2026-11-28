@@ -5374,5 +5374,16 @@ export const uk: Record<keyof typeof en, string> = {
   spaceStorageWarnFree: 'Вільно {free}.',
   spaceStorageWarnWontFit: 'Не поміститься: потрібно ≈ {size}, вільно {free}.',
   spaceStorageWarnFull: 'Нове не поміститься, доки не звільните місце.',
-  spaceStorageFreeUp: 'Звільнити місце'
+  spaceStorageFreeUp: 'Звільнити місце',
+  spaceStorageDeleteCatalog: 'Видалити каталог',
+  spaceStorageDeleteCatalogTitle: 'Видалити каталог «{name}»?',
+  spaceStorageDeleteCatalogBody:
+    'Каталог піде в кошик на 30 днів, а його відео одразу перестануть відтворюватись. Те, що тримає лише він ({size}), звільниться, щойно кошик очистять; {shared} — спільне з іншими каталогами чи бібліотекою картинок, воно лишиться.',
+  spaceStorageDeleteCatalogForeverBody:
+    'Звільнить {size} одразу: стрічку, відео й варіації. {shared} — спільне, воно лишиться. Повернути каталог не вийде.',
+  spaceStorageEmptyTrash: 'Очистити кошик',
+  spaceStorageEmptyTrashTitle: 'Очистити кошик?',
+  spaceStorageEmptyTrashBody:
+    'Звільнить {size} одразу. Повернути нічого не вийде; те, що ще використовує завдання чи каталог, лишиться в кошику.',
+  spaceStorageTrashEmptied: 'Кошик очищено'
 };

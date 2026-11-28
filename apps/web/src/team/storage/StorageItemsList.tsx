@@ -52,6 +52,12 @@ const SEARCH_SETTLE_MS = 250;
  * is and goes to the trash from here (from the trash: for good); a catalog opens on its three
  * numbers — what it takes, what is shared and stays, what deleting it frees. Re-read whenever the
  * space's usage moves (`revision`), so a delete in another window shows here too.
+ *
+ * 057 T124: everything a person can free is freed from here (US9.2, US10). A catalog is deleted
+ * the way the catalog manager deletes it in an R2 space — to the trash, its videos at once — with
+ * the numbers of what that frees and what stays shared; a catalog in the trash goes for good; the
+ * trash itself is emptied with one confirmation. `onChanged` redraws the scale at once, without
+ * waiting for the `usage` signal. A task's attachment and the shared picture library only open.
  */
 export function StorageItemsList({
   teamId,
@@ -59,7 +65,9 @@ export function StorageItemsList({
   revision,
   client = spaceStorageApi,
   onOpen,
-  canDelete = false
+  canDelete = false,
+  categoryBytes,
+  onChanged
 }: {
   teamId: string;
   category: SpaceStorageCategory;
@@ -67,6 +75,10 @@ export function StorageItemsList({
   client?: StorageItemsClient;
   onOpen?: (item: StorageItemTarget) => void;
   canDelete?: boolean;
+  /** What the category holds on the scale, for «Очистити кошик». */
+  categoryBytes?: bigint;
+  /** After a delete: the scale reads its numbers again. */
+  onChanged?: () => void;
 }) {
   const words = useStorageWords();
   const { t, language } = words;
@@ -80,7 +92,7 @@ export function StorageItemsList({
   const [failed, setFailed] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [asked, setAsked] = useState(0);
-  const [confirming, setConfirming] = useState<SpaceStorageItem | null>(null);
+  const [confirming, setConfirming] = useState<SpaceStorageItem | 'trash' | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const latest = useRef(0);
@@ -144,6 +156,22 @@ export function StorageItemsList({
       toasts?.push({ tone: 'success', text: t('spaceStorageDeleted', { name: item.name ?? '' }) });
       setConfirming(null);
       setAsked(value => value + 1);
+      onChanged?.();
+    } catch (cause) {
+      toasts?.push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const emptyTrash = async () => {
+    setBusy(true);
+    try {
+      await client.emptyTrash(teamId);
+      toasts?.push({ tone: 'success', text: t('spaceStorageTrashEmptied') });
+      setConfirming(null);
+      setAsked(value => value + 1);
+      onChanged?.();
     } catch (cause) {
       toasts?.push({ tone: 'error', text: teamErrorMessageFor(cause, t) });
     } finally {
@@ -154,7 +182,40 @@ export function StorageItemsList({
   const date = (at: string | null) =>
     at ? new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(new Date(at)) : null;
   const deletable = (item: SpaceStorageItem) =>
-    canDelete && item.kind === 'file' && item.id !== null && category !== 'attachments';
+    canDelete &&
+    item.id !== null &&
+    (item.kind === 'catalog' || (item.kind === 'file' && category !== 'attachments'));
+  const deleteLabel = (item: SpaceStorageItem) =>
+    item.trashed
+      ? t('spaceStorageDeleteForever')
+      : item.kind === 'catalog'
+        ? t('spaceStorageDeleteCatalog')
+        : t('spaceStorageDelete');
+  const confirmText = (item: SpaceStorageItem) => {
+    const name = item.name ?? '';
+    const size = words.bytes(item.freedBytes);
+    const shared = words.bytes(item.sharedBytes);
+    if (item.kind === 'catalog')
+      return item.trashed
+        ? {
+            title: t('spaceStorageDeleteForeverTitle', { name }),
+            body: t('spaceStorageDeleteCatalogForeverBody', { size, shared })
+          }
+        : {
+            title: t('spaceStorageDeleteCatalogTitle', { name }),
+            body: t('spaceStorageDeleteCatalogBody', { size, shared })
+          };
+    return item.trashed
+      ? {
+          title: t('spaceStorageDeleteForeverTitle', { name }),
+          body: t('spaceStorageDeleteForeverBody', { size })
+        }
+      : {
+          title: t('spaceStorageDeleteTitle', { name }),
+          body: t('spaceStorageDeleteBody', { size })
+        };
+  };
+  const canEmptyTrash = canDelete && category === 'trash' && !!page && page.total > 0;
 
   return (
     <section className="space-storage-list" aria-labelledby={titleId}>
@@ -164,6 +225,11 @@ export function StorageItemsList({
             ? t(STORAGE_CATEGORY_LABEL[category])
             : t('spaceStorageTop', { category: t(STORAGE_CATEGORY_LABEL[category]) })}
         </h3>
+        {canEmptyTrash && (
+          <Button size="xs" variant="outline" color="error" onClick={() => setConfirming('trash')}>
+            {t('spaceStorageEmptyTrash')}
+          </Button>
+        )}
         {full && (
           <div className="space-storage-list-tools">
             <SearchField
@@ -285,7 +351,7 @@ export function StorageItemsList({
                       color="error"
                       onClick={() => setConfirming(item)}
                     >
-                      {item.trashed ? t('spaceStorageDeleteForever') : t('spaceStorageDelete')}
+                      {deleteLabel(item)}
                     </Button>
                   )}
                 </div>
@@ -312,27 +378,26 @@ export function StorageItemsList({
         </Button>
       )}
 
-      {confirming && (
+      {confirming === 'trash' ? (
+        <ConfirmDialog
+          busy={busy}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => void emptyTrash()}
+          title={t('spaceStorageEmptyTrashTitle')}
+          body={t('spaceStorageEmptyTrashBody', { size: words.bytes(categoryBytes ?? 0n) })}
+          confirmLabel={t('spaceStorageEmptyTrash')}
+          cancelLabel={t('cancel')}
+        />
+      ) : confirming ? (
         <ConfirmDialog
           busy={busy}
           onCancel={() => setConfirming(null)}
           onConfirm={() => void remove(confirming)}
-          title={
-            confirming.trashed
-              ? t('spaceStorageDeleteForeverTitle', { name: confirming.name ?? '' })
-              : t('spaceStorageDeleteTitle', { name: confirming.name ?? '' })
-          }
-          body={
-            confirming.trashed
-              ? t('spaceStorageDeleteForeverBody', { size: words.bytes(confirming.freedBytes) })
-              : t('spaceStorageDeleteBody', { size: words.bytes(confirming.freedBytes) })
-          }
-          confirmLabel={
-            confirming.trashed ? t('spaceStorageDeleteForever') : t('spaceStorageDelete')
-          }
+          {...confirmText(confirming)}
+          confirmLabel={deleteLabel(confirming)}
           cancelLabel={t('cancel')}
         />
-      )}
+      ) : null}
     </section>
   );
 }

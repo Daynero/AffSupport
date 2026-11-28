@@ -257,6 +257,122 @@ describe('StorageItemsList', () => {
     await screen.findByText('Clip 3.mp4');
     expect(screen.queryByRole('button', { name: 'Move to trash' })).toBeNull();
   });
+
+  // 057 T124: the owner frees space from the list itself (US9.2, US10).
+  it(
+    'deletes a catalog the way its manager does, with what it frees and what stays, and a trashed one for good',
+    { timeout: 30_000 },
+    async () => {
+      const onChanged = vi.fn();
+      const catalog = item(1, {
+        kind: 'catalog',
+        name: 'Catalog one',
+        bytes: 1700n,
+        sharedBytes: 1500n,
+        freedBytes: 200n
+      });
+      const trashed = item(2, {
+        kind: 'catalog',
+        name: 'Old catalog',
+        trashed: true,
+        sharedBytes: 0n
+      });
+      const library = item(3, {
+        kind: 'library',
+        id: null,
+        name: null,
+        sharedBytes: 900n,
+        freedBytes: 0n
+      });
+      const client = itemsClient(() => ({
+        category: 'catalogs',
+        items: [catalog, trashed, library],
+        total: 3,
+        nextCursor: null
+      }));
+      render(
+        <ToastProvider>
+          <StorageItemsList
+            teamId={TEAM}
+            category="catalogs"
+            revision={1}
+            client={client}
+            canDelete
+            onChanged={onChanged}
+          />
+        </ToastProvider>
+      );
+      await waitFor(() => expect(document.querySelectorAll('.space-storage-row')).toHaveLength(3));
+      // The shared library only shows what it holds.
+      const libraryRow = document.querySelector('.space-storage-row[data-kind="library"]')!;
+      expect(libraryRow.querySelectorAll('button')).toHaveLength(0);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete catalog' }));
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog.textContent).toContain('Delete catalog “Catalog one”?');
+      expect(dialog.textContent).toContain('What only it holds (200 B)');
+      expect(dialog.textContent).toContain('1.46 KB is shared');
+      expect(dialog.textContent).not.toMatch(/Google|Drive/u);
+      const confirm = await screen.findAllByRole('button', { name: 'Delete catalog' });
+      fireEvent.click(confirm[confirm.length - 1]!);
+      await waitFor(() =>
+        expect(client.mutate).toHaveBeenCalledWith({
+          teamId: TEAM,
+          action: 'trash',
+          materialIds: [catalog.id]
+        })
+      );
+      await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete forever' }));
+      expect((await screen.findByRole('dialog')).textContent).toContain(
+        'its feed, videos and variations'
+      );
+      const forever = await screen.findAllByRole('button', { name: 'Delete forever' });
+      fireEvent.click(forever[forever.length - 1]!);
+      await waitFor(() => expect(client.emptyTrash).toHaveBeenCalledWith(TEAM, [trashed.id]));
+      await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(2));
+    }
+  );
+
+  it('empties the whole trash with one confirmation, and only for someone who may delete', async () => {
+    const onChanged = vi.fn();
+    const client = itemsClient(() => ({
+      category: 'trash',
+      items: [item(1, { trashed: true }), item(2, { trashed: true })],
+      total: 2,
+      nextCursor: null
+    }));
+    const { rerender } = render(
+      <ToastProvider>
+        <StorageItemsList teamId={TEAM} category="trash" revision={1} client={client} />
+      </ToastProvider>
+    );
+    await waitFor(() => expect(document.querySelectorAll('.space-storage-row')).toHaveLength(2));
+    expect(screen.queryByRole('button', { name: 'Empty trash' })).toBeNull();
+    rerender(
+      <ToastProvider>
+        <StorageItemsList
+          teamId={TEAM}
+          category="trash"
+          revision={1}
+          client={client}
+          canDelete
+          categoryBytes={1_997n}
+          onChanged={onChanged}
+        />
+      </ToastProvider>
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Empty trash' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('Empty the trash?');
+    expect(dialog.textContent).toContain('Frees 1.95 KB at once');
+    const confirm = await screen.findAllByRole('button', { name: 'Empty trash' });
+    fireEvent.click(confirm[confirm.length - 1]!);
+    await waitFor(() => expect(client.emptyTrash).toHaveBeenCalledWith(TEAM));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Trash emptied')).toBeTruthy();
+  });
 });
 
 describe('Warnings where bytes are added', () => {
@@ -351,6 +467,39 @@ describe('StorageMeterPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Materials · / }));
     expect(await screen.findByText('Clip 1.mp4')).toBeTruthy();
+  });
+
+  it('redraws the scale as soon as something is deleted from its list', async () => {
+    let used = 2;
+    const client = { storageSummary: vi.fn(async () => summary(used)) };
+    const items = itemsClient(() => ({
+      category: 'materials',
+      items: [item(1)],
+      total: 1,
+      nextCursor: null
+    }));
+    items.mutate.mockImplementation(async () => {
+      used = 1;
+      return {};
+    });
+    render(
+      <ToastProvider>
+        <StorageMeterPanel
+          teamId={TEAM}
+          client={client}
+          itemsClient={items}
+          compact={false}
+          initialCategory="materials"
+          canDelete
+        />
+      </ToastProvider>
+    );
+    expect(await screen.findByText('Used 1.86 GB of 9.31 GB')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Move to trash' }));
+    const confirm = await screen.findAllByRole('button', { name: 'Move to trash' });
+    fireEvent.click(confirm[confirm.length - 1]!);
+    // No signal was published: the list told the scale itself.
+    expect(await screen.findByText('Used 954 MB of 9.31 GB')).toBeTruthy();
   });
 
   it('reads nothing for a Drive space', async () => {

@@ -113,6 +113,10 @@ export function StorageMeterPanel({
           {...(itemsClient ? { client: itemsClient } : {})}
           {...(onOpenItem ? { onOpen: onOpenItem } : {})}
           canDelete={canDelete}
+          categoryBytes={
+            summary.segments.find(segment => segment.category === category)?.bytes ?? 0n
+          }
+          onChanged={reload}
         />
       )}
     </div>
