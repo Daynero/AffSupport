@@ -634,6 +634,54 @@
       "secret": false,
       "format": "non-empty",
       "note": "052 exact environment/origin/route/keyring binding; mandatory by trusted T0 acceptance, never auto-provisioned or printed."
+    },
+    {
+      "name": "SPACE_FILES_HOST",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "057 space-read Worker (files[-beta].soty.pp.ua). Inactive until the bucket and route exist (T002/T062); never printed."
+    },
+    {
+      "name": "SPACE_BUCKET",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "057 R2 binding of soty-spaces-{env} for the space-read Worker. Inactive until T002/T062."
+    },
+    {
+      "name": "SPACE_READ_GRANT_KEYS",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "057 space-read Worker (files[-beta].soty.pp.ua). Inactive until the bucket and route exist (T002/T062); never printed. Must equal the space-storage secret of the same name."
+    },
+    {
+      "name": "SPACE_ALLOWED_ORIGINS",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "057 space-read Worker (files[-beta].soty.pp.ua). Inactive until the bucket and route exist (T002/T062); never printed."
+    },
+    {
+      "name": "SUPABASE_URL",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": false,
+      "format": "non-empty",
+      "note": "057 space-read Worker (files[-beta].soty.pp.ua). Inactive until the bucket and route exist (T002/T062); never printed. Reads access_epoch through service_space_read_epoch."
+    },
+    {
+      "name": "SUPABASE_SERVICE_ROLE_KEY",
+      "surface": "catalog-image-delivery",
+      "required": [],
+      "secret": true,
+      "format": "non-empty",
+      "note": "057 space-read Worker (files[-beta].soty.pp.ua). Inactive until the bucket and route exist (T002/T062); never printed. Reads access_epoch through service_space_read_epoch."
     }
   ]
 }

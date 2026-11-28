@@ -13,3 +13,15 @@ CATALOG_IMAGES_ENVIRONMENT = "production"
 R2_CATALOG_PUBLIC_ORIGIN = "https://catalog-images.soty.pp.ua"
 CATALOG_GLOBAL_ROUTING_REVISION = "r1"
 CATALOG_GLOBAL_DELIVERY_CONFIRMATION = "production:https://catalog-images.soty.pp.ua:r1:1"
+# 057 space-read (src/space-read.ts): private R2 space files on their own host. The route
+# `files[-beta].soty.pp.ua/*` and the bucket are provisioned by T002/T062; until then the
+# route stays out of `routes` above and nothing here is deployed. SPACE_READ_GRANT_KEYS
+# (equal to the Supabase secret of the same name) and SUPABASE_SERVICE_ROLE_KEY are Worker
+# secrets (wrangler secret put); SUPABASE_URL comes with them. Without them the files host
+# answers 503 and the /g/* alias path keeps working.
+SPACE_FILES_HOST = "files.soty.pp.ua"
+SPACE_ALLOWED_ORIGINS = "https://soty.pp.ua,https://next.soty.pp.ua"
+
+[[r2_buckets]]
+binding = "SPACE_BUCKET"
+bucket_name = "soty-spaces-production"
