@@ -18,6 +18,8 @@ export interface ThumbnailSessionClient {
   mintThumbnailSession: (teamId: string) => Promise<ThumbnailSession>;
   /** Null when the file has no picture to show yet (an R2 file before its tile, 057). */
   thumbnailUrl: (session: ThumbnailSession, materialId: string) => string | null;
+  /** A video's hover frames, one sprite (057 T123); absent or null where there is none. */
+  spriteUrl?: (session: ThumbnailSession, materialId: string) => string | null;
 }
 
 const controllers = new Map<string, AbortController>();

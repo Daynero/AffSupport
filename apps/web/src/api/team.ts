@@ -4721,6 +4721,23 @@ export const teamApi = {
     return url.toString();
   },
 
+  /**
+   * 057 T123: an R2 video's hover frames (the `sprite` derivative), kept by address like its
+   * tile. Null for a Drive space, which has no sprite, and for a file whose tile is not in yet.
+   */
+  spriteUrl(session: ThumbnailSession, materialId: string): string | null {
+    if (!isR2Space(session.teamId)) return null;
+    const facts = spaceMaterialOf(session.teamId, materialId);
+    if (!facts?.contentId || !facts.thumbnailReady) return null;
+    return stableSpaceMediaUrl({
+      filesOrigin: session.endpoint,
+      teamId: session.teamId,
+      contentId: facts.contentId,
+      grant: session.token,
+      variant: 'sprite'
+    });
+  },
+
   async listMaterials(
     teamId: string,
     parentFolderId: string | null

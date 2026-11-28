@@ -34,6 +34,7 @@ import { placeholderCount } from './placeholderCount';
 import { displayedSize, formatDate } from '../../format';
 import { isR2Space, spaceMaterialOf } from '../../api/space-storage';
 import { forgetSpaceMediaUrl } from '../storage/spaceMediaUrls';
+import { TileHoverFrames } from './TileHoverFrames';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { knownBroken, markBroken } from './brokenPictures';
 import { KindIcon } from './KindIcon';
@@ -325,6 +326,8 @@ function Tile({
   const [fellBack, setFellBack] = useState(false);
   /** A refused R2 picture is asked for once more under a fresh address; this re-renders it. */
   const [, setRetry] = useState(0);
+  /** The sprite's one retry under a fresh address (T123); a clip without one stops there. */
+  const spriteRetried = useRef(false);
   useEffect(() => {
     setBroken(knownBroken(pictureKey));
     setFellBack(false);
@@ -423,6 +426,19 @@ function Tile({
               <span className="team-explorer-tile-pending">{t('teamExplorerPreviewPending')}</span>
             )}
           </span>
+        )}
+        {/* 057 T123: an R2 video's frames under the pointer, from its sprite. */}
+        {onR2 && row.kind === 'video' && thumbnail && session && client.spriteUrl && (
+          <TileHoverFrames
+            url={client.spriteUrl(session, row.id)}
+            onUnavailable={() => {
+              const contentId = spaceMaterialOf(row.teamId, row.id)?.contentId;
+              if (spriteRetried.current || !contentId) return;
+              spriteRetried.current = true;
+              if (forgetSpaceMediaUrl(row.teamId, contentId, 'sprite'))
+                setRetry(value => value + 1);
+            }}
+          />
         )}
         {row.kind === 'video' && image && (
           <span className="team-explorer-tile-play" aria-hidden="true">

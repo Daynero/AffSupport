@@ -821,6 +821,52 @@
   color: var(--color-white);
   pointer-events: none;
 }
+/* 057 T123: a video's frames under the pointer (R2 spaces). The layer covers the frame and
+   takes the pointer; a press still reaches the tile's button around it. The frame is one cell of
+   the sprite, kept at its own shape and cut to cover the 4:3 frame like the poster under it. */
+.team-explorer-tile-frames {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.team-explorer-tile-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100cqw, calc(100cqh * var(--frame-aspect)));
+  aspect-ratio: var(--frame-aspect);
+  transform: translate(-50%, -50%);
+  background-repeat: no-repeat;
+  background-position: calc(var(--frame-x) * 100%) calc(var(--frame-y) * 100%);
+  animation: team-explorer-tile-frame-in var(--motion-fast) var(--ease-fade) both;
+}
+@keyframes team-explorer-tile-frame-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Where in the clip the frame is: a thin line along the bottom of the picture. */
+.team-explorer-tile-frames-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(var(--space-px) * 2);
+  background: var(--color-secondary-solid);
+  transform-origin: left center;
+  transform: scaleX(var(--frame-progress));
+}
+.team-explorer-tile-frames[data-state='showing'] ~ .team-explorer-tile-play {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .team-explorer-tile-frame {
+    animation: none;
+  }
+}
 .team-explorer-tile-play svg {
   width: 22px;
   height: 22px;
