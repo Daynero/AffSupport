@@ -307,6 +307,7 @@
   `supabase/tests/database/space-storage-run-results.test.sql`. Запуск поверх оригіналу
   (`versionOfMaterialId`) і далі відмовляє — тепер кодом `STORAGE_BACKEND_MISMATCH` з поясненням у
   вебі (текст без «Google»).
+
 - [x] T036 [P] [US1] Тест для T037 — `tests/catalog-feed-writer.test.ts`:
   - CSV байт у байт: заголовок `PRODUCT_CATALOG_TEMPLATE`, рядки з `buildProductCatalogRows`;
   - `text/csv; charset=utf-8`;
@@ -358,13 +359,43 @@
   - тести: `tests/catalog-video-r2-worker.test.ts` (джерело з простору, видалення стрічки),
     `supabase/tests/database/catalog-space-sources.test.sql` (25).
 
-  Відкрито:
-  - створення каталогу в R2-просторі наскрізно (`drive-ops/product-catalog.ts`: `loadVideo`,
-    `proveVideo`, `destination`, `startOperation`/`finalize` і `link` для R2 — без Drive; `commit`
-    компаньйона-стрічки; виклик `service_catalog_video_r2_resolve` з `source_version` = `content_id`);
+  **Стан (2026-11-28, третя сесія):** зроблено —
+  - створення каталогу в R2-просторі наскрізно: той самий durable-генератор над швом сховища
+    `drive-ops/catalog-space-source.ts` (відео й папка з простору через
+    `service_space_catalog_material`/`_names`; відео — R2-копія 050, спланована з
+    `source_version` = `content_id` через `service_space_catalog_video_link`; стрічка під id,
+    виведеним з операції, тож відновлене створення пише ту саму; компаньйон — R2-рядок без
+    об'єкта через `service_commit_space_catalog_feed`; зв'язок, запис стрічки й R2-вподобання в
+    одній транзакції `service_link_space_catalog_feed`). Drive-клієнт генератора відмовляє на
+    будь-який виклик. Протокол 1 без перезашивки й з публікацією одразу виконується як простий
+    запит. Оновлювач тепер отримує `feeds` (`catalog-updater/index.ts`), `resolve_current` знає
+    `content_id`. Діалог у R2-просторі не пропонує перезашивку, відкладену публікацію й опцію R2.
+    Міграція `20261226230000_space_storage_catalog_create.sql`, тести
+    `tests/catalog-space-create.test.ts`, `supabase/tests/database/catalog-space-create.test.sql`
+    (27), `tests/product-catalog-dialog.test.tsx`;
+  - імпорт картинок пулу з файлів R2-простору (`sourceKind: 'space'`): перелік дерева в SQL
+    (`service_catalog_image_space_enumerate`), читання з bucket простору за `content_id`
+    (`catalog-images/space-sources.ts`, `service_catalog_image_space_source`); `drive` — лише для
+    Drive-простору, `space` — лише для R2. Кнопка «Обрати папку простору» без «Google». Міграція
+    `20261226240000_space_storage_catalog_images.sql`, тести
+    `tests/catalog-image-space-sources.test.ts`, `tests/catalog-image-worker.test.ts`,
+    `tests/catalog-image-import.test.ts`, `tests/catalog-image-import-ui.test.tsx`,
+    `supabase/tests/database/catalog-space-images.test.sql` (19).
+
+  Відкрито (тому T040/T041 не закриті):
   - гранти `files-*` для перезашивки й варіацій (`catalog-video-process-grants.ts`,
-    `updater-restitch.ts`, `drive-ops/index.ts:2257`) — без створення їм нема чого видавати;
-  - джерело `space_object` в імпорті `catalog-images/` (SQL перелік і читання з bucket простору).
+    `updater-restitch.ts`, `drive-ops/index.ts` `handleProcessStart`). Це не окремий шов: у
+    R2-просторі ще немає конвеєра перезашивки каталогу — набори відео (`service_initial_catalog_video_context`
+    вимагає Drive-поля), папка «перезашите» (`handleEnsureRestitchedFolder` — Drive), фіналізація
+    виходів набору і `resolveCatalogReadyLinks` (доводить і шарить Drive-файли). Поки його нема,
+    створення з перезашивкою в R2 відмовляє `STORAGE_BACKEND_MISMATCH` до будь-якого запису;
+  - у R2-просторі також відмовляють (до запису): відкладена публікація, каталог картинок і
+    кілька креативів (`MULTI_CREATIVE_UNSUPPORTED`), каталоги запусків (`launch:`, шлях запусків
+    іде через Drive-контекст);
+  - `/product-catalog/video/resume` для R2 не потрібен (R2-створення не повертає
+    `preparing_video`), але якщо відповідь створення загубилась, діалог читає прогрес відео й
+    не знайде його; каталог при цьому створений і видний у списку каталогів відео (не перевірено
+    на беті).
 
 - [x] T042 [P] [US1] Тест для T043 — `tests/catalog-feed-card.test.tsx`: картка каталогу R2-простору показує й копіює адресу стрічки. Слів «Google» чи «Таблиця Google» немає. Drive-каталог без змін.
 - [x] T043 [US1] Картка каталогу у вебі: `apps/web/src/team/product-catalog/CatalogCreatedPublicationStatus.tsx`, `CatalogPublicationDialog.tsx` і місця з посиланням на таблицю показують стрічку для R2 (FR-050). Тест: T042.
