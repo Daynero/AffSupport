@@ -1,5 +1,5 @@
 begin;
-select plan(27);
+select plan(28);
 
 -- 057 T040/T041 (20261226230000): a catalog created in an R2 space. Its video and folder are read
 -- from the space, its video is linked from the R2 copy planned under the object's content id, its
@@ -120,6 +120,11 @@ select ok((select enabled from private.catalog_video_r2_preferences
  'the catalog''s video is its R2 copy');
 select is((select requested_by_catalog from private.catalog_video_r2_copies where id=(select (body->>'copyId')::uuid from links where n=1)),
  (select (body->>'materialId')::uuid from commits where n=1),'which the catalog now asks for');
+-- T091: the catalog uses its copy from the link on, so the copy is never retired as nobody's.
+select is((select copy_id from private.catalog_video_r2_uses
+  where catalog_material_id=(select (body->>'materialId')::uuid from commits where n=1)
+    and source_material_id='05742000-0000-4000-8000-000000000103'),
+ (select (body->>'copyId')::uuid from links where n=1),'the catalog uses its video''s copy from the link on');
 select is(public.service_catalog_video_r2_resolve_current((select (body->>'materialId')::uuid from commits where n=1))->>'sourceVersion',
  repeat('3',64),'the updater resolves the copy by the content id');
 select is((select companion_of from public.team_materials where id=(select (body->>'materialId')::uuid from commits where n=1)),
