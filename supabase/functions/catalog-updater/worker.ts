@@ -41,6 +41,7 @@ import {
 import { drawProductDetails, garmentOf, inventedBrand } from '../_shared/product-details.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { buildXlsx } from '../_shared/xlsx.ts';
+import type { CatalogFeedUpdater } from './feed-writer.ts';
 
 /**
  * One tick of the catalog updater (feature 023).
@@ -135,6 +136,11 @@ export interface ClaimedCatalog {
   spare: { materialId: string; link: string } | null;
   /** 062: the catalog's creatives from its snapshot; absent for a catalog from before. */
   creatives?: CatalogCreativeLayout;
+  /**
+   * 057: the catalog of an R2 space keeps a feed, not a sheet. Its Drive fields are empty and
+   * nothing about it goes through Drive or Sheets: the round writes the whole feed.
+   */
+  feed?: { feedId: string; revision: number };
 }
 
 export interface RetiredCopy {
@@ -217,6 +223,8 @@ export interface CatalogUpdaterDeps {
   ): Promise<CatalogUpdateContentContext>;
 
   workerId: string;
+  /** 057: where a catalog with a feed is written; such a round fails retryably without it. */
+  feeds?: CatalogFeedUpdater;
   /** New publication policies cannot be interpreted by a legacy video writer.
    * False is a known hold, never permission to substitute a metadata URL. */
   authorizeLegacyVideoWrite?(catalogId: string): Promise<boolean>;
@@ -374,6 +382,13 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
   const price = settings ? wholeNumber(settings.price) : null;
   const spareMaterialId = text(row.spare_material_id);
   const spareLink = text(row.spare_link);
+  // 057: a feed catalog (R2 space) has no Drive file and no credential.
+  const feedId = text(row.feed_id);
+  const feedRevision = wholeNumber(row.feed_revision);
+  const feed =
+    feedId && /^[0-9a-f]{32}$/u.test(feedId) && feedRevision !== null
+      ? { feedId, revision: feedRevision }
+      : null;
   // 062: a damaged layout throws, and the claim is parked like any unreadable row.
   const creatives =
     settings && productCount !== null ? parseCatalogCreativeLayout(settings, productCount) : null;
@@ -386,8 +401,8 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
     !sourceLink ||
     // An image catalog has no video (R19).
     (!videoLink && creatives?.kind !== 'image') ||
-    !driveFileId ||
-    !credentialId ||
+    (!feed && (!driveFileId || !credentialId)) ||
+    (row.feed_id !== undefined && row.feed_id !== null && !feed) ||
     !settings ||
     typeof settings.title !== 'string' ||
     typeof settings.description !== 'string' ||
@@ -426,11 +441,12 @@ export function parseClaimedCatalog(row: unknown): ClaimedCatalog | null {
         : row.random_link_variation !== false,
     priceRange: priceRangeOf(row),
     growProducts: !restricted && row.grow_products === true,
-    driveFileId,
+    driveFileId: driveFileId ?? '',
     resourceKey: text(row.resource_key),
-    credentialId,
+    credentialId: credentialId ?? '',
     currentVideoLink: text(row.current_video_link),
-    spare: spareMaterialId && spareLink ? { materialId: spareMaterialId, link: spareLink } : null
+    spare: spareMaterialId && spareLink ? { materialId: spareMaterialId, link: spareLink } : null,
+    ...(feed ? { feed } : {})
   };
 }
 
@@ -847,15 +863,22 @@ async function updateOne(
   const nextCount = item.updateCount + 1;
   let writeStarted = false;
   try {
+    // 057: a feed is Soty's own file; no Drive client, no Sheets budget, no Drive version.
+    const feeds = item.feed ? deps.feeds : undefined;
+    if (item.feed && !feeds)
+      throw new TeamFunctionError('STORAGE_UNAVAILABLE', { retryable: true });
     // Restore before native growth preparation, image allocation, sharing or random draws.
     const content = await deps.readContentRecipe?.(item.catalogId);
     if (content) item.imageAttemptId = content.attemptId;
     let nonVideo: CatalogNonVideoUpdate | undefined;
     if (deps.authorizeLegacyVideoWrite && !(await deps.authorizeLegacyVideoWrite(item.catalogId))) {
-      if (!deps.prepareNonVideoUpdate)
-        throw new TeamFunctionError('CATALOG_PUBLICATION_PENDING', { retryable: false });
-      await takeSheetsReads(deps, item);
-      nonVideo = await deps.prepareNonVideoUpdate(item);
+      if (feeds) nonVideo = await feeds.prepareNonVideoUpdate(item);
+      else {
+        if (!deps.prepareNonVideoUpdate)
+          throw new TeamFunctionError('CATALOG_PUBLICATION_PENDING', { retryable: false });
+        await takeSheetsReads(deps, item);
+        nonVideo = await deps.prepareNonVideoUpdate(item);
+      }
       if (
         !nonVideo.contextToken ||
         !Number.isSafeInteger(nonVideo.productCount) ||
@@ -885,8 +908,13 @@ async function updateOne(
       throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
     const swappedCopy = nonVideo ? null : (item.spare?.materialId ?? null);
     await deps.progress(item.catalogId, 'preparing').catch(() => false);
-    const drive = await deps.driveFor(item.credentialId);
-    const shareImages = createCatalogImageSharer(drive);
+    const drive = feeds ? null : await deps.driveFor(item.credentialId);
+    // A feed links only published pictures; a legacy Drive picture has nothing to share it with.
+    const shareImages: ShareImages = drive
+      ? createCatalogImageSharer(drive)
+      : async images => {
+          if (images.length) throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
+        };
     let count =
       content?.recipe?.productCount ??
       nonVideo?.productCount ??
@@ -973,9 +1001,10 @@ async function updateOne(
         ? { preservedImageCells: nonVideo.imageCells }
         : {})
     });
-    const bytes = nonVideo
-      ? null
-      : await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows: builtRows });
+    const bytes =
+      nonVideo || feeds
+        ? null
+        : await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows: builtRows });
     await deps.progress(item.catalogId, 'uploading').catch(() => false);
     const first = rows?.[0];
     const became: { productCount: number; snapshot: Record<string, unknown> } = first
@@ -1015,7 +1044,9 @@ async function updateOne(
     const outgoingImages = catalogImagesInRows(rows);
     const teamId = item.teamId;
     const [beforeRead, rowsChecked, usesChecked] = await Promise.allSettled([
-      drive.getFile(item.driveFileId, item.resourceKey),
+      drive
+        ? drive.getFile(item.driveFileId, item.resourceKey)
+        : Promise.resolve({ version: String(item.feed!.revision), appProperties: {} }),
       outgoingImages.length && teamId
         ? deps.validateImageRows?.(teamId, outgoingImages)
         : undefined,
@@ -1045,7 +1076,11 @@ async function updateOne(
       await nonVideo.write(builtRows, marker);
       await deps.progress(item.catalogId, 'verifying').catch(() => false);
       await nonVideo.verify(marker);
-    } else {
+    } else if (feeds) {
+      await feeds.write(item, builtRows, marker);
+      await deps.progress(item.catalogId, 'verifying').catch(() => false);
+      await feeds.verify(item, marker);
+    } else if (drive) {
       await drive.updateConvertedFile({
         fileId: item.driveFileId,
         resourceKey: item.resourceKey,
