@@ -260,26 +260,26 @@
     скачування агентом — `AGENT_UPDATE_REQUIRED` до T033; превʼю транскриптів, архівів і лендингів
     — як непідтримувані. Меню дій вважають R2-простір підключеним.
 
-- [ ] T032 [P] [US1] Тест для T033 — `tests/agent-r2-transfer.test.ts`:
+- [x] T032 [P] [US1] Тест для T033 — `tests/agent-r2-transfer.test.ts`:
   - multipart з `Content-MD5` частин і ≤4 паралельними частинами;
   - продовження з журналу після обриву;
   - Range-скачування з `files-*`, оновлення гранту на 401;
   - розбіжність хешу → помилка без фіксації;
   - навантаження йде через PowerGovernor.
-- [ ] T033 [US1] Агент контракту 3:
+- [x] T033 [US1] Агент контракту 3:
   - новий `apps/agent/src/team-bridge/r2-transfer.ts`;
   - підключення в `TeamTransferClient` (`apps/agent/src/team-bridge/transfer.ts:124`, `downloadSource` :135, `uploadResult` :376 — `validateGoogleSession` :630 лишається для Drive), `download.ts` (`TeamDownloadBridge.download` :175), `process.ts` (`TeamProcessBridge` :171);
-  - `AGENT_TOOL_CONTRACTS.teamWorkspace` 2 → 3 і `WEB_TOOL_REQUIREMENTS` для R2 у `packages/shared/src/release.ts:114`, `:187`;
+  - `AGENT_TOOL_CONTRACTS.teamWorkspace` 2 → 3 і `WEB_TOOL_REQUIREMENTS` для R2 у `packages/shared/src/release.ts:114`, `:187` (виконано інакше: `WEB_TOOL_REQUIREMENTS` не змінено, бо його звіряють зі stable.json; натомість `SPACE_STORAGE_AGENT_CONTRACT` і перевірка на запуск — див. contracts/storage-api.md);
   - маршрути `/agent/source` і `/process/output/start` (протокол 3) у `supabase/functions/space-storage/agent.ts`;
   - `apps/agent/src/team-bridge/source-cache.ts` (`TeamSourceCache` :53) — ключ за `content_id` об'єкта, тож повторна обробка того самого вмісту не скачує його вдруге (FR-037 для агента).
 
   Тест: T032.
 
-- [ ] T034 [P] [US1] Тест для T035 — `tests/space-storage-process.test.ts`:
+- [x] T034 [P] [US1] Тест для T035 — `tests/space-storage-process.test.ts`:
   - стиснення, транскрипт і перезашивка на R2-простір: старт видає джерело R2;
   - результат фіксується як матеріал з `processed_from` і категорією `process`;
   - `quiesced` і повтор фіналізації ідемпотентні.
-- [ ] T035 [US1] Маршрути `/process/start`, `/process/output/finalize`, `/process/output/quiesced` у `supabase/functions/space-storage/process.ts`. Поведінка — як `handleProcessStart` (`supabase/functions/drive-ops/index.ts:2106`), `handleProcessOutputFinalize` (:2471), `handleProcessOutputQuiesced` (:2315). Чисті перевірки взяти з `supabase/functions/drive-ops/handler.ts`, не копіювати. Веб `apps/web/src/api/client.ts` (:704, :1044) передає агенту R2-гранти. Тест: T034.
+- [x] T035 [US1] Маршрути `/process/start`, `/process/output/finalize`, `/process/output/quiesced` у `supabase/functions/space-storage/process.ts`. Поведінка — як `handleProcessStart` (`supabase/functions/drive-ops/index.ts:2106`), `handleProcessOutputFinalize` (:2471), `handleProcessOutputQuiesced` (:2315). Чисті перевірки взяти з `supabase/functions/drive-ops/handler.ts`, не копіювати. Веб `apps/web/src/api/client.ts` (:704, :1044) передає агенту R2-гранти. Тест: T034.
 - [ ] T036 [P] [US1] Тест для T037 — `tests/catalog-feed-writer.test.ts`:
   - CSV байт у байт: заголовок `PRODUCT_CATALOG_TEMPLATE`, рядки з `buildProductCatalogRows`;
   - `text/csv; charset=utf-8`;
