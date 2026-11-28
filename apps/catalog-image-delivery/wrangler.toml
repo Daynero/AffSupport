@@ -28,3 +28,30 @@ SPACE_ALLOWED_ORIGINS = "https://soty.pp.ua,https://next.soty.pp.ua"
 # [[r2_buckets]]
 # binding = "SPACE_BUCKET"
 # bucket_name = "soty-spaces-production"
+
+# 057 T002: the beta files host, a separate Worker (`soty-catalog-image-delivery-beta`,
+# `wrangler deploy --env beta`). Nothing above is inherited for vars or bindings, and the
+# production section stays as it is: its SPACE_BUCKET binding waits for T062. This Worker
+# serves only `files-beta.soty.pp.ua`; it has no /g/* route, so the catalog alias vars of
+# the production Worker are not needed here. Not deployed yet — the Cloudflare-side steps
+# (DNS record, route, secrets) need the owner's authorization, see docs/PRODUCTION.md
+# «Space files host (057)».
+#
+# Secrets (`wrangler secret put <NAME> --env beta`, never committed or printed):
+#   SPACE_READ_GRANT_KEYS     — equal to the beta space-storage secret of the same name;
+#   SUPABASE_SERVICE_ROLE_KEY — of the beta Supabase whose `service_space_read_epoch` it reads.
+# SUPABASE_URL must be a public HTTPS address of that beta API (index.ts refuses http outside
+# `dev`); the local beta stack listens on 127.0.0.1:54321 only, so it is set with the secrets
+# once a reachable address exists (docs/PRODUCTION.md).
+[env.beta]
+workers_dev = false
+routes = [{ pattern = "files-beta.soty.pp.ua/*", zone_name = "soty.pp.ua" }]
+
+[env.beta.vars]
+CATALOG_IMAGES_ENVIRONMENT = "beta"
+SPACE_FILES_HOST = "files-beta.soty.pp.ua"
+SPACE_ALLOWED_ORIGINS = "https://next.soty.pp.ua,https://soty.pp.ua,http://localhost:5173,http://127.0.0.1:5173"
+
+[[env.beta.r2_buckets]]
+binding = "SPACE_BUCKET"
+bucket_name = "soty-spaces-beta"

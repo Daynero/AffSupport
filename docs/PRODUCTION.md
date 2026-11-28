@@ -827,6 +827,96 @@ never `max-age=14400`. Feed bytes count in the space meter under `catalogs`
 included (a Launch link may carry `fb_capi_token`, as the sheet's did); its id is random, and no
 log line or journal entry carries a row, a link or a token.
 
+## Space bucket and files host (057)
+
+The bytes of an R2 space live in a private bucket `soty-spaces-{env}`. Browsers and agents
+upload parts straight to it on presigned URLs, and read through the `space-read` Worker on
+`files[-beta].soty.pp.ua` (research.md R3/R4). To qualify the real beta bucket, run
+`node scripts/space-storage-qualify.mjs --env-file <functions .env>`. It refuses any bucket that
+does not end in `-beta`, works only under `qualify/` and empties that prefix when it is done.
+The results are in `specs/057-r2-workspaces/evidence/qualification.md`.
+
+**Bucket, as code.** `config/space-storage/r2-cors.json` and `config/space-storage/r2-lifecycle.json`
+hold exactly what the bucket carries. They use the Cloudflare API format, which
+`wrangler r2 bucket {cors,lifecycle} set --file` also takes. Change the file first, then apply it
+as a whole and read it back:
+
+```sh
+cd apps/catalog-image-delivery
+npx --yes wrangler@4.112.0 r2 bucket cors set soty-spaces-beta --file ../../config/space-storage/r2-cors.json --force
+npx --yes wrangler@4.112.0 r2 bucket lifecycle set soty-spaces-beta --file ../../config/space-storage/r2-lifecycle.json --force
+npx --yes wrangler@4.112.0 r2 bucket cors list soty-spaces-beta
+npx --yes wrangler@4.112.0 r2 bucket lifecycle list soty-spaces-beta
+```
+
+- CORS covers the four web origins: `https://next.soty.pp.ua`, `https://soty.pp.ua` and the beta
+  web on `localhost`/`127.0.0.1:5173`. It allows `GET`/`HEAD`/`PUT` with `Content-MD5` among the
+  allowed headers, and it exposes `ETag`, because the browser reads each part's ETag from the
+  PUT response.
+- Lifecycle aborts incomplete multipart uploads after 1 day (`abort-incomplete-multipart`). The
+  bucket also kept R2's own `Default Multipart Abort Rule` (7 days). That rule is harmless, and it
+  stays in the file so the file matches the bucket. There is no rule for staging keys, for two
+  reasons: originals upload straight to `t/{team}/o/{content_id}`, so nothing is written under
+  `t/*/u/*`, and R2 lifecycle conditions are plain prefixes with no wildcards.
+- `soty-spaces-beta` has location hint EEUR and the **default jurisdiction** (not EU). It has no
+  `r2.dev` access and no custom domain. The beta S3 token `soty-beta-catalog-videos` (object
+  read/write) covers it. That token cannot read the bucket's CORS or lifecycle back
+  (`AccessDenied`), so readback goes through `wrangler` or the dashboard.
+
+**Files host, beta.** `[env.beta]` in `apps/catalog-image-delivery/wrangler.toml` defines a
+separate Worker, `soty-catalog-image-delivery-beta`. It has the `SPACE_BUCKET` binding to
+`soty-spaces-beta` and the route `files-beta.soty.pp.ua/*`. The production section is not
+touched: its binding is switched on in T062, after `soty-spaces-production` exists. Each of these
+steps on the Cloudflare side needs the owner's authorization:
+
+1. DNS: add a proxied record for `files-beta.soty.pp.ua`, using the usual route-only placeholder
+   `AAAA 100::`, so the route has a hostname to match.
+2. Deploy the beta Worker, which also creates the route: `cd apps/catalog-image-delivery && npm
+run build && npx --yes wrangler@4.112.0 deploy --env beta`.
+3. Set the Worker secrets for `--env beta`:
+   - `SPACE_READ_GRANT_KEYS`, equal to the beta `space-storage` secret of the same name;
+   - `SUPABASE_SERVICE_ROLE_KEY`;
+   - `SUPABASE_URL`, a **public HTTPS** address of the beta API.
+
+   The local beta stack listens only on `127.0.0.1:54321`, and the Worker refuses `http:` outside
+   `dev`. So the beta files host needs a reachable address for that API, for example a
+   Cloudflare Tunnel. Without one, every read answers 503.
+
+4. Set the route failure mode for `files-beta.soty.pp.ua/*` to fail closed. The hostname has no
+   origin, so failing open would only swap the daily-limit error for a different one.
+5. Make sure no zone cache rule, transform or page rule matches the files hosts. Responses are
+   `private`, and the Worker keeps its own edge cache, keyed without the grant.
+
+The beta `space-storage` function needs these in its ignored env file:
+
+- `R2_SPACE_ACCOUNT_ID`, `R2_SPACE_ACCESS_KEY_ID`, `R2_SPACE_SECRET_ACCESS_KEY`;
+- `R2_SPACE_BUCKET=soty-spaces-beta`;
+- `SPACE_READ_GRANT_KEYS` and `SPACE_READ_GRANT_KEY_VERSION`;
+- `SPACE_FILES_ORIGIN=https://files-beta.soty.pp.ua`.
+
+**Free Workers plan limits** (developers.cloudflare.com/workers/platform/limits, read 2026-11-28):
+
+- 100 000 requests per day **per account**, reset at 00:00 UTC, with error 1027 beyond that when
+  the route fails closed. The same account also serves the production `/g/*` catalog image
+  aliases, so they share this budget.
+- 10 ms CPU per request. Waiting on R2, the cache or `fetch` does not count.
+- 50 subrequests per request. R2 calls count, and Cache API calls share the quota.
+
+Per request, `space-read` makes at most one epoch fetch (cached ≤30 s per isolate), one R2
+`get`/`head`, one cache `match`/`put` and an HMAC check. That is far below the CPU and subrequest
+limits. The daily count is the real bound: every thumbnail in a grid is one request on first
+view, and `immutable` addresses keep repeat views in the same browser from coming back. M2
+measures the actual count (T089).
+
+**Production** (T062):
+
+- create `soty-spaces-production` from the same two config files, with production origins only.
+  Drop the beta loopback origins, and decide on the installed app's loopback origin the way the
+  catalog staging bucket did;
+- add the route `files.soty.pp.ua/*`;
+- uncomment the binding in the production section;
+- add the `/feeds/*` rule from the section above.
+
 ## Intel Mac release contract (049)
 
 New full releases require `macos-arm64`, `macos-x64` and `windows-x64` together. Historical signed channels retain their original platform set; new signed channels declare `platformSetVersion: 2`. Never add fabricated Intel entries to an old release. The runner packages both Mac targets sequentially and binds Windows hosted smoke and final installer checksums to the same source.
