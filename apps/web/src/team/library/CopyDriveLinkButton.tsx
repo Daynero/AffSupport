@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { LibraryShareCopyRequest, LibraryShareCopyResult } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
+import { isR2Space } from '../../api/space-storage';
+import { useOptionalTeam } from '../TeamContext';
 import { Button } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
 import { useToasts } from '../../components/toast';
@@ -35,6 +37,11 @@ export function CopyDriveLinkButton({
   const { push } = useToasts();
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const team = useOptionalTeam();
+  // An R2 space has no Drive link to copy; its own links arrive with T069 (057).
+  const onR2 =
+    team?.teams.find(space => space.id === teamId)?.storageBackend === 'r2' || isR2Space(teamId);
+  if (onR2) return null;
 
   const copy = async () => {
     setBusy(true);

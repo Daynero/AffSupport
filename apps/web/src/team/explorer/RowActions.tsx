@@ -125,7 +125,8 @@ export function RowActions({
     isOwner: space?.role === 'owner',
     currentFolderId,
     agentAvailability: agent?.teamWorkspaceAvailability ?? 'disconnected',
-    storageConnected: space?.connectionState === 'connected',
+    // 057: an R2 space has no Drive connection; Soty storage is always there.
+    storageConnected: space?.connectionState === 'connected' || space?.storageBackend === 'r2',
     restitchConfigured: true,
     catalogSettingsReady: true
   };

@@ -63,10 +63,12 @@ export function TaskAttachmentsPeek({
   // while the hover delay is running. No media grants or full-size downloads.
   useEffect(() => {
     if (!session || !attachments) return;
-    const images = attachments.filter(hasPicture).map(attachment => {
+    const images = attachments.filter(hasPicture).flatMap(attachment => {
+      const url = teamApi.thumbnailUrl(session, attachment.materialId);
+      if (!url) return [];
       const image = new Image();
-      image.src = teamApi.thumbnailUrl(session, attachment.materialId);
-      return image;
+      image.src = url;
+      return [image];
     });
     return () => {
       for (const image of images) image.onload = image.onerror = null;

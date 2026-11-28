@@ -6,6 +6,7 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessageFor } from '../errors';
 import { uploadTeamFile } from '../catalog/material-actions-client';
+import { isR2Space } from '../../api/space-storage';
 import type { UploadConflictChoice, UploadConflictRequest } from './UploadConflictDialog';
 import {
   buildLocalManifest,
@@ -514,10 +515,13 @@ export function useExplorerUploads({
       try {
         const parentMaterialId = currentFolderId ? nodeOf(currentFolderId)?.id : null;
         if (currentFolderId && !parentMaterialId) throw new Error('FOLDER_NOT_FOUND');
-        await teamApi.ensureUploadFolder(teamId, {
-          name,
-          parentMaterialId
-        });
+        // An R2 space makes the folder with `create_folder` (057, T029); Drive keeps its route.
+        if (isR2Space(teamId)) await teamApi.createFolder(teamId, { name, parentMaterialId });
+        else
+          await teamApi.ensureUploadFolder(teamId, {
+            name,
+            parentMaterialId
+          });
         onFolderCreated();
         changed();
       } catch (cause) {

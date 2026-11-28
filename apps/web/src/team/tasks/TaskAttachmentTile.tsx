@@ -12,6 +12,7 @@ import type {
 import { CATEGORY_LABEL } from '../explorer/rowKinds';
 import { useOptionalAgent } from '../../AgentContext';
 import { useTeam } from '../TeamContext';
+import { isR2Space } from '../../api/space-storage';
 import { catalogActionWords, MaterialInlineActions } from '../materials/MaterialInlineActions';
 import { useMaterialActionList, withoutAction } from '../materials/useMaterialActionList';
 import { spaceOf, type ActionContext, type MaterialRef } from '../materials/actions';
@@ -185,6 +186,7 @@ export function TaskAttachmentTile({
   const cacheEpoch = usePrivateCacheEpoch();
   const { teams, activeTeam } = useTeam();
   const space = spaceOf(teams, activeTeam, teamId);
+  const onR2 = space?.storageBackend === 'r2' || isR2Space(teamId);
   const agent = useOptionalAgent();
 
   /**
@@ -232,7 +234,8 @@ export function TaskAttachmentTile({
     permissions: space?.permissions ?? null,
     isOwner: space?.role === 'owner',
     agentAvailability: agent?.teamWorkspaceAvailability ?? 'disconnected',
-    storageConnected: space?.connectionState === 'connected',
+    // 057: an R2 space has no Drive connection; Soty storage is always there.
+    storageConnected: space?.connectionState === 'connected' || space?.storageBackend === 'r2',
     restitchConfigured: true,
     // The catalog dialog already explains a missing default and links to the
     // panel that fixes it, so the reason is told once, where it can be acted
@@ -271,7 +274,8 @@ export function TaskAttachmentTile({
       detail: isDraft ? undefined : () => setDetailOpen(true),
       showInFolder: onReveal,
       note: host.handlers.note,
-      copyLink: () => void copyLink(),
+      // Drive's link, which an R2 space does not have; Soty links arrive with T069 (057).
+      copyLink: onR2 ? undefined : () => void copyLink(),
       download: () => void download(),
       downloadRestitched: onDownloadRestitched,
       productCatalog: onProductCatalog,
@@ -316,7 +320,11 @@ export function TaskAttachmentTile({
           client
         )
           .then(session => {
-            if (active) setThumbnailUrl(thumbnailFor(session, attachment.materialId));
+            if (!active) return;
+            const url = thumbnailFor(session, attachment.materialId);
+            // An R2 file before its tile (057) is shown from the file itself.
+            if (url) setThumbnailUrl(url);
+            else setRangeWanted('relay');
           })
           .catch(() => {
             if (active) setRangeWanted('relay');

@@ -170,7 +170,7 @@
 файли. Вкладення, обробка й каталоги працюють без Drive і без агента власника для перегляду.
 **Незалежна перевірка**: quickstart M1 кроки 2, 3, 7, 8.
 
-- [ ] T021 [P] [US1] Тест для T023 — `tests/space-storage-upload.test.ts`:
+- [x] T021 [P] [US1] Тест для T023 — `tests/space-storage-upload.test.ts`:
   - `admit` повертає `exists` для того самого вмісту в тій самій папці;
   - для іншої папки створює новий матеріал з посиланням на наявний об'єкт;
   - квота → `STORAGE_QUOTA_EXCEEDED` з `needBytes`;
@@ -178,19 +178,19 @@
   - `complete` ідемпотентний, повтор після втрати відповіді;
   - знята роль між `admit` і `complete` → відмова;
   - протермінована сесія → `UPLOAD_EXPIRED`.
-- [ ] T022 [P] [US1] Тест для T023 — `supabase/tests/database/space-storage-commit.test.sql`:
+- [x] T022 [P] [US1] Тест для T023 — `supabase/tests/database/space-storage-commit.test.sql`:
   - фіксація атомарна: об'єкт, матеріал, посилання, облік, сигнал, завдання похідних і `content_revision`;
   - 100 паралельних резервувань на межі квоти не перевищують її (SC-004 для простору);
   - `uncertain` не звільняється без звірки.
-- [ ] T023 [US1] Маршрути `/uploads/admit|{id}/parts|{id}/complete|{id}/abort` у `supabase/functions/space-storage/uploads.ts`. RPC `service_admit_space_upload`, `service_complete_space_upload`, `service_abort_space_upload` — у міграції `supabase/migrations/<ts>_space_storage_uploads.sql`. Порядок блокувань: team → material. Тести: T021, T022.
-- [ ] T024 [P] [US1] Тест для T025 — `tests/space-storage-mutate.test.ts` і `supabase/tests/database/space-storage-mutate.test.sql`:
+- [x] T023 [US1] Маршрути `/uploads/admit|{id}/parts|{id}/complete|{id}/abort` у `supabase/functions/space-storage/uploads.ts`. RPC `service_admit_space_upload`, `service_complete_space_upload`, `service_abort_space_upload` — у міграції `supabase/migrations/<ts>_space_storage_uploads.sql`. Порядок блокувань: team → material. Тести: T021, T022.
+- [x] T024 [P] [US1] Тест для T025 — `tests/space-storage-mutate.test.ts` і `supabase/tests/database/space-storage-mutate.test.sql`:
   - rename, move, create_folder, copy (без копіювання байтів), trash і restore піддерева;
   - `REVISION_CONFLICT` з поточним станом;
   - цикли;
   - права за ролями з `private.can`;
   - `/trash/empty` одразу ставить об'єкти в чергу на видалення.
-- [ ] T025 [US1] Маршрути `/materials/mutate` і `/trash/empty` у `supabase/functions/space-storage/mutate.ts`. RPC `service_mutate_space_materials`, `service_empty_space_trash`; семантика `folder_trash_root` — як у `supabase/migrations/20260930120000_folder_trash.sql`. Тест: T024.
-- [ ] T026 [P] [US1] Тест для T027 — `tests/space-read-worker.test.ts`:
+- [x] T025 [US1] Маршрути `/materials/mutate` і `/trash/empty` у `supabase/functions/space-storage/mutate.ts`. RPC `service_mutate_space_materials`, `service_empty_space_trash`; семантика `folder_trash_root` — як у `supabase/migrations/20260930120000_folder_trash.sql`. Тест: T024.
+- [x] T026 [P] [US1] Тест для T027 — `tests/space-read-worker.test.ts`:
   - грант: підпис і строк;
   - відкликана епоха → 403 за ≤30 с кешу епохи;
   - простір у гранті ≠ простір у шляху → 403;
@@ -198,7 +198,7 @@
   - безпечне `Content-Disposition`;
   - `no-store` на помилках;
   - чужий хост не обслуговується.
-- [ ] T027 [US1] Worker читання й видача гранту:
+- [x] T027 [US1] Worker читання й видача гранту:
   - `apps/catalog-image-delivery/src/space-read.ts`;
   - вибір обробника за хостом у `apps/catalog-image-delivery/src/index.ts`, біндінг `SPACE_BUCKET`;
   - маршрут `/read-grant` у `supabase/functions/space-storage/read.ts`;
@@ -206,24 +206,59 @@
 
   Тест: T026.
 
-- [ ] T028 [P] [US1] Тест для T029 — `tests/space-explorer-adapter.test.ts`: R2-простір ніколи не кличе `drive-ops` чи `drive-transfer`. Drive-простір кличе те саме, що й до змін (знімок викликів).
-- [ ] T029 [US1] Клієнт `apps/web/src/api/space-storage.ts` і перемикач за `storageBackend` у `apps/web/src/api/team.ts`:
+- [x] T028 [P] [US1] Тест для T029 — `tests/space-explorer-adapter.test.ts`: R2-простір ніколи не кличе `drive-ops` чи `drive-transfer`. Drive-простір кличе те саме, що й до змін (знімок викликів).
+- [x] T029 [US1] Клієнт `apps/web/src/api/space-storage.ts` і перемикач за `storageBackend` у `apps/web/src/api/team.ts`:
   - `startUpload`/`relayUploadChunk`/`finalizeUpload` (:4842–4917);
   - `renameMaterial`/`moveMaterial`/`copyMaterial`/`trashMaterial`/`restoreMaterial` (:4932–4985);
   - `requestDownload` (:5009), `previewMaterial` (:5176), `thumbnailUrl` (:4513).
 
   У `apps/web/src/team/explorer/useExplorerFileOps.ts` і `CreateFolderDialog.tsx` для R2 — `create_folder` замість `ensure*`. Тест: T028.
 
-- [ ] T030 [P] [US1] Тест для T031 — `supabase/tests/database/space-storage-attachments.test.sql` і `tests/space-task-attachments.test.tsx`:
+- [x] T030 [P] [US1] Тест для T031 — `supabase/tests/database/space-storage-attachments.test.sql` і `tests/space-task-attachments.test.tsx`:
   - вкладення в R2-просторі має посилання категорії `attachments`;
   - відкріплення не видаляє матеріал, що лишився в провіднику;
   - `CopyDriveLinkButton` для R2 не показується.
-- [ ] T031 [US1] Вкладення завдань у R2-просторі:
+- [x] T031 [US1] Вкладення завдань у R2-просторі:
   - R2-гілка `begin_task_upload` і `attach_team_task_materials` (міграція `supabase/migrations/<ts>_space_storage_attachments.sql`) — папка вкладень є матеріалом простору;
   - `apps/web/src/team/tasks/TaskAttachmentPicker.tsx`, `TaskAttachmentTile.tsx`, `useAttachmentFolders.ts`;
   - приховати `apps/web/src/team/library/CopyDriveLinkButton.tsx` для R2, поки нема T069.
 
   Тест: T030.
+
+  Рішення 2026-11-28 (імплементація T021–T031):
+  - multipart оригіналу відкривається одразу на кінцевому ключі `t/{team}/o/{content_id}`: R2
+    нічого там не показує, доки сервер не завершить його, а сервер завершує лише після того, як
+    перерахував `content_id` з ETag частин від `ListParts`. Копія `u/ → o/` на сервері для 100 ГіБ
+    не вклалась би в межі edge. `staging_key` (`t/{team}/u/{upload}`) лишається префіксом для
+    похідних (T047) і правила життєвого циклу (T002);
+  - повтор `complete` після втраченої відповіді: multipart уже зник (`NoSuchUpload` → `NOT_FOUND`
+    у `r2-space.ts`), тоді HEAD ключа вмісту з заявленою довжиною — доказ, що байти там;
+  - `derivatives[]` у `admit` перевіряється за формою, але слотів поки немає (`derivativeSlots: []`);
+    фіксація ставить `space_derivative_jobs` з `client_skipped` для зображень і відео — T047 додає
+    похідні клієнта;
+  - «вже є» в іншій папці відповідає `{kind:'exists'}` з новим матеріалом на тому самому об'єкті;
+    кожна відповідь `admit` — рядок `space_uploads` під ключем ідемпотентності, тож повтор дає
+    ту саму відповідь;
+  - видалення байтів: коли зникає останнє посилання, об'єкт іде в `space_object_purges`
+    (`purge_pending`); той самий вміст, що повернувся до видалення, відроджується. Поки видалення
+    в дорозі (`attempts > 0`), `admit`/`complete` того самого вмісту відповідають
+    `STORAGE_UNAVAILABLE` (повторюване). Майбутній `space-storage-sweeper` мусить блокувати рядок
+    об'єкта й не брати об'єкт, для якого є відкрите завантаження з тим самим `content_id`;
+  - рядки R2 у `list_team_folder_page`/`list_team_folder_tree` мають `driveFileId` = власний id
+    (ключ рядка й папки для вебу; ніколи не Drive-id), плюс `contentId` і `materialRevision`;
+  - `parentMaterialId`/`targetFolderId` = null означає корінь простору;
+  - новий маршрут `/materials/read` (до 100 id, право `view`) дає знімки матеріалів, яких клієнт
+    ще не бачив у списку (вкладення, пошук), для адрес `files-*`;
+  - кошик: `/trash/empty` видаляє глибші першими, кожен у своїй підтранзакції; матеріал, на який
+    ще посилається завдання чи каталог, лишається в кошику;
+  - папка вкладень R2 — звичайна папка «Task attachments» у корені (`create_folder ensure`);
+    перейменування створить нову при наступному скиданні — прийнятно для M1;
+  - грант читання: невалідний/підроблений → 401 (клієнт бере новий, це покриває й ротацію ключа),
+    чужий простір чи відкликана епоха → 403. Worker читає епоху через
+    `service_space_read_epoch` (текст, не число) сервісним ключем, кеш ≤30 с;
+  - веб: «замінити» й «нова версія» для R2 відмовляють `INVALID_INPUT` (версій ще немає),
+    скачування агентом — `AGENT_UPDATE_REQUIRED` до T033; превʼю транскриптів, архівів і лендингів
+    — як непідтримувані. Меню дій вважають R2-простір підключеним.
 
 - [ ] T032 [P] [US1] Тест для T033 — `tests/agent-r2-transfer.test.ts`:
   - multipart з `Content-MD5` частин і ≤4 паралельними частинами;

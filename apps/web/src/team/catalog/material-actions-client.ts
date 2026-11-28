@@ -3,7 +3,8 @@ import type {
   TeamDownloadGrantResult,
   TeamFileOperationResult
 } from '@video-compressor/shared';
-import { teamApi } from '../../api/team';
+import { TeamApiError, teamApi } from '../../api/team';
+import { isR2Space, uploadFileToSpace } from '../../api/space-storage';
 import { downloadTeamFileWithAgent } from '../../api/client';
 import { resumableUpload } from '../drive/resumableUpload';
 
@@ -100,6 +101,7 @@ export async function uploadTeamFile(
 ) {
   if (input.signal?.aborted) throw input.signal.reason ?? new Error('CANCELED');
   const idempotencyKey = input.idempotencyKey ?? crypto.randomUUID();
+  if (isR2Space(input.teamId)) return uploadTeamFileToSpace(input, idempotencyKey);
   const session = await teamApi.startUpload({
     teamId: input.teamId,
     destinationFolderId: input.destinationFolderId,
@@ -173,6 +175,35 @@ export async function uploadTeamFile(
     });
     throw failure;
   }
+}
+
+/**
+ * 057 (T029): the same upload into an R2 space — straight to R2, no relay, no operation row.
+ * A space on R2 keeps no versions yet, so «replace» and «new version» are refused rather than
+ * quietly made into a second file.
+ */
+async function uploadTeamFileToSpace(
+  input: TeamFileUploadInput,
+  idempotencyKey: string
+): Promise<TeamFileOperationResult> {
+  if (input.conflictMode === 'replace' || input.replaceMaterialId || input.versionOfMaterialId)
+    throw new TeamApiError('INVALID_INPUT', false);
+  const uploaded = await uploadFileToSpace({
+    teamId: input.teamId,
+    parentMaterialId: input.destinationFolderId,
+    name: input.file.name,
+    contentType: input.file.type || 'application/octet-stream',
+    source: input.file,
+    idempotencyKey,
+    ...(input.onProgress ? { onProgress: input.onProgress } : {}),
+    ...(input.signal ? { signal: input.signal } : {})
+  });
+  return {
+    operationId: idempotencyKey,
+    state: 'succeeded',
+    materialId: uploaded.materialId,
+    reused: uploaded.reused
+  };
 }
 
 export const defaultMaterialActionsClient: MaterialActionsClient = {

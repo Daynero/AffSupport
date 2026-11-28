@@ -83,7 +83,8 @@ export function PaneActions({
     permissions: space?.permissions ?? null,
     isOwner: space?.role === 'owner',
     agentAvailability: agent?.teamWorkspaceAvailability ?? 'disconnected',
-    storageConnected: space?.connectionState === 'connected',
+    // 057: an R2 space has no Drive connection; Soty storage is always there.
+    storageConnected: space?.connectionState === 'connected' || space?.storageBackend === 'r2',
     restitchConfigured: true,
     catalogSettingsReady: true
   };

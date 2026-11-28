@@ -16,7 +16,8 @@ import type { ThumbnailSession } from '@video-compressor/shared';
  */
 export interface ThumbnailSessionClient {
   mintThumbnailSession: (teamId: string) => Promise<ThumbnailSession>;
-  thumbnailUrl: (session: ThumbnailSession, materialId: string) => string;
+  /** Null when the file has no picture to show yet (an R2 file before its tile, 057). */
+  thumbnailUrl: (session: ThumbnailSession, materialId: string) => string | null;
 }
 
 const controllers = new Map<string, AbortController>();

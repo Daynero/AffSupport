@@ -35,6 +35,9 @@ import { catalogImageClient, getGlobalCatalogImageReadiness } from './team-catal
 import { catalogVideoR2Client } from './team-catalog-video-r2';
 import { taskRpc } from '../team/tasks/diagnostics';
 import {
+  SPACE_DERIVATIVE_RECIPE_VERSION,
+  SPACE_TASK_DROP_FOLDER_NAME,
+  spaceFilesUrl,
   normalizeCatalogCommandRequest,
   parseCatalogCommandReceipt,
   isCatalogCommandUuid,
@@ -203,7 +206,19 @@ import { parseFolderSyncStatus, type FolderSyncStatus } from '../team/syncStatus
 import { parseUpdaterInterval, type UpdaterInterval } from '../team/catalog-updater/limits';
 import type { Database, Json } from '../lib/database.types';
 import { publicConfig, siteChannel } from '../lib/config';
-import { listsR2Spaces, spaceStorageRequestHeaders } from './space-storage';
+import {
+  isR2Space,
+  listsR2Spaces,
+  rememberSpaceBackend,
+  rememberSpaceMaterials,
+  rememberSpaceRoot,
+  spaceMaterialOf,
+  spaceMaterialUrl,
+  spaceRootOf,
+  spaceStorageApi,
+  spaceStorageRequestHeaders,
+  type SpaceMutationInput
+} from './space-storage';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
 import { memberAttempt } from '../team/members/diagnostics';
 import {
@@ -1386,7 +1401,14 @@ function mapTeamContext(value: unknown): TeamContextSnapshot | null {
     connectionState: row.connection_state ?? row.connectionState,
     ...(storageBackend === undefined ? {} : { storageBackend })
   };
-  return isTeamContextSnapshot(mapped) ? mapped : null;
+  if (!isTeamContextSnapshot(mapped)) return null;
+  // 057 (T029): every snapshot names where its space keeps files, so the file operations below
+  // can route an R2 space away from Drive. Absent means Drive.
+  rememberSpaceBackend(mapped.id, mapped.storageBackend ?? 'drive');
+  const root = row.storage_root_material_id ?? row.rootMaterialId;
+  if (mapped.storageBackend === 'r2' && typeof root === 'string')
+    rememberSpaceRoot(mapped.id, root);
+  return mapped;
 }
 
 function mapInvitation(value: unknown): TeamInvitationSummary | null {
@@ -1829,6 +1851,7 @@ interface CreatedR2Space {
   role: string;
   permissions: Record<string, unknown>;
   storageBackend: 'r2';
+  rootMaterialId?: unknown;
 }
 
 function isCreatedR2Space(value: unknown): value is CreatedR2Space {
@@ -1879,6 +1902,62 @@ export async function wakeCatalogSync(teamId: string): Promise<void> {
 export function requestSpaceAccessRecheck(): void {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent(SPACE_ACCESS_RECHECK_EVENT));
+}
+
+/**
+ * 057 (T029): what the files host needs of an R2 space's rows (content id, type, revision,
+ * whether a tile exists), and its root — every row of a root listing names it as its parent.
+ */
+function rememberR2Rows(teamId: string, rows: readonly unknown[], parentFolderId: string | null) {
+  rememberSpaceMaterials(teamId, rows);
+  if (parentFolderId !== null) return;
+  for (const value of rows) {
+    const row = asRecord(value);
+    const parent = row?.parentFolderId ?? row?.parent_folder_id;
+    if (typeof parent === 'string') {
+      rememberSpaceRoot(teamId, parent);
+      return;
+    }
+  }
+}
+
+/** An R2 mutation, answered in the shape the Drive operation answers (T029). */
+async function mutateR2(
+  input: Exclude<SpaceMutationInput, { action: 'create_folder' }>,
+  idempotencyKey: string
+): Promise<TeamFileOperationResult> {
+  const result = await spaceStorageApi.mutate(input);
+  // A copy answers with the source and the new material; the new one is what was made.
+  const made = input.action === 'copy' ? result.materials.at(-1) : result.materials[0];
+  return {
+    operationId: idempotencyKey,
+    state: 'succeeded',
+    materialId: made?.id ?? input.materialIds[0] ?? null,
+    reused: false
+  };
+}
+
+/** An R2 folder, made or (with `ensure`) found, in the shape the Drive ensure routes answer. */
+async function createR2Folder(
+  teamId: string,
+  input: { name: string; parentMaterialId: string | null; ensure: boolean }
+): Promise<{ folderId: string; materialId: string; name: string; created: boolean }> {
+  const result = await spaceStorageApi.mutate({
+    teamId,
+    action: 'create_folder',
+    parentMaterialId: input.parentMaterialId ?? spaceRootOf(teamId),
+    name: input.name,
+    ...(input.ensure ? { ensure: true as const } : {})
+  });
+  const folder = result.materials.find(material => material.kind === 'folder');
+  if (!folder) throw new TeamApiError('INVALID_RESPONSE', false);
+  return {
+    // An R2 folder is opened by its own id: the lists give it as the folder's provider id.
+    folderId: folder.id,
+    materialId: folder.id,
+    name: folder.name,
+    created: result.created ?? true
+  };
 }
 
 function uploadSessionGuard(value: unknown): value is TeamUploadSession {
@@ -2355,7 +2434,10 @@ export const teamApi = {
       role: created.role,
       permissions: created.permissions,
       connection_state: 'none',
-      storage_backend: 'r2'
+      storage_backend: 'r2',
+      ...(typeof created.rootMaterialId === 'string'
+        ? { storage_root_material_id: created.rootMaterialId }
+        : {})
     });
     if (!team) throw new TeamApiError('INVALID_RESPONSE', false);
     return team;
@@ -4467,6 +4549,7 @@ export const teamApi = {
     );
     throwRpc(error);
     if (!isFolderPage(data)) throw new TeamApiError('INVALID_RESPONSE', false);
+    if (isR2Space(teamId)) rememberR2Rows(teamId, data.rows, input.parentFolderId);
     return data;
   },
 
@@ -4600,6 +4683,16 @@ export const teamApi = {
   },
 
   async mintThumbnailSession(teamId: string): Promise<ThumbnailSession> {
+    if (isR2Space(teamId)) {
+      // 057: the space's read grant is the session; `thumbnailUrl` builds files-host URLs from it.
+      const grant = await spaceStorageApi.readGrant(teamId);
+      return {
+        token: grant.grant,
+        expiresAt: grant.expiresAt,
+        teamId,
+        endpoint: grant.filesOrigin
+      };
+    }
     return invokeTeamFunction(
       'drive-transfer',
       { action: 'thumbnail_session', teamId },
@@ -4607,7 +4700,19 @@ export const teamApi = {
     );
   },
 
-  thumbnailUrl(session: ThumbnailSession, materialId: string): string {
+  /** Null for an R2 file whose tile has not been made yet (057, T029; tiles arrive with T047). */
+  thumbnailUrl(session: ThumbnailSession, materialId: string): string | null {
+    if (isR2Space(session.teamId)) {
+      const facts = spaceMaterialOf(session.teamId, materialId);
+      if (!facts?.contentId || !facts.thumbnailReady) return null;
+      return spaceFilesUrl({
+        filesOrigin: session.endpoint,
+        teamId: session.teamId,
+        contentId: facts.contentId,
+        grant: session.token,
+        derivative: { recipeVersion: SPACE_DERIVATIVE_RECIPE_VERSION, variant: 'tile' }
+      });
+    }
     const url = new URL(browserFunctionUrl(session.endpoint));
     url.searchParams.set('material', materialId);
     url.searchParams.set('session', session.token);
@@ -4629,6 +4734,7 @@ export const teamApi = {
     if (materials.some(material => material === null)) {
       throw new TeamApiError('INVALID_RESPONSE', false);
     }
+    if (isR2Space(teamId)) rememberR2Rows(teamId, data ?? [], parentFolderId);
     return materials.filter((item): item is TeamMaterialSummary => item !== null);
   },
 
@@ -4937,6 +5043,8 @@ export const teamApi = {
   },
 
   async startUpload(input: TeamUploadStartInput): Promise<TeamUploadSession> {
+    // 057: an R2 space uploads through `uploadFileToSpace` (`uploadTeamFile` routes it there).
+    if (isR2Space(input.teamId)) throw new TeamApiError('STORAGE_BACKEND_MISMATCH', false);
     const value = await invokeTeamFunction(
       'drive-ops/uploads/start',
       { ...input },
@@ -5033,6 +5141,19 @@ export const teamApi = {
     conflictMode: 'cancel' | 'keep_both';
     idempotencyKey: string;
   }): Promise<TeamFileOperationResult> {
+    if (isR2Space(input.teamId)) {
+      const revision = spaceMaterialOf(input.teamId, input.materialId)?.materialRevision;
+      return mutateR2(
+        {
+          teamId: input.teamId,
+          action: 'rename',
+          materialIds: [input.materialId],
+          name: input.newName,
+          ...(revision ? { expectedRevision: revision } : {})
+        },
+        input.idempotencyKey
+      );
+    }
     const value = await invokeTeamFunction('drive-ops/rename', { ...input }, fileOperationGuard);
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
   },
@@ -5045,6 +5166,16 @@ export const teamApi = {
     conflictMode: 'cancel' | 'keep_both';
     idempotencyKey: string;
   }): Promise<TeamFileOperationResult> {
+    if (isR2Space(input.teamId))
+      return mutateR2(
+        {
+          teamId: input.teamId,
+          action: 'move',
+          materialIds: [input.materialId],
+          targetFolderId: input.destinationFolderId ?? spaceRootOf(input.teamId)
+        },
+        input.idempotencyKey
+      );
     const value = await invokeTeamFunction('drive-ops/move', { ...input }, fileOperationGuard);
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
   },
@@ -5057,6 +5188,17 @@ export const teamApi = {
     destinationFolderId: string | null;
     idempotencyKey: string;
   }): Promise<TeamFileOperationResult> {
+    // 057: on R2 a copy is a second material over the same bytes; nothing is copied.
+    if (isR2Space(input.teamId))
+      return mutateR2(
+        {
+          teamId: input.teamId,
+          action: 'copy',
+          materialIds: [input.materialId],
+          targetFolderId: input.destinationFolderId ?? spaceRootOf(input.teamId)
+        },
+        input.idempotencyKey
+      );
     const value = await invokeTeamFunction('drive-ops/copy', { ...input }, fileOperationGuard);
     return parseTeamFileOperationResult(value) as TeamFileOperationResult;
   },
@@ -5068,6 +5210,12 @@ export const teamApi = {
     expectedActorId?: string;
     receiptProtocol?: 2;
   }): Promise<TeamFileOperationResult> {
+    // 057: the server takes the actor from the session; an R2 trash has no Drive receipt.
+    if (isR2Space(input.teamId))
+      return mutateR2(
+        { teamId: input.teamId, action: 'trash', materialIds: [input.materialId] },
+        input.idempotencyKey
+      );
     const actor = catalogMutationActor(
       input.expectedActorId === undefined ? undefined : { expectedActorId: input.expectedActorId }
     );
@@ -5087,6 +5235,12 @@ export const teamApi = {
     expectedActorId?: string;
     receiptProtocol?: 2;
   }): Promise<TeamFileOperationResult> {
+    // 057: an R2 material comes back where it was; the server keeps its parent while trashed.
+    if (isR2Space(input.teamId))
+      return mutateR2(
+        { teamId: input.teamId, action: 'restore', materialIds: [input.materialId] },
+        input.idempotencyKey
+      );
     const actor = catalogMutationActor(
       input.expectedActorId === undefined ? undefined : { expectedActorId: input.expectedActorId }
     );
@@ -5108,6 +5262,20 @@ export const teamApi = {
     materialId: string,
     consumer: 'browser' | 'agent'
   ): Promise<TeamDownloadGrantResult> {
+    if (isR2Space(teamId)) {
+      // 057: the files host streams any size with Range, so the browser takes every R2 file.
+      // The agent reads R2 through its own route (T033), which this build does not have yet.
+      if (consumer === 'agent') throw new TeamApiError('AGENT_UPDATE_REQUIRED', false);
+      const name = spaceMaterialOf(teamId, materialId)?.name ?? undefined;
+      const read = await spaceMaterialUrl({ teamId, materialId, download: name ?? 'download' });
+      return {
+        kind: 'browser',
+        ...(name ? { fileName: name } : {}),
+        rangeUrl: read.url,
+        expiresAt: read.expiresAt,
+        disposition: 'attachment'
+      };
+    }
     const value = await invokeTeamFunction(
       'drive-transfer',
       { action: 'grant', purpose: 'download', teamId, materialId, consumer },
@@ -5137,6 +5305,22 @@ export const teamApi = {
     /** A name makes a folder *inside* the drops — how a dropped folder stays one. */
     input?: { name: string; parentMaterialId?: string | null }
   ): Promise<{ folderId: string; materialId: string; name: string; created: boolean }> {
+    if (isR2Space(teamId)) {
+      // 057 (T031): the drops are an ordinary folder at the root, found by name or made.
+      const drops = input?.parentMaterialId
+        ? null
+        : await createR2Folder(teamId, {
+            name: SPACE_TASK_DROP_FOLDER_NAME,
+            parentMaterialId: spaceRootOf(teamId),
+            ensure: true
+          });
+      if (!input) return drops!;
+      return createR2Folder(teamId, {
+        name: input.name,
+        parentMaterialId: input.parentMaterialId ?? drops!.materialId,
+        ensure: true
+      });
+    }
     const value = await invokeTeamFunction(
       'drive-ops/ensure-task-drop-folder',
       {
@@ -5182,6 +5366,12 @@ export const teamApi = {
     teamId: string,
     input: { name: string; parentMaterialId?: string | null; idempotencyKey?: string }
   ): Promise<{ folderId: string; materialId: string; name: string; created: boolean }> {
+    if (isR2Space(teamId))
+      return createR2Folder(teamId, {
+        name: input.name,
+        parentMaterialId: input.parentMaterialId ?? null,
+        ensure: true
+      });
     return invokeTeamFunction(
       'drive-ops/ensure-upload-folder',
       {
@@ -5203,6 +5393,23 @@ export const teamApi = {
         );
       }
     );
+  },
+
+  /**
+   * «New folder» in the explorer. A Drive space keeps what it always did (the upload folder's
+   * ensure route); an R2 space makes the folder with `create_folder` (057, T029).
+   */
+  async createFolder(
+    teamId: string,
+    input: { name: string; parentMaterialId: string | null | undefined }
+  ): Promise<{ folderId: string; materialId: string; name: string; created: boolean }> {
+    if (isR2Space(teamId))
+      return createR2Folder(teamId, {
+        name: input.name,
+        parentMaterialId: input.parentMaterialId ?? null,
+        ensure: false
+      });
+    return teamApi.ensureUploadFolder(teamId, input);
   },
 
   async ensureWorkspaceFolder(
@@ -5275,6 +5482,19 @@ export const teamApi = {
     materialId: string,
     mode: 'media' | 'transcript' | 'archive' | 'landing'
   ): Promise<TeamPreviewResult> {
+    if (isR2Space(teamId)) {
+      // 057: the original plays from the files host; a video seeks through Range. The other
+      // modes read through the agent or the catalogue, which R2 does not offer yet.
+      if (mode !== 'media')
+        return { kind: 'unavailable', reason: 'unsupported', allowedActions: ['download'] };
+      const read = await spaceMaterialUrl({ teamId, materialId });
+      return {
+        kind: 'media',
+        rangeUrl: read.url,
+        mimeType: read.facts.mimeType ?? 'application/octet-stream',
+        expiresAt: read.expiresAt
+      };
+    }
     const value = await invokeTeamFunction(
       'drive-transfer',
       { teamId, materialId, mode },
