@@ -35,6 +35,7 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 import { teamErrorMessageFor } from '../errors';
 import { SettingsSection } from '../workspace/SettingsSection';
+import { useCatalogFeedSpace } from './CatalogFeedAddress';
 import { CATALOG_IMAGE_PROMPT, recordCatalogImagePrompt } from './catalogImagePrompt';
 import { useCatalogImageImport } from './useCatalogImageImport';
 import './catalog-image-import.css';
@@ -89,6 +90,10 @@ export function CatalogImageImport({
   onBusyChange?: (busy: boolean) => void;
 }) {
   const { t, language } = useI18n();
+  // 057: a folder of an R2 space is one of the space's own; nothing here names Google there.
+  const chooseFolder = useCatalogFeedSpace(teamId)
+    ? 'catalogImagesChooseSpaceFolder'
+    : 'catalogImagesChooseDrive';
   const state = useCatalogImageImport(teamId, client);
   useEffect(() => {
     onBusyChange?.(state.busy);
@@ -692,7 +697,7 @@ export function CatalogImageImport({
                       onClick={() => setPickingFolder(true)}
                     >
                       <Folder size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
-                      {t('catalogImagesChooseDrive')}
+                      {t(chooseFolder)}
                     </Button>
                   )}
                   <Button
@@ -1474,7 +1479,7 @@ export function CatalogImageImport({
         <FolderPicker
           teamId={teamId}
           client={folderClient}
-          title={t('catalogImagesChooseDrive')}
+          title={t(chooseFolder)}
           nested
           selectionId="material"
           allowRoot={false}

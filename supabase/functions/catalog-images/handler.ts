@@ -98,11 +98,15 @@ export async function handleCatalogImages(
         cursor: url.searchParams.get('cursor')
       };
     } else if (request.method === 'POST' && path === '/imports') {
-      if (body.contractVersion !== 2 || !['local', 'drive'].includes(String(body.sourceKind)))
+      // 057: 'space' — the files of an R2 space, picked like Drive's (the server checks which).
+      if (
+        body.contractVersion !== 2 ||
+        !['local', 'drive', 'space'].includes(String(body.sourceKind))
+      )
         throw new TeamFunctionError('INVALID_INPUT');
       const sources = body.sourceMaterialIds;
       if (
-        body.sourceKind === 'drive' &&
+        body.sourceKind !== 'local' &&
         (!Array.isArray(sources) || sources.length < 1 || sources.length > 100)
       )
         throw new TeamFunctionError('INVALID_INPUT');

@@ -1095,6 +1095,44 @@ describe('catalog image import', () => {
     );
     expect(JSON.stringify(vi.mocked(client.beginImport).mock.calls)).not.toContain('"root"');
   });
+  it('imports a folder of an R2 space as the space files, never naming Google (057)', async () => {
+    const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
+    rememberSpaceBackend(TEAM, 'r2');
+    try {
+      const client = fixture();
+      const folderId = '22000000-0000-4000-8000-0000000000bc';
+      const folderClient: FolderPickerClient = {
+        listMaterials: vi.fn(async (_team, parent) =>
+          parent === null
+            ? [
+                {
+                  id: folderId,
+                  teamId: TEAM,
+                  providerId: folderId,
+                  name: 'Clothing',
+                  kind: 'folder' as const,
+                  category: null
+                }
+              ]
+            : []
+        )
+      };
+      mount(client, { folderClient });
+      await openUpload();
+      expect(screen.queryByRole('button', { name: 'Choose a Google Drive folder' })).toBeNull();
+      fireEvent.click(await screen.findByRole('button', { name: 'Choose a folder of this space' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Clothing' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Select “Clothing”' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Analyze and upload' }));
+      await waitFor(() =>
+        expect(client.beginImport).toHaveBeenCalledWith(
+          expect.objectContaining({ sourceKind: 'space', sourceMaterialIds: [folderId] })
+        )
+      );
+    } finally {
+      rememberSpaceBackend(TEAM, 'drive');
+    }
+  });
   it('preserves selecting the root by default for existing destination flows', async () => {
     const select = vi.fn();
     render(

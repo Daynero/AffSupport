@@ -216,7 +216,8 @@ export interface CatalogImageImportCounts {
 export interface CatalogImageImportJob {
   id: string;
   teamId: string;
-  sourceKind: 'local' | 'drive';
+  /** 057: `space` — the files of an R2 space, where `drive` is a Drive space's folder. */
+  sourceKind: 'local' | 'drive' | 'space';
   state: CatalogImageImportState;
   revision: number;
   counts: CatalogImageImportCounts;
@@ -384,7 +385,7 @@ export function isCatalogImageImportJob(v: unknown): v is CatalogImageImportJob 
     isRecord(v) &&
     short(v.id) &&
     short(v.teamId) &&
-    (v.sourceKind === 'local' || v.sourceKind === 'drive') &&
+    (v.sourceKind === 'local' || v.sourceKind === 'drive' || v.sourceKind === 'space') &&
     typeof v.state === 'string' &&
     states.includes(v.state) &&
     boundedInteger(v.revision) &&

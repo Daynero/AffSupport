@@ -13,6 +13,8 @@ import { TeamFunctionError, errorResponse } from '../_shared/errors.ts';
 import { handleCatalogImages } from './handler.ts';
 import { runCatalogImageWorker } from './worker.ts';
 import { createCatalogImageDriveSources } from './drive-sources.ts';
+import { createCatalogImageSpaceSources } from './space-sources.ts';
+import { SpaceR2, readSpaceR2Config } from '../_shared/r2-space.ts';
 
 const environmentValues: Readonly<Record<string, string | undefined>> = {
   SUPABASE_URL: Deno.env.get('SUPABASE_URL'),
@@ -31,7 +33,12 @@ const environmentValues: Readonly<Record<string, string | undefined>> = {
   R2_CATALOG_PURGE_TOKEN: Deno.env.get('R2_CATALOG_PURGE_TOKEN'),
   R2_CATALOG_TARGET_CONFIRMATION: Deno.env.get('R2_CATALOG_TARGET_CONFIRMATION'),
   R2_CATALOG_ACCESS_KEY_ID: Deno.env.get('R2_CATALOG_ACCESS_KEY_ID'),
-  R2_CATALOG_SECRET_ACCESS_KEY: Deno.env.get('R2_CATALOG_SECRET_ACCESS_KEY')
+  R2_CATALOG_SECRET_ACCESS_KEY: Deno.env.get('R2_CATALOG_SECRET_ACCESS_KEY'),
+  // 057: the space bucket, for pictures imported from an R2 space's files.
+  R2_SPACE_ACCOUNT_ID: Deno.env.get('R2_SPACE_ACCOUNT_ID'),
+  R2_SPACE_ACCESS_KEY_ID: Deno.env.get('R2_SPACE_ACCESS_KEY_ID'),
+  R2_SPACE_SECRET_ACCESS_KEY: Deno.env.get('R2_SPACE_SECRET_ACCESS_KEY'),
+  R2_SPACE_BUCKET: Deno.env.get('R2_SPACE_BUCKET')
 };
 const env = (key: string) => environmentValues[key];
 
@@ -94,6 +101,27 @@ function driveSources(client: ServiceRpcClient) {
   return createCatalogImageDriveSources({ context, token, drive });
 }
 
+/** 057: pictures from the files of an R2 space, read from the space bucket on the server. */
+function spaceSources(client: ServiceRpcClient) {
+  const configured = readSpaceR2Config(env);
+  const space = configured
+    ? new SpaceR2(
+        configured,
+        new AwsClient({
+          accessKeyId: configured.accessKeyId,
+          secretAccessKey: configured.secretAccessKey,
+          service: 's3',
+          region: 'auto'
+        }),
+        (input, init) => fetch(input, init)
+      )
+    : null;
+  return createCatalogImageSpaceSources({
+    rpc: (name, parameters) => catalogImageRpc(client, name, parameters),
+    space
+  });
+}
+
 Deno.serve(async request => {
   try {
     const client = service();
@@ -117,7 +145,13 @@ Deno.serve(async request => {
       authorizeWorker: req => requireNamedWorkerSecret(req),
       runWorker: async () =>
         r2
-          ? runCatalogImageWorker({ service: client, r2, enabled, ...driveSources(client) })
+          ? runCatalogImageWorker({
+              service: client,
+              r2,
+              enabled,
+              ...driveSources(client),
+              ...spaceSources(client)
+            })
           : { disabled: true }
     });
   } catch (error) {

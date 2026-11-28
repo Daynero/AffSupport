@@ -35,7 +35,7 @@ export interface CatalogImageClient {
   listImports(teamId: string, cursor?: string | null): Promise<CatalogImageImportList>;
   beginImport(input: {
     teamId: string;
-    sourceKind: 'local' | 'drive';
+    sourceKind: 'local' | 'drive' | 'space';
     idempotencyKey: string;
     sourceMaterialIds?: string[];
   }): Promise<CatalogImageImportJob>;

@@ -372,6 +372,7 @@ export const uk: Record<keyof typeof en, string> = {
   catalogImagesDrop: 'Перетягніть сюди картинки',
   catalogImagesChooseFiles: 'Обрати файли',
   catalogImagesChooseDrive: 'Обрати папку Google Drive',
+  catalogImagesChooseSpaceFolder: 'Обрати папку простору',
   catalogImagesAnalyzeUpload: 'Проаналізувати й завантажити',
   catalogImagesContinueUpload: 'Продовжити завантаження',
   catalogImagesUploadingFiles: 'Завантажуємо файли',

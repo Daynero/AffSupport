@@ -39,7 +39,23 @@ export interface CatalogImageWorkerDeps {
     claim: Record<string, unknown>,
     signal: AbortSignal
   ): Promise<CatalogDriveEnumeration>;
+  /** 057: the files of an R2 space (`space-sources.ts`); absent, such a job waits retryably. */
+  enumerateSpace?(
+    claim: Record<string, unknown>,
+    worker: string,
+    signal: AbortSignal
+  ): Promise<CatalogDriveEnumeration>;
+  readSpace?(
+    source: Record<string, unknown>,
+    actorId: string,
+    teamId: string,
+    signal: AbortSignal
+  ): Promise<Uint8Array>;
 }
+
+const spaceUnavailable = (): never => {
+  throw new TeamFunctionError('STORAGE_UNAVAILABLE', { retryable: true });
+};
 
 interface Candidate {
   id: string;
@@ -153,7 +169,10 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
     const jobId = catalogImageId(claim.jobId);
     if (claim.kind === 'enumerate') {
       try {
-        const enumeration = await deps.enumerateDrive(claim, abort.signal);
+        const enumeration =
+          claim.sourceKind === 'space'
+            ? await (deps.enumerateSpace ?? spaceUnavailable)(claim, worker, abort.signal)
+            : await deps.enumerateDrive(claim, abort.signal);
         await rpc('service_catalog_image_enumeration_v2', {
           p_job: jobId,
           p_worker: worker,
@@ -213,7 +232,10 @@ export async function runCatalogImageWorker(deps: CatalogImageWorkerDeps): Promi
       await progress('validating');
       const source = catalogImageObject(claim.source);
       if (Object.keys(source).length)
-        bytes = await deps.readDrive(source, actor, team, abort.signal);
+        bytes =
+          source.kind === 'space'
+            ? await (deps.readSpace ?? spaceUnavailable)(source, actor, team, abort.signal)
+            : await deps.readDrive(source, actor, team, abort.signal);
       else {
         const staged = await deps.r2.readStaging(
           catalogImageString(claim.stagingKey),

@@ -13,6 +13,7 @@ import {
   type CatalogImageLibraryPage
 } from '@video-compressor/shared';
 import { TeamApiError } from '../../api/team';
+import { isR2Space } from '../../api/space-storage';
 import { uploadCatalogImage, type CatalogImageClient } from '../../api/team-catalog-images';
 import { useTeam } from '../TeamContext';
 import { useCatalogRead } from '../catalog/CatalogFreshness';
@@ -27,7 +28,7 @@ function imageInputSignal(
     | 'operation_cancelled',
   flowId: string,
   stage: string,
-  source: 'local' | 'drive',
+  source: 'local' | 'drive' | 'space',
   jobId?: string,
   code?: string
 ) {
@@ -473,7 +474,9 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
     setInputDelivery({ phase: 'preparing', jobId: null });
     inputFailureJob.current = null;
     const flowId = intent.current;
-    const sourceKind = folder || loadDriveSources ? 'drive' : 'local';
+    // 057: a folder of an R2 space is the space's own files, never Drive.
+    const sourceKind =
+      folder || loadDriveSources ? (isR2Space(teamId) ? 'space' : 'drive') : 'local';
     imageInputSignal('operation_started', flowId, 'requested', sourceKind);
     let current: CatalogImageImportJob | null = null;
     try {
@@ -514,7 +517,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
               teamId,
               sourceKind,
               idempotencyKey: intent.current,
-              ...(sourceKind === 'drive' ? { sourceMaterialIds } : {})
+              ...(sourceKind !== 'local' ? { sourceMaterialIds } : {})
             });
       if (generation !== active.current || abort.signal.aborted) return;
       acceptJob(current);
@@ -530,7 +533,7 @@ export function useCatalogImageImport(teamId: string, client: CatalogImageClient
         current.sourceKind,
         current.id
       );
-      if (sourceKind === 'drive') {
+      if (sourceKind !== 'local') {
         setFolder(null);
         intent.current = crypto.randomUUID();
         return;

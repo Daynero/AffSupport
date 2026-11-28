@@ -3933,3 +3933,15 @@ it. Undo by dropping the five new functions and re-running the two bodies from t
 last defined them (20261221115000 and 20261207195000). Creating a catalog in an R2 space
 then fails with `STORAGE_BACKEND_MISMATCH`; feed catalogs already made keep their rows and feeds,
 but their updater no longer finds their R2 copy and keeps the address it wrote.
+
+## 20261226240000 — 057 catalog pictures from the files of an R2 space
+
+Widens `team_catalog_image_imports_source_kind_check` to `'space'`, patches two bodies in place —
+`private.catalog_image_control_impl_v2` (`'space'` accepted for an R2 space only and `'drive'` for
+a Drive space only, `'space'` enumerates like `'drive'`, `continue` repeats the job's own source
+kind) and `service_catalog_image_claim_v2` (an enumeration claim names `sourceKind`) — and adds the
+service-only `service_catalog_image_space_enumerate` and `service_catalog_image_space_source`. A
+Drive space's import answers as before. Undo by re-running the two bodies from the migrations that
+last defined them, dropping the two functions and, once no job has `source_kind = 'space'`,
+restoring the check to `('local', 'drive')`. Space imports then fail at `begin` with
+`INVALID_INPUT`; jobs already staged from a space fail their entries as unavailable.

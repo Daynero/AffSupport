@@ -375,6 +375,7 @@ export const en = {
   catalogImagesDrop: 'Drop pictures here',
   catalogImagesChooseFiles: 'Choose files',
   catalogImagesChooseDrive: 'Choose a Google Drive folder',
+  catalogImagesChooseSpaceFolder: 'Choose a folder of this space',
   catalogImagesAnalyzeUpload: 'Analyze and upload',
   catalogImagesContinueUpload: 'Continue upload',
   catalogImagesUploadingFiles: 'Uploading files',

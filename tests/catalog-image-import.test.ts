@@ -193,6 +193,42 @@ describe('catalog image control authorization and boundaries', () => {
       })
     );
   });
+  it('imports from the files of an R2 space by their material ids (057)', async () => {
+    const d = deps();
+    vi.mocked(d.service.rpc).mockResolvedValue({
+      data: { ...snapshot, sourceKind: 'space', state: 'enumerating' },
+      error: null
+    });
+    const source = '45000000-0000-4000-8000-000000000009';
+    const result = await handleCatalogImages(
+      request('/imports', {
+        teamId: TEAM,
+        contractVersion: 2,
+        sourceKind: 'space',
+        idempotencyKey: 'request-00002',
+        sourceMaterialIds: [source]
+      }),
+      d
+    );
+    expect(result.status).toBe(202);
+    expect(d.service.rpc).toHaveBeenCalledWith(
+      'service_catalog_image_control_v2',
+      expect.objectContaining({
+        p_action: 'begin',
+        p_payload: expect.objectContaining({ sourceKind: 'space', sourceMaterialIds: [source] })
+      })
+    );
+    const unnamed = await handleCatalogImages(
+      request('/imports', {
+        teamId: TEAM,
+        contractVersion: 2,
+        sourceKind: 'space',
+        idempotencyKey: 'request-00003'
+      }),
+      deps()
+    );
+    expect(unnamed.status).toBe(400);
+  });
   it('keeps ordinary names usable as unclassified rather than rejecting their upload', async () => {
     const d = deps();
     const result = await handleCatalogImages(

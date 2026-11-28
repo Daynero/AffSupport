@@ -55,6 +55,8 @@ async function fixture(
     overwriteStagingAfterReservation?: boolean;
     commitFailure?: boolean;
     drive?: boolean;
+    /** 057: a picture staged from the files of an R2 space. */
+    space?: boolean;
     webp?: boolean;
   } = {}
 ) {
@@ -94,7 +96,11 @@ async function fixture(
           actorId: ACTOR,
           fence: 7,
           state: store.entryState,
-          source: options.drive ? { fileId: 'owned-source-file' } : {},
+          source: options.drive
+            ? { fileId: 'owned-source-file' }
+            : options.space
+              ? { kind: 'space', materialId: ENTRY, contentId: 'c'.repeat(64), size: source.length }
+              : {},
           stagingKey: STAGING,
           size: source.length,
           mime: sourceMime,
@@ -168,7 +174,11 @@ async function fixture(
     }),
     enumerateDrive: async () => {
       throw new Error('File claim must not enumerate');
-    }
+    },
+    readSpace: vi.fn(async () => {
+      if (!options.space) throw new Error('Only a space import reads the space');
+      return source.slice();
+    })
   };
   return { deps, rpc, fetcher, store, trace, canonical, source, sourceMime };
 }
@@ -237,6 +247,24 @@ describe('catalog image worker publication receipts and recovery', () => {
       expect(drive.canonical.image.mime).toBe('image/png');
     }
   );
+
+  it('normalizes a picture from an R2 space the same way, read from the space, never Drive (057)', async () => {
+    const local = await fixture();
+    const space = await fixture({ space: true });
+    expect(await runCatalogImageWorker(local.deps)).toMatchObject({ outcome: 'ready' });
+    expect(await runCatalogImageWorker(space.deps)).toMatchObject({ outcome: 'ready' });
+    expect(space.deps.readSpace).toHaveBeenCalledWith(
+      { kind: 'space', materialId: ENTRY, contentId: 'c'.repeat(64), size: space.source.length },
+      ACTOR,
+      TEAM,
+      expect.any(AbortSignal)
+    );
+    expect(space.deps.readDrive).not.toHaveBeenCalled();
+    expect(space.trace).not.toContain('fetch:GET:staging');
+    expect(calls(space, 'service_catalog_image_reserve_v2')[0]?.[1].p_image).toEqual(
+      calls(local, 'service_catalog_image_reserve_v2')[0]?.[1].p_image
+    );
+  });
 
   it('reconciles a positively observed canonical object without normalizing or reserving it again', async () => {
     const f = await fixture({ put: 'lost', webp: true });
