@@ -12,6 +12,7 @@ import {
   parseAdmitCommand,
   parsePartsCommand,
   signUploadParts,
+  verifyListedParts,
   type SpaceUploadBucket,
   type UploadDeps
 } from '../supabase/functions/space-storage/uploads';
@@ -433,6 +434,37 @@ describe('complete', () => {
     expect(calls).not.toContain('list');
     expect(calls).not.toContain('complete');
     expect(db.state.commits).toBe(0);
+  });
+});
+
+describe('the canonical split', () => {
+  // R2 refuses unequal non-last parts at completion (400 InvalidPart, qualification
+  // 2026-11-28); the content id is canonical only for the split the length implies.
+  const MIB = 1024 * 1024;
+  const total = 16 * MIB + 10;
+  const a = spaceMd5Hex(new TextEncoder().encode('a'));
+  const b = spaceMd5Hex(new TextEncoder().encode('b'));
+  const facts = async () => ({
+    partCount: 2,
+    declaredBytes: BigInt(total),
+    declaredContentId: await contentOf([a, b], total)
+  });
+
+  it('accepts parts of the size the declared length implies', async () => {
+    const listed: SpaceListedPart[] = [
+      { partNumber: 1, etag: a, bytes: 16 * MIB },
+      { partNumber: 2, etag: b, bytes: 10 }
+    ];
+    const verdict = await verifyListedParts(await facts(), listed);
+    expect(verdict).toMatchObject({ ok: true, objectEtag: multipartObjectEtag([a, b]) });
+  });
+
+  it('refuses another split of the same length, even when its ETags make the declared id', async () => {
+    const listed: SpaceListedPart[] = [
+      { partNumber: 1, etag: a, bytes: 16 * MIB - 5 },
+      { partNumber: 2, etag: b, bytes: 15 }
+    ];
+    expect(await verifyListedParts(await facts(), listed)).toEqual({ ok: false });
   });
 });
 

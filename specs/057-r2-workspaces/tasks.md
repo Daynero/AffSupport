@@ -30,7 +30,7 @@
 
 ### Фаза 1 — підготовка
 
-- [ ] T001 Кваліфікувати R2 і Cloudflare на beta-акаунті. Новий скрипт `scripts/space-storage-qualify.mjs` відмовляється від будь-якого не-beta bucket. Перевірити:
+- [x] T001 Кваліфікувати R2 і Cloudflare на beta-акаунті. Новий скрипт `scripts/space-storage-qualify.mjs` відмовляється від будь-якого не-beta bucket. Перевірити:
   - **відкрита перевірка (R3, редакція 2026-11-28):** R2 відхиляє `UploadPart` з невірним `Content-MD5` (`400 BadDigest`) і повертає ETag частини = MD5 її байтів в `UploadPart`, `ListParts` і `CompleteMultipartUpload` — на цьому стоїть `content_id`. `x-amz-checksum-sha256` R2 не підтримує (501 у кваліфікації 050), його не перевіряти;
   - ліміти multipart;
   - CORS для `https://next.soty.pp.ua`, прод- і beta-вебадрес;
@@ -39,6 +39,8 @@
 
   Containers, Queues і платний план не використовуються (research.md R5). Результат — `specs/057-r2-workspaces/evidence/qualification.md`. Якщо R2 не перевіряє `Content-MD5` або ETag частини не є її MD5 — записати вимкнення дедуплікації за R3.
 
+  **Зроблено 2026-11-28** (43/43, [evidence/qualification.md](evidence/qualification.md)). `BadDigest` на невірному MD5; ETag частини — `"<md5>"` в `UploadPart` і `ListParts`; об'єкта — `"<md5 від MD5>-N"`. Дедуплікація лишається. CORS віддає `ETag`, Range дає `206`. Наслідки — сервер звіряє розмір кожної частини (`InvalidPart` на неоднакових) і 4xx від R2 не повторює. **Юрисдикція: readback виконано, `soty-spaces-beta` стандартна, не EU** — рішення для проду перенесено в T062.
+
 - [ ] T002 Описати інфраструктуру як код, застосувати лише до beta:
   - `apps/catalog-image-delivery/wrangler.toml`: маршрут `files-beta.soty.pp.ua/*` і біндінг `SPACE_BUCKET`;
   - `config/space-storage/r2-lifecycle.json`: multipart 1 доба, `t/*/u/*` 7 діб;
@@ -46,6 +48,8 @@
   - правило кешу зони для `/feeds/*` з TTL ≤60 с — описати в `docs/PRODUCTION.md`.
 
   Прод-ресурси створюються лише в T062.
+
+  **Стан 2026-11-28.** Файли є: `config/space-storage/r2-{cors,lifecycle}.json` збігаються з bucket, `[env.beta]` у `wrangler.toml`, розділ «Space bucket and files host (057)» у `docs/PRODUCTION.md`; правило `/feeds/*` описане там же. CORS і lifecycle на `soty-spaces-beta` застосовано. Відкрито до дозволу власника: DNS `files-beta.soty.pp.ua`, деплой `--env beta` (маршрут), секрети Worker-а, публічна HTTPS-адреса beta-API для `SUPABASE_URL`, правило `/feeds/*` на `catalog-videos-beta`. Правило `t/*/u/*` 7 діб не потрібне й невиразне: оригінали йдуть одразу в `o/`, а умови lifecycle — лише префікси.
 
 - [x] T003 [P] Контракт `packages/shared/src/team/space-storage.ts`:
   - стани завантаження, похідних і видалення;

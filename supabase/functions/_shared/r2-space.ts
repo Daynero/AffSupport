@@ -93,11 +93,15 @@ function invalidResponse(): never {
   throw new TeamFunctionError('INVALID_RESPONSE');
 }
 
-/** A refusal of our own credentials is configuration, not an outage: not retryable. */
+/**
+ * A refusal of our own credentials is configuration, not an outage: not retryable. Neither is
+ * any other 4xx but 408/429: R2 answers a request it will never accept with 400 (`InvalidPart`,
+ * `EntityTooSmall`, `BadDigest` — qualification 2026-11-28), and repeating it cannot succeed.
+ */
 function providerFailure(status: number): never {
   if (status === 429) throw new TeamFunctionError('RATE_LIMITED', { retryable: true });
   throw new TeamFunctionError('STORAGE_UNAVAILABLE', {
-    retryable: !(status === 401 || status === 403)
+    retryable: status === 408 || status < 400 || status >= 500
   });
 }
 

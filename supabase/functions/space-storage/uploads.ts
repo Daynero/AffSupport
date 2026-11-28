@@ -26,6 +26,7 @@ import {
   SPACE_DERIVATIVE_VARIANTS,
   SPACE_STORAGE_LIMITS,
   spaceContentId,
+  spacePartRange,
   type SpaceAdmitResult,
   type SpaceIngress,
   type SpaceMaterialSnapshot,
@@ -486,8 +487,8 @@ export function multipartObjectEtag(partEtags: readonly string[]): string {
 }
 
 /**
- * Verify what R2 holds for the session: every part present, in order, adding up to the declared
- * length, and the content id recomputed from R2's own part ETags equal to the declared one.
+ * Verify what R2 holds for the session: every part present, in order, of the canonical size,
+ * adding up to the declared length, and the content id recomputed from R2's own part ETags equal to the declared one.
  */
 export async function verifyListedParts(
   facts: Pick<SessionFacts, 'partCount' | 'declaredBytes' | 'declaredContentId'>,
@@ -497,6 +498,12 @@ export async function verifyListedParts(
   if (listed.some((part, index) => part.partNumber !== index + 1)) return { ok: false };
   const total = listed.reduce((sum, part) => sum + BigInt(part.bytes), 0n);
   if (total !== facts.declaredBytes || total > BigInt(Number.MAX_SAFE_INTEGER))
+    return { ok: false };
+  // Every part must have the size the declared length implies. R2 itself refuses parts of
+  // unequal size at completion (`400 InvalidPart`, qualification 2026-11-28), and the content id
+  // is only canonical for the canonical split, so a different split is refused here, before
+  // the session is marked completing.
+  if (listed.some((part, index) => part.bytes !== spacePartRange(Number(total), index + 1).bytes))
     return { ok: false };
   const recomputed = await spaceContentId(
     Number(total),

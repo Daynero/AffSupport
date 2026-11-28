@@ -371,4 +371,24 @@ describe('provider errors are sanitized', () => {
       true
     ]);
   });
+
+  it('a 4xx R2 will never accept is not retried; 408 is', async () => {
+    // Qualification 2026-11-28: unequal parts → 400 InvalidPart, a short part → 400 EntityTooSmall.
+    const { r2 } = client([
+      xml('<Error><Code>InvalidPart</Code></Error>', 400),
+      xml('<Error><Code>EntityTooSmall</Code></Error>', 400),
+      xml('<Error><Code>RequestTimeout</Code></Error>', 408)
+    ]);
+    const signal = new AbortController().signal;
+    const retryable: unknown[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      try {
+        await r2.createMultipart(STAGING, 'video/mp4', signal);
+      } catch (error) {
+        expect((error as TeamFunctionError).code).toBe('STORAGE_UNAVAILABLE');
+        retryable.push((error as TeamFunctionError).retryable);
+      }
+    }
+    expect(retryable).toEqual([false, false, true]);
+  });
 });

@@ -1,0 +1,554 @@
+{
+  "startedAt": "2026-11-28T01:06:21.046Z",
+  "bucket": "soty-spaces-beta",
+  "prefix": "qualify/",
+  "checks": [
+    {
+      "id": "cors.preflight.put https://next.soty.pp.ua",
+      "pass": true,
+      "expected": "ACAO = origin, PUT allowed with content-md5",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "access-control-allow-origin": "https://next.soty.pp.ua",
+        "access-control-allow-methods": "GET, HEAD, PUT",
+        "access-control-allow-headers": "content-md5, content-type",
+        "access-control-max-age": "3600",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "cors.preflight.get-range https://next.soty.pp.ua",
+      "pass": true,
+      "expected": "ACAO = origin, GET with range allowed",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "access-control-allow-origin": "https://next.soty.pp.ua",
+        "access-control-allow-methods": "GET, HEAD, PUT",
+        "access-control-allow-headers": "range",
+        "access-control-max-age": "3600",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "cors.preflight.put https://soty.pp.ua",
+      "pass": true,
+      "expected": "ACAO = origin, PUT allowed with content-md5",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "access-control-allow-origin": "https://soty.pp.ua",
+        "access-control-allow-methods": "GET, HEAD, PUT",
+        "access-control-allow-headers": "content-md5, content-type",
+        "access-control-max-age": "3600",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "cors.preflight.get-range https://soty.pp.ua",
+      "pass": true,
+      "expected": "ACAO = origin, GET with range allowed",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "access-control-allow-origin": "https://soty.pp.ua",
+        "access-control-allow-methods": "GET, HEAD, PUT",
+        "access-control-allow-headers": "range",
+        "access-control-max-age": "3600",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "cors.preflight.put http://localhost:5173",
+      "pass": true,
+      "expected": "ACAO = origin, PUT allowed with content-md5",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "access-control-allow-origin": "http://localhost:5173",
+        "access-control-allow-methods": "GET, HEAD, PUT",
+        "access-control-allow-headers": "content-md5, content-type",
+        "access-control-max-age": "3600",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "cors.preflight.get-range http://localhost:5173",
+      "pass": true,
+      "expected": "ACAO = origin, GET with range allowed",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "access-control-allow-origin": "http://localhost:5173",
+        "access-control-allow-methods": "GET, HEAD, PUT",
+        "access-control-allow-headers": "range",
+        "access-control-max-age": "3600",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "cors.preflight.put http://127.0.0.1:5173",
+      "pass": true,
+      "expected": "ACAO = origin, PUT allowed with content-md5",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "access-control-allow-origin": "http://127.0.0.1:5173",
+        "access-control-allow-methods": "GET, HEAD, PUT",
+        "access-control-allow-headers": "content-md5, content-type",
+        "access-control-max-age": "3600",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "cors.preflight.get-range http://127.0.0.1:5173",
+      "pass": true,
+      "expected": "ACAO = origin, GET with range allowed",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "access-control-allow-origin": "http://127.0.0.1:5173",
+        "access-control-allow-methods": "GET, HEAD, PUT",
+        "access-control-allow-headers": "range",
+        "access-control-max-age": "3600",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "cors.preflight.foreign-origin",
+      "pass": true,
+      "expected": "no ACAO for an origin outside the list",
+      "observed": {
+        "status": 403,
+        "code": "Unauthorized",
+        "content-type": "application/xml",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "client.part-layout",
+      "pass": true,
+      "expected": "16 MiB parts, 2 parts",
+      "observed": {
+        "partBytes": 16777216,
+        "count": 2,
+        "total": 17825915
+      }
+    },
+    {
+      "id": "multipart.create",
+      "pass": true,
+      "expected": "UploadId returned",
+      "observed": {
+        "uploadIdLength": 343
+      }
+    },
+    {
+      "id": "uploadPart.presigned.right-md5",
+      "pass": true,
+      "expected": "200",
+      "observed": {
+        "status": 200,
+        "code": null,
+        "etag": "\"b916cd8b29f0d9799c79539106926212\"",
+        "content-length": "0",
+        "access-control-allow-origin": "https://next.soty.pp.ua",
+        "access-control-expose-headers": "ETag,Content-Length,Content-Range,Accept-Ranges",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "uploadPart.etag-format",
+      "pass": true,
+      "expected": "ETag header = quoted lowercase hex MD5 of the part",
+      "observed": {
+        "etag": "\"b916cd8b29f0d9799c79539106926212\"",
+        "md5": "b916cd8b29f0d9799c79539106926212"
+      }
+    },
+    {
+      "id": "uploadPart.normalizePartEtag",
+      "pass": true,
+      "expected": "shared normalizer yields the MD5",
+      "observed": {
+        "normalized": "b916cd8b29f0d9799c79539106926212"
+      }
+    },
+    {
+      "id": "cors.put-response.exposes-etag",
+      "pass": true,
+      "expected": "real PUT response: ACAO = origin, Access-Control-Expose-Headers contains ETag",
+      "observed": {
+        "acao": "https://next.soty.pp.ua",
+        "aceh": "ETag,Content-Length,Content-Range,Accept-Ranges"
+      }
+    },
+    {
+      "id": "uploadPart.signed.wrong-md5",
+      "pass": true,
+      "expected": "400 BadDigest",
+      "observed": {
+        "status": 400,
+        "code": "BadDigest",
+        "content-length": "155",
+        "content-type": "application/xml",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "uploadPart.presigned.damaged-body",
+      "pass": true,
+      "expected": "400 BadDigest (signed MD5, other bytes)",
+      "observed": {
+        "status": 400,
+        "code": "BadDigest",
+        "content-length": "155",
+        "content-type": "application/xml",
+        "access-control-allow-origin": "https://next.soty.pp.ua",
+        "access-control-expose-headers": "ETag,Content-Length,Content-Range,Accept-Ranges",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "uploadPart.presigned.md5-header-swapped",
+      "pass": true,
+      "expected": "403 (Content-MD5 is inside the signature)",
+      "observed": {
+        "status": 403,
+        "code": "SignatureDoesNotMatch",
+        "content-type": "application/xml",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "uploadPart.checksum-sha256",
+      "pass": true,
+      "expected": "501 NotImplemented (050)",
+      "observed": {
+        "status": 501,
+        "code": "NotImplemented",
+        "content-length": "223",
+        "content-type": "application/xml",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "uploadPart.no-md5.etag-is-md5",
+      "pass": true,
+      "expected": "without Content-MD5 the part is accepted and its ETag is still the MD5 of what arrived",
+      "observed": {
+        "status": 200,
+        "etag": "\"88be8415c828a0cd1b0f13d1138c6114\""
+      }
+    },
+    {
+      "id": "uploadPart.overwrite-part",
+      "pass": true,
+      "expected": "same part number again replaces it",
+      "observed": {
+        "status": 200,
+        "code": null,
+        "etag": "\"ea36db5f4fb16b70429e188a07b84e70\"",
+        "content-length": "0",
+        "access-control-allow-origin": "https://next.soty.pp.ua",
+        "access-control-expose-headers": "ETag,Content-Length,Content-Range,Accept-Ranges",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "listParts.etag-format",
+      "pass": true,
+      "expected": "two parts, ETag = quoted MD5 of the accepted bytes, Size = part length (rejected/replaced parts absent)",
+      "observed": {
+        "status": 200,
+        "parts": [
+          {
+            "partNumber": 1,
+            "etagRaw": "\"b916cd8b29f0d9799c79539106926212\"",
+            "size": 16777216
+          },
+          {
+            "partNumber": 2,
+            "etagRaw": "\"ea36db5f4fb16b70429e188a07b84e70\"",
+            "size": 1048699
+          }
+        ]
+      }
+    },
+    {
+      "id": "contentId.client-equals-listParts",
+      "pass": true,
+      "expected": "spaceContentId from client MD5s = from ListParts ETags",
+      "observed": {
+        "client": "e6c8be7552ea",
+        "r2": "e6c8be7552ea"
+      }
+    },
+    {
+      "id": "multipart.complete",
+      "pass": true,
+      "expected": "200 CompleteMultipartUploadResult",
+      "observed": {
+        "status": 200,
+        "code": null,
+        "content-type": "application/xml",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "complete.object-etag-format",
+      "pass": true,
+      "expected": "quoted MD5 of concatenated binary part MD5s + \"-N\" (= multipartObjectEtag)",
+      "observed": {
+        "etag": "\"0ef9254bed1bef987b412781dbcde02a-2\"",
+        "md5OfMd5sN": "0ef9254bed1bef987b412781dbcde02a-2"
+      }
+    },
+    {
+      "id": "complete.etag-is-not-part-etag",
+      "pass": true,
+      "expected": "normalizePartEtag refuses an object ETag",
+      "observed": {
+        "normalized": null
+      }
+    },
+    {
+      "id": "head.object",
+      "pass": true,
+      "expected": "200, Content-Length = total, ETag = completed ETag",
+      "observed": {
+        "status": 200,
+        "code": null,
+        "etag": "\"0ef9254bed1bef987b412781dbcde02a-2\"",
+        "content-length": "17825915",
+        "accept-ranges": "bytes",
+        "content-type": "application/octet-stream",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "range.get",
+      "pass": true,
+      "expected": "206, Content-Range exact, bytes equal across the part boundary",
+      "observed": {
+        "status": 206,
+        "code": null,
+        "etag": "\"0ef9254bed1bef987b412781dbcde02a-2\"",
+        "content-length": "1000",
+        "content-range": "bytes 16776716-16777715/17825915",
+        "accept-ranges": "bytes",
+        "content-type": "application/octet-stream",
+        "access-control-allow-origin": "https://next.soty.pp.ua",
+        "access-control-expose-headers": "ETag,Content-Length,Content-Range,Accept-Ranges",
+        "vary": "Origin",
+        "bytesEqual": true
+      }
+    },
+    {
+      "id": "cors.get-response.exposes",
+      "pass": true,
+      "expected": "GET response exposes ETag, Content-Range, Content-Length, Accept-Ranges",
+      "observed": {
+        "acao": "https://next.soty.pp.ua",
+        "aceh": "ETag,Content-Length,Content-Range,Accept-Ranges"
+      }
+    },
+    {
+      "id": "range.suffix",
+      "pass": true,
+      "expected": "206 last 100 bytes",
+      "observed": {
+        "status": 206,
+        "code": null,
+        "etag": "\"0ef9254bed1bef987b412781dbcde02a-2\"",
+        "content-length": "100",
+        "content-range": "bytes 17825815-17825914/17825915",
+        "accept-ranges": "bytes",
+        "content-type": "application/octet-stream",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "anonymous.get",
+      "pass": true,
+      "expected": "4xx without bytes",
+      "observed": {
+        "status": 400,
+        "code": "InvalidArgument"
+      }
+    },
+    {
+      "id": "listObjects.etag-format",
+      "pass": true,
+      "expected": "ListObjectsV2 ETag = completed ETag, quoted",
+      "observed": {
+        "status": 200,
+        "etag": "\"0ef9254bed1bef987b412781dbcde02a-2\""
+      }
+    },
+    {
+      "id": "parts.non-uniform-rejected",
+      "pass": true,
+      "expected": "refused: all parts except the last must be the same size",
+      "observed": {
+        "status": 400,
+        "code": "InvalidPart",
+        "content-length": "145",
+        "content-type": "application/xml",
+        "vary": "Origin",
+        "completed": false
+      }
+    },
+    {
+      "id": "parts.below-5MiB-rejected",
+      "pass": true,
+      "expected": "EntityTooSmall",
+      "observed": {
+        "status": 400,
+        "code": "EntityTooSmall",
+        "content-length": "168",
+        "content-type": "application/xml",
+        "vary": "Origin",
+        "completed": false
+      }
+    },
+    {
+      "id": "parts.empty-part",
+      "pass": true,
+      "expected": "200, ETag = MD5 of nothing",
+      "observed": {
+        "status": 200,
+        "code": null,
+        "etag": "\"d41d8cd98f00b204e9800998ecf8427e\"",
+        "content-length": "0",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "contentId.empty-file",
+      "pass": true,
+      "expected": "one listed part of 0 bytes, content id computable",
+      "observed": {
+        "parts": [
+          {
+            "partNumber": 1,
+            "etagRaw": "\"d41d8cd98f00b204e9800998ecf8427e\"",
+            "size": 0
+          }
+        ],
+        "ok": true
+      }
+    },
+    {
+      "id": "multipart.complete-empty",
+      "pass": true,
+      "expected": "a 0-byte multipart completes into a 0-byte object",
+      "observed": {
+        "complete": {
+          "status": 200,
+          "code": null,
+          "content-type": "application/xml",
+          "vary": "Origin"
+        },
+        "etag": "\"59adb24ef3cdbe0297f05b395827453f-1\"",
+        "head": {
+          "status": 200,
+          "code": null,
+          "etag": "\"59adb24ef3cdbe0297f05b395827453f-1\"",
+          "content-length": "0",
+          "accept-ranges": "bytes",
+          "content-type": "application/octet-stream",
+          "vary": "Origin"
+        }
+      }
+    },
+    {
+      "id": "multipart.abort",
+      "pass": true,
+      "expected": "204",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "abort.listParts",
+      "pass": true,
+      "expected": "404 NoSuchUpload (SpaceR2.listParts → NOT_FOUND)",
+      "observed": {
+        "status": 404,
+        "code": "NoSuchUpload",
+        "content-type": "application/xml",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "abort.repeat",
+      "pass": true,
+      "expected": "204 or 404 (both tolerated by abortMultipart)",
+      "observed": {
+        "status": 204,
+        "code": null,
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "abort.complete-after",
+      "pass": true,
+      "expected": "404 NoSuchUpload (completeMultipart → NOT_FOUND)",
+      "observed": {
+        "status": 404,
+        "code": "NoSuchUpload",
+        "content-type": "application/xml",
+        "vary": "Origin"
+      }
+    },
+    {
+      "id": "abort.no-object",
+      "pass": true,
+      "expected": "nothing at the key",
+      "observed": {
+        "status": 404
+      }
+    },
+    {
+      "id": "cleanup.prefix-empty",
+      "pass": true,
+      "expected": "no object and no open multipart under qualify/",
+      "observed": {
+        "aborted": 2,
+        "deleted": 2,
+        "objects": 0,
+        "uploads": 0,
+        "listStatus": [
+          200,
+          200
+        ]
+      }
+    }
+  ],
+  "jurisdiction": {
+    "defaultEndpoint": 200,
+    "euEndpoint": 403,
+    "verdict": "default"
+  },
+  "readback_cors": {
+    "status": 403,
+    "code": "AccessDenied"
+  },
+  "readback_lifecycle": {
+    "status": 403,
+    "code": "AccessDenied"
+  },
+  "readback_location": {
+    "status": 200,
+    "code": null,
+    "body": "<LocationConstraint xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">EEUR</LocationConstraint>"
+  },
+  "finishedAt": "2026-11-28T01:06:33.216Z",
+  "fatal": null,
+  "passed": 43,
+  "failed": []
+}
