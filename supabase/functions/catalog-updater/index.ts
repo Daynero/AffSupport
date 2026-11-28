@@ -1,4 +1,6 @@
 import { createCatalogNonVideoUpdater, CATALOG_NONVIDEO_MARKER } from './nonvideo-writer.ts';
+import { createCatalogFeedUpdater } from './feed-writer.ts';
+import { catalogFeedStoreFromEnv } from '../_shared/catalog-feed-store.ts';
 import {
   createTargetedCatalogPublicationIo,
   type PublicationImagePublisher
@@ -341,9 +343,22 @@ Deno.serve(async request => {
       }
       let claimQuarantined = 0;
       let claimStale = 0;
+      // 057: an R2 space's catalog is a feed in the public catalog bucket (feed-writer.ts).
+      const feedStore = catalogFeedStoreFromEnv(key => Deno.env.get(key));
       const summary = await runCatalogUpdaterTick(
         {
           workerId,
+          ...(feedStore
+            ? {
+                feeds: createCatalogFeedUpdater({
+                  store: feedStore,
+                  service,
+                  workerId,
+                  signal: request.signal,
+                  log: (message, detail) => console.error(message, detail)
+                })
+              }
+            : {}),
           readContentRecipe: async catalogId =>
             parseCatalogUpdateContentContext(
               await rpcValue(service, 'service_catalog_update_content_recipe', {

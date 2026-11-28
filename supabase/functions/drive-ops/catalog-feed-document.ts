@@ -1,11 +1,26 @@
 import { TeamFunctionError, mapUnknownError } from '../_shared/errors.ts';
 import {
+  CATALOG_FEED_ID,
   catalogFeedKey,
   newCatalogFeedId,
   writeCatalogFeed,
   type CatalogFeedStore
 } from '../_shared/catalog-feed.ts';
 import type { CatalogDocumentWriter } from './product-catalog.ts';
+
+/**
+ * 057: the feed id of one catalog operation: 128 bits of SHA-256 over a fixed label and the
+ * operation's id. Stable across a resumed creation and not the operation id itself.
+ */
+export async function catalogFeedIdFor(operationId: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`soty.catalog.feed:${operationId}`)
+  );
+  return Array.from(new Uint8Array(digest).subarray(0, 16), byte =>
+    byte.toString(16).padStart(2, '0')
+  ).join('');
+}
 
 /**
  * 057 (FR-050): the document writer of an R2 space. The catalog's rows go to its feed, under a
@@ -19,7 +34,12 @@ import type { CatalogDocumentWriter } from './product-catalog.ts';
 export function createCatalogFeedDocumentWriter(deps: {
   store: CatalogFeedStore;
   signal: AbortSignal;
-  newFeedId?: () => string;
+  /**
+   * The feed's id for this operation. A resumed creation repeats the same operation, so a
+   * writer that derives the id from it (`catalogFeedIdFor`) rewrites one feed instead of leaving
+   * a second one behind; without it every write gets a fresh id.
+   */
+  newFeedId?: (operationId: string) => string | Promise<string>;
   commit(input: {
     operationId: string;
     actorId: string;
@@ -32,7 +52,10 @@ export function createCatalogFeedDocumentWriter(deps: {
 }): CatalogDocumentWriter {
   return {
     async write({ name, rows, authority, actorId }) {
-      const feedId = (deps.newFeedId ?? newCatalogFeedId)();
+      const feedId = deps.newFeedId
+        ? await deps.newFeedId(authority.operationId)
+        : newCatalogFeedId();
+      if (!CATALOG_FEED_ID.test(feedId)) throw new TeamFunctionError('INVALID_RESPONSE');
       const written = await writeCatalogFeed(
         deps.store,
         { feedId, rows, marker: authority.operationId },

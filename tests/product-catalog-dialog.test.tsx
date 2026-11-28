@@ -150,6 +150,34 @@ function renderDialog(
 const confirm = () => screen.getByRole('button', { name: 'Create' }) as HTMLButtonElement;
 
 describe('creating a catalog', () => {
+  it('in an R2 space offers neither re-stitching nor the R2 copy option (057)', async () => {
+    const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
+    rememberSpaceBackend(TEAM_ID, 'r2');
+    try {
+      const client = dialogClient({
+        getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+        canRestitch: vi.fn().mockResolvedValue('yes')
+      });
+      renderDialog(client);
+      const user = userEvent.setup();
+      await user.type(
+        screen.getByLabelText(/^Link(?: · Required)?$/),
+        'https://offer.example.test/'
+      );
+      expect(screen.queryByRole('checkbox', { name: 'Re-stitch video' })).toBeNull();
+      expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+      await waitFor(() => expect(confirm().disabled).toBe(false));
+      await user.click(confirm());
+      await waitFor(() => expect(client.createProductCatalog).toHaveBeenCalled());
+      const sent = vi.mocked(client.createProductCatalog).mock.calls[0]![0];
+      expect(sent).not.toHaveProperty('restitchOperationId');
+      expect(sent).not.toHaveProperty('copyVideoToR2');
+      expect(document.body.textContent ?? '').not.toMatch(/Google/u);
+    } finally {
+      rememberSpaceBackend(TEAM_ID, 'drive');
+    }
+  });
+
   it('always enables link variation without showing a choice', async () => {
     const client = dialogClient();
     renderDialog(client);

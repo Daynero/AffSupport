@@ -2,7 +2,7 @@ import {
   isCatalogForegroundAdmissionRefused,
   isCatalogForegroundPreparationFailure
 } from '../../api/catalog-video-foreground';
-import { CatalogDocumentLinks } from './CatalogFeedAddress';
+import { CatalogDocumentLinks, useCatalogFeedSpace } from './CatalogFeedAddress';
 import { CatalogCreatedPublicationStatus } from './CatalogCreatedPublicationStatus';
 import { useOptionalAgent } from '../../AgentContext';
 import { useAgentEventStream } from '../../api/useAgentEventStream';
@@ -357,6 +357,12 @@ export function CreateProductCatalogDialog({
   );
   const [touched, setTouched] = useState({ link: false, count: false });
   const [restitch, setRestitch] = useState(false);
+  /* 057: an R2 space's catalog is its feed, published at once, its video always the R2 copy:
+     re-stitched videos, a later publication and the copy option have no path there yet. */
+  const feedSpace = useCatalogFeedSpace(teamId);
+  useEffect(() => {
+    if (feedSpace && restitch) setRestitch(false);
+  }, [feedSpace, restitch]);
   // 050: copy the catalog video to R2; off unless ticked, applied from the next update on.
   const [copyVideoToR2, setCopyVideoToR2] = useState(false);
   const videoProtocol = Boolean(client.createProductCatalogVideo);
@@ -1361,7 +1367,7 @@ export function CreateProductCatalogDialog({
             </FormField>
           </div>
 
-          {videoProtocol && (
+          {videoProtocol && !feedSpace && (
             <CatalogCreationVideoFields
               value={videoDraft}
               onChange={setVideoDraft}
@@ -1370,87 +1376,91 @@ export function CreateProductCatalogDialog({
               disabled={busy}
             />
           )}
-          <div className="product-catalog-restitch">
-            <Checkbox
-              checked={restitch}
-              disabled={busy}
-              onChange={checked => {
-                setRestitch(checked);
-                if (checked) setRestitchRequested(true);
-                setProcessed(null);
-              }}
-              label={t('productCatalogRestitch')}
-            />
-            {restitch && restitchDefaults === undefined && !restitchLoadError && (
-              <Skeleton
-                className="product-catalog-restitch-loading"
-                shape="block"
-                label={t('loading')}
+          {!feedSpace && (
+            <div className="product-catalog-restitch">
+              <Checkbox
+                checked={restitch}
+                disabled={busy}
+                onChange={checked => {
+                  setRestitch(checked);
+                  if (checked) setRestitchRequested(true);
+                  setProcessed(null);
+                }}
+                label={t('productCatalogRestitch')}
               />
-            )}
-            {restitch && restitchLoadError && (
-              <div className="product-catalog-dialog-missing" role="alert">
-                <p className="team-inline-note">
-                  {restitchLoadCode
-                    ? teamErrorMessageFor({ code: restitchLoadCode }, t)
-                    : t('productCatalogRestitchLoadFailed')}
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setRestitchReadRevision(value => value + 1)}
-                >
-                  {t('retry')}
-                </Button>
-              </div>
-            )}
-            {restitch &&
-              restitchDefaults !== undefined &&
-              (!restitchDefaults ||
-                !restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' })) && (
-                <div className="product-catalog-dialog-missing" role="status">
-                  <p className="team-inline-note">{t('teamRestitchNotConfigured')}</p>
-                  <SpaceSettingsLink
-                    target={{ kind: 'settings', tab: 'restitch' }}
-                    label={t('launchesOpenRestitchSettings')}
-                  />
-                </div>
-              )}
-            {restitch &&
-              restitchDefaults &&
-              restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' }) && (
-                <RestitchDurationControl
-                  value={duration}
-                  disabled={busy}
-                  labels={{
-                    duration: t('launchesDuration'),
-                    range: t('launchesDurationRange'),
-                    exact: t('launchesDurationExact'),
-                    unit: t('launchesMinutesShort')
-                  }}
-                  onChange={value => {
-                    durationPreference.current = { key: preferenceKey, value };
-                    setDuration(value);
-                    saveCatalogDurationPreference(preferenceKey, value);
-                  }}
+              {restitch && restitchDefaults === undefined && !restitchLoadError && (
+                <Skeleton
+                  className="product-catalog-restitch-loading"
+                  shape="block"
+                  label={t('loading')}
                 />
               )}
-            {restitch && restitchDefaults && !durationValid && (
-              <p className="team-inline-error" role="alert">
-                {t('launchesDurationInvalid')}
-              </p>
-            )}
-          </div>
-          <div className="product-catalog-restitch">
-            <CatalogVideoR2Toggle
-              mode="create"
-              control="checkbox"
-              teamId={teamId}
-              checked={copyVideoToR2}
-              onChange={setCopyVideoToR2}
-              disabled={busy}
-            />
-          </div>
+              {restitch && restitchLoadError && (
+                <div className="product-catalog-dialog-missing" role="alert">
+                  <p className="team-inline-note">
+                    {restitchLoadCode
+                      ? teamErrorMessageFor({ code: restitchLoadCode }, t)
+                      : t('productCatalogRestitchLoadFailed')}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setRestitchReadRevision(value => value + 1)}
+                  >
+                    {t('retry')}
+                  </Button>
+                </div>
+              )}
+              {restitch &&
+                restitchDefaults !== undefined &&
+                (!restitchDefaults ||
+                  !restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' })) && (
+                  <div className="product-catalog-dialog-missing" role="status">
+                    <p className="team-inline-note">{t('teamRestitchNotConfigured')}</p>
+                    <SpaceSettingsLink
+                      target={{ kind: 'settings', tab: 'restitch' }}
+                      label={t('launchesOpenRestitchSettings')}
+                    />
+                  </div>
+                )}
+              {restitch &&
+                restitchDefaults &&
+                restitchDefaultsSaveable({ ...restitchDefaults, operation: 'restitch' }) && (
+                  <RestitchDurationControl
+                    value={duration}
+                    disabled={busy}
+                    labels={{
+                      duration: t('launchesDuration'),
+                      range: t('launchesDurationRange'),
+                      exact: t('launchesDurationExact'),
+                      unit: t('launchesMinutesShort')
+                    }}
+                    onChange={value => {
+                      durationPreference.current = { key: preferenceKey, value };
+                      setDuration(value);
+                      saveCatalogDurationPreference(preferenceKey, value);
+                    }}
+                  />
+                )}
+              {restitch && restitchDefaults && !durationValid && (
+                <p className="team-inline-error" role="alert">
+                  {t('launchesDurationInvalid')}
+                </p>
+              )}
+            </div>
+          )}
+          {!feedSpace && (
+            <div className="product-catalog-restitch">
+              <CatalogVideoR2Toggle
+                mode="create"
+                control="checkbox"
+                teamId={teamId}
+                checked={copyVideoToR2}
+                onChange={setCopyVideoToR2}
+                disabled={busy}
+              />
+            </div>
+          )}
 
           {phase.kind === 'busy' && phase.step === 'restitch' && (
             <CatalogRestitchProgress

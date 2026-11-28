@@ -149,6 +149,12 @@ export interface ProductCatalogDeps {
    * exactly as before; an R2 space hands in its feed writer.
    */
   documentWriter?: CatalogDocumentWriter;
+  /**
+   * 057: the storage seam of an R2 space (`catalog-space-source.ts`). Absent for every Drive
+   * space, which runs every line below as before. Present, the video is read from the space,
+   * never shared by link, and linked from its R2 copy.
+   */
+  space?: CatalogSpaceSource;
   /** Durable adapter owns reconciliation; an uncertain output must not be trashed blindly. */
   preserveUncertainOutput?: boolean;
   /** Reconciles an already-created sheet before repeating XLSX conversion. */
@@ -274,6 +280,16 @@ export interface ProductCatalogDeps {
     record: Record<string, unknown>;
   }): Promise<CatalogLinkOutcome>;
   log(message: string, detail: string): void;
+}
+
+/**
+ * 057: what a catalog of an R2 space takes from the space instead of Drive. Only a single video
+ * creative published at once is offered there: re-stitched videos, scheduled publication and
+ * image or multi-creative catalogs have no R2 path yet and are refused before anything is made.
+ */
+export interface CatalogSpaceSource {
+  /** The public address of the video's R2 copy (050), planned or verified; never a Drive link. */
+  videoLink(input: { teamId: string; actorId: string; video: CatalogVideo }): Promise<string>;
 }
 
 /** 062: an image creative's published link. */
@@ -791,6 +807,13 @@ export async function createProductCatalog(
 
   await deps.assertImageContract?.(teamId, request.catalogImageContractVersion);
   const kind: CatalogCreativeKind = request.creativeKind ?? 'video';
+  const space = deps.space;
+  if (space) {
+    if (kind !== 'video' || (request.creatives?.length ?? 1) > 1)
+      throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
+    if (request.restitchOperationId || request.catalogVideoProtocolVersion !== undefined)
+      throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
+  }
   // Refusals first: nothing below this block may leave anything behind.
   const video = await deps.loadVideo({ teamId, videoId, actorId, permission: 'view' });
   if (video.category !== kind) {
@@ -852,7 +875,7 @@ export async function createProductCatalog(
   // and do not change video permissions until both reads have completed.
   const [destination, videoPermissions] = await alongside(
     deps.destination({ teamId, actorId, folderId: video.parentFolderId }),
-    drive.listAnyonePermissions(liveVideo.id)
+    space ? Promise.resolve([]) : drive.listAnyonePermissions(liveVideo.id)
   );
   const copyDrive = restitched ? await deps.driveFor(restitched.credentialId) : null;
   const liveCopy = restitched && copyDrive ? await deps.proveVideo(restitched, copyDrive) : null;
@@ -867,6 +890,7 @@ export async function createProductCatalog(
 
   let videoShared = false;
   if (
+    !space &&
     kind === 'video' &&
     videoPermissions.length === 0 &&
     !(request.catalogVideoProtocolVersion === 1 && request.restitchEnabled)
@@ -878,10 +902,9 @@ export async function createProductCatalog(
     }
     videoShared = (await ensureAnyoneReader(drive, liveVideo.id, videoPermissions)).added;
   }
-  const originalVideoLink = videoShareLink(
-    liveVideo.id,
-    liveVideo.resourceKey ?? video.resourceKey
-  );
+  const originalVideoLink = space
+    ? await space.videoLink({ teamId, actorId, video })
+    : videoShareLink(liveVideo.id, liveVideo.resourceKey ?? video.resourceKey);
   // Every other video is shared the same way; a restitched one links its set's outputs instead.
   const creativeVideoLinks: string[] = [originalVideoLink];
   for (const creative of proven) {
@@ -967,7 +990,11 @@ export async function createProductCatalog(
           contractVersion: request.catalogImageContractVersion
         })
       );
-      await createCatalogImageSharer(drive)(images.filter(legacyImage));
+      // An R2 space has no Drive to share a legacy pool picture from; its pool is published.
+      if (space) {
+        if (images.some(legacyImage))
+          throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
+      } else await createCatalogImageSharer(drive)(images.filter(legacyImage));
       let planned = planCatalogRows({
         count: request.productCount,
         settings,
@@ -1025,7 +1052,10 @@ export async function createProductCatalog(
       ...(image?.imageId ? { imageId: image.imageId } : {}),
       ...(image && !publicationHeld ? { link: image.link, linkKind: image.linkKind } : {}),
       ...(ownVideo && !publicationHeld
-        ? { link: creativeVideoLinks[ordinal]!, linkKind: 'drive' as const }
+        ? {
+            link: creativeVideoLinks[ordinal]!,
+            linkKind: space ? ('r2' as const) : ('drive' as const)
+          }
         : {}),
       ...(creativeSourceLinks ? { sourceLink: creativeSourceLinks[ordinal]! } : {})
     };

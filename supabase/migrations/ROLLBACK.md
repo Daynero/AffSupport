@@ -3916,3 +3916,20 @@ source's bytes identity as `coalesce(drive_version, content_id of its committed 
 Drive material that is its Drive version, exactly as before. Undo by dropping the new function and
 re-running the recorder's definition from 20261224300000. R2 transcription results then keep no
 text for search, and R2 re-stitch findings are no longer kept (each answers false as before).
+
+## 20261226230000 — 057 creating a catalog in an R2 space
+
+Adds the service-only `service_space_catalog_material`, `service_space_catalog_names`,
+`service_space_catalog_video_link` (plans or finds the video's R2 copy under its object's content
+id and returns its address), `service_commit_space_catalog_feed` (the feed's companion row: an R2
+row without an object, `text/csv`, committed by the catalog's upload operation) and
+`service_link_space_catalog_feed` (the Drive link function, then `service_record_catalog_feed` and
+the catalog's R2 video preference in the same transaction). Patches two function bodies in place:
+`service_link_product_catalog_companion` (a companion row without a connection may be a CSV feed
+that is already the video's companion, and a retired one keeps its companion fields) and
+`service_catalog_video_r2_resolve_current` (`coalesce` of the Drive identity and the R2 object's
+content id). Every Drive row has a connection and a Drive identity, so both answer as before for
+it. Undo by dropping the five new functions and re-running the two bodies from the migrations that
+last defined them (20261221115000 and 20261207195000). Creating a catalog in an R2 space
+then fails with `STORAGE_BACKEND_MISMATCH`; feed catalogs already made keep their rows and feeds,
+but their updater no longer finds their R2 copy and keeps the address it wrote.

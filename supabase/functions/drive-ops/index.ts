@@ -121,6 +121,12 @@ import {
 } from '../_shared/drive-cache.ts';
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
 import { spaceStorageBackendOf } from '../_shared/space-storage-backend.ts';
+import { catalogFeedStoreFromEnv } from '../_shared/catalog-feed-store.ts';
+import {
+  assertSpaceCatalogRequest,
+  spaceCatalogDeps,
+  spaceCatalogRequest
+} from './catalog-space-source.ts';
 import {
   readDriveCredential,
   refreshGoogleAccessToken,
@@ -4208,84 +4214,120 @@ Deno.serve(async request => {
       const catalogRequest = parseCreateProductCatalogRequest(catalogBody);
       if (catalogRequest.catalogVideoProtocolVersion === 1)
         assertExpectedMutationActor(body.expectedActorId, userId);
-      if (
-        catalogRequest.catalogVideoProtocolVersion === 1 &&
-        !nativeRestitchEnabled({
-          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
-          environment: Deno.env.get('SOTY_ENVIRONMENT'),
-          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
-          siteUrl: Deno.env.get('WISHLY_SITE_URL')
-        })
-      )
-        throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
-      if (catalogRequest.idempotencyKey.startsWith('launch:'))
-        throw new TeamFunctionError('INVALID_INPUT');
-      const deps: ReturnType<typeof productCatalogDeps> &
-        Pick<ProductCatalogDeps, 'initialVideoAuthority'> = productCatalogDeps(
-        request,
-        configured.caller,
-        configured.service
-      );
-      if (catalogRequest.catalogVideoProtocolVersion === 1) {
-        deps.initialVideoAuthority = await createCatalogInitialVideoAuthority(
-          configured.service,
+      // 057: a catalog of an R2 space is the same generator over the space's storage seam
+      // (catalog-space-source.ts). A Drive space never enters this branch.
+      const backend =
+        catalogRequest.idempotencyKey.startsWith('launch:') ||
+        (await spaceStorageBackendOf(configured.service, catalogRequest.teamId, userId)) !== 'r2'
+          ? 'drive'
+          : 'r2';
+      if (backend === 'r2') {
+        const spaceRequest = spaceCatalogRequest(catalogRequest);
+        assertSpaceCatalogRequest(spaceRequest);
+        const feeds = catalogFeedStoreFromEnv(key => Deno.env.get(key));
+        if (!feeds) throw new TeamFunctionError('STORAGE_UNAVAILABLE', { retryable: true });
+        const space = spaceCatalogDeps({
+          rpc: (name, parameters) => rpcValue(configured.service, name, parameters),
+          feeds,
+          signal: request.signal,
+          log: (message, detail) => console.error(message, detail)
+        });
+        value = await createDurableProductCatalog(
           {
-            teamId: catalogRequest.teamId,
-            actorId: userId,
-            sourceMaterialId: catalogRequest.videoMaterialId,
-            initialCatalogKey: catalogRequest.idempotencyKey,
-            expectedExecutorId: catalogRequest.expectedExecutorId,
-            foregroundExecutor: catalogRequest.foregroundExecutor,
-            ...(catalogRequest.foregroundExecutor
-              ? {
-                  foregroundScope: {
-                    teamId: catalogRequest.teamId,
-                    actorId: userId,
-                    sessionId: (
-                      await authorizeRestitchNativeEnrollment(request, configured.service)
-                    ).sessionId,
-                    sourceMaterialId: catalogRequest.videoMaterialId,
-                    consumerKind: 'create' as const,
-                    requestKey: catalogRequest.idempotencyKey,
-                    expectedVersion: null
-                  },
-                  foregroundSecret: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-                }
-              : {}),
-            restitchEnabled: catalogRequest.restitchEnabled,
-            targetedWriterEnabled: catalogWriterEnabled()
+            ...productCatalogDeps(request, configured.caller, configured.service),
+            ...space
           },
-          deps.fullDriveFor
+          catalogIntentStore(
+            configured.service,
+            spaceRequest.teamId,
+            spaceRequest.videoMaterialId,
+            userId,
+            spaceRequest.idempotencyKey
+          ),
+          space.fullDriveFor,
+          spaceRequest,
+          userId
+        );
+      } else {
+        if (
+          catalogRequest.catalogVideoProtocolVersion === 1 &&
+          !nativeRestitchEnabled({
+            enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+            environment: Deno.env.get('SOTY_ENVIRONMENT'),
+            oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+            siteUrl: Deno.env.get('WISHLY_SITE_URL')
+          })
+        )
+          throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+        if (catalogRequest.idempotencyKey.startsWith('launch:'))
+          throw new TeamFunctionError('INVALID_INPUT');
+        const deps: ReturnType<typeof productCatalogDeps> &
+          Pick<ProductCatalogDeps, 'initialVideoAuthority'> = productCatalogDeps(
+          request,
+          configured.caller,
+          configured.service
+        );
+        if (catalogRequest.catalogVideoProtocolVersion === 1) {
+          deps.initialVideoAuthority = await createCatalogInitialVideoAuthority(
+            configured.service,
+            {
+              teamId: catalogRequest.teamId,
+              actorId: userId,
+              sourceMaterialId: catalogRequest.videoMaterialId,
+              initialCatalogKey: catalogRequest.idempotencyKey,
+              expectedExecutorId: catalogRequest.expectedExecutorId,
+              foregroundExecutor: catalogRequest.foregroundExecutor,
+              ...(catalogRequest.foregroundExecutor
+                ? {
+                    foregroundScope: {
+                      teamId: catalogRequest.teamId,
+                      actorId: userId,
+                      sessionId: (
+                        await authorizeRestitchNativeEnrollment(request, configured.service)
+                      ).sessionId,
+                      sourceMaterialId: catalogRequest.videoMaterialId,
+                      consumerKind: 'create' as const,
+                      requestKey: catalogRequest.idempotencyKey,
+                      expectedVersion: null
+                    },
+                    foregroundSecret: Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+                  }
+                : {}),
+              restitchEnabled: catalogRequest.restitchEnabled,
+              targetedWriterEnabled: catalogWriterEnabled()
+            },
+            deps.fullDriveFor
+          );
+        }
+        const created = createDurableProductCatalog(
+          deps,
+          catalogIntentStore(
+            configured.service,
+            catalogRequest.teamId,
+            catalogRequest.videoMaterialId,
+            userId,
+            catalogRequest.idempotencyKey
+          ),
+          deps.fullDriveFor,
+          catalogRequest,
+          userId
+        );
+        // A create can race the background recovery pass for the same key, which then
+        // holds the lease: answer with its progress, as resume does, rather than a 409
+        // the dialog showed as an error for a minute while the pass built the table (1.4.3).
+        value = withCatalogVideoWriter(
+          catalogRequest.catalogVideoProtocolVersion === 1 || path.endsWith('/resume')
+            ? await resumeOrReadInitialCatalog(created, () =>
+                readCatalogInitialVideoProgress(configured.service, userId, {
+                  teamId: catalogRequest.teamId,
+                  expectedActorId: userId,
+                  idempotencyKey: catalogRequest.idempotencyKey
+                })
+              )
+            : await created,
+          catalogWriterEnabled()
         );
       }
-      const created = createDurableProductCatalog(
-        deps,
-        catalogIntentStore(
-          configured.service,
-          catalogRequest.teamId,
-          catalogRequest.videoMaterialId,
-          userId,
-          catalogRequest.idempotencyKey
-        ),
-        deps.fullDriveFor,
-        catalogRequest,
-        userId
-      );
-      // A create can race the background recovery pass for the same key, which then
-      // holds the lease: answer with its progress, as resume does, rather than a 409
-      // the dialog showed as an error for a minute while the pass built the table (1.4.3).
-      value = withCatalogVideoWriter(
-        catalogRequest.catalogVideoProtocolVersion === 1 || path.endsWith('/resume')
-          ? await resumeOrReadInitialCatalog(created, () =>
-              readCatalogInitialVideoProgress(configured.service, userId, {
-                teamId: catalogRequest.teamId,
-                expectedActorId: userId,
-                idempotencyKey: catalogRequest.idempotencyKey
-              })
-            )
-          : await created,
-        catalogWriterEnabled()
-      );
     } else if (path === '/updater/claim-as-actor' || path === '/updater/claim') {
       if (path === '/updater/claim-as-actor')
         assertExpectedMutationActor(body.expectedActorId, userId);
