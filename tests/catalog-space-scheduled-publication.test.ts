@@ -5,7 +5,10 @@ import {
   parseCatalogFeedCsv,
   type CatalogFeedStore
 } from '../supabase/functions/_shared/catalog-feed';
-import { catalogVideoColumnIndices } from '../supabase/functions/_shared/catalog-updater';
+import {
+  CATALOG_IMAGE_COLUMN,
+  catalogVideoColumnIndices
+} from '../supabase/functions/_shared/catalog-updater';
 import { PRODUCT_CATALOG_TEMPLATE, type Cell } from '../supabase/functions/_shared/product-catalog';
 import { createCatalogFeedUpdater } from '../supabase/functions/catalog-updater/feed-writer';
 import {
@@ -534,6 +537,177 @@ describe('the publication lane of R2 catalogs', () => {
   });
 });
 
+describe('the publication lane of an R2 catalog of several creatives (T117)', () => {
+  const image = (n: number) =>
+    `https://catalog-images.soty.pp.ua/c1/05791011-0000-4000-8000-00000000030${n}`;
+  function lane(context: Record<string, unknown>) {
+    const settled: unknown[] = [];
+    let state = 'waiting';
+    const rpc = vi.fn(async (name: string, parameters: Record<string, unknown>) => {
+      switch (name) {
+        case 'service_claim_space_catalog_publication_jobs':
+          return {
+            data: {
+              serverNow: Date.parse('2026-12-01T08:00:30Z'),
+              items: [
+                {
+                  jobId: JOB,
+                  teamId: TEAM,
+                  actorId: ACTOR,
+                  catalogId: FEED_ROW,
+                  policy: {
+                    mode: 'scheduled',
+                    revision: 1,
+                    dueAt: later.dueAt,
+                    timeZone: 'Europe/Kyiv'
+                  },
+                  job: {
+                    revision: 1,
+                    writerFence: state === 'applying' ? FENCE : null,
+                    state,
+                    target: { kind: 'creatives', segments: [] }
+                  },
+                  active: null
+                }
+              ]
+            },
+            error: null
+          };
+        case 'service_space_catalog_publication_context':
+          return { data: context, error: null };
+        case 'service_reserve_catalog_publication':
+          return { data: FENCE, error: null };
+        case 'service_dispatch_catalog_publication':
+          state = 'applying';
+          return { data: true, error: null };
+        case 'service_settle_catalog_publication':
+          settled.push(parameters);
+          return { data: true, error: null };
+        case 'service_defer_catalog_publication':
+        case 'service_catalog_video_r2_kick':
+          return { data: true, error: null };
+        default:
+          throw new Error(`unexpected rpc ${name}`);
+      }
+    });
+    return { service: { rpc }, settled };
+  }
+  const segment = (
+    ordinal: number,
+    kind: 'video' | 'image',
+    rowStart: number,
+    rowCount: number,
+    urls: string[],
+    extra: Record<string, unknown> = {}
+  ) => ({
+    ordinal,
+    kind,
+    rowStart,
+    rowCount,
+    sources: urls.map((address, index) => ({
+      materialId: output(ordinal * 10 + index),
+      url: address,
+      sourceVersion: CONTENT,
+      ready: true
+    })),
+    ...extra
+  });
+  const context = (kind: 'video' | 'image', segments: unknown[]) => ({
+    state: 'ready',
+    feedId: FEED,
+    productCount: 3,
+    creativeKind: kind,
+    sources: (segments as Array<{ sources: unknown[] }>).flatMap(s => s.sources),
+    segments
+  });
+
+  it('writes each creative’s own copy into its block of rows', async () => {
+    const f = lane(
+      context('video', [segment(0, 'video', 0, 2, [url(1)]), segment(1, 'video', 2, 1, [url(2)])])
+    );
+    const bucket = memoryStore({ rows: feedRows(3), marker: 'creation' });
+    const result = await runSpaceCatalogPublications({
+      service: f.service,
+      workerId: WORKER,
+      store: bucket.store
+    });
+    expect(result).toMatchObject({ claimed: 1, verified: 1 });
+    expect(
+      bucket
+        .rows()
+        .slice(2)
+        .map(row => row[VIDEO_COLUMN])
+    ).toEqual([url(1), url(1), url(2)]);
+    expect(f.settled).toEqual([expect.objectContaining({ p_outcome: 'verified' })]);
+  });
+
+  it('writes a picture catalog’s pictures into H and leaves its video column', async () => {
+    const f = lane(
+      context('image', [
+        segment(0, 'image', 0, 2, [image(1)]),
+        segment(1, 'image', 2, 1, [image(2)])
+      ])
+    );
+    const bucket = memoryStore({ rows: feedRows(3), marker: 'creation' });
+    await runSpaceCatalogPublications({
+      service: f.service,
+      workerId: WORKER,
+      store: bucket.store
+    });
+    const rows = bucket.rows().slice(2);
+    expect(rows.map(row => row[CATALOG_IMAGE_COLUMN])).toEqual([image(1), image(1), image(2)]);
+    expect(rows.map(row => row[VIDEO_COLUMN])).toEqual(['', '', '']);
+    expect(f.settled).toEqual([expect.objectContaining({ p_outcome: 'verified' })]);
+  });
+
+  it('gives each re-stitched video’s rows its own variations by its segment’s seed', () => {
+    const rows = ['05791011-0000-4000-8000-000000000210', '05791011-0000-4000-8000-000000000220'];
+    const seed = 'a'.repeat(64);
+    const links = spacePublicationRowLinks({
+      productCount: 3,
+      sources: [],
+      segments: [
+        segment(0, 'video', 0, 2, [url(1), url(2)], { assignmentSeed: seed, recipeRowIds: rows }),
+        segment(1, 'video', 2, 1, [url(3)])
+      ]
+    });
+    const assignment = createCatalogVideoAssignment({
+      recipeRevision: 1,
+      recipeRowIds: rows,
+      variantCount: 2,
+      seed
+    });
+    const byRow = new Map(
+      assignment.assignments.map(row => [row.recipeRowId, row.videoVariantIndex])
+    );
+    expect(links).toEqual([...rows.map(row => [url(1), url(2)][byRow.get(row)!]!), url(3)]);
+  });
+
+  it('refuses blocks that do not cover the rows or addresses of another kind', () => {
+    expect(() =>
+      spacePublicationRowLinks({
+        productCount: 3,
+        sources: [],
+        segments: [segment(0, 'video', 0, 2, [url(1)])]
+      })
+    ).toThrow(expect.objectContaining({ code: 'PROCESS_RESULT_UNCERTAIN' }));
+    expect(() =>
+      spacePublicationRowLinks({
+        productCount: 3,
+        sources: [],
+        segments: [segment(0, 'image', 0, 3, [url(1)])]
+      })
+    ).toThrow(expect.objectContaining({ code: 'PROCESS_RESULT_UNCERTAIN' }));
+    expect(() =>
+      spacePublicationRowLinks({
+        productCount: 3,
+        sources: [],
+        segments: [segment(0, 'video', 0, 3, [url(1), url(2)])]
+      })
+    ).toThrow(expect.objectContaining({ code: 'PROCESS_RESULT_UNCERTAIN' }));
+  });
+});
+
 describe('a round of the updater on a feed with a publication', () => {
   it('keeps the video cells the feed holds when it writes, not the ones it read', async () => {
     const bucket = memoryStore({ rows: feedRows(2), marker: 'creation' });
@@ -568,5 +742,48 @@ describe('a round of the updater on a feed with a publication', () => {
     const rows = bucket.rows();
     expect(rows.slice(2).map(row => row[VIDEO_COLUMN])).toEqual([COPY_URL, COPY_URL]);
     expect(rows[2]![3]).toBe('renamed');
+  });
+
+  it('keeps the pictures a picture catalog’s publication wrote into H (T117)', async () => {
+    const bucket = memoryStore({ rows: feedRows(2), marker: 'creation' });
+    const rpc = vi.fn(async (name: string) => {
+      if (name === 'service_prepare_catalog_nonvideo_update_context')
+        return {
+          data: { contextToken: 'a'.repeat(64), currentProductCount: 2, productCount: 2 },
+          error: null
+        };
+      return { data: null, error: null };
+    });
+    const updater = createCatalogFeedUpdater({
+      store: bucket.store,
+      service: { rpc } as never,
+      workerId: WORKER,
+      signal: new AbortController().signal,
+      log: vi.fn()
+    });
+    const item = {
+      catalogId: FEED_ROW,
+      productCount: 2,
+      feed: { feedId: FEED, revision: 1 },
+      creatives: { kind: 'image' }
+    };
+    const prepared = await updater.prepareNonVideoUpdate(item as never);
+    expect(prepared.imageCells).toHaveLength(2);
+    const picture = 'https://catalog-images.soty.pp.ua/c1/05791011-0000-4000-8000-000000000301';
+    const published = feedRows(2).map(row => [...row]);
+    for (const row of published.slice(2)) row[CATALOG_IMAGE_COLUMN] = picture;
+    bucket.objects.set(`feeds/${FEED}.csv`, {
+      bytes: catalogFeedCsv(published.map(row => row.map(v => ({ t: 'string', v }) as Cell))),
+      marker: FENCE,
+      etag: '"p"'
+    });
+    const built = feedRows(2).map(row => row.map(v => ({ t: 'string', v }) as Cell));
+    await prepared.write(built, 'round-2');
+    expect(
+      bucket
+        .rows()
+        .slice(2)
+        .map(row => row[CATALOG_IMAGE_COLUMN])
+    ).toEqual([picture, picture]);
   });
 });

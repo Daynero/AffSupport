@@ -579,7 +579,7 @@
   R2 з прив'язкою, масові запуски й доведення джерела `other` у просторі). Веб: `LaunchEditor.tsx`
   (перезашивка в R2), `useLaunchGeneration.ts` (у R2 без виконання на передньому плані й виконавця). Решта —
   T116/T117.
-- [ ] T116 [P] [US1] Тест для T117 — пізнє посилання для кількох креативів і картинок у R2-просторі
+- [x] T116 [P] [US1] Тест для T117 — пізнє посилання для кількох креативів і картинок у R2-просторі
   (запуск; зараз `MULTI_CREATIVE_UNSUPPORTED` до прийняття: `assertSpaceLaunchCatalog`, авторитет
   простору, `createProductCatalog`):
   - реєстрація: `service_link_space_catalog_feed` з `spacePublicationKey` для каталогу кількох
@@ -605,7 +605,33 @@
     `MULTI_CREATIVE_UNSUPPORTED`) — і в R2 теж; дії менеджера (утримати, перенести, «додати зараз»)
     над `creatives`-ціллю R2;
   - веб: редактор запуску R2 пропонує «пізніше» для кількох креативів і картинок.
-- [ ] T117 [US1] Реалізація T116. Тест: T116.
+
+  Зроблено: `supabase/tests/database/catalog-space-scheduled-creatives.test.sql` (42): версія
+  картинки простору — її вміст; зв'язок двох відео з `spacePublicationKey` реєструє `creatives` із
+  сегментом на креатив (`space-v1:`, без `video_set_id`), політику й завдання `waiting`; контекст
+  чекає копій, тоді кожен блок рядків — копія свого відео, квитанція `r2` на кожне; публікація
+  лінією; утримати / перенести / «додати зараз» зберігають ціль, інша ціль — `INVALID_INPUT`; ріст —
+  `MULTI_CREATIVE_UNSUPPORTED`; картинки — сегменти `image`, контекст готовий одразу з `c1/`-адресами,
+  відеокопій немає, `catalog_video_r2_cell_sources` їх не бачить, змінений вміст — `blocked`
+  `SOURCE_CHANGED`; два перезашиті відео — сегменти за вмістом, контекст дає кожному блоку свої
+  варіації з його сідом і рядками, жодного оригіналу, не готовий набір — `blocked`; остаточне
+  видалення забирає ціль із сегментами. Vitest: `tests/catalog-space-scheduled-publication.test.ts`
+  (+5: блоки відео, картинки в H без відео-колонки, сід сегмента, відмова неповних блоків, оновлювач
+  тримає H), `tests/catalog-space-creatives.test.ts` (+1: кілька відео й картинки з пізнім
+  посиланням — порожні клітинки, ключ у зв'язку, копії сплановані), `tests/launch-space-catalog-variants.test.ts`
+  (відмову замінено очікуванням усіх наборів і `deferred`), `tests/launch-space-catalog.test.ts`,
+  `tests/launch-catalog-settings.test.tsx` («пізніше» для кількох і картинок).
+- [x] T117 [US1] Реалізація T116. Тест: T116. Міграція `20261226330000_space_storage_catalog_scheduled_creatives.sql`:
+  `register_space_catalog_publication` — ціль `creatives` із сегментів плану
+  (`register_space_catalog_creatives_target`), `space_catalog_publication_source_version` — і для
+  картинок, `service_space_catalog_publication_context` — гілка `creatives`
+  (`space_catalog_creatives_publication_context`; `source` — той самий текст),
+  `space_catalog_publication_removed` — сегменти перед цілями. Edge: `launch-space-source.ts`,
+  `catalog-space-variants.ts`, `product-catalog.ts` (відмови зняті для пізнього посилання),
+  `catalog-updater/space-publication.ts` (сегменти, H для картинок), `feed-writer.ts` (H тримається
+  під час запису раунду). Веб: `LaunchEditor.tsx`. Прив'язка посилань креативів у знімок
+  (`service_confirm_catalog_creative_links`) для R2 не викликається: оновлювач з політикою бере
+  клітинки зі стрічки.
 - [ ] T105 [US1] Приймання на беті (частина T062): каталог з 10 варіаціями в пілотному R2-просторі,
   агент arm64 і Windows, видалення каталогу — 0 об'єктів у bucket простору й у публічному.
 - [x] T106 [P] [US1] Тест для T107 — фонове доведення варіацій R2-каталогу:

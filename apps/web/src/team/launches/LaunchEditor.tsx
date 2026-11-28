@@ -165,13 +165,11 @@ export function LaunchEditor({
     if (submitted && invalidSubSettings) setSubSettingsOpen(true);
   }, [submitted, invalidSubSettings]);
   const scheduledPublication = config.catalog?.videoPublication?.mode === 'scheduled';
-  /* 057 T104/T115: an R2 space's Launch catalog is its feed, its videos and pictures always R2:
-     re-stitching makes the space's own variations, a later link for several creatives or
-     pictures has no path there yet, and the copy option is no option. A choice already made
-     stays visible, so it can be undone. */
+  /* 057 T104/T115/T117: an R2 space's Launch catalog is its feed, its videos and pictures always
+     R2: re-stitching makes the space's own variations, a later link is offered for one creative,
+     several or pictures alike (a publication target per creative), and the copy option is no
+     option. */
   const feedSpace = useCatalogFeedSpace(teamId);
-  const offerPublication =
-    !feedSpace || (creativeCount <= 1 && creativeKind !== 'image') || scheduledPublication;
   const account = accounts.find(account =>
     account.agents.some(agent => agent.id === config.agentRowId)
   );
@@ -982,22 +980,20 @@ export function LaunchEditor({
                           />
                         </div>
                       )}
-                      {offerPublication && (
-                        <div className="launch-editor-catalog-publication flex basis-full flex-col gap-2">
-                          <Suspense fallback={null}>
-                            <LaunchCatalogVideoFields
-                              part="publication"
-                              media={creativeKind === 'image' ? 'image' : 'video'}
-                              value={config.catalog!}
-                              disabled={disabled}
-                              onChange={catalog => changed({ catalog })}
-                            />
-                          </Suspense>
-                          {creativeKind === 'image' && scheduledPublication && (
-                            <p className="ui-field-help">{t('launchImagesScheduleHint')}</p>
-                          )}
-                        </div>
-                      )}
+                      <div className="launch-editor-catalog-publication flex basis-full flex-col gap-2">
+                        <Suspense fallback={null}>
+                          <LaunchCatalogVideoFields
+                            part="publication"
+                            media={creativeKind === 'image' ? 'image' : 'video'}
+                            value={config.catalog!}
+                            disabled={disabled}
+                            onChange={catalog => changed({ catalog })}
+                          />
+                        </Suspense>
+                        {creativeKind === 'image' && scheduledPublication && (
+                          <p className="ui-field-help">{t('launchImagesScheduleHint')}</p>
+                        )}
+                      </div>
                     </div>
                     {/* The duration takes the half of the shelf the switches leave empty. */}
                     {creativeKind !== 'image' && (

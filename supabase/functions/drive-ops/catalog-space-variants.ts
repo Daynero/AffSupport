@@ -44,8 +44,8 @@ import {
  *
  * T115: a Launch's catalog of several re-stitched videos (062) has a set per video, admitted with
  * the Launch (20261226320000); each video's rows take its own variations through its segment's
- * seed, and the link binds every set. A later link for several videos is refused (it needs a
- * publication target per creative).
+ * seed, and the link binds every set. T117: a later link for several videos waits for every set
+ * the same way, and the link registers a publication target per creative (20261226330000).
  */
 
 export interface SpaceVariantBinding {
@@ -149,9 +149,6 @@ export function spaceCatalogVideoAuthority(input: {
       if (!scheduled && plan.preferences.videoPublication.mode !== 'immediate')
         throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
       const sets = plannedSets(plan, sourceMaterialId);
-      // T115: a later link for several videos needs a publication target per creative.
-      if (sets.length > 1 && scheduled)
-        throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
       const count = plan.preferences.videoVariationCount;
       if (
         sets.length < 1 ||

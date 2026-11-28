@@ -70,19 +70,22 @@ export async function readCatalogFeedCells(
   return rows;
 }
 
-/** The rows with the video column the feed holds now, row for row; added rows keep theirs. */
+/**
+ * The rows with the published columns the feed holds now, row for row; added rows keep theirs.
+ * T117: a picture catalog's publication writes H, so H is held as the video column is.
+ */
 async function withCurrentVideoCells(
   store: CatalogFeedStore,
   feedId: string,
   rows: Cell[][],
-  signal: AbortSignal
+  signal: AbortSignal,
+  columns: readonly number[]
 ): Promise<Cell[][]> {
   const current = await readCatalogFeedCells(store, feedId, signal);
-  const column = catalogVideoColumnIndices()[0]!;
   return rows.map((row, index) =>
     index >= 2 && index < current.length
       ? row.map((cell, c) =>
-          c === column ? { t: 'string' as const, v: current[index]![c]! } : cell
+          columns.includes(c) ? { t: 'string' as const, v: current[index]![c]! } : cell
         )
       : row
   );
@@ -133,10 +136,19 @@ export function createCatalogFeedUpdater(deps: {
         // T102: the publication lane may have written the video column since it was read; the
         // round's rows take the column the feed holds when they are written, never the copy
         // read above (a whole-feed write would otherwise erase a link published meanwhile).
+        // T117: a picture catalog's publication writes H: it is held the same way.
         write: async (built, marker) =>
           updater.write(
             item,
-            await withCurrentVideoCells(deps.store, feed.feedId, built, deps.signal),
+            await withCurrentVideoCells(
+              deps.store,
+              feed.feedId,
+              built,
+              deps.signal,
+              kind === 'image'
+                ? [catalogVideoColumnIndices()[0]!, CATALOG_IMAGE_COLUMN]
+                : [catalogVideoColumnIndices()[0]!]
+            ),
             marker
           ),
         verify: marker => updater.verify(item, marker)

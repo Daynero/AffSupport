@@ -81,15 +81,19 @@ describe('an R2 space Launch catalog', () => {
     expect(() =>
       assertSpaceLaunchCatalog(catalog({ restitch: true, publication: scheduled }))
     ).not.toThrow();
+    // T117: a later link for several creatives or pictures is a target per creative.
+    expect(() =>
+      assertSpaceLaunchCatalog(catalog({ restitch: true, several: true, publication: scheduled }))
+    ).not.toThrow();
+    expect(() =>
+      assertSpaceLaunchCatalog(catalog({ several: true, publication: scheduled }))
+    ).not.toThrow();
+    expect(() =>
+      assertSpaceLaunchCatalog(catalog({ image: true, publication: scheduled }))
+    ).not.toThrow();
     const refused: Array<[LaunchConfig, string]> = [
       [catalog({ legacy: true }), 'STORAGE_BACKEND_MISMATCH'],
-      [catalog({ legacy: true, several: true }), 'MULTI_CREATIVE_UNSUPPORTED'],
-      [
-        catalog({ restitch: true, several: true, publication: scheduled }),
-        'MULTI_CREATIVE_UNSUPPORTED'
-      ],
-      [catalog({ several: true, publication: scheduled }), 'MULTI_CREATIVE_UNSUPPORTED'],
-      [catalog({ image: true, publication: scheduled }), 'MULTI_CREATIVE_UNSUPPORTED']
+      [catalog({ legacy: true, several: true }), 'MULTI_CREATIVE_UNSUPPORTED']
     ];
     for (const [config, code] of refused)
       expect(() => assertSpaceLaunchCatalog(config)).toThrow(expect.objectContaining({ code }));

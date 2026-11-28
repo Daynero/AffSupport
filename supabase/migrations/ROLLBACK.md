@@ -4041,3 +4041,16 @@ acceptance, 20261224310000 for the list, 20261221110000 for the segments, the wa
 read), dropping the trigger and the new functions and recreating the old index — which fails while
 a creation holds more than one set: cancel such Launches first (their generations' sets go
 `canceled`) and delete their extra sets. Every Drive branch is the text it was, so a Drive space is unaffected either way.
+
+## 20261226330000 — 057 a later link for several creatives or pictures in an R2 space
+
+Adds `private.register_space_catalog_creatives_target` and
+`private.space_catalog_creatives_publication_context`; replaces the R2-only
+`private.register_space_catalog_publication` (a 'creatives' target for several creatives or
+pictures), `private.space_catalog_publication_source_version` (a picture is named by its content
+too), `service_space_catalog_publication_context` (a 'creatives' target answers its segments; the
+'source' answer is unchanged) and `private.space_catalog_publication_removed` (the segments of the
+removed targets leave first). Undo by re-running the four bodies from 20261226300000 and dropping
+the two new functions. A catalog already registered with a 'creatives' target then reads as
+`blocked` in the feed's context (its job never publishes): hold such catalogs' publications or
+publish them first. Nothing here is a Drive function.

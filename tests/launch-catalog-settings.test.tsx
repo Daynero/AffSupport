@@ -302,7 +302,7 @@ it('lands every press of «Generate» on the first visible error, focuses and fl
   }
 });
 
-it('offers an R2 space only what its Launch catalog can make there (057 T104/T115)', async () => {
+it('offers an R2 space only what its Launch catalog can make there (057 T104/T115/T117)', async () => {
   const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
   rememberSpaceBackend('r2-team', 'r2');
   const draft = newLaunchDraft();
@@ -332,9 +332,14 @@ it('offers an R2 space only what its Launch catalog can make there (057 T104/T11
   expect(screen.queryByRole('switch', { name: 'Copy the video to R2' })).toBeNull();
   expect(view.container.querySelector('.launch-editor-catalog-publication')).not.toBeNull();
   view.rerender(<LaunchEditor {...props} teamId="r2-team" config={several} />);
-  // A later link for several videos needs a target per video: not offered there yet.
-  expect(view.container.querySelector('.launch-editor-catalog-publication')).toBeNull();
+  // T117: a later link for several videos is a publication target per video: offered.
+  expect(view.container.querySelector('.launch-editor-catalog-publication')).not.toBeNull();
   expect(screen.getByRole('switch', { name: 'Restitch video' })).toBeTruthy();
+  view.rerender(
+    <LaunchEditor {...props} teamId="r2-team" config={{ ...several, creativeKind: 'image' }} />
+  );
+  // And for pictures.
+  expect(view.container.querySelector('.launch-editor-catalog-publication')).not.toBeNull();
   view.rerender(
     <LaunchEditor
       {...props}

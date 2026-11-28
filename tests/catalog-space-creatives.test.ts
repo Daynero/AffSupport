@@ -275,7 +275,59 @@ describe('a Launch catalog of an R2 space', () => {
     );
   });
 
-  it('refuses several creatives that need a set or a target each, before anything is read', async () => {
+  it('makes several creatives or pictures published later with empty cells and the key (T117)', async () => {
+    const scheduled = {
+      mode: 'scheduled',
+      localDateTime: '2026-12-01T10:00',
+      timeZone: 'Europe/Kyiv',
+      resolvedOffset: '+02:00',
+      dueAt: '2026-12-01T08:00:00.000Z'
+    };
+    const videos = setup();
+    await createProductCatalog(
+      { ...videos.deps, videoDelivery: { kind: 'deferred' } },
+      parseCreateProductCatalogRequest(request({ videoPublication: scheduled })),
+      ACTOR
+    );
+    expect((await videos.feed()).map(row => row[VIDEO_COLUMN])).toEqual(['', '', '']);
+    const linked = videos.rpcCalls.find(([name]) => name === 'service_link_space_catalog_feed')![1]
+      .p_record as Record<string, Record<string, unknown>>;
+    expect(linked.spacePublicationKey).toBe('launch:05791050-0000-4000-8000-0000000000aa:catalog');
+    // The creatives hold no link until the publication writes theirs.
+    expect(linked.settingsSnapshot!._catalogCreatives).toEqual([
+      expect.not.objectContaining({ link: expect.anything() }),
+      expect.not.objectContaining({ link: expect.anything() })
+    ]);
+    // Each video's copy is still planned now, so the publication finds it ready when due.
+    expect(
+      videos.rpcCalls
+        .filter(([name]) => name === 'service_space_catalog_video_link')
+        .map(([, parameters]) => parameters.p_material)
+    ).toEqual([FIRST, SECOND]);
+    const pictures = setup('image');
+    await createProductCatalog(
+      { ...pictures.deps, videoDelivery: { kind: 'deferred' } },
+      parseCreateProductCatalogRequest(
+        request({ creativeKind: 'image', creatives, videoPublication: scheduled })
+      ),
+      ACTOR
+    );
+    const rows = await pictures.feed();
+    // H waits for the publication: the creatives' pictures are published, not linked yet.
+    expect(rows.map(row => row[CATALOG_IMAGE_COLUMN])).not.toContain(
+      `https://catalog-images.soty.pp.ua/c1/${FIRST}`
+    );
+    expect(rows.map(row => row[VIDEO_COLUMN])).toEqual(['', '', '']);
+    expect(pictures.publishCreativeImages).toHaveBeenCalledTimes(1);
+    expect(
+      (
+        pictures.rpcCalls.find(([name]) => name === 'service_link_space_catalog_feed')![1]
+          .p_record as Record<string, unknown>
+      ).spacePublicationKey
+    ).toBe('launch:05791050-0000-4000-8000-0000000000aa:catalog');
+  });
+
+  it('refuses several creatives that need a set or a target each, without the generator, before anything is read', async () => {
     const scheduled = {
       mode: 'scheduled',
       localDateTime: '2026-12-01T10:00',

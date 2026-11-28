@@ -12,11 +12,11 @@ import type { SpaceCatalogRpc } from './catalog-space-source.ts';
  * (`private.launch_sources_from_config`: 'space-v1:<content id>', no Drive file id), and the catalog
  * is the space's (catalog-space-source.ts).
  *
- * What an R2 Launch catalog cannot do yet is refused before the Launch is accepted, so nothing is
+ * What an R2 Launch catalog cannot do is refused before the Launch is accepted, so nothing is
  * frozen that its catalog step would then refuse: a legacy catalog request (the dialog's protocol
- * is the only one in a space) and a later link for several creatives or for pictures (a
- * publication target per creative). Re-stitched videos are the space's own variation sets, one
- * per video, admitted with the Launch (T115, 20261226320000).
+ * is the only one in a space). Re-stitched videos are the space's own variation sets, one per
+ * video, admitted with the Launch (T115, 20261226320000); a later link for several creatives or
+ * for pictures is a publication target per creative (T117, 20261226330000).
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -27,21 +27,18 @@ export function spaceLaunchMaterialVersion(contentId: string): string {
   return `space-v1:${contentId}`;
 }
 
-/** What an R2 space's Launch catalog cannot make yet; refused before anything is accepted. */
+/** What an R2 space's Launch catalog cannot make; refused before anything is accepted. */
 export function assertSpaceLaunchCatalog(config: LaunchConfig): void {
   if (config.method !== 'catalog') return;
-  const catalog = config.catalog;
   const several =
     (config.creatives?.length ?? 1) > 1 || (config.creativeKind ?? 'video') !== 'video';
-  if (catalog.catalogVideoProtocolVersion !== 1)
+  if (config.catalog.catalogVideoProtocolVersion !== 1)
     throw new TeamFunctionError(
       several ? 'MULTI_CREATIVE_UNSUPPORTED' : 'STORAGE_BACKEND_MISMATCH',
       {
         retryable: false
       }
     );
-  if (several && catalog.videoPublication?.mode === 'scheduled')
-    throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
 }
 
 /**

@@ -12,8 +12,10 @@ import {
   type SpaceVariantBinding
 } from '../supabase/functions/drive-ops/catalog-space-variants';
 import {
+  CatalogVideoPreparationPending,
   catalogSegmentRowIds,
   createCatalogInitialVideoPlanV2,
+  prepareCatalogInitialVideo,
   type CatalogInitialVideoPlan
 } from '../supabase/functions/drive-ops/catalog-video-generation';
 import { acceptLaunchBatch } from '../supabase/functions/drive-ops/launch-batch';
@@ -417,12 +419,30 @@ describe('the video authority of a Launch of several R2 videos', () => {
     );
   });
 
-  it('refuses a later link for several videos before anything is read', async () => {
-    const rpc = authorityRpc({});
+  it('waits for every set of a later link for several videos, then binds them all (T117)', async () => {
+    const plan = await v2Plan(true);
+    const [first, second] = plan.segments!;
+    // One set still preparing: the creation waits, so its catalog never names a missing variation.
+    const waiting = authorityRpc({ [first!.setId!]: 'ready' });
     await expect(
-      authority(rpc, { setId: null }).prepare({ intentId: INTENT, plan: await v2Plan(true) })
-    ).rejects.toMatchObject({ code: 'MULTI_CREATIVE_UNSUPPORTED' });
-    expect(rpc).not.toHaveBeenCalled();
+      authority(waiting, { setId: null }).prepare({ intentId: INTENT, plan })
+    ).rejects.toBeInstanceOf(CatalogVideoPreparationPending);
+    expect(waiting.mock.calls.map(([name]) => name)).not.toContain(
+      'service_space_catalog_variant_outputs'
+    );
+    const rpc = authorityRpc({
+      [first!.setId!]: 'ready',
+      [second!.setId!]: 'ready',
+      first: first!.setId!
+    });
+    const binding: SpaceVariantBinding = { setId: null };
+    const result = await authority(rpc, binding).prepare({ intentId: INTENT, plan });
+    expect(result).toMatchObject({ state: 'ready' });
+    expect(binding).toMatchObject({ setId: null, setIds: [first!.setId, second!.setId] });
+    // The creation then writes empty cells; the link registers the target per creative.
+    expect(await prepareCatalogInitialVideo(authority(rpc, binding), INTENT, plan)).toEqual({
+      kind: 'deferred'
+    });
   });
 });
 

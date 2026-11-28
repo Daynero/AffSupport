@@ -14,6 +14,11 @@
  *   row's address in the video column and nothing else changed; `verifyFeedPublicationCells` reads
  *   it back. There is no sheet to prove, no Drive sharing and no baseline check: the feed is Soty's
  *   own file. A write the feed does not hold any more is `absent`, and the server requeues it.
+ *
+ * T117: a Launch's catalog of several creatives or pictures has a 'creatives' target; its context
+ * names a segment per creative with its rows — a video's copy, a re-stitched video's variations
+ * with the segment's seed and rows, or a picture's published `c1/` address — and a picture
+ * catalog's links go into H (the image column) instead of the video column.
  */
 // @deno-types="../../../packages/shared/dist/team/catalog-video-set.d.ts"
 import { createCatalogVideoAssignment } from '../../../packages/shared/dist/team/catalog-video-set.js';
@@ -28,7 +33,7 @@ import {
   parseCatalogFeedCsv,
   type CatalogFeedStore
 } from '../_shared/catalog-feed.ts';
-import { catalogVideoColumnIndices } from '../_shared/catalog-updater.ts';
+import { CATALOG_IMAGE_COLUMN, catalogVideoColumnIndices } from '../_shared/catalog-updater.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { PRODUCT_CATALOG_TEMPLATE } from '../_shared/product-catalog.ts';
 import { isRecord } from '../_shared/validation.ts';
@@ -57,37 +62,99 @@ export interface SpacePublicationSource {
   url: string;
 }
 
+/** T117: one creative's block of rows and the addresses they link. */
+export interface SpacePublicationSegment {
+  ordinal: number;
+  kind: 'video' | 'image';
+  rowStart: number;
+  rowCount: number;
+  sources: readonly SpacePublicationSource[];
+  /** A re-stitched video: its segment's seed and rows, over which its variations are assigned. */
+  assignmentSeed?: string;
+  recipeRowIds?: readonly string[];
+}
+
+const CREATIVE_IMAGE_URL = /^https:\/\/[^?#\s]+\/c1\/[0-9a-f-]{36}$/u;
+
+function assignedLinks(
+  urls: readonly string[],
+  rowIds: readonly string[],
+  seed: string,
+  count: number
+): string[] {
+  const assignment = createCatalogVideoAssignment({
+    recipeRevision: 1,
+    recipeRowIds: [...rowIds],
+    variantCount: urls.length,
+    seed
+  });
+  const byRow = new Map(
+    assignment.assignments.map(row => [row.recipeRowId, row.videoVariantIndex])
+  );
+  return Array.from({ length: count }, (_, index) => {
+    const row = rowIds[index];
+    const variant = row === undefined ? index % urls.length : byRow.get(row.toLowerCase());
+    if (variant === undefined) throw uncertain();
+    return urls[variant]!;
+  });
+}
+
+/** T117: the rows of a catalog of several creatives, block by block in segment order. */
+function segmentRowLinks(
+  productCount: number,
+  segments: readonly SpacePublicationSegment[]
+): string[] {
+  const links: string[] = [];
+  const kind = segments[0]?.kind;
+  for (const [ordinal, segment] of segments.entries()) {
+    const urls = segment.sources.map(source => source.url);
+    if (
+      segment.ordinal !== ordinal ||
+      segment.kind !== kind ||
+      segment.rowStart !== links.length ||
+      !Number.isSafeInteger(segment.rowCount) ||
+      segment.rowCount < 1 ||
+      urls.length < 1 ||
+      urls.some(url =>
+        segment.kind === 'image' ? !CREATIVE_IMAGE_URL.test(url) : !isCatalogVideoR2PublicUrl(url)
+      )
+    )
+      throw uncertain();
+    if (segment.assignmentSeed === undefined) {
+      if (urls.length !== 1) throw uncertain();
+      links.push(...Array.from({ length: segment.rowCount }, () => urls[0]!));
+      continue;
+    }
+    if (segment.kind !== 'video' || segment.recipeRowIds?.length !== segment.rowCount)
+      throw uncertain();
+    links.push(
+      ...assignedLinks(urls, segment.recipeRowIds, segment.assignmentSeed, segment.rowCount)
+    );
+  }
+  if (links.length !== productCount) throw uncertain();
+  return links;
+}
+
 /**
  * Each row's address: one source for every row, or — for a catalog of variations — the
  * creation's seeded assignment over its recipe rows; a row added since takes them in turn.
+ * T117: a catalog of several creatives gives each block its own creative's addresses.
  */
 export function spacePublicationRowLinks(context: {
   productCount: number;
   sources: readonly SpacePublicationSource[];
   recipeRowIds?: readonly string[];
   assignmentSeed?: string;
+  segments?: readonly SpacePublicationSegment[];
 }): string[] {
+  if (context.segments) return segmentRowLinks(context.productCount, context.segments);
   const urls = context.sources.map(source => source.url);
   if (urls.length < 1 || urls.some(url => !isCatalogVideoR2PublicUrl(url))) throw uncertain();
   if (!context.recipeRowIds || !context.assignmentSeed) {
     if (urls.length !== 1) throw uncertain();
     return Array.from({ length: context.productCount }, () => urls[0]!);
   }
-  const assignment = createCatalogVideoAssignment({
-    recipeRevision: 1,
-    recipeRowIds: [...context.recipeRowIds],
-    variantCount: urls.length,
-    seed: context.assignmentSeed
-  });
-  const byRow = new Map(
-    assignment.assignments.map(row => [row.recipeRowId, row.videoVariantIndex])
-  );
-  return Array.from({ length: context.productCount }, (_, index) => {
-    const row = context.recipeRowIds![index];
-    const variant = row === undefined ? index % urls.length : byRow.get(row.toLowerCase());
-    if (variant === undefined) throw uncertain();
-    return urls[variant]!;
-  });
+  return assignedLinks(urls, context.recipeRowIds, context.assignmentSeed, context.productCount);
 }
 
 interface SpaceContext {
@@ -97,6 +164,54 @@ interface SpaceContext {
   sources: Array<SpacePublicationSource & { ready: boolean }>;
   recipeRowIds?: string[];
   assignmentSeed?: string;
+  /** T117: a 'creatives' target's blocks, and what they are (a picture catalog writes H). */
+  creativeKind?: 'video' | 'image';
+  segments?: SpacePublicationSegment[];
+}
+
+function parseSource(source: unknown): SpacePublicationSource & { ready: boolean } {
+  if (
+    !isRecord(source) ||
+    typeof source.materialId !== 'string' ||
+    typeof source.url !== 'string' ||
+    typeof source.ready !== 'boolean'
+  )
+    throw uncertain();
+  return { materialId: source.materialId, url: source.url, ready: source.ready };
+}
+
+function parseSegments(value: unknown): SpacePublicationSegment[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 400) throw uncertain();
+  return value.map(segment => {
+    if (
+      !isRecord(segment) ||
+      !Number.isSafeInteger(segment.ordinal) ||
+      (segment.kind !== 'video' && segment.kind !== 'image') ||
+      !Number.isSafeInteger(segment.rowStart) ||
+      !Number.isSafeInteger(segment.rowCount) ||
+      !Array.isArray(segment.sources) ||
+      segment.sources.length < 1 ||
+      segment.sources.length > 400 ||
+      (segment.assignmentSeed !== undefined &&
+        (typeof segment.assignmentSeed !== 'string' ||
+          !Array.isArray(segment.recipeRowIds) ||
+          segment.recipeRowIds.some(row => typeof row !== 'string')))
+    )
+      throw uncertain();
+    return {
+      ordinal: segment.ordinal as number,
+      kind: segment.kind,
+      rowStart: segment.rowStart as number,
+      rowCount: segment.rowCount as number,
+      sources: segment.sources.map(parseSource),
+      ...(typeof segment.assignmentSeed === 'string'
+        ? {
+            assignmentSeed: segment.assignmentSeed,
+            recipeRowIds: segment.recipeRowIds as string[]
+          }
+        : {})
+    };
+  });
 }
 
 function parseContext(value: unknown): SpaceContext {
@@ -115,16 +230,14 @@ function parseContext(value: unknown): SpaceContext {
     value.sources.length > 400
   )
     throw uncertain();
-  const sources = value.sources.map(source => {
-    if (
-      !isRecord(source) ||
-      typeof source.materialId !== 'string' ||
-      typeof source.url !== 'string' ||
-      typeof source.ready !== 'boolean'
-    )
-      throw uncertain();
-    return { materialId: source.materialId, url: source.url, ready: source.ready };
-  });
+  const sources = value.sources.map(parseSource);
+  if (
+    value.segments !== undefined &&
+    value.creativeKind !== 'video' &&
+    value.creativeKind !== 'image'
+  )
+    throw uncertain();
+  const segments = value.segments === undefined ? undefined : parseSegments(value.segments);
   const recipe = value.recipeRowIds;
   if (
     recipe !== undefined &&
@@ -140,7 +253,8 @@ function parseContext(value: unknown): SpaceContext {
     sources,
     ...(Array.isArray(recipe)
       ? { recipeRowIds: recipe as string[], assignmentSeed: value.assignmentSeed as string }
-      : {})
+      : {}),
+    ...(segments ? { creativeKind: value.creativeKind as 'video' | 'image', segments } : {})
   };
 }
 
@@ -173,7 +287,9 @@ export function createSpaceCatalogPublicationIo(input: {
     const held = await store.readFeed(catalogFeedKey(c.feedId), signal);
     if (!held) throw new TeamFunctionError('SOURCE_CHANGED');
     const rows = parseCatalogFeedCsv(new TextDecoder('utf-8', { fatal: true }).decode(held.bytes));
-    const videoColumn = catalogVideoColumnIndices()[0]!;
+    // T117: a picture catalog's links are its pictures, in H; every other catalog's, its videos.
+    const videoColumn =
+      c.creativeKind === 'image' ? CATALOG_IMAGE_COLUMN : catalogVideoColumnIndices()[0]!;
     if (rows.length !== c.productCount + 2 || rows.some(row => row.length <= videoColumn))
       throw new TeamFunctionError('SOURCE_CHANGED');
     return {

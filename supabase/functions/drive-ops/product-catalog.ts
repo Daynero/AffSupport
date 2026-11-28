@@ -834,9 +834,11 @@ export async function createProductCatalog(
     deps.videoDelivery === undefined;
   if (space) {
     // T115: several videos, each linked from its own variations the authority proved.
+    // T117: several creatives or pictures published later: the link registers a target each.
     if (
       (kind !== 'video' || (request.creatives?.length ?? 1) > 1) &&
       !spaceCreatives &&
+      !spaceDeferred &&
       !(kind === 'video' && spaceVariationLinks?.length)
     )
       throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
