@@ -2,6 +2,7 @@ import {
   isCatalogForegroundAdmissionRefused,
   isCatalogForegroundPreparationFailure
 } from '../../api/catalog-video-foreground';
+import { CatalogDocumentLinks } from './CatalogFeedAddress';
 import { CatalogCreatedPublicationStatus } from './CatalogCreatedPublicationStatus';
 import { useOptionalAgent } from '../../AgentContext';
 import { useAgentEventStream } from '../../api/useAgentEventStream';
@@ -1218,28 +1219,12 @@ export function CreateProductCatalogDialog({
             </>
           )}
 
-          <div className="team-dialog-actions">
-            <a
-              className="soty-button button-secondary"
-              href={shown.sheetUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={t('productCatalogOpen')}
-            >
-              {t('productCatalogOpenShort')}
-            </a>
-            <Button
-              type="button"
-              variant="secondary"
-              aria-label={t('productCatalogCopyLink')}
-              onClick={() => void copy(shown.sheetUrl)}
-            >
-              {t('productCatalogCopyLinkShort')}
-            </Button>
+          {/* 057: an R2 space shows its feed address here instead of the sheet's links. */}
+          <CatalogDocumentLinks teamId={teamId} url={shown.sheetUrl} name={shown.name}>
             <Button type="button" variant="primary" onClick={onClose}>
               {t('productCatalogDone')}
             </Button>
-          </div>
+          </CatalogDocumentLinks>
         </div>
       </Modal>
     );

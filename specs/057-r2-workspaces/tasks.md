@@ -280,24 +280,24 @@
   - результат фіксується як матеріал з `processed_from` і категорією `process`;
   - `quiesced` і повтор фіналізації ідемпотентні.
 - [x] T035 [US1] Маршрути `/process/start`, `/process/output/finalize`, `/process/output/quiesced` у `supabase/functions/space-storage/process.ts`. Поведінка — як `handleProcessStart` (`supabase/functions/drive-ops/index.ts:2106`), `handleProcessOutputFinalize` (:2471), `handleProcessOutputQuiesced` (:2315). Чисті перевірки взяти з `supabase/functions/drive-ops/handler.ts`, не копіювати. Веб `apps/web/src/api/client.ts` (:704, :1044) передає агенту R2-гранти. Тест: T034.
-- [ ] T036 [P] [US1] Тест для T037 — `tests/catalog-feed-writer.test.ts`:
+- [x] T036 [P] [US1] Тест для T037 — `tests/catalog-feed-writer.test.ts`:
   - CSV байт у байт: заголовок `PRODUCT_CATALOG_TEMPLATE`, рядки з `buildProductCatalogRows`;
   - `text/csv; charset=utf-8`;
   - перезапис того самого ключа `feeds/{feed_id}.csv` і очищення кешу адреси;
   - збій запису лишає попередню стрічку;
   - Google-шлях `CatalogDocumentWriter` дає ті самі виклики, що й до змін.
-- [ ] T037 [US1] Стрічка каталогу:
+- [x] T037 [US1] Стрічка каталогу:
   - `supabase/functions/_shared/catalog-feed.ts`: запис у `soty-catalog-videos-{env}-public` через клієнт `CatalogVideoR2` і очищення кешу через `R2_CATALOG_PURGE_TOKEN`;
   - шов `CatalogDocumentWriter`, винесений з `supabase/functions/drive-ops/product-catalog.ts:966-1028`: Google-гілка без змін, R2-гілка пише стрічку й кладе її адресу в `sheet_url`;
   - колонки `feed_id`, `feed_revision`, `feed_written_at` у міграції `supabase/migrations/<ts>_space_storage_catalogs.sql`.
 
   Тест: T036.
 
-- [ ] T038 [P] [US1] Тест для T039 — `tests/catalog-updater-feed.test.ts`. Для каталогу зі стрічкою:
+- [x] T038 [P] [US1] Тест для T039 — `tests/catalog-updater-feed.test.ts`. Для каталогу зі стрічкою:
   - не кличе `takeSheetsReads` і `drive.getFile`;
   - пише стрічку після `rebuildCatalogRows`;
   - нетекстові оновлення йдуть у стрічку, а не в комірки Sheets.
-- [ ] T039 [US1] Оновлювач на R2:
+- [x] T039 [US1] Оновлювач на R2:
   - `supabase/functions/catalog-updater/worker.ts` (`takeSheetsReads` :86, `drive.getFile` :1017, запис :1049);
   - `nonvideo-writer.ts` (:170) і `publication-cells.ts` (:145) — гілка стрічки через `supabase/functions/_shared/catalog-feed.ts`.
 
@@ -314,8 +314,24 @@
 
   Тест: T040.
 
-- [ ] T042 [P] [US1] Тест для T043 — `tests/catalog-feed-card.test.tsx`: картка каталогу R2-простору показує й копіює адресу стрічки. Слів «Google» чи «Таблиця Google» немає. Drive-каталог без змін.
-- [ ] T043 [US1] Картка каталогу у вебі: `apps/web/src/team/product-catalog/CatalogCreatedPublicationStatus.tsx`, `CatalogPublicationDialog.tsx` і місця з посиланням на таблицю показують стрічку для R2 (FR-050). Тест: T042.
+  **Стан (2026-11-28):** зроблено `CatalogVideoSpaceReader`
+  (`supabase/functions/catalog-video-r2/space-reader.ts`, тест `tests/catalog-r2-sources.test.ts`):
+  читає об'єкт простору з його bucket під тим самим швом, що й Drive, тож копія проходить уже
+  перевірений конвеєр (частини, очищення метаданих, повна звірка, promote). Відкрито:
+  - звірка multipart-об'єкта за `content_id` (зараз копія відмовляє, бо немає MD5 усього файлу);
+  - claim копії для R2-джерела (SQL: `fileId` = `content_id`, без `credentialId`) і вибір читача у `worker.ts`;
+  - гранти `files-*` для перезашивки й варіацій (`catalog-video-process-grants.ts`, `updater-restitch.ts`, `drive-ops/index.ts:2257`);
+  - джерело `space_object` в `catalog-images/`;
+  - `supabase/tests/database/catalog-space-sources.test.sql`.
+
+  Створення каталогу в R2-просторі (шов T037 готовий, `createCatalogFeedDocumentWriter`) потребує
+  того самого: відео з R2, операції без Drive, `commit` компаньйона-стрічки й читання `feedId` у
+  `link`. Claim оновлювача для стрічки (SQL повертає `feed_id`/`feed_revision` без Drive-полів) —
+  теж відкритий; воркер і парсер claim уже його приймають (T039). Видалення об'єкта стрічки при
+  видаленні каталогу (SC-014) — `CatalogVideoR2.removeFeed` є, черги ще немає.
+
+- [x] T042 [P] [US1] Тест для T043 — `tests/catalog-feed-card.test.tsx`: картка каталогу R2-простору показує й копіює адресу стрічки. Слів «Google» чи «Таблиця Google» немає. Drive-каталог без змін.
+- [x] T043 [US1] Картка каталогу у вебі: `apps/web/src/team/product-catalog/CatalogCreatedPublicationStatus.tsx`, `CatalogPublicationDialog.tsx` і місця з посиланням на таблицю показують стрічку для R2 (FR-050). Тест: T042.
 
 ### Фаза 5 — US7: відчутно швидше (ядро M1) (P1)
 

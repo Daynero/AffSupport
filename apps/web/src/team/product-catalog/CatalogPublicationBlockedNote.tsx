@@ -3,6 +3,7 @@ import type { CatalogPublicationSnapshot } from '@video-compressor/shared';
 import { teamApi } from '../../api/team';
 import { Button } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { catalogFeedWording, useCatalogFeedSpace } from './CatalogFeedAddress';
 import { CatalogFixButton, catalogCodeMessage } from '../catalogFixActions';
 import { teamErrorCodeOf, teamErrorMessageFor } from '../errors';
 import { useOptionalTeam } from '../TeamContext';
@@ -45,29 +46,32 @@ export function CatalogPublicationBlockedNote({
   const [busy, setBusy] = useState(false);
   const [retried, setRetried] = useState<string | null>(null);
   const [failure, setFailure] = useState<{ code: string | null; text: string } | null>(null);
+  // 057: an R2 space has no Drive to lose; its catalog is a feed and is spoken of as one.
+  const feed = useCatalogFeedSpace(teamId);
   const job = snapshot.job;
   if (!job) return null;
   const driveState = space?.teams.find(team => team.id === teamId)?.connectionState;
-  const driveLost = driveState !== undefined && driveState !== 'connected';
+  const driveLost = !feed && driveState !== undefined && driveState !== 'connected';
+  const say = (key: TranslationKey) => t(catalogFeedWording(key, feed));
 
   // Just sent back by this note: say that, not «the first write failed».
   if (retried === job.id && ['waiting', 'preparing', 'retry_wait'].includes(job.state))
     return (
       <p role="status" className="team-inline-note">
-        {t('catalogPublicationRetried')}
+        {say('catalogPublicationRetried')}
       </p>
     );
   if (job.state === 'unknown')
     return (
       <p role="status" className="team-inline-note">
-        {t('catalogPublicationVerifyingWrite')}
+        {say('catalogPublicationVerifyingWrite')}
       </p>
     );
   // `retry_wait` also means «the videos are not ready yet»; that wait is said elsewhere.
   if (job.state === 'retry_wait')
     return snapshot.targetObservation?.state === 'preparing' ? null : (
       <p role="status" className="team-inline-note">
-        {t('catalogPublicationRetryWait')}
+        {say('catalogPublicationRetryWait')}
       </p>
     );
   if (job.state !== 'blocked' || job.blockedReason === 'legacy_adoption_required') return null;
@@ -123,7 +127,7 @@ export function CatalogPublicationBlockedNote({
   return (
     <div className="catalog-publication-blocked" role="status">
       <p className="team-inline-note">
-        {t(retried === job.id ? 'catalogPublicationRetried' : message)}
+        {say(retried === job.id ? 'catalogPublicationRetried' : message)}
       </p>
       {retried !== job.id && (
         <div className="team-dialog-actions">

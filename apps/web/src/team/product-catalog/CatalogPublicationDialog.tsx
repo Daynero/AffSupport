@@ -18,6 +18,7 @@ import { useI18n } from '../../i18n';
 import { teamErrorMessageFor } from '../errors';
 import { resolveCatalogPublicationDraft } from './catalogPublicationDraft';
 import { CatalogPublicationBlockedNote } from './CatalogPublicationBlockedNote';
+import { catalogFeedWording, useCatalogFeedSpace } from './CatalogFeedAddress';
 
 /** How often «Публікуємо…» reads the publication until the write is verified. */
 export const CATALOG_PUBLISH_NOW_POLL_MS = 3_000;
@@ -39,6 +40,7 @@ export function CatalogPublicationDialog({
     title = useId(),
     epoch = usePrivateCacheEpoch(),
     actor = privateCacheActor();
+  const feed = useCatalogFeedSpace(teamId);
   const flow = useRef<ReturnType<typeof beginCatalogUiFlow> | null>(null);
   const [saved, setSaved] = useState(false);
   const [confirmNow, setConfirmNow] = useState(false);
@@ -356,7 +358,7 @@ export function CatalogPublicationDialog({
               own confirmation, not an equal button above «Зберегти» (1.4.3 QA). */}
           {confirmNow ? (
             <div className="catalog-publication-confirm" role="group">
-              <p>{t('catalogPublicationAddNowConfirm')}</p>
+              <p>{t(catalogFeedWording('catalogPublicationAddNowConfirm', feed))}</p>
               <Button
                 variant="secondary"
                 disabled={pending || verification.pending || !snapshot}

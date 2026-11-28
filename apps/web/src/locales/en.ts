@@ -2843,6 +2843,25 @@ export const en = {
   productCatalogCopyNameOf: 'Copy the name {name}',
   productCatalogCopyLinkOf: 'Copy the link of {name}',
   productCatalogOpenOf: 'Open {name}',
+  // 057: the catalog feed of an R2 space (FR-050). Never «Google», never «таблиця».
+  catalogFeedAddressLabel: 'Feed address for Meta',
+  catalogFeedAddressHint:
+    'Add it in Commerce Manager as a scheduled upload from a URL. Soty rewrites the feed at this address after every catalog update.',
+  catalogFeedCopy: 'Copy address',
+  catalogFeedCopyOf: 'Copy the feed address of {name}',
+  catalogFeedOpenOf: 'Open the feed of {name}',
+  catalogFeedCopied: 'Feed address copied',
+  catalogFeedBlockedTarget:
+    'The links were not written to the feed: Soty storage did not answer. Publish again.',
+  catalogFeedBlockedStale:
+    'Writing the links to the feed stopped and did not finish. Publish again.',
+  catalogFeedBlockedGeneric: 'Writing the links to the feed was stopped. Publish again.',
+  catalogFeedRetried:
+    'The write is back in the queue — the links will be in the feed within a minute.',
+  catalogFeedVerifyingWrite: 'Checking that the links reached the feed…',
+  catalogFeedRetryWait:
+    'Writing to the feed failed the first time — it will be retried automatically in a minute.',
+  catalogFeedAddNowConfirm: 'Publish the links in the feed now?',
   productCatalogNameCopied: 'Name copied',
   productCatalogActionsFor: 'Actions for {name}',
   productCatalogRemove: 'Remove variation',

@@ -2829,6 +2829,24 @@ export const uk: Record<keyof typeof en, string> = {
   productCatalogCopyNameOf: 'Скопіювати назву {name}',
   productCatalogCopyLinkOf: 'Скопіювати посилання {name}',
   productCatalogOpenOf: 'Відкрити {name}',
+  // 057: the catalog feed of an R2 space (FR-050). Never «Google», never «таблиця».
+  catalogFeedAddressLabel: 'Адреса стрічки для Meta',
+  catalogFeedAddressHint:
+    'Додайте її в Commerce Manager як заплановане завантаження за URL. Soty переписує стрічку за цією адресою після кожного оновлення каталогу.',
+  catalogFeedCopy: 'Скопіювати адресу',
+  catalogFeedCopyOf: 'Скопіювати адресу стрічки {name}',
+  catalogFeedOpenOf: 'Відкрити стрічку {name}',
+  catalogFeedCopied: 'Адресу стрічки скопійовано',
+  catalogFeedBlockedTarget:
+    'Посилання не записано в стрічку: сховище Soty не відповідало. Опублікуйте ще раз.',
+  catalogFeedBlockedStale:
+    'Запис посилань у стрічку зупинився й не завершився. Опублікуйте ще раз.',
+  catalogFeedBlockedGeneric: 'Запис посилань у стрічку зупинено. Опублікуйте ще раз.',
+  catalogFeedRetried: 'Запис повернуто в чергу — посилання з’являться в стрічці за хвилину.',
+  catalogFeedVerifyingWrite: 'Перевіряємо, чи посилання записались у стрічку…',
+  catalogFeedRetryWait:
+    'Запис у стрічку не вдався з першого разу — повторимо автоматично за хвилину.',
+  catalogFeedAddNowConfirm: 'Опублікувати посилання в стрічці зараз?',
   productCatalogNameCopied: 'Назву скопійовано',
   productCatalogActionsFor: 'Дії для {name}',
   productCatalogRemove: 'Видалити варіацію',

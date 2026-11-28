@@ -15,6 +15,7 @@ import {
 } from '../../components/ui/index';
 import { useToasts } from '../../components/toast';
 import { useI18n, type TranslationKey } from '../../i18n';
+import { useCatalogFeedSpace } from './CatalogFeedAddress';
 import { teamErrorMessageFor } from '../errors';
 import { privateCacheActor } from '../private-cache-scope';
 import { productCatalogNameFor } from '../materials/tail';
@@ -168,6 +169,7 @@ export function ProductCatalogMenuDialog({
   const { push } = useToasts();
   const { can } = useTeam();
   const titleId = useId();
+  const feed = useCatalogFeedSpace(teamId);
   const [catalogs, setCatalogs] = useState<ProductCatalogSummary[]>([]);
   // null: the server could not say; the list then falls back to this browser's memory.
   const [unfinished, setUnfinished] = useState<UnfinishedCatalogCreation[] | null>(null);
@@ -444,9 +446,12 @@ export function ProductCatalogMenuDialog({
             <CatalogRow
               key={catalog.id}
               catalog={catalog}
+              feed={feed}
               mayChange={mayMake}
               onCopyName={() => void copy(catalog.name, 'productCatalogNameCopied')}
-              onCopyLink={() => void copy(catalog.sheetUrl, 'productCatalogLinkCopied')}
+              onCopyLink={() =>
+                void copy(catalog.sheetUrl, feed ? 'catalogFeedCopied' : 'productCatalogLinkCopied')
+              }
               onRecreate={() => setView({ kind: 'create', replaces: catalog, fromList: true })}
               onRemove={() =>
                 videoR2.row(catalog.id).enabled ? setConfirmRemove(catalog) : void remove(catalog)
@@ -564,6 +569,7 @@ function UnfinishedCreationRow({
 
 function CatalogRow({
   catalog,
+  feed = false,
   mayChange,
   onCopyName,
   onCopyLink,
@@ -571,6 +577,8 @@ function CatalogRow({
   onRemove
 }: {
   catalog: ProductCatalogSummary;
+  /** 057: the catalog of an R2 space is a feed; its link is the feed's address. */
+  feed?: boolean;
   mayChange: boolean;
   onCopyName: () => void;
   onCopyLink: () => void;
@@ -604,18 +612,22 @@ function CatalogRow({
           type="button"
           size="sm"
           variant="ghost"
-          aria-label={t('productCatalogCopyLinkOf', { name: catalog.name })}
+          aria-label={t(feed ? 'catalogFeedCopyOf' : 'productCatalogCopyLinkOf', {
+            name: catalog.name
+          })}
           onClick={onCopyLink}
         >
-          {t('productCatalogCopyLinkShort')}
+          {t(feed ? 'catalogFeedCopy' : 'productCatalogCopyLinkShort')}
         </Button>
         <a
           className="soty-button button-ghost product-catalog-row-open"
           href={catalog.sheetUrl}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={t('productCatalogOpenOf', { name: catalog.name })}
-          title={t('productCatalogOpen')}
+          aria-label={t(feed ? 'catalogFeedOpenOf' : 'productCatalogOpenOf', {
+            name: catalog.name
+          })}
+          title={feed ? t('catalogFeedOpenOf', { name: catalog.name }) : t('productCatalogOpen')}
         >
           <ExternalLink size={ICON_SIZE} strokeWidth={ICON_STROKE} aria-hidden="true" />
         </a>
