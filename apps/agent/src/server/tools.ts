@@ -33,6 +33,7 @@ import type { TeamPreviewBridge } from '../team-bridge/preview.js';
 import type { TeamProcessBridge } from '../team-bridge/process.js';
 import type { RestitchPrepareBridge } from '../team-bridge/restitch-prepare.js';
 import type { TeamPosterBridge } from '../team-bridge/poster.js';
+import type { SpaceDerivativeBridge } from '../team-bridge/r2-derivatives.js';
 import type { StitchQueue } from '../stitcher/queue.js';
 import { registerStitcherRoutes } from '../stitcher/routes.js';
 import { registerTeamBridgeRoutes } from '../team-bridge/routes.js';
@@ -115,6 +116,7 @@ export interface ToolModulesDeps {
     process: TeamProcessBridge;
     recovery?: TeamRecoveryWorker;
     poster: TeamPosterBridge;
+    spaceDerivatives?: SpaceDerivativeBridge;
     download: TeamDownloadBridge;
     landings: TeamLandingRenderBridge;
     library: CreativeLibraryProcessBridge;
@@ -247,6 +249,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
           preview: teamWorkspace.preview,
           process: teamWorkspace.process,
           poster: teamWorkspace.poster,
+          spaceDerivatives: teamWorkspace.spaceDerivatives,
           download: teamWorkspace.download,
           landings: teamWorkspace.landings,
           library: teamWorkspace.library,
@@ -259,6 +262,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         teamWorkspace.preview.busy() ||
         teamWorkspace.process.busy() ||
         teamWorkspace.poster.busy() ||
+        Boolean(teamWorkspace.spaceDerivatives?.busy()) ||
         teamWorkspace.download.busy() ||
         teamWorkspace.landings.busy() ||
         teamWorkspace.library.busy() ||
@@ -276,6 +280,7 @@ export function createToolModules(deps: ToolModulesDeps): ToolModule[] {
         await teamWorkspace.recovery?.shutdown();
         await teamWorkspace.restitch.shutdown();
         await teamWorkspace.poster.shutdown();
+        await teamWorkspace.spaceDerivatives?.shutdown();
         await teamWorkspace.library.shutdown();
         await teamWorkspace.landings.shutdown();
         await teamWorkspace.download.shutdown();

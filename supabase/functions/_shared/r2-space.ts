@@ -272,6 +272,71 @@ export class SpaceR2 {
     };
   }
 
+  /**
+   * A presigned single PUT of one small object (a staged derivative, T047): `Content-MD5` is
+   * signed, so R2 stores only the bytes whose MD5 was declared. The type R2 stores does not
+   * matter: the server copies an accepted derivative with the type it sniffed (`copy`).
+   */
+  async signPut(
+    key: string,
+    md5Hex: string,
+    nowMs: number = Date.now(),
+    ttlSeconds: number = SPACE_STORAGE_LIMITS.partUrlTtlSeconds
+  ): Promise<{ url: string; contentMd5: string; expiresAt: string }> {
+    const url = this.endpoint(key);
+    const contentMd5 = typeof md5Hex === 'string' ? spaceMd5HexToBase64(md5Hex) : null;
+    if (
+      !contentMd5 ||
+      !Number.isSafeInteger(ttlSeconds) ||
+      ttlSeconds < 1 ||
+      ttlSeconds > SPACE_STORAGE_LIMITS.partUrlTtlSeconds ||
+      !Number.isFinite(nowMs)
+    )
+      invalidInput();
+    url.searchParams.set('X-Amz-Expires', String(ttlSeconds));
+    const signed = await this.signer.sign(
+      new Request(url, { method: 'PUT', headers: { 'Content-MD5': contentMd5 } }),
+      { aws: { signQuery: true } }
+    );
+    return {
+      url: signed.url,
+      contentMd5,
+      expiresAt: new Date(nowMs + ttlSeconds * 1000).toISOString()
+    };
+  }
+
+  /**
+   * Server-side copy within the bucket (S3 CopyObject), replacing the stored type: how a checked
+   * derivative moves from its staging key to its content key. No byte passes through here.
+   */
+  async copy(
+    source: string,
+    target: string,
+    contentType: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    const url = this.endpoint(target);
+    if (!isSpaceKey(source) || !/^image\/(?:webp|jpeg)$/u.test(contentType)) invalidInput();
+    const signed = await this.signer.sign(
+      new Request(url, {
+        method: 'PUT',
+        headers: {
+          'x-amz-copy-source': `/${this.config.bucket}/${source}`,
+          'x-amz-metadata-directive': 'REPLACE',
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        }
+      }),
+      { aws: { allHeaders: true } }
+    );
+    const response = await this.send(signed, signal);
+    const text = await this.text(response);
+    if (response.status === 404) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
+    if (!response.ok) providerFailure(response.status);
+    // Like CompleteMultipartUpload, a copy may answer 200 with an error document.
+    if (!text.includes('<CopyObjectResult')) unavailable();
+  }
+
   /** Every uploaded part with the ETag R2 computed from the bytes it received, in order. */
   async listParts(key: string, uploadId: string, signal: AbortSignal): Promise<SpaceListedPart[]> {
     validUploadId(uploadId);

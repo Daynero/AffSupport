@@ -227,7 +227,8 @@ describe('admit', () => {
       uploadId: UPLOAD,
       partBytes: 16 * 1024 * 1024,
       partCount: 1,
-      derivativeSlots: [],
+      // T047: what the browser makes of a video while its parts go.
+      derivativeSlots: ['row', 'tile', 'full', 'poster', 'sprite'],
       expiresAt: '2026-11-29T00:00:00.000Z'
     });
     expect(calls).toEqual([`create t/${TEAM}/o/${contentId}`]);

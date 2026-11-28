@@ -25,6 +25,7 @@ import type { TeamPreviewBridge, TeamPreviewTransferRequest } from './preview.js
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
 import type { RestitchPrepareBridge, RestitchPrepareRequest } from './restitch-prepare.js';
 import type { TeamPosterBridge, TeamPosterRequest } from './poster.js';
+import { spaceDerivativeRequest, type SpaceDerivativeBridge } from './r2-derivatives.js';
 
 export interface TeamBridgeRoutesDeps {
   screenCache?: TeamScreenCache;
@@ -33,6 +34,8 @@ export interface TeamBridgeRoutesDeps {
   preview: TeamPreviewBridge;
   process: TeamProcessBridge;
   poster: TeamPosterBridge;
+  /** 057 T047: an R2 space's pictures the uploading browser could not make. */
+  spaceDerivatives?: SpaceDerivativeBridge;
   download: TeamDownloadBridge;
   landings: TeamLandingRenderBridge;
   library: CreativeLibraryProcessBridge;
@@ -50,6 +53,7 @@ export function registerTeamBridgeRoutes(
     preview,
     process,
     poster,
+    spaceDerivatives,
     download,
     landings,
     library,
@@ -289,6 +293,19 @@ export function registerTeamBridgeRoutes(
     if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
     try {
       return await poster.render(input);
+    } catch (error) {
+      return routeFailure(reply, error, 'POSTER_FAILED');
+    }
+  });
+
+  app.post<{ Body?: unknown }>('/api/team/space/derivatives', async (request, reply) => {
+    if (!acceptingNewTasks()) return reply.code(409).send({ error: 'UPDATE_PENDING' });
+    if (!spaceDerivatives) return reply.code(404).send({ error: 'NOT_FOUND' });
+    const input = spaceDerivativeRequest(request.body);
+    if (!input) return reply.code(400).send({ error: 'INVALID_INPUT' });
+    if (spaceDerivatives.busy()) return reply.code(409).send({ error: 'WRONG_STATE' });
+    try {
+      return await spaceDerivatives.run(input);
     } catch (error) {
       return routeFailure(reply, error, 'POSTER_FAILED');
     }

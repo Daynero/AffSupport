@@ -1,3 +1,4 @@
+import { AGENT_TOOL_CONTRACTS } from '@video-compressor/shared';
 import { generateKeyPairSync, sign as signData } from 'node:crypto';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
@@ -305,7 +306,7 @@ describe('agent HTTP surface', () => {
     });
     expect(health.json()).toMatchObject({
       capabilities: expect.arrayContaining(['team-workspace']),
-      toolContracts: { teamWorkspace: 2 }
+      toolContracts: { teamWorkspace: AGENT_TOOL_CONTRACTS.teamWorkspace }
     });
 
     const unauthenticated = await app.inject({

@@ -395,8 +395,21 @@ export function spaceDerivativeKey(
   return `t/${teamId}/d/${contentId}/${recipeVersion}/${variant}`;
 }
 
+/**
+ * A derivative staged under an upload (or an agent's derivative claim) before the server checked
+ * it (T047). Staging keys are never readable through the files host.
+ */
+export function spaceStagingDerivativeKey(
+  teamId: string,
+  stagingId: string,
+  variant: SpaceDerivativeVariant
+): string {
+  if (!isSpaceDerivativeVariant(variant)) throw new TypeError('Invalid key part');
+  return `${spaceStagingKey(teamId, stagingId)}/${variant}`;
+}
+
 export const SPACE_KEY_PATTERN =
-  /^t\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:u\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|o\/[0-9a-f]{64}|d\/[0-9a-f]{64}\/[1-9][0-9]{0,3}\/(?:row|tile|full|poster|sprite))$/u;
+  /^t\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:u\/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:row|tile|full|poster|sprite))?|o\/[0-9a-f]{64}|d\/[0-9a-f]{64}\/[1-9][0-9]{0,3}\/(?:row|tile|full|poster|sprite))$/u;
 export const isSpaceKey = (value: unknown): value is string =>
   typeof value === 'string' && SPACE_KEY_PATTERN.test(value);
 
@@ -761,4 +774,225 @@ export function spaceFilesUrl(input: {
   url.searchParams.set('g', input.grant);
   if (input.download !== undefined) url.searchParams.set('dl', input.download);
   return url.toString();
+}
+
+// Derivatives made by the uploading client (T047, research R5) -----------------------------
+
+/**
+ * What the server asks the uploading client to make, by the material's category. An image gets
+ * the three explorer sizes; a video also gets its poster and the hover frames. Anything else
+ * gets none: its picture, if any, comes from an agent (PDF first page) or never.
+ */
+export function spaceDerivativeSlotsFor(category: string | null): SpaceDerivativeVariant[] {
+  if (category === 'image') return ['row', 'tile', 'full'];
+  if (category === 'video') return ['row', 'tile', 'full', 'poster', 'sprite'];
+  return [];
+}
+
+/**
+ * Hover frames of a video: `frames` evenly spaced frames, `columns` to a row, each at most
+ * `frameMaxEdge` on its long side, in one image. A reader finds a frame's cell from the
+ * sprite's own width and height, so the layout is all it needs.
+ */
+export const SPACE_DERIVATIVE_SPRITE = { frames: 10, columns: 5, frameMaxEdge: 320 } as const;
+
+/** The variant the explorer tile shows; a material counts as having a picture once it is in. */
+export const SPACE_TILE_VARIANT: SpaceDerivativeVariant = 'tile';
+
+/** `provider_thumbnail_version` of an R2 material whose tile is in (the column needs one). */
+export const spaceThumbnailVersion = (recipeVersion: number = SPACE_DERIVATIVE_RECIPE_VERSION) =>
+  `r2:${recipeVersion}`;
+
+/** How long an agent holds a derivative job, and how often one is tried before `failed`. */
+export const SPACE_DERIVATIVE_JOB_LIMITS = {
+  leaseSeconds: 600,
+  maxAttempts: 3,
+  /** The first bytes the server reads of a staged derivative to check its type and size. */
+  sniffBytes: 64 * 1024
+} as const;
+
+export interface SpaceDerivativeDeclaration {
+  variant: SpaceDerivativeVariant;
+  contentType: SpaceDerivativeType;
+  bytes: number;
+  width: number;
+  height: number;
+  /** MD5 of the bytes, 32 lowercase hex: the PUT is signed with it. */
+  md5: string;
+}
+
+const MD5_HEX = /^[0-9a-f]{32}$/u;
+
+/** A derivative as declared: of a known variant, type and within that variant's bounds. */
+export function isSpaceDerivativeDeclaration(value: unknown): value is SpaceDerivativeDeclaration {
+  if (!isRecord(value) || !isSpaceDerivativeVariant(value.variant)) return false;
+  const limit = SPACE_DERIVATIVE_VARIANTS[value.variant];
+  return (
+    isSpaceDerivativeType(value.contentType) &&
+    count(value.bytes, limit.maxBytes) &&
+    value.bytes >= 1 &&
+    count(value.width, limit.maxWidth) &&
+    value.width >= 1 &&
+    count(value.height, limit.maxHeight) &&
+    value.height >= 1 &&
+    typeof value.md5 === 'string' &&
+    MD5_HEX.test(value.md5)
+  );
+}
+
+/** Media facts of an original. The browser knows duration and size; codec and fps come from an agent. */
+export interface SpaceMediaFacts {
+  durationMs: number | null;
+  width: number | null;
+  height: number | null;
+  codec: string | null;
+  fps: number | null;
+}
+
+const MAX_DURATION_MS = 7 * 24 * 3600 * 1000;
+
+export function parseSpaceMediaFacts(value: unknown): SpaceParsed<SpaceMediaFacts> {
+  if (value === undefined || value === null)
+    return okValue({ durationMs: null, width: null, height: null, codec: null, fps: null });
+  if (!isRecord(value)) return fail;
+  const optional = (item: unknown, max: number, min = 0) =>
+    item === undefined || item === null || (count(item, max) && (item as number) >= min);
+  if (
+    !optional(value.durationMs, MAX_DURATION_MS) ||
+    !optional(value.width, 65_535, 1) ||
+    !optional(value.height, 65_535, 1) ||
+    (value.codec !== undefined &&
+      value.codec !== null &&
+      (typeof value.codec !== 'string' || !/^[a-z0-9._-]{1,32}$/u.test(value.codec))) ||
+    (value.fps !== undefined &&
+      value.fps !== null &&
+      (typeof value.fps !== 'number' ||
+        !Number.isFinite(value.fps) ||
+        value.fps <= 0 ||
+        value.fps > 1000))
+  )
+    return fail;
+  const or = <T>(item: unknown): T | null => (item === undefined ? null : (item as T | null));
+  return okValue({
+    durationMs: or<number>(value.durationMs),
+    width: or<number>(value.width),
+    height: or<number>(value.height),
+    codec: or<string>(value.codec),
+    fps: value.fps === undefined || value.fps === null ? null : Math.round(value.fps * 1000) / 1000
+  });
+}
+
+export interface SpaceDerivativeUrl {
+  variant: SpaceDerivativeVariant;
+  url: string;
+  /** The exact headers the PUT must carry: both are inside the signature. */
+  contentMd5: string;
+  contentType: SpaceDerivativeType;
+  expiresAt: string;
+}
+
+/** `/uploads/{id}/derivatives` and the agent's `/agent/derivatives/stage`: one URL per variant. */
+export function parseSpaceDerivativeUrls(value: unknown): SpaceParsed<SpaceDerivativeUrl[]> {
+  if (!isRecord(value) || !Array.isArray(value.derivatives)) return fail;
+  if (value.derivatives.length > SPACE_DERIVATIVE_VARIANT_NAMES.length) return fail;
+  const out: SpaceDerivativeUrl[] = [];
+  for (const item of value.derivatives) {
+    if (
+      !isRecord(item) ||
+      !isSpaceDerivativeVariant(item.variant) ||
+      !httpsUrl(item.url) ||
+      typeof item.contentMd5 !== 'string' ||
+      !/^[A-Za-z0-9+/]{22}==$/u.test(item.contentMd5) ||
+      !isSpaceDerivativeType(item.contentType) ||
+      !timestamp(item.expiresAt)
+    )
+      return fail;
+    out.push({
+      variant: item.variant,
+      url: item.url,
+      contentMd5: item.contentMd5,
+      contentType: item.contentType,
+      expiresAt: item.expiresAt
+    });
+  }
+  return new Set(out.map(item => item.variant)).size === out.length ? okValue(out) : fail;
+}
+
+/**
+ * The type and pixel size of a derivative from its first bytes (WebP: VP8, VP8L, VP8X; JPEG: the
+ * first SOF marker). The server checks a staged derivative with this, never with what the client
+ * declared; null is «not a picture of an allowed type».
+ */
+export function sniffSpaceDerivative(
+  bytes: Uint8Array
+): { contentType: SpaceDerivativeType; width: number; height: number } | null {
+  const at = (offset: number) => bytes[offset] ?? -1;
+  const ascii = (offset: number, text: string) =>
+    [...text].every((char, index) => at(offset + index) === char.charCodeAt(0));
+  const u16le = (offset: number) => at(offset) | (at(offset + 1) << 8);
+  const u24le = (offset: number) => u16le(offset) | (at(offset + 2) << 16);
+  if (bytes.length >= 30 && ascii(0, 'RIFF') && ascii(8, 'WEBP')) {
+    if (ascii(12, 'VP8 ')) {
+      // Key frame start code, then 14-bit width and height.
+      if (at(23) !== 0x9d || at(24) !== 0x01 || at(25) !== 0x2a) return null;
+      return picture('image/webp', u16le(26) & 0x3fff, u16le(28) & 0x3fff);
+    }
+    if (ascii(12, 'VP8L')) {
+      if (at(20) !== 0x2f) return null;
+      const bits = (at(21) | (at(22) << 8) | (at(23) << 16) | (at(24) << 24)) >>> 0;
+      return picture('image/webp', (bits & 0x3fff) + 1, ((bits >>> 14) & 0x3fff) + 1);
+    }
+    if (ascii(12, 'VP8X')) return picture('image/webp', u24le(24) + 1, u24le(27) + 1);
+    return null;
+  }
+  if (at(0) === 0xff && at(1) === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (at(offset) !== 0xff) return null;
+      const marker = at(offset + 1);
+      if (marker === 0xff) {
+        offset += 1;
+        continue;
+      }
+      const length = (at(offset + 2) << 8) | at(offset + 3);
+      // SOF0..SOF15, but not DHT (C4), JPG (C8) or DAC (CC).
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker))
+        return picture(
+          'image/jpeg',
+          (at(offset + 7) << 8) | at(offset + 8),
+          (at(offset + 5) << 8) | at(offset + 6)
+        );
+      if (marker === 0xd9 || marker === 0xda || length < 2) return null;
+      offset += 2 + length;
+    }
+  }
+  return null;
+}
+
+function picture(contentType: SpaceDerivativeType, width: number, height: number) {
+  return width >= 1 && height >= 1 ? { contentType, width, height } : null;
+}
+
+/** The checks the server makes of one staged derivative against its declaration. */
+export function checkSpaceDerivative(
+  declared: Pick<
+    SpaceDerivativeDeclaration,
+    'variant' | 'contentType' | 'bytes' | 'width' | 'height'
+  >,
+  stored: { bytes: number; head: Uint8Array }
+): { ok: true } | { ok: false; reason: 'type' | 'size' | 'dimensions' } {
+  const limit = SPACE_DERIVATIVE_VARIANTS[declared.variant];
+  if (stored.bytes !== declared.bytes || stored.bytes < 1 || stored.bytes > limit.maxBytes)
+    return { ok: false, reason: 'size' };
+  const sniffed = sniffSpaceDerivative(stored.head);
+  if (!sniffed || sniffed.contentType !== declared.contentType)
+    return { ok: false, reason: 'type' };
+  if (
+    sniffed.width !== declared.width ||
+    sniffed.height !== declared.height ||
+    sniffed.width > limit.maxWidth ||
+    sniffed.height > limit.maxHeight
+  )
+    return { ok: false, reason: 'dimensions' };
+  return { ok: true };
 }

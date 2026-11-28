@@ -770,6 +770,11 @@ export type TeamDownloadGrantResult =
       rangeUrl: string;
       expiresAt: string;
       disposition: 'attachment';
+      /**
+       * 057 (R2 space): the address streams the original at any size with Range, so the
+       * browser's own download takes it instead of a blob in memory. Never set for Drive.
+       */
+      direct?: { sizeBytes: number | null };
     }
   | {
       kind: 'agent';

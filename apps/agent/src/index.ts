@@ -82,6 +82,7 @@ import { createTeamProcessDelegates, TeamProcessBridge } from './team-bridge/pro
 import { createRestitchDelegate } from './team-bridge/restitch.js';
 import { TeamScreenCache } from './team-bridge/screen-cache.js';
 import { TeamPosterBridge } from './team-bridge/poster.js';
+import { SpaceDerivativeBridge } from './team-bridge/r2-derivatives.js';
 import { CreativeLibraryProcessBridge } from './team-bridge/library.js';
 import { TeamTransferClient } from './team-bridge/transfer.js';
 import { TeamSourceCache } from './team-bridge/source-cache.js';
@@ -717,6 +718,7 @@ const teamRecoveryWorker = new TeamRecoveryWorker({
 });
 entitlementGate.onBeforeActorChange(actorId => teamRecoveryWorker.prepareActorChange(actorId));
 const teamPosterBridge = new TeamPosterBridge({ transfer: teamTransfer });
+const spaceDerivativeBridge = new SpaceDerivativeBridge({ transfer: teamTransfer });
 const creativeLibraryProcessBridge = new CreativeLibraryProcessBridge({
   process: teamProcessBridge
 });
@@ -968,6 +970,7 @@ const modules = createToolModules({
     nativeRestitch: nativeRestitchController,
     catalogForeground,
     poster: teamPosterBridge,
+    spaceDerivatives: spaceDerivativeBridge,
     download: teamDownloadBridge,
     landings: teamLandingRenderBridge,
     library: creativeLibraryProcessBridge,

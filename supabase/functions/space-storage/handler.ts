@@ -37,6 +37,8 @@ export const SPACE_STORAGE_ROUTES = [
   '/uploads/{id}/parts',
   '/uploads/{id}/complete',
   '/uploads/{id}/abort',
+  '/uploads/{id}/derivatives',
+  '/derivatives/claim',
   '/materials/mutate',
   '/materials/read',
   '/trash/empty',
@@ -48,7 +50,9 @@ export const SPACE_STORAGE_ROUTES = [
   '/process/output/start',
   '/process/output/parts',
   '/process/output/finalize',
-  '/process/output/quiesced'
+  '/process/output/quiesced',
+  '/agent/derivatives/stage',
+  '/agent/derivatives/finish'
 ] as const;
 export type SpaceStorageRoute = (typeof SPACE_STORAGE_ROUTES)[number];
 
@@ -62,11 +66,14 @@ export const SPACE_STORAGE_TICKET_ROUTES: ReadonlySet<SpaceStorageRoute> = new S
   '/process/output/start',
   '/process/output/parts',
   '/process/output/finalize',
-  '/process/output/quiesced'
+  '/process/output/quiesced',
+  // T047: the agent's derivative backfill, with the lease a member's page handed it.
+  '/agent/derivatives/stage',
+  '/agent/derivatives/finish'
 ]);
 
 const UPLOAD_PATH =
-  /^\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/(parts|complete|abort)$/u;
+  /^\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/(parts|complete|abort|derivatives)$/u;
 
 /** The route of a path and, for an upload route, the upload it names. */
 export function spaceStorageRouteMatch(path: string): {

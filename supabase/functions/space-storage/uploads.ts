@@ -26,6 +26,7 @@ import {
   SPACE_DERIVATIVE_VARIANTS,
   SPACE_STORAGE_LIMITS,
   spaceContentId,
+  spaceDerivativeSlotsFor,
   spacePartRange,
   type SpaceAdmitResult,
   type SpaceIngress,
@@ -41,6 +42,15 @@ import type { SpaceListedPart, SpaceSignedPart } from '../_shared/r2-space.ts';
 import type { SpaceStorageJournalEntry } from '../_shared/space-storage-journal.ts';
 import { isRecord } from '../_shared/validation.ts';
 import { requireSpaceRequest, spaceRpcError, type Rpc } from './handler.ts';
+import {
+  declareUploadDerivatives,
+  parseStagedDerivatives,
+  settleStagedDerivatives,
+  type CheckedDerivative,
+  type DeclareCommand,
+  type SpaceDerivativeBucket,
+  type StagedDerivative
+} from './derivatives.ts';
 
 /** The part of `SpaceR2` an upload uses; tests hand in a fake. */
 export interface SpaceUploadBucket {
@@ -63,6 +73,23 @@ export interface SpaceUploadBucket {
     key: string,
     signal: AbortSignal
   ): Promise<{ bytes: number; etag: string; contentType: string | null } | null>;
+  /** Derivatives (T047): present on the real bucket; a fake without them stages nothing. */
+  signPut?: SpaceDerivativeBucket['signPut'];
+  rangeGet?: SpaceDerivativeBucket['rangeGet'];
+  copy?: SpaceDerivativeBucket['copy'];
+  remove?: SpaceDerivativeBucket['remove'];
+}
+
+function derivativeBucket(bucket: SpaceUploadBucket): SpaceDerivativeBucket {
+  const { signPut, rangeGet, copy, remove, head } = bucket;
+  if (!signPut || !rangeGet || !copy || !remove) throw new TeamFunctionError('STORAGE_UNAVAILABLE');
+  return {
+    signPut: signPut.bind(bucket),
+    rangeGet: rangeGet.bind(bucket),
+    copy: copy.bind(bucket),
+    remove: remove.bind(bucket),
+    head: head.bind(bucket)
+  };
 }
 
 export interface UploadDeps {
@@ -98,9 +125,9 @@ export interface AdmitCommand {
 }
 
 /**
- * Derivatives are declared with the admit (R5) and checked here for shape; the slots that
- * carry them land with T047, so for now every session answers `derivativeSlots: []` and the
- * commit queues an agent backfill instead.
+ * Derivatives declared with the admit are checked for shape only and otherwise ignored: since
+ * T047 the client learns the slots from the admit's answer, makes them, and declares them at
+ * `/uploads/{id}/derivatives` (an older client that sent them here simply gets an agent job).
  */
 function validDerivatives(value: unknown): boolean {
   if (value === undefined) return true;
@@ -246,6 +273,8 @@ interface SessionFacts {
   declaredBytes: bigint;
   name: string;
   contentType: string;
+  /** Derivatives declared for this upload and not yet checked (T047). */
+  derivatives: StagedDerivative[];
 }
 
 type SessionAnswer =
@@ -296,7 +325,8 @@ function parseSession(value: unknown): SessionAnswer {
       declaredContentId: value.declaredContentId,
       declaredBytes,
       name: value.name,
-      contentType: value.contentType
+      contentType: value.contentType,
+      derivatives: parseStagedDerivatives(value.derivatives)
     }
   };
 }
@@ -402,7 +432,16 @@ export async function admitUpload(
       if (answer.facts.r2UploadId === null && answer.facts.state === 'open') {
         await openMultipart(answer.facts, command.contentType, deps);
       }
-      return answer.public;
+      // What the client should make of its own file while the parts go (T047): a session for
+      // new content has no derivatives yet, so the slots follow from the category alone.
+      return answer.public.kind === 'session' && answer.facts.state === 'open'
+        ? {
+            ...answer.public,
+            derivativeSlots: spaceDerivativeSlotsFor(
+              classificationOf(command.name, command.contentType).category
+            )
+          }
+        : answer.public;
     },
     command.ingress
   );
@@ -470,6 +509,27 @@ export async function signUploadParts(
     }
     return { parts };
   });
+}
+
+// Derivatives (T047) -----------------------------------------------------------------------
+
+export async function declareDerivatives(
+  uploadId: string,
+  command: DeclareCommand,
+  deps: UploadDeps
+): Promise<Awaited<ReturnType<typeof declareUploadDerivatives>>> {
+  const facts = await loadSession(uploadId, command.teamId, deps);
+  if (facts.state !== 'open') return refuse('WRONG_STATE');
+  return declareUploadDerivatives(
+    uploadId,
+    command,
+    {
+      name: facts.name,
+      contentType: facts.contentType,
+      category: classificationOf(facts.name, facts.contentType).category
+    },
+    { ...deps, bucket: derivativeBucket(deps.bucket) }
+  );
 }
 
 // Complete --------------------------------------------------------------------------------
@@ -541,11 +601,27 @@ export async function completeUpload(
   return recorded(record, command.teamId, null, async () => {
     const facts = await loadSession(uploadId, command.teamId, deps);
     const commit = async () => {
+      // The derivatives are checked once the original is in place, just before the commit that
+      // records them; a commit that already happened has nothing left to check.
+      let derivatives: CheckedDerivative[] = [];
+      if (facts.state !== 'committed' && facts.derivatives.length > 0)
+        derivatives = await settleStagedDerivatives(
+          {
+            teamId: command.teamId,
+            contentId: facts.declaredContentId,
+            staged: facts.derivatives
+          },
+          derivativeBucket(deps.bucket),
+          signalOf(deps)
+        );
       const value = await call(deps.rpc, 'service_complete_space_upload', {
         p_upload: uploadId,
         p_team: command.teamId,
         p_actor: deps.actorId,
-        p_input: classificationOf(facts.name, facts.contentType)
+        p_input: {
+          ...classificationOf(facts.name, facts.contentType),
+          ...(derivatives.length > 0 ? { derivatives } : {})
+        }
       });
       const parsed = parseSpaceMaterialSnapshot(value);
       if (!parsed.ok) return refuse('INVALID_RESPONSE');

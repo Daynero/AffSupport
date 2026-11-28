@@ -13,6 +13,12 @@ import { readSpaceR2Config, SpaceR2 } from '../_shared/r2-space.ts';
 import { writeSpaceStorageJournal } from '../_shared/space-storage-journal.ts';
 import { parseJsonBody } from '../_shared/validation.ts';
 import { parseCatalogVariantRunCommand, runCatalogVariant } from './catalog-variants.ts';
+import {
+  claimDerivativeJob,
+  finishAgentDerivative,
+  parseDeclareCommand,
+  stageAgentDerivatives
+} from './derivatives.ts';
 import { createSpace } from './create.ts';
 import {
   localEpochReader,
@@ -56,6 +62,7 @@ import {
   abortUpload,
   admitUpload,
   completeUpload,
+  declareDerivatives,
   parseAdmitCommand,
   parseCompleteCommand,
   parsePartsCommand,
@@ -67,7 +74,8 @@ import {
  * space-storage (057): the storage of Soty spaces on R2. POST only, routed by path as
  * `drive-ops` is. The handler verifies the caller's JWT itself; the client never names a bucket,
  * a key or a storage URL. Routes: `/spaces/create` (T015), `/uploads/*` (T023),
- * `/materials/mutate` and `/trash/empty` (T025), `/read-grant` (T027), and a tool run:
+ * `/materials/mutate` and `/trash/empty` (T025), `/uploads/{id}/derivatives` and
+ * `/derivatives/claim` (T047), `/read-grant` (T027), and a tool run:
  * `/process/start` and `/catalog-variants/run` (T094) for a member, `/agent/source` and
  * `/process/output/*` for the desktop agent with its operation ticket (T033/T035) — those five
  * never see a member's session.
@@ -164,6 +172,27 @@ Deno.serve(async request => {
       return grantConfig;
     };
 
+    if (route === '/agent/derivatives/stage' || route === '/agent/derivatives/finish') {
+      // The agent's derivative backfill (T047): the lease token is the authority.
+      const bucket = spaceBucket();
+      if (!bucket) throw new TeamFunctionError('STORAGE_UNAVAILABLE');
+      const lease = {
+        actorId: null,
+        rpc,
+        bucket,
+        journal,
+        operationId: crypto.randomUUID(),
+        client,
+        signal: request.signal
+      };
+      return successResponse(
+        route === '/agent/derivatives/stage'
+          ? await stageAgentDerivatives(body.value, lease)
+          : await finishAgentDerivative(body.value, lease),
+        cors
+      );
+    }
+
     if (SPACE_STORAGE_TICKET_ROUTES.has(route)) {
       // The agent: its ticket is the authority, checked by the database when it is spent.
       const agent: ProcessDeps = {
@@ -255,6 +284,13 @@ Deno.serve(async request => {
         await completeUpload(uploadId, parseCompleteCommand(body.value), upload),
         cors
       );
+    if (uploadId && route === '/uploads/{id}/derivatives')
+      return successResponse(
+        await declareDerivatives(uploadId, parseDeclareCommand(body.value), upload),
+        cors
+      );
+    if (route === '/derivatives/claim')
+      return successResponse(await claimDerivativeJob(body.value, upload), cors);
     if (uploadId && route === '/uploads/{id}/abort')
       return successResponse(
         await abortUpload(uploadId, parseTeamCommand(body.value), upload),
