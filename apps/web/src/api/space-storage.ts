@@ -17,6 +17,7 @@ import {
   parseSpaceReadGrantResult,
   parseSpaceTrashEmptied,
   parseTeamProcessStartResult,
+  parseTeamRestitchDefaults,
   parseTeamTransferGrant,
   spaceContentId,
   spaceFilesUrl,
@@ -38,6 +39,7 @@ import type {
   SpaceTrashEmptied,
   StorageBackend,
   TeamProcessStartResult,
+  TeamRestitchDefaults,
   TeamTransferGrant
 } from '@video-compressor/shared';
 import { builtForEnvironment, type SiteChannel } from '../lib/config';
@@ -214,6 +216,51 @@ async function callSpaceStorage<T>(
   return parsed as T;
 }
 
+export type SpaceCatalogVariantRun =
+  | { state: 'registered'; index: number; outputMaterialId: string }
+  | { state: 'failed' | 'canceled'; index: number }
+  | {
+      state: 'run';
+      index: number;
+      operationId: string;
+      sourceGrant: TeamTransferGrant;
+      finalizeGrant: TeamTransferGrant;
+      defaults: TeamRestitchDefaults;
+    };
+
+/** The answer of `/catalog-variants/run`, checked to be for the variation that was asked. */
+export function parseSpaceCatalogVariantRun(
+  value: unknown,
+  index: number
+): SpaceCatalogVariantRun | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  if (row.index !== index) return null;
+  if (row.state === 'registered')
+    return isSpaceUuid(row.outputMaterialId)
+      ? { state: 'registered', index, outputMaterialId: row.outputMaterialId }
+      : null;
+  if (row.state === 'failed' || row.state === 'canceled') return { state: row.state, index };
+  if (row.state !== 'run' || !isSpaceUuid(row.operationId)) return null;
+  const sourceGrant = parseTeamTransferGrant(row.sourceGrant);
+  const finalizeGrant = parseTeamTransferGrant(row.finalizeGrant);
+  const defaults = parseTeamRestitchDefaults(row.defaults);
+  if (
+    sourceGrant?.purpose !== 'process_input' ||
+    finalizeGrant?.purpose !== 'finalize' ||
+    !defaults.ok
+  )
+    return null;
+  return {
+    state: 'run',
+    index,
+    operationId: row.operationId,
+    sourceGrant,
+    finalizeGrant,
+    defaults: defaults.value
+  };
+}
+
 export interface SpaceAdmitInput {
   teamId: string;
   /** Null for the space root. */
@@ -291,6 +338,23 @@ export const spaceStorageApi = {
   startProcess(input: TeamProcessStartInput): Promise<TeamProcessStartResult> {
     return callSpaceStorage<TeamProcessStartResult>('process/start', { ...input }, value => {
       const parsed = parseTeamProcessStartResult(value);
+      return parsed ? { ok: true, value: parsed } : { ok: false };
+    });
+  },
+
+  /**
+   * 057 T100: one re-stitched variation of a catalog being created in an R2 space, handed to this
+   * member's agent. The server opens (or finds) the variation's run and answers its two tickets
+   * with the settings the set froze — or that it is already made, or cannot be made any more.
+   */
+  runCatalogVariant(input: {
+    teamId: string;
+    setId: string;
+    index: number;
+    toolContractVersion: number;
+  }): Promise<SpaceCatalogVariantRun> {
+    return callSpaceStorage<SpaceCatalogVariantRun>('catalog-variants/run', { ...input }, value => {
+      const parsed = parseSpaceCatalogVariantRun(value, input.index);
       return parsed ? { ok: true, value: parsed } : { ok: false };
     });
   },

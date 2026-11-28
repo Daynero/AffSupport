@@ -79,6 +79,7 @@ import {
 } from './duration-preference';
 import { ProductCatalogProgress } from './ProductCatalogProgress';
 import { CatalogRestitchProgress } from './CatalogRestitchProgress';
+import { useSpaceCatalogVariantRunner } from './spaceCatalogVariants';
 import { ensureRestitchImages } from '../restitch/images';
 import { prepareRestitchScreens } from '../restitch/screens';
 
@@ -358,11 +359,9 @@ export function CreateProductCatalogDialog({
   const [touched, setTouched] = useState({ link: false, count: false });
   const [restitch, setRestitch] = useState(false);
   /* 057: an R2 space's catalog is its feed, published at once, its video always the R2 copy:
-     re-stitched videos, a later publication and the copy option have no path there yet. */
+     a later publication and the copy option have no path there yet. Re-stitched variations do
+     (T100): the member's own agent makes them, handed over from this page. */
   const feedSpace = useCatalogFeedSpace(teamId);
-  useEffect(() => {
-    if (feedSpace && restitch) setRestitch(false);
-  }, [feedSpace, restitch]);
   // 050: copy the catalog video to R2; off unless ticked, applied from the next update on.
   const [copyVideoToR2, setCopyVideoToR2] = useState(false);
   const videoProtocol = Boolean(client.createProductCatalogVideo);
@@ -660,7 +659,7 @@ export function CreateProductCatalogDialog({
         let publication: Parameters<
           typeof teamApi.createProductCatalogVideo
         >[0]['videoPublication'] = { mode: 'immediate' };
-        if (videoDraft.delayed) {
+        if (videoDraft.delayed && !feedSpace) {
           const resolved = resolveCatalogPublicationDraft(
             {
               localDateTime: `${videoDraft.date}T${videoDraft.time}`,
@@ -1058,6 +1057,23 @@ export function CreateProductCatalogDialog({
   }, [videoProtocol, videoStorageKey]);
   const checkVideoRef = useRef(checkVideo);
   checkVideoRef.current = checkVideo;
+  // 057 T100: in an R2 space this page hands the variations to the member's own agent.
+  useSpaceCatalogVariantRunner({
+    active: Boolean(
+      feedSpace &&
+      videoPending &&
+      videoPending.state === 'preparing' &&
+      videoPending.registeredCount < videoPending.requestedCount
+    ),
+    teamId,
+    setId: videoPending?.videoSetId ?? null,
+    count: videoPending?.requestedCount ?? 0,
+    onMade: () => {
+      readSoon.current = Date.now() + CREATION_FAST_READ_WINDOW_MS;
+      if (videoKey.current) void checkVideoRef.current();
+    },
+    onStopped: code => setFailure(teamErrorMessageFor({ code }, t))
+  });
   useEffect(() => {
     if (videoProtocol && videoKey.current) void checkVideoRef.current();
   }, [videoProtocol, workspaceRevision, updaterRevision]);
@@ -1367,16 +1383,17 @@ export function CreateProductCatalogDialog({
             </FormField>
           </div>
 
-          {videoProtocol && !feedSpace && (
+          {videoProtocol && (
             <CatalogCreationVideoFields
               value={videoDraft}
               onChange={setVideoDraft}
               restitch={restitch}
               productCount={productTotal}
               disabled={busy}
+              {...(feedSpace ? { part: 'variations' as const } : {})}
             />
           )}
-          {!feedSpace && (
+          {(!feedSpace || videoProtocol) && (
             <div className="product-catalog-restitch">
               <Checkbox
                 checked={restitch}
