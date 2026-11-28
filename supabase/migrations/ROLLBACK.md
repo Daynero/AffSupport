@@ -3957,3 +3957,10 @@ by re-running `service_team_recovery` and `service_space_catalog_variant_run` fr
 that last defined them (20261226140000 and 20261226250000), then dropping the new functions and the
 three columns. R2 variations then wait for the page that created the catalog again; runs a lease
 had opened stay ordinary runs of the space.
+
+## 20261226270000 — 057 emptying a tool's output from an R2 trash
+
+Replaces the R2-only `service_empty_space_trash`: a material emptied from the trash takes its
+`processed_from` links with it in the same subtransaction, and the other side is counted again.
+Undo by re-running the body from 20261226160000. A tool's output (or a source that had one) then
+stays in the trash again when it is emptied; nothing already deleted comes back.

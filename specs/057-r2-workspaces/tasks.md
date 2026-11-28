@@ -494,6 +494,14 @@
   `workspaceStorage: 'r2'`; крон `drive-ops /launches/recover` доводить створення, коли всі
   варіації зроблено (`createSpaceProductCatalog`, та сама лінія `runInitialCatalogRecovery`).
   Тест: T106.
+- [x] T108 [P] [US10] Тест для T109 — `supabase/tests/database/space-trash-tool-outputs.test.sql` (12):
+  «Очистити кошик» з виходом інструмента видаляє його одразу, разом з його `processed_from`,
+  об'єкт стає до видалення з R2, джерело працює далі й зберігає свій об'єкт; джерело з виходом теж
+  видаляється, а вихід лишається звичайним файлом і рахується раз, у `materials`; зв'язок іншого
+  виду (`version_of`) і далі тримає файл у кошику.
+- [x] T109 [US10] Міграція `20261226270000_space_storage_trash_tool_outputs.sql`: R2-тіло
+  `service_empty_space_trash` видаляє `processed_from` матеріалу в тій самій субтранзакції, що й
+  рядок, і перераховує другий бік (FR-048: без сиріт). Drive-кошик не змінюється. Тест: T108.
 
 ### Фаза 5 — US7: відчутно швидше (ядро M1) (P1)
 
