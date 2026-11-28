@@ -324,6 +324,23 @@ describe('objects', () => {
     expect(await code(r2.listPrefix('t/', null, signal))).toBe('INVALID_INPUT');
     expect(await code(r2.listPrefix('', null, signal))).toBe('INVALID_INPUT');
   });
+
+  it('resumes after a key and carries when R2 last wrote each object (057 T059)', async () => {
+    const { r2, signed } = client([
+      xml(
+        `<ListBucketResult><IsTruncated>false</IsTruncated><Contents><Key>${OBJECT}</Key><Size>10</Size><ETag>"e"</ETag><LastModified>2026-11-01T10:00:00.000Z</LastModified></Contents></ListBucketResult>`
+      )
+    ]);
+    const signal = new AbortController().signal;
+    const page = await r2.listPrefix(`t/${TEAM}/`, null, signal, STAGING);
+    expect(new URL(signed[0]!.url).searchParams.get('start-after')).toBe(STAGING);
+    expect(page.objects).toEqual([
+      { key: OBJECT, bytes: 10, etag: '"e"', lastModified: '2026-11-01T10:00:00.000Z' }
+    ]);
+    expect(await code(r2.listPrefix(`t/${TEAM}/`, null, signal, 'elsewhere'))).toBe(
+      'INVALID_INPUT'
+    );
+  });
 });
 
 describe('provider errors are sanitized', () => {

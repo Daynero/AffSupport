@@ -84,5 +84,9 @@ verify_jwt = false
 [functions.catalog-video-r2]
 verify_jwt = false
 
+# 057: the R2 spaces' sweeper is called only by pg_cron with the named catalog-sync secret.
+[functions.space-storage-sweeper]
+verify_jwt = false
+
 [functions.catalog-global-images]
 verify_jwt = false

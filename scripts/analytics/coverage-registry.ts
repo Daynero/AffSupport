@@ -698,7 +698,7 @@ export const COVERAGE_REGISTRY: readonly Capability[] = [
       'Reads through the space-read Worker are not journaled per request; only grant issuance is. A lost journal row is a blind spot, never a failed operation.',
       'Bytes a member already downloaded, or a copy in their browser cache, cannot be observed or revoked.'
     ],
-    note: '057 M1. private.space_storage_journal holds one content-free row per stage: operation, attempt, closed stage, outcome and code, exact bytes, space, ingress and client kind with version. Names, paths, bucket keys, URLs and grants are refused by the writer. The space-storage edge function journals the create stage (T015); the other stages land with their routes, so the capability stays pending until then.'
+    note: '057 M1. private.space_storage_journal holds one content-free row per stage: operation, attempt, closed stage, outcome and code, exact bytes, space, ingress and client kind with version. Names, paths, bucket keys, URLs and grants are refused by the writer. The space-storage edge function journals the create stage (T015); the space-storage-sweeper journals purge (each deleted object, a deleted space emptied) and reconcile (missing objects as NOT_FOUND) from the database (T059); the other stages land with their routes, so the capability stays pending until then. The `space-storage` command reads public.analytics_space_storage (T061): ledger, purge delay, last reconciliation, orphans, derivative queue and the server side of commit → signal, unsupported (not zero) before that projection exists.'
   },
   {
     id: 'team.catalog_video_r2',

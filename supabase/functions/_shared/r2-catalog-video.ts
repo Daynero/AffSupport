@@ -587,6 +587,36 @@ export class CatalogVideoR2 {
     );
   }
 
+  /**
+   * 057 T059: delete the public object and prove it is gone, without purging: the caller purges a
+   * whole batch of addresses with one `purgeUrls` (SC-014). Any doubt is `CLEANUP_PARTIAL`.
+   */
+  async deletePublicObject(key: string, signal: AbortSignal): Promise<void> {
+    const response = await this.send(
+      await this.signer.sign(new Request(this.endpoint('public', key), { method: 'DELETE' })),
+      signal
+    );
+    await response.body?.cancel();
+    if (!response.ok && response.status !== 404) providerFailure(response.status);
+    const readback = await this.send(
+      await this.signer.sign(new Request(this.endpoint('public', key), { method: 'HEAD' })),
+      signal
+    );
+    await readback.body?.cancel();
+    if (readback.status !== 404)
+      throw new TeamFunctionError('VIDEO_R2_CLEANUP_PARTIAL', { retryable: true });
+  }
+
+  /** 057 T059: the feed object only; its address is purged with the batch (`purgeUrls`). */
+  async deleteFeedObject(key: string, signal: AbortSignal): Promise<void> {
+    const response = await this.send(
+      await this.signer.sign(new Request(this.feedEndpoint(key), { method: 'DELETE' })),
+      signal
+    );
+    await response.body?.cancel();
+    if (!response.ok && response.status !== 404) providerFailure(response.status);
+  }
+
   /** Delete the public object, prove it is gone, and purge the CDN; any doubt is `CLEANUP_PARTIAL`. */
   async removePublic(key: string, signal: AbortSignal): Promise<void> {
     const signed = await this.signer.sign(

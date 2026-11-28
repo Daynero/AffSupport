@@ -78,6 +78,8 @@ export interface SpaceListedObject {
   key: string;
   bytes: number;
   etag: string;
+  /** ISO time R2 last wrote the object; present when the listing says (reconciliation grace). */
+  lastModified?: string;
 }
 
 const MAX_RANGE_BYTES = 16 * 1024 * 1024;
@@ -593,7 +595,8 @@ export class SpaceR2 {
   async listPrefix(
     prefix: string,
     continuationToken: string | null,
-    signal: AbortSignal
+    signal: AbortSignal,
+    startAfter: string | null = null
   ): Promise<{ objects: SpaceListedObject[]; foreignKeys: number; nextToken: string | null }> {
     if (typeof prefix !== 'string' || !PREFIX.test(prefix)) invalidInput();
     if (
@@ -603,11 +606,15 @@ export class SpaceR2 {
         continuationToken.length > 1024)
     )
       invalidInput();
+    // A resumed reconciliation starts after the last key it saw (057 T059).
+    if (startAfter !== null && (!isSpaceKey(startAfter) || !startAfter.startsWith(prefix)))
+      invalidInput();
     const url = this.bucketUrl();
     url.searchParams.set('list-type', '2');
     url.searchParams.set('prefix', prefix);
     url.searchParams.set('max-keys', String(LIST_PAGE));
     if (continuationToken) url.searchParams.set('continuation-token', continuationToken);
+    else if (startAfter) url.searchParams.set('start-after', startAfter);
     const response = await this.send(await this.signer.sign(new Request(url)), signal);
     const body = await this.text(response);
     if (!response.ok) providerFailure(response.status);
@@ -620,8 +627,13 @@ export class SpaceR2 {
       const key = xmlValue(block, 'Key');
       const bytes = safeInteger(xmlValue(block, 'Size'), 0, SPACE_STORAGE_LIMITS.maxObjectBytes);
       const etag = xmlValue(block, 'ETag');
+      const modified = xmlValue(block, 'LastModified');
+      const lastModified =
+        modified && modified.length <= 64 && Number.isFinite(Date.parse(modified))
+          ? new Date(modified).toISOString()
+          : null;
       if (key && isSpaceKey(key) && key.startsWith(prefix) && etag && etag.length <= 255)
-        objects.push({ key, bytes, etag });
+        objects.push(lastModified ? { key, bytes, etag, lastModified } : { key, bytes, etag });
       else foreignKeys += 1;
     }
     const truncated = xmlValue(body, 'IsTruncated');

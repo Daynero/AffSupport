@@ -5,6 +5,7 @@ import { readStartupEvidence } from '../../apps/agent/src/server/startup-evidenc
 import { getCatalogTextScheduleDiagnosis } from './catalog-texts.js';
 import { getCatalogImageDiagnosis, getCatalogImageUserDiagnosis } from './catalog-images.js';
 import { getCatalogVideoR2Diagnosis } from './catalog-video-r2.js';
+import { getSpaceStorageDiagnosis } from './space-storage.js';
 import { getCreativeRankDiagnosis } from './creative-ranks.js';
 import { getAiUsage } from './ai-usage.js';
 import { getAssistantCommand, getAssistantSummary } from './assistant.js';
@@ -148,6 +149,7 @@ Commands:
   global-images [--image UUID] [--at-least N] [--sort id|uses] [--cleanup]  Global image status
   catalog-images <team-id|import-id>  Image publication stages, random/matched outcomes and blind spots
   catalog-video-r2 <team-id|catalog-id|copy-id>  Catalog video copies to R2: stages, proof limits, reasons, cleanup
+  space-storage [team-id]  R2 spaces (057): ledger, purge delay, reconciliation, orphans, derivative queue
   creative-rank <material-id|launch-id|catalog-id|team-id>  Why a creative has its launch count and league (059)
   ai-usage            What calling Claude costs, and how transcript translation goes (063)
   assistant [command-id]  Launch assistant (064): one command's trail, or commands, refusals and credits for the period
@@ -557,6 +559,10 @@ export async function executeCommand(
         limit: args.limit,
         cursor: args.cursor
       });
+      return done(data, JSON.stringify(data, null, 2));
+    }
+    case 'space-storage': {
+      const data = await getSpaceStorageDiagnosis(args.positional[0] ?? null);
       return done(data, JSON.stringify(data, null, 2));
     }
     case 'ai-usage': {

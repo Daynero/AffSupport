@@ -864,6 +864,21 @@ npx --yes wrangler@4.112.0 r2 bucket lifecycle list soty-spaces-beta
   read/write) covers it. That token cannot read the bucket's CORS or lifecycle back
   (`AccessDenied`), so readback goes through `wrangler` or the dashboard.
 
+**Sweeper (057 T059).** `space-storage-sweeper` deletes what nothing in a space refers to any
+more. pg_cron wakes it every minute (`soty-space-storage-sweeper`) and once a day at 03:23
+(`soty-space-storage-reconcile`), through the same vault entries and named secret as the
+catalog-sync workers (`wishly_catalog_sync_url` with `/space-storage-sweeper` in place of
+`/catalog-sync`, `wishly_catalog_sync_secret`). A removal wakes it at once. It needs the
+`R2_SPACE_*` secrets for the space bucket. For the catalogs of R2 spaces it also uses the 050
+configuration (`R2_CATALOG_*`, `R2_CATALOG_VIDEO_*`, `R2_CATALOG_PURGE_TOKEN`). It deletes their
+video copies and feeds in batches and purges the zone cache for all their addresses in one call,
+up to 30 per call. Without that configuration the 050 sweep stays the only one, and it works the
+same rows as before. A day-old incomplete multipart counts as closed because the lifecycle rule
+above aborts it. The sweeper relies on that rule, so do not lengthen it without changing
+`20261226380000_space_storage_sweeper.sql` too: `tests/space-storage-sweeper.test.ts` reads both.
+`npm run analytics -- space-storage [team-id]` shows the queue, the deletion delay and the last
+reconciliation.
+
 **Reads on beta (lead decision 2026-11-28).** The local beta stack's Supabase API listens only on
 `127.0.0.1:54321`, so a Worker on the internet can never read a space's `access_epoch` there and
 every read through `files-beta.soty.pp.ua` would answer 503. Beta therefore reads through

@@ -4088,3 +4088,25 @@ else changes; `service_team_recovery` is untouched. Undo: drop the function. Age
 `derivative_claim` are then refused with an unclassified error and keep working through the page's
 own claims; Drive spaces never call it.
 
+
+## 20261226380000 — 057 the sweeper of R2 spaces (T059)
+
+Adds lease and fence columns to `space_object_purges`, `space_storage_reconciliations` and
+`space_uploads` (settle), the tombstone table `private.space_storage_removed_spaces`, the service
+RPCs of `space-storage-sweeper` (purge claim/finish, trash expiry, upload expiry, uncertain
+reservations, removed spaces, reconciliation pages, R2-only catalog retire and feed claims), the
+triggers `space_restore_within_capacity` (team_materials, R2 restore over the limit),
+`space_storage_before_team_delete` (teams, R2 only) and `space_storage_wake_for_catalog` (on 050's
+copies and feed removals; exits at once for a Drive team), and two pg_cron jobs. Replaces
+`private.space_object_refs_released` (orphan due after a day; wakes the sweeper),
+`service_empty_space_trash` (same body via `private.space_trash_delete`) and
+`private.space_catalog_variant_removed` (cancels a still-running variation run). Undo: unschedule
+`soty-space-storage-sweeper` and `soty-space-storage-reconcile`, drop the three triggers and the
+new functions, restore the three replaced bodies from 20261226150000, 20261226270000 and
+20261226250000; the added columns are inert without them. Drive spaces: no Drive row ever reaches
+the new code paths beyond the first-line exits named above.
+
+## 20261226390000 — 057 the space storage projection (T061)
+
+Adds the view `public.analytics_space_storage` (select for `wishly_analytics_ro` only). Undo: drop
+the view; the `space-storage` CLI command then answers `unsupported`.
