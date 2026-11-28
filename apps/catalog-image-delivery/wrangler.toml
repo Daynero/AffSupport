@@ -22,6 +22,9 @@ CATALOG_GLOBAL_DELIVERY_CONFIRMATION = "production:https://catalog-images.soty.p
 SPACE_FILES_HOST = "files.soty.pp.ua"
 SPACE_ALLOWED_ORIGINS = "https://soty.pp.ua,https://next.soty.pp.ua"
 
-[[r2_buckets]]
-binding = "SPACE_BUCKET"
-bucket_name = "soty-spaces-production"
+# The SPACE_BUCKET binding is switched on in T062, once soty-spaces-production exists.
+# wrangler refuses to deploy a binding to a missing bucket, and this Worker also serves the
+# live catalog image aliases, so an early binding would block their deploys (next-quick).
+# [[r2_buckets]]
+# binding = "SPACE_BUCKET"
+# bucket_name = "soty-spaces-production"

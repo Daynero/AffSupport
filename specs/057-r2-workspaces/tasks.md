@@ -449,6 +449,7 @@
 ### Фаза 8 — приймання M1 і реліз на next
 
 - [ ] T062 Приймання M1 на беті:
+  - **Перед будь-яким деплоєм Worker-а з біндінгом:** створити `soty-spaces-production` і розкоментувати `[[r2_buckets]] SPACE_BUCKET` у `apps/catalog-image-delivery/wrangler.toml`. До того біндінг вимкнено, бо wrangler не деплоїть біндінг до неіснуючого кошика, а цей Worker віддає живі картинки каталогів.
   - міграції через `psql` + `schema_migrations`;
   - кроки 1–10 [quickstart.md](quickstart.md) M1 через Playwright-драйвер беті;
   - результат — `specs/057-r2-workspaces/evidence/m1-beta-acceptance-<дата>.md`.
