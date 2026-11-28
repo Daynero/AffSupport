@@ -481,7 +481,9 @@ describe('an R2 space never reaches Drive', () => {
         download: 'clip.mp4'
       }),
       expiresAt: FUTURE,
-      disposition: 'attachment'
+      disposition: 'attachment',
+      // T051: the browser's own download takes it, any size.
+      direct: { sizeBytes: 5 }
     });
     expect(ran.preview.value).toEqual({
       kind: 'media',

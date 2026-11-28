@@ -3,14 +3,13 @@ import {
   SPACE_DERIVATIVE_RECIPE_VERSION,
   SPACE_STORAGE_CAPABILITY,
   SPACE_STORAGE_CAPABILITY_HEADER,
-  SPACE_STORAGE_LIMITS,
-  SpaceMd5,
   formatByteCount,
   isSpaceContentId,
+  isSpaceDerivativeVariant,
   isSpaceUuid,
-  normalizePartEtag,
   parseByteCount,
   parseSpaceAdmitResult,
+  parseSpaceDerivativeUrls,
   parseSpaceMaterialSnapshot,
   parseSpaceMutationResult,
   parseSpacePartUrls,
@@ -19,16 +18,13 @@ import {
   parseTeamProcessStartResult,
   parseTeamRestitchDefaults,
   parseTeamTransferGrant,
-  spaceContentId,
-  spaceFilesUrl,
-  spaceMd5HexToBase64,
-  spacePartBytes,
-  spacePartCount,
-  spacePartRange
+  spaceFilesUrl
 } from '@video-compressor/shared';
 import type {
   AppEnvironment,
   SpaceAdmitResult,
+  SpaceDerivativeDeclaration,
+  SpaceDerivativeUrl,
   SpaceDerivativeVariant,
   SpaceIngress,
   SpaceMaterialSnapshot,
@@ -142,6 +138,8 @@ export interface SpaceMaterialFacts {
   name: string | null;
   materialRevision: string | null;
   thumbnailReady: boolean;
+  /** The original's size, for the browser to choose how to save it (T051). */
+  sizeBytes: number | null;
 }
 
 const MAX_REMEMBERED_MATERIALS = 50_000;
@@ -168,6 +166,13 @@ export function rememberSpaceMaterials(teamId: string, rows: readonly unknown[])
     const mimeType = field(row, 'mimeType', 'mime_type');
     const revision = field(row, 'materialRevision', 'material_revision');
     const ready = field(row, 'thumbnailReady', 'thumbnail_ready');
+    const size = field(row, 'sizeBytes', 'size_bytes');
+    const sizeBytes =
+      typeof size === 'number' && Number.isSafeInteger(size) && size >= 0
+        ? size
+        : typeof size === 'string' && parseByteCount(size) !== null
+          ? Number(size)
+          : null;
     materials.delete(key);
     materials.set(key, {
       contentId: isSpaceContentId(contentId) ? contentId : (previous?.contentId ?? null),
@@ -179,7 +184,8 @@ export function rememberSpaceMaterials(teamId: string, rows: readonly unknown[])
           : typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0
             ? String(revision)
             : (previous?.materialRevision ?? null),
-      thumbnailReady: typeof ready === 'boolean' ? ready : (previous?.thumbnailReady ?? false)
+      thumbnailReady: typeof ready === 'boolean' ? ready : (previous?.thumbnailReady ?? false),
+      sizeBytes: sizeBytes ?? previous?.sizeBytes ?? null
     });
   }
   while (materials.size > MAX_REMEMBERED_MATERIALS) {
@@ -275,6 +281,70 @@ export interface SpaceAdmitInput {
   idempotencyKey: string;
 }
 
+/** A picture job for this member's agent, as `/derivatives/claim` answers it (T047). */
+export interface SpaceDerivativeJob {
+  teamId: string;
+  objectId: string;
+  recipeVersion: number;
+  reason: 'browser_unsupported' | 'missing_media_facts' | 'client_skipped';
+  materialId: string;
+  name: string;
+  category: string | null;
+  contentId: string;
+  contentType: string;
+  bytes: string;
+  made: SpaceDerivativeVariant[];
+  needsMediaFacts: boolean;
+  leaseToken: string;
+  leaseUntil: string;
+  source: TeamTransferGrant;
+}
+
+export function parseSpaceDerivativeJob(value: unknown): SpaceDerivativeJob | null {
+  if (!value || typeof value !== 'object') return null;
+  const row = value as Record<string, unknown>;
+  const source = parseTeamTransferGrant(row.source);
+  if (
+    !isSpaceUuid(row.teamId) ||
+    !isSpaceUuid(row.objectId) ||
+    !isSpaceUuid(row.materialId) ||
+    row.recipeVersion !== SPACE_DERIVATIVE_RECIPE_VERSION ||
+    (row.reason !== 'browser_unsupported' &&
+      row.reason !== 'missing_media_facts' &&
+      row.reason !== 'client_skipped') ||
+    typeof row.name !== 'string' ||
+    (row.category !== null && typeof row.category !== 'string') ||
+    !isSpaceContentId(row.contentId) ||
+    typeof row.contentType !== 'string' ||
+    parseByteCount(row.bytes) === null ||
+    !Array.isArray(row.made) ||
+    !row.made.every(isSpaceDerivativeVariant) ||
+    typeof row.needsMediaFacts !== 'boolean' ||
+    typeof row.leaseToken !== 'string' ||
+    !/^[A-Za-z0-9_-]{43}$/u.test(row.leaseToken) ||
+    typeof row.leaseUntil !== 'string' ||
+    source?.purpose !== 'download_range'
+  )
+    return null;
+  return {
+    teamId: row.teamId,
+    objectId: row.objectId,
+    recipeVersion: row.recipeVersion,
+    reason: row.reason,
+    materialId: row.materialId,
+    name: row.name,
+    category: row.category as string | null,
+    contentId: row.contentId,
+    contentType: row.contentType,
+    bytes: row.bytes as string,
+    made: [...row.made],
+    needsMediaFacts: row.needsMediaFacts,
+    leaseToken: row.leaseToken,
+    leaseUntil: row.leaseUntil,
+    source
+  };
+}
+
 export const spaceStorageApi = {
   admitUpload(input: SpaceAdmitInput, signal?: AbortSignal): Promise<SpaceAdmitResult> {
     return callSpaceStorage(
@@ -320,6 +390,47 @@ export const spaceStorageApi = {
       { teamId, parts: parts.map(part => ({ partNumber: part.partNumber, etag: part.etag })) },
       parseSpaceMaterialSnapshot
     );
+  },
+
+  /**
+   * What the browser made of the file it is uploading (T047): one signed PUT per declared
+   * derivative, to a staging key. Declared while the session is open; checked at complete.
+   */
+  declareDerivatives(
+    teamId: string,
+    uploadId: string,
+    input: {
+      derivatives: readonly SpaceDerivativeDeclaration[];
+      media: { durationMs: number | null; width: number | null; height: number | null } | null;
+      unsupported: boolean;
+    },
+    signal?: AbortSignal
+  ): Promise<SpaceDerivativeUrl[]> {
+    return callSpaceStorage(
+      `uploads/${encodeURIComponent(uploadId)}/derivatives`,
+      {
+        teamId,
+        derivatives: input.derivatives.map(item => ({ ...item })),
+        ...(input.media ? { media: { ...input.media } } : {}),
+        unsupported: input.unsupported
+      },
+      parseSpaceDerivativeUrls,
+      signal
+    );
+  },
+
+  /**
+   * One open picture job of the space for this member's own agent (T047): a lease and a source
+   * ticket, or null when nothing waits. The lease token is a secret, never logged.
+   */
+  claimDerivativeJob(teamId: string): Promise<SpaceDerivativeJob | null> {
+    return callSpaceStorage<SpaceDerivativeJob | null>('derivatives/claim', { teamId }, value => {
+      if (!value || typeof value !== 'object') return { ok: false };
+      const job = (value as { job?: unknown }).job;
+      if (job === null) return { ok: true, value: null };
+      const parsed = parseSpaceDerivativeJob(job);
+      return parsed ? { ok: true, value: parsed } : { ok: false };
+    });
   },
 
   abortUpload(teamId: string, uploadId: string): Promise<{ aborted: true }> {
@@ -507,6 +618,8 @@ export async function spaceMaterialUrl(input: {
   materialId: string;
   derivative?: SpaceDerivativeVariant;
   download?: string;
+  /** A read was refused with the grant in hand (401): ask for a new one, once. */
+  freshGrant?: boolean;
 }): Promise<{ url: string; expiresAt: string; facts: SpaceMaterialFacts }> {
   let facts = spaceMaterialOf(input.teamId, input.materialId);
   if (!facts?.contentId) {
@@ -515,7 +628,10 @@ export async function spaceMaterialUrl(input: {
     facts = spaceMaterialOf(input.teamId, input.materialId);
   }
   if (!facts?.contentId) throw new TeamApiError('NOT_FOUND', false);
-  const grant = await spaceStorageApi.readGrant(input.teamId);
+  const grant = await spaceStorageApi.readGrant(
+    input.teamId,
+    input.freshGrant ? { refresh: true } : {}
+  );
   return {
     url: spaceFilesUrl({
       filesOrigin: grant.filesOrigin,
@@ -535,250 +651,4 @@ export async function spaceMaterialUrl(input: {
     expiresAt: grant.expiresAt,
     facts
   };
-}
-
-// Upload (T029) ----------------------------------------------------------------------------
-
-/** A file, or a file the paired app reads for the browser in ranges. */
-export type SpaceUploadSource =
-  | Blob
-  | {
-      size: number;
-      readChunk: (start: number, endExclusive: number, signal?: AbortSignal) => Promise<Blob>;
-    };
-
-/** How much of a part is read at a time to hash it, so a 64 MiB part is never held twice. */
-const HASH_SLICE_BYTES = 4 * 1024 * 1024;
-const UPLOAD_PARALLEL_PARTS = 4;
-/** A signed part URL this close to its end is asked for again rather than tried. */
-const PART_URL_MARGIN_MS = 30_000;
-
-function readRange(
-  source: SpaceUploadSource,
-  start: number,
-  endExclusive: number,
-  signal?: AbortSignal
-): Promise<Blob> {
-  return source instanceof Blob
-    ? Promise.resolve(source.slice(start, endExclusive))
-    : source.readChunk(start, endExclusive, signal);
-}
-
-function canceled(signal: AbortSignal | undefined): unknown {
-  return signal?.reason ?? new Error('CANCELED');
-}
-
-async function partMd5(
-  source: SpaceUploadSource,
-  range: { start: number; end: number },
-  signal?: AbortSignal
-): Promise<string> {
-  const md5 = new SpaceMd5();
-  for (let offset = range.start; offset <= range.end; offset += HASH_SLICE_BYTES) {
-    if (signal?.aborted) throw canceled(signal);
-    const end = Math.min(offset + HASH_SLICE_BYTES, range.end + 1);
-    md5.update(new Uint8Array(await (await readRange(source, offset, end, signal)).arrayBuffer()));
-  }
-  return Array.from(md5.digest(), byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
-export interface SpaceUploadInput {
-  teamId: string;
-  /** Null for the space root. */
-  parentMaterialId: string | null;
-  name: string;
-  contentType: string;
-  source: SpaceUploadSource;
-  idempotencyKey: string;
-  ingress?: SpaceIngress;
-  onProgress?: (sentBytes: number, totalBytes: number) => void;
-  signal?: AbortSignal;
-}
-
-export interface SpaceUploadResult {
-  materialId: string;
-  /** The same content was already there: nothing was sent. */
-  reused: boolean;
-  material: SpaceMaterialSnapshot | null;
-}
-
-/**
- * One file into an R2 space: hash every part (MD5, streamed through `file.slice`), derive the
- * content id, admit, then PUT the parts straight to R2 — four at a time, each signed URL bound
- * to its part's `Content-MD5` — and complete with the ETags R2 returned.
- *
- * M1 baseline: it runs in the page and remembers nothing across a reload. T045 replaces it with
- * a Web Worker and an IndexedDB journal that resumes an interrupted upload.
- */
-export async function uploadFileToSpace(input: SpaceUploadInput): Promise<SpaceUploadResult> {
-  const { teamId, source, signal } = input;
-  const total = source.size;
-  if (!Number.isSafeInteger(total) || total < 0) throw new TeamApiError('INVALID_INPUT', false);
-  if (total > SPACE_STORAGE_LIMITS.maxObjectBytes)
-    throw new TeamApiError('STORAGE_OBJECT_TOO_LARGE', false);
-  if (signal?.aborted) throw canceled(signal);
-
-  const count = spacePartCount(total);
-  const md5s: string[] = [];
-  for (let part = 1; part <= count; part += 1)
-    md5s.push(await partMd5(source, spacePartRange(total, part), signal));
-  const identity = await spaceContentId(total, md5s);
-  if (!identity.ok) throw new TeamApiError('INVALID_INPUT', false);
-
-  const admitted = await spaceStorageApi.admitUpload(
-    {
-      teamId,
-      parentMaterialId: input.parentMaterialId,
-      name: input.name,
-      contentType: input.contentType,
-      bytes: total,
-      contentId: identity.contentId,
-      ingress: input.ingress ?? 'explorer',
-      idempotencyKey: input.idempotencyKey
-    },
-    signal
-  );
-  if (admitted.kind === 'exists') {
-    input.onProgress?.(total, total);
-    return { materialId: admitted.materialId, reused: true, material: null };
-  }
-  const uploadId = admitted.uploadId;
-  if (admitted.partCount !== count || admitted.partBytes !== spacePartBytes(total)) {
-    await spaceStorageApi.abortUpload(teamId, uploadId).catch(() => undefined);
-    throw new TeamApiError('INVALID_RESPONSE', false);
-  }
-
-  let completing = false;
-  try {
-    const etags = new Array<string>(count);
-    let sent = 0;
-    input.onProgress?.(0, total);
-    for (let first = 1; first <= count; first += SPACE_STORAGE_LIMITS.partUrlBatch) {
-      const last = Math.min(count, first + SPACE_STORAGE_LIMITS.partUrlBatch - 1);
-      const numbers = Array.from({ length: last - first + 1 }, (_, index) => first + index);
-      const signed = new Map(
-        (
-          await spaceStorageApi.partUrls(
-            teamId,
-            uploadId,
-            numbers.map(partNumber => ({ partNumber, md5: md5s[partNumber - 1]! })),
-            signal
-          )
-        ).map(part => [part.partNumber, part])
-      );
-      const queue = [...numbers];
-      const worker = async () => {
-        for (let partNumber = queue.shift(); partNumber !== undefined; partNumber = queue.shift()) {
-          const md5 = md5s[partNumber - 1]!;
-          const range = spacePartRange(total, partNumber);
-          const resign = async () => {
-            const [again] = await spaceStorageApi.partUrls(
-              teamId,
-              uploadId,
-              [{ partNumber, md5 }],
-              signal
-            );
-            if (!again || again.partNumber !== partNumber)
-              throw new TeamApiError('INVALID_RESPONSE', false);
-            signed.set(partNumber, again);
-            return again;
-          };
-          let url = signed.get(partNumber) ?? (await resign());
-          if (Date.parse(url.expiresAt) - PART_URL_MARGIN_MS < Date.now()) url = await resign();
-          const etag = await putPart({
-            url: url.url,
-            md5,
-            body: await readRange(source, range.start, range.end + 1, signal),
-            signal,
-            resign: async () => (await resign()).url
-          });
-          etags[partNumber - 1] = etag;
-          sent += range.bytes;
-          input.onProgress?.(sent, total);
-        }
-      };
-      await Promise.all(
-        Array.from({ length: Math.min(UPLOAD_PARALLEL_PARTS, numbers.length) }, worker)
-      );
-    }
-    if (signal?.aborted) throw canceled(signal);
-    completing = true;
-    const material = await completeWithRetry(
-      teamId,
-      uploadId,
-      etags.map((etag, index) => ({ partNumber: index + 1, etag }))
-    );
-    rememberSpaceMaterials(teamId, [material]);
-    return { materialId: material.id, reused: false, material };
-  } catch (failure) {
-    // A complete whose answer was lost may have committed; the session expires on its own.
-    const uncertain =
-      completing &&
-      failure instanceof TeamApiError &&
-      failure.code === 'TEAM_TRANSPORT_UNAVAILABLE';
-    if (!uncertain) await spaceStorageApi.abortUpload(teamId, uploadId).catch(() => undefined);
-    throw signal?.aborted ? canceled(signal) : failure;
-  }
-}
-
-/** One part to its signed URL; a URL R2 refused (400/403: expired, or signed wrong) is re-signed once. */
-async function putPart(input: {
-  url: string;
-  md5: string;
-  body: Blob;
-  signal?: AbortSignal;
-  resign: () => Promise<string>;
-}): Promise<string> {
-  const contentMd5 = spaceMd5HexToBase64(input.md5);
-  if (!contentMd5) throw new TeamApiError('INVALID_INPUT', false);
-  let url = input.url;
-  for (let attempt = 0; ; attempt += 1) {
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-MD5': contentMd5 },
-        body: input.body,
-        cache: 'no-store',
-        credentials: 'omit',
-        redirect: 'error',
-        referrerPolicy: 'no-referrer',
-        ...(input.signal ? { signal: input.signal } : {})
-      });
-    } catch {
-      if (input.signal?.aborted) throw canceled(input.signal);
-      throw new TeamApiError('STORAGE_UNAVAILABLE', true);
-    }
-    if (response.ok) {
-      const reported = response.headers.get('ETag');
-      // R2 checked the bytes against Content-MD5, so its ETag is that MD5. A missing header
-      // (not exposed to the page) is read as that; a different one is not trusted.
-      const etag = reported === null ? input.md5 : normalizePartEtag(reported);
-      if (etag !== input.md5) throw new TeamApiError('CHECKSUM_MISMATCH', false);
-      return etag;
-    }
-    if ((response.status === 400 || response.status === 403) && attempt === 0) {
-      url = await input.resign();
-      continue;
-    }
-    throw new TeamApiError('STORAGE_UNAVAILABLE', response.status >= 500);
-  }
-}
-
-/** Complete is idempotent on the server, so a lost answer is asked again, a few times. */
-async function completeWithRetry(
-  teamId: string,
-  uploadId: string,
-  parts: { partNumber: number; etag: string }[]
-): Promise<SpaceMaterialSnapshot> {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await spaceStorageApi.completeUpload(teamId, uploadId, parts);
-    } catch (failure) {
-      const retry =
-        failure instanceof TeamApiError &&
-        (failure.code === 'TEAM_TRANSPORT_UNAVAILABLE' || failure.code === 'STORAGE_UNAVAILABLE');
-      if (!retry || attempt >= 3) throw failure;
-    }
-  }
 }

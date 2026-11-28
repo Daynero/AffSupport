@@ -4136,6 +4136,7 @@ export const uk: Record<keyof typeof en, string> = {
   teamExplorerThumbnail_protected: 'Google Drive не віддає мініатюру для цього файлу.',
   teamExplorerThumbnail_too_large: 'Мініатюра завелика для кешу.',
   teamExplorerThumbnail_provider_missing: 'Google Drive не дав мініатюри для цього файлу.',
+  teamExplorerPreviewPending: 'Прев’ю готується',
   teamSectionTasks: 'Завдання',
   teamSectionAccounts: 'Акаунти',
   teamAccountsTitle: 'Акаунти',

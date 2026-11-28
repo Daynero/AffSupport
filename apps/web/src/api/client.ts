@@ -48,6 +48,7 @@ import {
   TEAM_LANDING_RENDER_CONTRACT
 } from '@video-compressor/shared';
 import { isSpaceRun, spaceStorageAgentEndpoints } from './space-operations';
+import type { SpaceDerivativeJob } from './space-storage';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
 import { configuredAgentOrigin, publicConfig, servedByAgent } from '../lib/config';
 import { pairingToken } from './pairing-token';
@@ -1164,6 +1165,35 @@ export async function requestTeamPosterFrame(input: {
   } catch {
     // A video whose first second will not decode, a file that vanished, an
     // agent that went away: none of them is worth surfacing over a picture.
+    return false;
+  }
+}
+
+/**
+ * 057 T047: one picture job of an R2 space for this computer's Soty — a format the uploading
+ * browser could not read (HEVC, PDF…), or a video's codec and frame rate. The agent reads the
+ * file with the job's source ticket, makes what is missing with its ffmpeg under the power
+ * governor, and hands it to space-storage itself; the page only passes the job on. False when
+ * this Soty cannot (older contract, busy, gone) — the job's lease then simply runs out.
+ */
+export async function requestSpaceDerivatives(job: SpaceDerivativeJob): Promise<boolean> {
+  try {
+    const value = await requestBody<{ state?: unknown }>('/api/team/space/derivatives', {
+      job,
+      ...spaceAgentEndpoints()
+    });
+    return typeof value.state === 'string';
+  } catch {
+    return false;
+  }
+}
+
+/** Whether this computer's Soty can take R2 picture jobs: asked before one is claimed. */
+export async function spaceDerivativesAgentReady(): Promise<boolean> {
+  try {
+    const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+    return spaceStorageAgentSupported(health.toolContracts ?? {});
+  } catch {
     return false;
   }
 }

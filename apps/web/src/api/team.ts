@@ -25,6 +25,7 @@ import {
   type CatalogPublicationCommand
 } from '@video-compressor/shared';
 import { privateCacheActor } from '../team/private-cache-scope';
+import { stableSpaceMediaUrl } from '../team/storage/spaceMediaUrls';
 import { FunctionsFetchError } from '@supabase/supabase-js';
 import {
   executeTariffGrant,
@@ -35,9 +36,8 @@ import { catalogImageClient, getGlobalCatalogImageReadiness } from './team-catal
 import { catalogVideoR2Client } from './team-catalog-video-r2';
 import { taskRpc } from '../team/tasks/diagnostics';
 import {
-  SPACE_DERIVATIVE_RECIPE_VERSION,
   SPACE_TASK_DROP_FOLDER_NAME,
-  spaceFilesUrl,
+  SPACE_TILE_VARIANT,
   normalizeCatalogCommandRequest,
   parseCatalogCommandReceipt,
   isCatalogCommandUuid,
@@ -4706,12 +4706,13 @@ export const teamApi = {
     if (isR2Space(session.teamId)) {
       const facts = spaceMaterialOf(session.teamId, materialId);
       if (!facts?.contentId || !facts.thumbnailReady) return null;
-      return spaceFilesUrl({
+      // T051: the first address of a picture is kept, so the browser's cache answers it.
+      return stableSpaceMediaUrl({
         filesOrigin: session.endpoint,
         teamId: session.teamId,
         contentId: facts.contentId,
         grant: session.token,
-        derivative: { recipeVersion: SPACE_DERIVATIVE_RECIPE_VERSION, variant: 'tile' }
+        variant: SPACE_TILE_VARIANT
       });
     }
     const url = new URL(browserFunctionUrl(session.endpoint));
@@ -5044,7 +5045,8 @@ export const teamApi = {
   },
 
   async startUpload(input: TeamUploadStartInput): Promise<TeamUploadSession> {
-    // 057: an R2 space uploads through `uploadFileToSpace` (`uploadTeamFile` routes it there).
+    // 057: an R2 space uploads through `team/storage/spaceUpload.ts` (`uploadTeamFile` routes it
+    // there).
     if (isR2Space(input.teamId)) throw new TeamApiError('STORAGE_BACKEND_MISMATCH', false);
     const value = await invokeTeamFunction(
       'drive-ops/uploads/start',
@@ -5283,7 +5285,9 @@ export const teamApi = {
         ...(name ? { fileName: name } : {}),
         rangeUrl: read.url,
         expiresAt: read.expiresAt,
-        disposition: 'attachment'
+        disposition: 'attachment',
+        // T051: the files host streams any size; the browser's own download takes it.
+        direct: { sizeBytes: read.facts.sizeBytes }
       };
     }
     const value = await invokeTeamFunction(
@@ -5497,14 +5501,20 @@ export const teamApi = {
   async previewMaterial(
     teamId: string,
     materialId: string,
-    mode: 'media' | 'transcript' | 'archive' | 'landing'
+    mode: 'media' | 'transcript' | 'archive' | 'landing',
+    options: { fresh?: boolean } = {}
   ): Promise<TeamPreviewResult> {
     if (isR2Space(teamId)) {
       // 057: the original plays from the files host; a video seeks through Range. The other
-      // modes read through the agent or the catalogue, which R2 does not offer yet.
+      // modes read through the agent or the catalogue, which R2 does not offer yet. A second
+      // attempt after the stream failed takes a new grant (T051: one retry on a refused read).
       if (mode !== 'media')
         return { kind: 'unavailable', reason: 'unsupported', allowedActions: ['download'] };
-      const read = await spaceMaterialUrl({ teamId, materialId });
+      const read = await spaceMaterialUrl({
+        teamId,
+        materialId,
+        ...(options.fresh ? { freshGrant: true } : {})
+      });
       return {
         kind: 'media',
         rangeUrl: read.url,

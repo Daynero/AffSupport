@@ -32,6 +32,8 @@ import {
 import type { CreativeRanksState } from '../ranks/useCreativeRanks';
 import { placeholderCount } from './placeholderCount';
 import { displayedSize, formatDate } from '../../format';
+import { isR2Space, spaceMaterialOf } from '../../api/space-storage';
+import { forgetSpaceMediaUrl } from '../storage/spaceMediaUrls';
 import { KIND_LABEL, KIND_REASON, previewSummary } from './rowKinds';
 import { knownBroken, markBroken } from './brokenPictures';
 import { KindIcon } from './KindIcon';
@@ -138,6 +140,8 @@ export function ContentGrid({
    * hundred rows and never grew.
    */
   const session = useThumbnailSession({ teamId, client });
+  /* 057: a space on R2 makes its own pictures; one still on its way says so (T047). */
+  const onR2 = isR2Space(teamId);
   const landingIds = useMemo(
     () =>
       page.rows
@@ -228,6 +232,7 @@ export function ContentGrid({
             <Tile
               key={row.id}
               row={row}
+              onR2={onR2}
               session={session}
               client={client}
               render={renders.get(row.id) ?? null}
@@ -267,6 +272,7 @@ export function ContentGrid({
 
 function Tile({
   row,
+  onR2 = false,
   session,
   client,
   render,
@@ -287,6 +293,8 @@ function Tile({
   rankNow = 0
 }: {
   row: TeamMaterialRow;
+  /** The space keeps its files on R2 (057): its pictures are its own, and kept by address. */
+  onR2?: boolean;
   drag: ReturnType<ReturnType<typeof useMaterialDrag>['dragProps']>;
   dropTarget: boolean;
   session: ThumbnailSession | null;
@@ -315,6 +323,8 @@ function Tile({
   const [broken, setBroken] = useState(() => knownBroken(pictureKey));
   /** It failed while this tile was on screen: the icon arrives, rather than was there. */
   const [fellBack, setFellBack] = useState(false);
+  /** A refused R2 picture is asked for once more under a fresh address; this re-renders it. */
+  const [, setRetry] = useState(0);
   useEffect(() => {
     setBroken(knownBroken(pictureKey));
     setFellBack(false);
@@ -337,6 +347,13 @@ function Tile({
     (row.kind !== 'landing' && row.previewState === 'unavailable' && row.previewReason
       ? (`teamExplorerThumbnail_${row.previewReason}` as TranslationKey)
       : undefined);
+  /* 057 (FR-038): an R2 picture or video whose pictures are still being made — by an agent,
+     for a format the uploading browser could not read. The file itself is already there. */
+  const previewPending =
+    onR2 &&
+    !image &&
+    row.previewState === 'pending' &&
+    (row.kind === 'image' || row.kind === 'video');
 
   const open = () => {
     if (row.kind === 'folder') onOpenFolder(row.driveFileId);
@@ -382,6 +399,13 @@ function Tile({
               if (row.kind === 'video') rememberPreviewPoster(row.id, event.currentTarget);
             }}
             onError={() => {
+              // An R2 picture's kept address may carry a grant the browser's cache no longer
+              // covers: forget it once and take the next from the current grant (T051).
+              const contentId = onR2 ? spaceMaterialOf(row.teamId, row.id)?.contentId : null;
+              if (contentId && forgetSpaceMediaUrl(row.teamId, contentId, 'tile')) {
+                setRetry(value => value + 1);
+                return;
+              }
               markBroken(pictureKey);
               setBroken(true);
               setFellBack(true);
@@ -389,10 +413,15 @@ function Tile({
           />
         ) : (
           <span
-            className={`team-explorer-tile-icon${fellBack ? ' is-fallback' : ''}`}
-            aria-hidden="true"
+            className={`team-explorer-tile-icon${fellBack ? ' is-fallback' : ''}${
+              previewPending ? ' is-pending' : ''
+            }`}
+            aria-hidden={previewPending ? undefined : 'true'}
           >
             <KindIcon kind={row.kind} />
+            {previewPending && (
+              <span className="team-explorer-tile-pending">{t('teamExplorerPreviewPending')}</span>
+            )}
           </span>
         )}
         {row.kind === 'video' && image && (

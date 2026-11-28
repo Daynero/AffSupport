@@ -726,7 +726,23 @@
 /* A folder has no picture to show, so it does not need a picture's worth of
    height: full-size preview boxes full of the same glyph made a folder list
    scroll for no reason. */
-.team-explorer-tile.is-folder .team-explorer-tile-icon .team-kind-icon {
+.team-explorer-tile.is-folder /* 057 (FR-038): an R2 file whose picture is still being made says so in words under its mark,
+   and the mark breathes — a deliberate wait, not a broken picture. The file is already there. */
+.team-explorer-tile-icon.is-pending {
+  gap: var(--space-1);
+}
+.team-explorer-tile-pending {
+  padding-inline: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-micro);
+  text-align: center;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .team-explorer-tile-icon.is-pending .team-kind-icon {
+    animation: ui-pending-breathe var(--motion-progress) var(--ease-out-curve) infinite alternate;
+  }
+}
+.team-explorer-tile-icon .team-kind-icon {
   color: var(--color-accent);
 }
 .team-explorer-tile-visual {

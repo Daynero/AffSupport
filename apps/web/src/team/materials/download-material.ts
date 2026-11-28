@@ -3,7 +3,7 @@ import {
   stripMediaMetadata,
   type TeamDownloadGrantResult
 } from '@video-compressor/shared';
-import { fetchForDownload, saveBytesAsDownload } from './browser-download';
+import { fetchForDownload, handoffBrowserDownload, saveBytesAsDownload } from './browser-download';
 
 /**
  * One door for "download this file" (073).
@@ -48,6 +48,12 @@ export interface DownloadMaterialInput {
 /** Raised when the browser cannot clean a file itself and Soty has to. */
 const NEEDS_AGENT = 'AGENT_REQUIRED';
 
+/**
+ * 057 (R2 space, FR-039): the largest file the browser fetches into memory to clean it. Above it
+ * a clean copy needs Soty; the original is still the browser's own download at any size.
+ */
+export const DIRECT_CLEAN_MAX_BYTES = 256 * 1024 * 1024;
+
 function codeOf(error: unknown): string | null {
   if (error instanceof Error) {
     const code = (error as { code?: unknown }).code;
@@ -91,6 +97,17 @@ export async function downloadMaterial(input: DownloadMaterialInput): Promise<Do
     return 'agent_saved';
   }
   const fileName = grant.fileName ?? input.fileName;
+  if (grant.direct) {
+    // An R2 file: the files host answers `attachment` and streams with Range, so the browser's
+    // own download saves it — any size, resumable by the browser — unless it must be cleaned.
+    const inspect = !fileName.includes('.') || isMetadataBearingFileName(fileName);
+    if (input.metadata === 'original' || !inspect) {
+      handoffBrowserDownload(grant.rangeUrl, fileName);
+      return 'browser_handoff';
+    }
+    const size = grant.direct.sizeBytes;
+    if (size === null || size > DIRECT_CLEAN_MAX_BYTES) return viaAgent();
+  }
   try {
     await saveInBrowser(grant.rangeUrl, fileName, input.metadata);
     return 'browser_handoff';

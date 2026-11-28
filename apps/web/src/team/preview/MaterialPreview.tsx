@@ -48,7 +48,9 @@ export interface MaterialPreviewClient {
   requestPreview: (
     teamId: string,
     materialId: string,
-    mode: 'media' | 'transcript' | 'archive' | 'landing'
+    mode: 'media' | 'transcript' | 'archive' | 'landing',
+    /** Present only on a repeat after the stream failed. */
+    options?: { fresh: boolean }
   ) => Promise<TeamPreviewResult>;
   openAgentArchive: (request: AgentRequest) => Promise<ArchiveView | AgentUnavailable>;
   openAgentLanding: (request: AgentRequest) => Promise<LandingPreviewView | AgentUnavailable>;
@@ -66,7 +68,10 @@ export interface MaterialPreviewClient {
 }
 
 const defaultClient: MaterialPreviewClient = {
-  requestPreview: (teamId, materialId, mode) => teamApi.previewMaterial(teamId, materialId, mode),
+  requestPreview: (teamId, materialId, mode, options) =>
+    options
+      ? teamApi.previewMaterial(teamId, materialId, mode, options)
+      : teamApi.previewMaterial(teamId, materialId, mode),
   openAgentArchive: async request => {
     const result = await openTeamArchivePreview(request);
     if (result.kind === 'landing') throw new Error('INVALID_RESPONSE');
@@ -149,6 +154,8 @@ export function MaterialPreview({
   const mode = previewMode(material);
   const materialRef = useRef(material);
   materialRef.current = material;
+  /* A repeat after the stream failed asks for a fresh read (an R2 grant refused, T051). */
+  const freshRead = attempt > 0;
   useEffect(() => {
     let active = true;
     operationId.current = null;
@@ -157,7 +164,7 @@ export function MaterialPreview({
     // 033 FR-009: one started and one completed per opening, on one opaque attempt id.
     const attempt = startPreviewAttempt(materialRef.current.category);
     void client
-      .requestPreview(teamId, materialId, mode)
+      .requestPreview(teamId, materialId, mode, ...(freshRead ? [{ fresh: true }] : []))
       .then(async result => {
         if (!active) return;
         if (result.kind !== 'agent') {
@@ -209,7 +216,7 @@ export function MaterialPreview({
       attempt.finish('cancelled');
       void closeOperation(operationId.current);
     };
-  }, [attempt, client, closeOperation, materialId, mode, teamId]);
+  }, [attempt, client, closeOperation, freshRead, materialId, mode, teamId]);
 
   const close = () => {
     void closeOperation(operationId.current).finally(onClose);

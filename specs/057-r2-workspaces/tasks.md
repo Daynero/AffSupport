@@ -724,28 +724,28 @@
 **Мета**: пряма передача, похідні при фіксації, кеш і Realtime.
 **Незалежна перевірка**: quickstart M1 кроки 2–5. Повні заміри SC-011 — у M2 (T073).
 
-- [ ] T044 [P] [US7] Тест для T045 — `tests/space-upload-client.test.ts`:
+- [x] T044 [P] [US7] Тест для T045 — `tests/space-upload-client.test.ts`:
   - ≤8 паралельних частин;
   - продовження з журналу IndexedDB після обриву мережі й перезавантаження вкладки;
   - `content_id` (MD5 частин у Web Worker) збігається з еталоном і з тим, що сервер рахує з ETag частин від R2;
   - `exists` пропускає передачу;
   - дерево папок зберігає структуру;
   - скасування закриває multipart.
-- [ ] T045 [US7] Рушій завантаження:
+- [x] T045 [US7] Рушій завантаження:
   - `apps/web/src/team/storage/spaceUpload.ts` і `spaceHash.worker.ts` (MD5 частин і `content_id`);
   - журнал за зразком `apps/web/src/team/explorer/workspaceOperationJournal.ts:214`;
   - підключення в `apps/web/src/team/explorer/useExplorerUploads.ts` і `ExplorerDropZone.tsx`.
 
   Тест: T044.
 
-- [ ] T046 [P] [US7] Тест для T047 — `tests/space-derivatives.test.ts`, `tests/agent-r2-derivatives.test.ts` і `supabase/tests/database/space-derivatives.test.sql`.
+- [x] T046 [P] [US7] Тест для T047 — `tests/space-derivatives.test.ts`, `tests/agent-r2-derivatives.test.ts` і `supabase/tests/database/space-derivatives.test.sql`.
   - Браузер робить 3 розміри WebP і для відео постер, кадри прев'ю, тривалість і роздільність. Робота йде у Web Worker, по файлу за раз. Похідні йдуть частинами того самого коміту.
   - Для `content_id`, у якого похідні вже є, браузер нічого не генерує й не вантажить.
   - Сервер відкидає похідну з чужим типом за першими байтами, з розміром понад ліміт варіанта чи з розмірами, що не збігаються із заявленими. Оригінал при цьому фіксується з `thumbnail_state='pending'` і завданням `pending_agent`.
   - Формат, який браузер не декодує (HEVC-фікстура, PDF), отримує `pending_agent`. Інтерфейс показує «прев'ю готується», а скачування працює.
   - Агент-ffmpeg бере завдання з орендою і пише похідні, кодек і fps. Протермінована оренда повертає завдання. Повтори обмежені, непідтримуване → `unsupported`.
   - Вихід ffprobe розбирається як `unknown`.
-- [ ] T047 [US7] Похідні від клієнта (research.md R5, уточнення FR-038). Серверного рендерингу немає.
+- [x] T047 [US7] Похідні від клієнта (research.md R5, уточнення FR-038). Серверного рендерингу немає.
   - **Браузер.** Новий `apps/web/src/team/storage/spaceDerivatives.ts`: `createImageBitmap`/`OffscreenCanvas` для зображень, `<video>` з перемотуванням і canvas (за зразком `apps/web/src/team/explorer/usePosterFrames.ts`) і WebCodecs, де є. Підключити в рушій T045: похідні оголошуються в `/uploads/admit`.
   - **Сервер.** Перевірка похідних у `supabase/functions/space-storage/uploads.ts` при `complete`: перші байти через `rangeGet`, ліміти з `packages/shared/src/team/space-storage.ts`. RPC `service_claim_space_derivative_jobs` і `service_finish_space_derivative` у міграції `supabase/migrations/<ts>_space_storage_derivatives.sql`. Завершення ставить `thumbnail_state`/`preview_state` і медіафакти й шле сигнал.
   - **Агент.** Новий `apps/agent/src/team-bridge/r2-derivatives.ts` на основі `thumbnail.ts` і `poster.ts`:
@@ -755,13 +755,13 @@
 
   Тест: T046.
 
-- [ ] T048 [P] [US7] Тест для T049 — `tests/space-realtime-cache.test.tsx`:
+- [x] T048 [P] [US7] Тест для T049 — `tests/space-realtime-cache.test.tsx`:
   - сигнал оновлює сторінку папки на місці без блимання;
   - тепле відкриття малює кеш до мережі;
   - LRU тримає обмеження;
   - вихід і відкликання очищують кеш;
   - для R2 немає таймерів опитування й «синхронізувати».
-- [ ] T049 [US7] Realtime і кеш:
+- [x] T049 [US7] Realtime і кеш:
   - підписка на `team_space_storage_signals` у `apps/web/src/team/useTeamRealtime.ts:100`;
   - новий `apps/web/src/team/storage/spaceCache.ts` (IndexedDB) у `apps/web/src/team/explorer/useFolderPage.ts` і `FolderTree.tsx`;
   - очищення через `apps/web/src/team/private-cache-scope.ts`;
@@ -769,18 +769,60 @@
 
   Тест: T048.
 
-- [ ] T050 [P] [US7] Тест для T051 — `tests/space-media-urls.test.ts`:
+- [x] T050 [P] [US7] Тест для T051 — `tests/space-media-urls.test.ts`:
   - незмінні адреси похідних і оригіналу;
   - оновлення гранту на 401 — рівно один повтор;
   - браузерне скачування >32 МіБ для R2 дозволене;
   - `<video>` отримує Range-адресу `files-*`.
-- [ ] T051 [US7] Медіа у вебі:
+- [x] T051 [US7] Медіа у вебі:
   - `apps/web/src/team/preview/MaterialPreview.tsx` (:293, :350) — Range-адреса з `files-*`;
   - `apps/web/src/team/explorer/useThumbnailSession.ts` — грант замість сесії мініатюр;
   - `useSelectionDownload.ts` — пряме скачування будь-якого розміру з продовженням;
   - `usePosterFrames.ts` — постер похідної.
 
   Тест: T050.
+
+  Рішення 2026-11-28 (імплементація T044–T051):
+  - рушій `team/storage/spaceUpload.ts`: MD5 частин у `spaceHash.worker.ts` (на сторінці, якщо
+    воркера немає), ≤8 частин разом, журнал `spaceUploadJournal.ts` у IndexedDB за людиною, місцем,
+    іменем, розміром і `lastModified`; мережа, що зникла, — чекаємо `online` і повторюємо; перша
+    частина, що впала, зупиняє решту; повтор після перезавантаження бере ключ ідемпотентності з
+    журналу й шле лише відсутні частини; `BadDigest` для частини з журналу — файл змінився, тоді
+    все заново. Скасування закриває multipart і стирає журнал. Без IndexedDB — без журналу, але
+    завантаження йде;
+  - похідні двофазні: `admit` відповідає `derivativeSlots` за категорією (сервер класифікує сам);
+    браузер робить їх після admit, поки йдуть частини, і оголошує в новому
+    `/uploads/{id}/derivatives` (MD5 кожної) → підписані PUT на `t/{team}/u/{upload}/{variant}`.
+    Так для вмісту, що вже є, нічого не генерується (`exists` до admit-сесії). При `complete` сервер
+    читає перші ≤64 КіБ кожної, перевіряє тип за байтами, розмір і розміри з заголовка, приймає
+    копією `CopyObject` на `d/{content}/1/{variant}` (тип замінюється на знюханий) і передає в
+    коміт лише перевірені;
+  - декодування в браузері: `createImageBitmap` + `OffscreenCanvas` (JPEG, якщо WebP не пишеться),
+    відео — `<video>` з перемотуванням; окремого Web Worker для декодування немає: `<video>` у
+    воркері не працює, а `createImageBitmap` і так декодує поза головним потоком. По файлу за раз
+    (черга на сторінку). WebCodecs не використано;
+  - стан картинки — одна функція `private.space_object_preview_sync`: `ready` з тайлом, `pending`
+    з відкритим завданням, `unavailable:unsupported|corrupt`. Drive-тригер
+    `team_material_thumbnail_state` отримав перший рядок «R2-файл — не мій» (Drive-рядки йдуть
+    тим самим тілом); інакше R2-картинка вічно `pending`, бо `ready` там прив'язане до
+    `drive_version`;
+  - завдання агенту: відео без codec/fps (`missing_media_facts`), картинка/відео без тайла,
+    PDF. Добір — сторінка учасника, що показує теку з «прев'ю готується», бере
+    `/derivatives/claim` (оренда 10 хв, у БД лише хеш токена, тікет `download_range` на джерело) і
+    передає своєму агенту `/api/team/space/derivatives`; агент робить відсутнє ffmpeg під
+    PowerGovernor, `/agent/derivatives/stage` + `/finish` з орендою. Три спроби, далі `failed`.
+    PDF агент не рендерить (рендерера немає) → `unsupported`. Фоновий добір з `recovery-worker.ts`
+    без відкритої сторінки НЕ зроблено: він вимагає нової дії в `service_team_recovery`, а це
+    гаряча функція Drive-шляху — лишається на окремий крок;
+  - незмінні адреси: перша адреса картинки зберігається (`spaceMediaUrls.ts`, localStorage за
+    людиною, ≤2000), тож браузерний кеш (`immutable`) відповідає без запиту й після оновлення
+    гранту; відмова → забути адресу й рівно один повтор зі свіжим грантом; зміна людини чи доступу
+    → забути все й `GET /clear-site-data` на файловому хості. Повтор перегляду медіа бере свіжий
+    грант. Скачування R2 будь-якого розміру — рідне скачування браузера (`attachment`, Range);
+    «чиста» копія > 256 МіБ — через Soty. CSP: `files.soty.pp.ua` у connect/img/media-src;
+  - «прев'ю готується» на плитці — підпис під знаком і «дихання» знака (токени, без руху за
+    `prefers-reduced-motion`). Кадри при наведенні (`sprite`) робляться й зберігаються, але
+    плитка їх ще не показує — окремий крок інтерфейсу.
 
 ### Фаза 6 — US9: пам'ять простору наочно (P1)
 

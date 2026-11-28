@@ -4,7 +4,8 @@ import type {
   TeamFileOperationResult
 } from '@video-compressor/shared';
 import { TeamApiError, teamApi } from '../../api/team';
-import { isR2Space, uploadFileToSpace } from '../../api/space-storage';
+import { isR2Space } from '../../api/space-storage';
+import { uploadFileToSpace } from '../storage/spaceUpload';
 import { downloadTeamFileWithAgent } from '../../api/client';
 import { resumableUpload } from '../drive/resumableUpload';
 

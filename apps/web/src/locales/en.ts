@@ -4165,6 +4165,7 @@ export const en = {
   teamExplorerThumbnail_protected: 'Google Drive would not hand over a thumbnail for this file.',
   teamExplorerThumbnail_too_large: 'The thumbnail is too large to cache.',
   teamExplorerThumbnail_provider_missing: 'Google Drive gave no thumbnail for this file.',
+  teamExplorerPreviewPending: 'Preview on its way',
   teamSectionTasks: 'Tasks',
   teamSectionAccounts: 'Accounts',
   teamAccountsTitle: 'Accounts',
