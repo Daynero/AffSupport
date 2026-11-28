@@ -967,11 +967,15 @@ async function updateOne(
     }
     // 050: an R2 copy of the in-use video replaces the stored Drive link in the cells only;
     // current_video_link and the spare's shared_link stay Drive identities.
-    const videoR2 = nonVideo
-      ? null
-      : await deps
-          .resolveVideoLink?.(item.catalogId, item.spare?.materialId ?? null)
-          .catch(() => null);
+    // 057 T098: a feed of re-stitched variations keeps its rows' variations (null otherwise).
+    const feedVideoCells =
+      feeds && !nonVideo ? ((await feeds.variantCells?.(item, count)) ?? null) : null;
+    const videoR2 =
+      nonVideo || feedVideoCells
+        ? null
+        : await deps
+            .resolveVideoLink?.(item.catalogId, item.spare?.materialId ?? null)
+            .catch(() => null);
     await deps.progress(item.catalogId, 'building').catch(() => false);
     // Added rows belong to the last creative; growth is offered only to a single creative.
     if (layout && layout.creatives.length > 1 && count !== layout.rowCreatives.length)
@@ -996,7 +1000,11 @@ async function updateOne(
       },
       videoLinkOverride:
         videoR2?.kind === 'r2' ? videoR2.url : (item.spare?.link ?? item.currentVideoLink),
-      ...(nonVideo ? { preservedVideoCells: nonVideo.videoCells } : {}),
+      ...(nonVideo
+        ? { preservedVideoCells: nonVideo.videoCells }
+        : feedVideoCells
+          ? { preservedVideoCells: feedVideoCells }
+          : {}),
       ...(nonVideo && grownLayout?.kind === 'image'
         ? { preservedImageCells: nonVideo.imageCells }
         : {})

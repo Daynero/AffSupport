@@ -116,10 +116,15 @@ function feedRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function setup(options: { rows?: unknown[]; legacyVideo?: boolean } = {}) {
+function setup(
+  options: { rows?: unknown[]; legacyVideo?: boolean; variantLinks?: string[] | null } = {}
+) {
   const store = bucket();
   seed(store);
   const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    // 057 T097: only a catalog of re-stitched variations has links here; every other feed null.
+    if (name === 'service_space_catalog_variant_links')
+      return { data: options.variantLinks ?? null, error: null };
     if (name === 'service_prepare_catalog_nonvideo_update_context')
       return {
         data: {
@@ -247,6 +252,48 @@ describe('an update of a feed catalog', () => {
         .map(row => row[VIDEO_COLUMN])
     ).toEqual([1, 2, 3].map(n => `${PUBLISHED}?p=${n}`));
     expect(f.deps.complete).toHaveBeenCalled();
+  });
+
+  it('a catalog of re-stitched variations keeps each row’s variation in a legacy round (T097)', async () => {
+    const variations = [1, 2, 3].map(
+      n => `https://catalog-videos-dev.test/v/${String(n).repeat(32)}.mp4`
+    );
+    const f = setup({ variantLinks: variations });
+    const resolveVideoLink = vi.fn();
+    (f.deps as { resolveVideoLink?: unknown }).resolveVideoLink = resolveVideoLink;
+    await runCatalogUpdaterTick(f.deps, { budgetMs: 8000 });
+    expect(f.deps.complete).toHaveBeenCalled();
+    expect(resolveVideoLink).not.toHaveBeenCalled();
+    expect(f.rpc).toHaveBeenCalledWith('service_space_catalog_variant_links', {
+      p_catalog: 'feed-catalog'
+    });
+    expect(
+      f
+        .feedRows()
+        .slice(2)
+        .map(row => row[VIDEO_COLUMN])
+    ).toEqual([1, 2, 3].map(n => `${PUBLISHED}?p=${n}`));
+  });
+
+  it('rows a round adds take the variations in turn after the ones there (T097)', async () => {
+    const variations = [1, 2].map(
+      n => `https://catalog-videos-dev.test/v/${String(n).repeat(32)}.mp4`
+    );
+    const f = setup({ variantLinks: variations });
+    const item = parseClaimedCatalog(feedRow())!;
+    const cells = await f.deps.feeds!.variantCells!(item, 6);
+    expect(cells).toEqual([
+      ...[1, 2, 3].map(n => `${PUBLISHED}?p=${n}`),
+      variations[1],
+      variations[0],
+      variations[1]
+    ]);
+    const plain = setup();
+    expect(await plain.deps.feeds!.variantCells!(item, 3)).toBeNull();
+    const broken = setup({ variantLinks: ['https://elsewhere.test/v.mp4'] });
+    await expect(broken.deps.feeds!.variantCells!(item, 3)).rejects.toMatchObject({
+      code: 'PROCESS_RESULT_UNCERTAIN'
+    });
   });
 
   it('a feed that no longer reads as the catalog stops the round before any write', async () => {

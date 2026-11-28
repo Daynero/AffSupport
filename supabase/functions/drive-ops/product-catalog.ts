@@ -808,10 +808,21 @@ export async function createProductCatalog(
   await deps.assertImageContract?.(teamId, request.catalogImageContractVersion);
   const kind: CatalogCreativeKind = request.creativeKind ?? 'video';
   const space = deps.space;
+  // 057 T096: an R2 space's re-stitched variations arrive as links its video authority proved.
+  const spaceVariationLinks =
+    space &&
+    request.catalogVideoProtocolVersion === 1 &&
+    request.restitchEnabled === true &&
+    deps.videoDelivery?.kind === 'assigned'
+      ? deps.videoDelivery.videoLinks
+      : null;
   if (space) {
     if (kind !== 'video' || (request.creatives?.length ?? 1) > 1)
       throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
-    if (request.restitchOperationId || request.catalogVideoProtocolVersion !== undefined)
+    if (
+      request.restitchOperationId ||
+      (request.catalogVideoProtocolVersion !== undefined && !spaceVariationLinks?.length)
+    )
       throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
   }
   // Refusals first: nothing below this block may leave anything behind.
@@ -902,8 +913,9 @@ export async function createProductCatalog(
     }
     videoShared = (await ensureAnyoneReader(drive, liveVideo.id, videoPermissions)).added;
   }
+  // A catalog of variations links no copy of the original: its record names the first variation.
   const originalVideoLink = space
-    ? await space.videoLink({ teamId, actorId, video })
+    ? (spaceVariationLinks?.[0] ?? (await space.videoLink({ teamId, actorId, video })))
     : videoShareLink(liveVideo.id, liveVideo.resourceKey ?? video.resourceKey);
   // Every other video is shared the same way; a restitched one links its set's outputs instead.
   const creativeVideoLinks: string[] = [originalVideoLink];

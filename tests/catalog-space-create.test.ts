@@ -253,7 +253,13 @@ describe('a catalog of an R2 space', () => {
           catalogVideoProtocolVersion: 1,
           restitchEnabled: true,
           videoVariationCount: 2,
-          videoPublication: { mode: 'immediate' }
+          videoPublication: {
+            mode: 'scheduled',
+            localDateTime: '2026-12-01T10:00',
+            timeZone: 'Europe/Kyiv',
+            resolvedOffset: '+02:00',
+            dueAt: '2026-12-01T08:00:00.000Z'
+          }
         },
         'STORAGE_BACKEND_MISMATCH'
       ],

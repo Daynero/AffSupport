@@ -42,6 +42,7 @@ export const SPACE_STORAGE_ROUTES = [
   '/trash/empty',
   '/read-grant',
   '/process/start',
+  '/catalog-variants/run',
   '/materials/agent-grant',
   '/agent/source',
   '/process/output/start',

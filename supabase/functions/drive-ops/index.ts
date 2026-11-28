@@ -125,8 +125,15 @@ import { catalogFeedStoreFromEnv } from '../_shared/catalog-feed-store.ts';
 import {
   assertSpaceCatalogRequest,
   spaceCatalogDeps,
-  spaceCatalogRequest
+  spaceCatalogRequest,
+  spaceCatalogVariations
 } from './catalog-space-source.ts';
+import {
+  cancelSpaceCatalogVariants,
+  readSpaceCatalogVariants,
+  spaceCatalogVideoAuthority,
+  type SpaceVariantBinding
+} from './catalog-space-variants.ts';
 import {
   readDriveCredential,
   refreshGoogleAccessToken,
@@ -4029,9 +4036,16 @@ Deno.serve(async request => {
         })
       )
         throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+      // 057 T096: an R2 space's creation has no Drive set. Its read is asked only when the Drive
+      // read found nothing (a Drive space then answers null at once); its cancel goes by backend.
       const progress = path.endsWith('/read')
-        ? await readCatalogInitialVideoProgress(configured.service, userId, body)
-        : await cancelCatalogInitialVideo(configured.service, userId, body);
+        ? ((await readCatalogInitialVideoProgress(configured.service, userId, body)) ??
+          (await readSpaceCatalogVariants(configured.service, userId, body)))
+        : isRecord(body) &&
+            typeof body.teamId === 'string' &&
+            (await spaceStorageBackendOf(configured.service, body.teamId, userId)) === 'r2'
+          ? await cancelSpaceCatalogVariants(configured.service, userId, body)
+          : await cancelCatalogInitialVideo(configured.service, userId, body);
       return successResponse(withCatalogVideoWriter(progress, catalogWriterEnabled()), cors);
     }
     let value: unknown;
@@ -4224,18 +4238,45 @@ Deno.serve(async request => {
       if (backend === 'r2') {
         const spaceRequest = spaceCatalogRequest(catalogRequest);
         assertSpaceCatalogRequest(spaceRequest);
+        // T096: re-stitched variations are the same feature flag as on Drive.
+        const variations = spaceCatalogVariations(spaceRequest);
+        if (
+          variations &&
+          !nativeRestitchEnabled({
+            enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+            environment: Deno.env.get('SOTY_ENVIRONMENT'),
+            oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+            siteUrl: Deno.env.get('WISHLY_SITE_URL')
+          })
+        )
+          throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
         const feeds = catalogFeedStoreFromEnv(key => Deno.env.get(key));
         if (!feeds) throw new TeamFunctionError('STORAGE_UNAVAILABLE', { retryable: true });
+        const rpc = (name: string, parameters: Record<string, unknown>) =>
+          rpcValue(configured.service, name, parameters);
+        const binding: SpaceVariantBinding = { setId: null };
         const space = spaceCatalogDeps({
-          rpc: (name, parameters) => rpcValue(configured.service, name, parameters),
+          rpc,
           feeds,
           signal: request.signal,
-          log: (message, detail) => console.error(message, detail)
+          log: (message, detail) => console.error(message, detail),
+          variationSet: () => binding.setId
         });
-        value = await createDurableProductCatalog(
+        const created = createDurableProductCatalog(
           {
             ...productCatalogDeps(request, configured.caller, configured.service),
-            ...space
+            ...space,
+            ...(variations
+              ? {
+                  initialVideoAuthority: spaceCatalogVideoAuthority({
+                    rpc,
+                    teamId: spaceRequest.teamId,
+                    actorId: userId,
+                    sourceMaterialId: spaceRequest.videoMaterialId,
+                    binding
+                  })
+                }
+              : {})
           },
           catalogIntentStore(
             configured.service,
@@ -4248,6 +4289,16 @@ Deno.serve(async request => {
           spaceRequest,
           userId
         );
+        // As on Drive: a resume racing another pass for the same key answers its progress.
+        value = variations
+          ? await resumeOrReadInitialCatalog(created, () =>
+              readSpaceCatalogVariants(configured.service, userId, {
+                teamId: spaceRequest.teamId,
+                expectedActorId: userId,
+                idempotencyKey: spaceRequest.idempotencyKey
+              })
+            )
+          : await created;
       } else {
         if (
           catalogRequest.catalogVideoProtocolVersion === 1 &&

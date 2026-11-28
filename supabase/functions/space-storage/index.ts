@@ -12,6 +12,7 @@ import {
 import { readSpaceR2Config, SpaceR2 } from '../_shared/r2-space.ts';
 import { writeSpaceStorageJournal } from '../_shared/space-storage-journal.ts';
 import { parseJsonBody } from '../_shared/validation.ts';
+import { parseCatalogVariantRunCommand, runCatalogVariant } from './catalog-variants.ts';
 import { createSpace } from './create.ts';
 import {
   localEpochReader,
@@ -67,8 +68,9 @@ import {
  * `drive-ops` is. The handler verifies the caller's JWT itself; the client never names a bucket,
  * a key or a storage URL. Routes: `/spaces/create` (T015), `/uploads/*` (T023),
  * `/materials/mutate` and `/trash/empty` (T025), `/read-grant` (T027), and a tool run:
- * `/process/start` for a member, `/agent/source` and `/process/output/*` for the desktop agent
- * with its operation ticket (T033/T035) — those five never see a member's session.
+ * `/process/start` and `/catalog-variants/run` (T094) for a member, `/agent/source` and
+ * `/process/output/*` for the desktop agent with its operation ticket (T033/T035) — those five
+ * never see a member's session.
  * On beta and dev only, `GET|HEAD /files/…` serves space reads in place of the Worker
  * (`files.ts`); under a production config that path does not exist.
  */
@@ -211,6 +213,15 @@ Deno.serve(async request => {
     if (route === '/process/start')
       return successResponse(
         await startSpaceProcess(parseProcessStartCommand(body.value), {
+          ...base,
+          bucket: null,
+          readGrant: null
+        }),
+        cors
+      );
+    if (route === '/catalog-variants/run')
+      return successResponse(
+        await runCatalogVariant(parseCatalogVariantRunCommand(body.value), {
           ...base,
           bucket: null,
           readGrant: null

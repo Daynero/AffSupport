@@ -162,13 +162,29 @@ function asLiveFile(found: SpaceMaterial): DriveFileMetadata {
 
 /**
  * The create request an R2 space carries out. The dialog's video protocol (1) without re-stitched
- * videos and published at once makes the same catalog as a request without it, which is the only
- * one the space has a path for, so it is carried out as that. Anything else keeps its fields and
- * is refused by the generator before anything is made.
+ * videos and published at once makes the same catalog as a request without it, which the space
+ * carries out as that. With re-stitched variations published at once (T096) it stays protocol 1
+ * — the space's own video authority makes the variations (catalog-space-variants.ts) — but loses
+ * what names a Drive executor or the copy option: the member's own agent runs them, and the
+ * video of a space's catalog is always its R2 copy. Anything else keeps its fields and is refused
+ * before anything is made.
  */
 export function spaceCatalogRequest(
   request: CreateProductCatalogRequest
 ): CreateProductCatalogRequest {
+  if (
+    request.catalogVideoProtocolVersion === 1 &&
+    request.restitchEnabled === true &&
+    request.videoPublication?.mode === 'immediate'
+  ) {
+    const {
+      expectedExecutorId: _executor,
+      foregroundExecutor: _foreground,
+      copyVideoToR2: _copy,
+      ...variations
+    } = request;
+    return variations;
+  }
   if (
     request.catalogVideoProtocolVersion !== 1 ||
     request.restitchEnabled !== false ||
@@ -190,11 +206,27 @@ export function spaceCatalogRequest(
   return plain;
 }
 
+/** Whether an R2 request is the one with re-stitched variations its video authority makes. */
+export function spaceCatalogVariations(request: CreateProductCatalogRequest): boolean {
+  return (
+    request.catalogVideoProtocolVersion === 1 &&
+    request.restitchEnabled === true &&
+    request.videoPublication?.mode === 'immediate' &&
+    !request.restitchOperationId &&
+    !request.foregroundExecutor &&
+    request.expectedExecutorId === undefined &&
+    request.copyVideoToR2 !== true
+  );
+}
+
 /** What an R2 space cannot make yet, refused before a creation intent exists (same as the generator). */
 export function assertSpaceCatalogRequest(request: CreateProductCatalogRequest): void {
   if ((request.creativeKind ?? 'video') !== 'video' || (request.creatives?.length ?? 1) > 1)
     throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
-  if (request.restitchOperationId || request.catalogVideoProtocolVersion !== undefined)
+  if (
+    request.restitchOperationId ||
+    (request.catalogVideoProtocolVersion !== undefined && !spaceCatalogVariations(request))
+  )
     throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
 }
 
@@ -203,6 +235,8 @@ export function spaceCatalogDeps(input: {
   feeds: CatalogFeedStore;
   signal: AbortSignal;
   log(message: string, detail: string): void;
+  /** T096: the variation set the catalog links, once the video authority found it ready. */
+  variationSet?: () => string | null;
 }): SpaceCatalogDeps {
   const { rpc, feeds, signal, log } = input;
   let actor: string | null = null;
@@ -322,12 +356,13 @@ export function spaceCatalogDeps(input: {
     }),
     async link({ teamId, videoId, companionId, replaces, record }) {
       if (!actor) throw new TeamFunctionError('WRONG_STATE');
+      const setId = input.variationSet?.() ?? null;
       const value = await rpc('service_link_space_catalog_feed', {
         p_team: teamId,
         p_video: videoId,
         p_companion: companionId,
         p_replaces: replaces,
-        p_record: record,
+        p_record: setId ? { ...record, spaceVariantSetId: setId } : record,
         p_actor: actor
       });
       if (!isRecord(value)) throw new TeamFunctionError('INVALID_RESPONSE');

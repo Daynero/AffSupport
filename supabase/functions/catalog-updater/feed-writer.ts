@@ -1,3 +1,5 @@
+// @deno-types="../../../packages/shared/dist/team/catalog-video-r2.d.ts"
+import { isCatalogVideoR2PublicUrl } from '../../../packages/shared/dist/team/catalog-video-r2.js';
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import {
@@ -24,6 +26,12 @@ import type { CatalogNonVideoUpdate, ClaimedCatalog } from './worker.ts';
  */
 export interface CatalogFeedUpdater {
   prepareNonVideoUpdate(item: ClaimedCatalog): Promise<CatalogNonVideoUpdate>;
+  /**
+   * 057 T098: the video cells of a catalog of re-stitched variations (null for any other feed).
+   * Its rows keep the variation each one links now — read back from the feed — and rows this
+   * round adds take the variations in turn; one link over every row would undo the variations.
+   */
+  variantCells?(item: ClaimedCatalog, count: number): Promise<string[] | null>;
   write(item: ClaimedCatalog, rows: Cell[][], marker: string): Promise<void>;
   verify(item: ClaimedCatalog, marker: string): Promise<void>;
 }
@@ -100,6 +108,29 @@ export function createCatalogFeedUpdater(deps: {
         write: (built, marker) => updater.write(item, built, marker),
         verify: marker => updater.verify(item, marker)
       };
+    },
+
+    async variantCells(item, count) {
+      const feed = feedOf(item);
+      const result = await deps.service.rpc('service_space_catalog_variant_links', {
+        p_catalog: item.catalogId
+      });
+      if (result.error) throw new TeamFunctionError('DELIVERY_UNAVAILABLE', { retryable: true });
+      if (result.data === null) return null;
+      const links = result.data;
+      if (
+        !Array.isArray(links) ||
+        links.length < 1 ||
+        links.some(link => !isCatalogVideoR2PublicUrl(link))
+      )
+        throw uncertain();
+      const rows = await readCatalogFeedCells(deps.store, feed.feedId, deps.signal);
+      if (rows.length !== item.productCount + 2 || count < item.productCount) throw uncertain();
+      const column = catalogVideoColumnIndices()[0]!;
+      const kept = rows.slice(2).map(row => row[column]!);
+      return Array.from({ length: count }, (_, index) =>
+        index < kept.length ? kept[index]! : (links[index % links.length] as string)
+      );
     },
 
     async write(item, rows, marker) {

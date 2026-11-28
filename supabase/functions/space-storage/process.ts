@@ -28,8 +28,8 @@
  * best-effort: the result is committed either way.
  *
  * Not on R2 yet, refused at start: a run over its own source (a new version — R2 spaces have no
- * versions yet, STORAGE_BACKEND_MISMATCH), catalog variants (their own route, T041) and the
- * retired translation.
+ * versions yet, STORAGE_BACKEND_MISMATCH) and the retired translation. A catalog variation is
+ * opened by its own route (`/catalog-variants/run`, catalog-variants.ts, T094), never here.
  */
 // @deno-types="../../../packages/shared/dist/team/contract.d.ts"
 import {
@@ -174,8 +174,9 @@ export function parseProcessStartCommand(body: unknown): ProcessStartCommand {
       !isSpaceUuid(destination)) ||
     typeof body.idempotencyKey !== 'string' ||
     !IDEMPOTENCY.test(body.idempotencyKey) ||
-    // A catalog variant has its own trusted route (T041); a member never names one.
+    // A catalog variation has its own trusted route (T094); a member never names one.
     body.idempotencyKey.startsWith('catalog-variant:') ||
+    body.idempotencyKey.startsWith('space-variant:') ||
     typeof body.toolId !== 'string' ||
     !Object.hasOwn(PROCESS_TOOL_RULES, body.toolId) ||
     (body.conflictMode !== 'cancel' && body.conflictMode !== 'keep_both') ||
@@ -289,16 +290,44 @@ async function transition(
   });
 }
 
-export async function startSpaceProcess(
-  command: ProcessStartCommand,
-  deps: ProcessDeps
-): Promise<{
+export interface SpaceProcessGrants {
   operationId: string;
   state: 'running';
   sourceGrant: IssuedGrant;
   finalizeGrant: IssuedGrant;
   agentContractVersion: number;
-}> {
+}
+
+export async function startSpaceProcess(
+  command: ProcessStartCommand,
+  deps: ProcessDeps
+): Promise<SpaceProcessGrants> {
+  const opened = await openSpaceProcess(command, deps);
+  // The same request twice: its tickets were handed out the first time and are not reissued.
+  if (opened.reused) return refuse('WRONG_STATE');
+  return issueSpaceProcessGrants(opened, deps);
+}
+
+/** An opened run: what its two agent tickets are issued against. */
+export interface OpenedSpaceProcess {
+  operationId: string;
+  reused: boolean;
+  teamId: string;
+  actorId: string;
+  materialId: string;
+  destinationFolderId: string;
+  toolId: string;
+}
+
+/**
+ * Opens (or finds, under the same idempotency key) the run's operation with its output name
+ * reserved, without issuing tickets. `/process/start` issues them for a new run only; a catalog
+ * variation (T094) issues fresh ones each time it is handed to the agent.
+ */
+export async function openSpaceProcess(
+  command: ProcessStartCommand,
+  deps: ProcessDeps
+): Promise<OpenedSpaceProcess> {
   const actorId = deps.actorId ?? refuse('PERMISSION_DENIED');
   const tool = PROCESS_TOOL_RULES[command.toolId]!;
   if (command.toolContractVersion < tool.contractVersion) return refuse('AGENT_UPDATE_REQUIRED');
@@ -348,8 +377,16 @@ export async function startSpaceProcess(
   );
   const operationId = started && text(started, 'operation_id');
   if (!started || !operationId || !isSpaceUuid(operationId)) return refuse('INVALID_RESPONSE');
-  // The same request twice: its tickets were handed out the first time and are not reissued.
-  if (started.reused === true) return refuse('WRONG_STATE');
+  const opened: OpenedSpaceProcess = {
+    operationId,
+    reused: started.reused === true,
+    teamId: command.teamId,
+    actorId,
+    materialId: command.materialId,
+    destinationFolderId: facts.destinationFolderId,
+    toolId: command.toolId
+  };
+  if (opened.reused) return opened;
   await call(deps.rpc, 'service_set_team_operation_intent', {
     p_operation: operationId,
     p_actor: actorId,
@@ -362,27 +399,38 @@ export async function startSpaceProcess(
     p_tool_contract_version: command.toolContractVersion
   });
   await transition(deps.rpc, operationId, 'running', 'awaiting_agent', 0);
+  return opened;
+}
+
+/** The two agent tickets of an opened run: one to read its source, one for its output. */
+export async function issueSpaceProcessGrants(
+  opened: Pick<
+    OpenedSpaceProcess,
+    'operationId' | 'teamId' | 'actorId' | 'materialId' | 'destinationFolderId' | 'toolId'
+  >,
+  deps: ProcessDeps
+): Promise<SpaceProcessGrants> {
   const common = {
-    operationId,
-    teamId: command.teamId,
-    actorId,
-    destinationFolderId: facts.destinationFolderId,
-    toolId: command.toolId
+    operationId: opened.operationId,
+    teamId: opened.teamId,
+    actorId: opened.actorId,
+    destinationFolderId: opened.destinationFolderId,
+    toolId: opened.toolId
   };
   const sourceGrant = await issueGrant(deps, {
     ...common,
     purpose: 'process_input',
-    materialId: command.materialId,
+    materialId: opened.materialId,
     maxUses: SOURCE_TICKET_USES
   });
   const finalizeGrant = await issueGrant(deps, {
     ...common,
     purpose: 'finalize',
-    materialId: command.materialId,
+    materialId: opened.materialId,
     maxUses: OUTPUT_TICKET_USES
   });
   return {
-    operationId,
+    operationId: opened.operationId,
     state: 'running',
     sourceGrant,
     finalizeGrant,
