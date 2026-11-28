@@ -3964,3 +3964,15 @@ Replaces the R2-only `service_empty_space_trash`: a material emptied from the tr
 `processed_from` links with it in the same subtransaction, and the other side is counted again.
 Undo by re-running the body from 20261226160000. A tool's output (or a source that had one) then
 stays in the trash again when it is emptied; nothing already deleted comes back.
+
+## 20261226280000 — 057 an R2 space's catalog copies count in its own ledger
+
+Widens `space_storage_reservations_purpose_check` with `catalog_video`, adds
+`catalog_video_r2_copies.space_counted`, `private.space_free_bytes`,
+`private.space_catalog_copy_uncount` and the three `space_catalog_copy_ledger` triggers, and patches
+the quota line of `service_catalog_video_r2_resolve` (an R2 space checks its free bytes and is
+refused `STORAGE_QUOTA_EXCEEDED`; a Drive space keeps `VIDEO_R2_QUOTA_EXCEEDED` against
+`team_quota_bytes`). Undo by re-running the resolve body from the migration that last defined it,
+dropping the triggers and functions, subtracting the counted copies from each R2 space's
+`catalogs` row (`sum(size_bytes) where space_counted`), releasing the `catalog_video` reservations,
+then dropping the column and restoring the check.

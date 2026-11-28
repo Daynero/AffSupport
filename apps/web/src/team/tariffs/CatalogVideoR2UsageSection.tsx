@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Film } from 'lucide-react';
 import type { CatalogVideoR2Availability, CatalogVideoR2Usage } from '@video-compressor/shared';
+import { isR2Space } from '../../api/space-storage';
 import { teamApi } from '../../api/team';
 import type { CatalogVideoR2Client } from '../../api/team-catalog-video-r2';
 import { useI18n } from '../../i18n';
@@ -23,9 +24,18 @@ function formatBytes(bytes: number, language: string): string {
  * many copies are active or awaiting deletion. The monthly cost estimate was
  * removed at the owner's request (2026-11-12): a fraction of a cent read as noise.
  * Drawn only when the feature is available to the space or something is already
- * stored.
+ * stored. An R2 space has no separate copy limit (057 T111): its catalog videos count in the
+ * space's own storage under «Каталоги», so this section is not drawn there.
  */
-export function CatalogVideoR2UsageSection({
+export function CatalogVideoR2UsageSection(props: {
+  teamId: string;
+  client?: CatalogVideoR2Client;
+}) {
+  if (isR2Space(props.teamId)) return null;
+  return <DriveCatalogVideoR2Usage {...props} />;
+}
+
+function DriveCatalogVideoR2Usage({
   teamId,
   client = teamApi.catalogVideoR2
 }: {

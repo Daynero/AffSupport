@@ -502,6 +502,17 @@
 - [x] T109 [US10] Міграція `20261226270000_space_storage_trash_tool_outputs.sql`: R2-тіло
   `service_empty_space_trash` видаляє `processed_from` матеріалу в тій самій субтранзакції, що й
   рядок, і перераховує другий бік (FR-048: без сиріт). Drive-кошик не змінюється. Тест: T108.
+- [x] T110 [P] [US9] Тест для T111 — `supabase/tests/database/space-catalog-copy-ledger.test.sql` (14):
+  публічна копія відео каталогу в R2-просторі планується понад старий ліміт копій, резервує свої
+  байти в просторі, готова рахується раз у `catalogs` (скільки б каталогів її не брали), видалена
+  чи невдала повертає байти, а та, що не вміщається, отримує `STORAGE_QUOTA_EXCEEDED` без рядка;
+  Drive-простір і далі під старим лімітом; `tests/catalog-video-r2-ui.test.tsx` (+1): розділ «Відео
+  в R2» з окремим лімітом у R2-просторі не малюється.
+- [x] T111 [US9] Міграція `20261226280000_space_storage_catalog_copy_ledger.sql` (FR-045/FR-047/FR-050:
+  одна межа — облік простору): рядок ліміту `service_catalog_video_r2_resolve` для R2 перевіряє
+  вільне місце простору, тригери копій резервують, рахують і повертають байти в `catalogs`;
+  `CatalogVideoR2UsageSection` не малюється в R2-просторі. Попутно: якорі `deno-type-dependencies.ts`
+  для `team/restitch`, `catalog-video-set`, `transcript`, `space-read`. Тест: T110.
 
 ### Фаза 5 — US7: відчутно швидше (ядро M1) (P1)
 

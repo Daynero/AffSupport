@@ -28,3 +28,9 @@ import '../../../packages/shared/dist/media-metadata.d.ts';
 import '../../../packages/shared/dist/team/space-storage.d.ts';
 import '../../../packages/shared/dist/team/space-storage-md5.d.ts';
 import '../../../packages/shared/dist/team/space-read-grant.d.ts';
+// 057: the space's transcripts and reads, and the re-stitch settings and variation sets of an
+// R2 catalog (phase 4a).
+import '../../../packages/shared/dist/team/transcript.d.ts';
+import '../../../packages/shared/dist/team/space-read.d.ts';
+import '../../../packages/shared/dist/team/restitch.d.ts';
+import '../../../packages/shared/dist/team/catalog-video-set.d.ts';

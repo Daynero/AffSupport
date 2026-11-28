@@ -453,6 +453,20 @@ describe('R2 icon in the catalog toolbar', () => {
 });
 
 describe('CatalogVideoR2UsageSection', () => {
+  it('057 T110: is not drawn in an R2 space, whose copies count in the space itself', async () => {
+    const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
+    rememberSpaceBackend(TEAM, 'r2');
+    try {
+      const api = client();
+      const { container } = render(<CatalogVideoR2UsageSection teamId={TEAM} client={api} />);
+      await Promise.resolve();
+      expect(container.textContent).toBe('');
+      expect(api.readUsage).not.toHaveBeenCalled();
+    } finally {
+      rememberSpaceBackend(TEAM, 'drive');
+      cleanup();
+    }
+  });
   it('shows bytes against the limit, no cost estimate, and hides when nothing is stored and the feature is off', async () => {
     const api = client({
       readUsage: vi.fn(async () => ({
