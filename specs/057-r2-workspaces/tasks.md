@@ -464,16 +464,36 @@
 - [x] T100 [US1] Веб: `apps/web/src/team/product-catalog/spaceCatalogVariants.ts` (прохід і хук),
   `spaceStorageApi.runCatalogVariant` у `apps/web/src/api/space-storage.ts`,
   `CreateProductCatalogDialog.tsx`. Агент не змінюється (контракт 3). Тест: T099.
-- [ ] T101 [P] [US1] Тест для T102 — відкладена публікація R2-каталогу (з варіаціями й без):
+- [x] T101 [P] [US1] Тест для T102 — відкладена публікація R2-каталогу (з варіаціями й без):
   пізня адреса в стрічці в заданий час, утримання до часу, скасування.
-- [ ] T102 [US1] Відкладена публікація для стрічки: лінія `catalog_video_publication_*` поверх
+  `supabase/tests/database/catalog-space-scheduled-publication.test.sql` (40): версія `space-v1:`
+  і незмінні Drive-версії; зв'язок реєструє політику `scheduled` (без legacy-adoption) і завдання
+  `waiting`, оновлювач тримає клітинки; Drive-claim, «unsupported» і Drive-лінія відновлення його
+  не беруть; до строку claim нічого не бере, після — контекст чекає готової копії, далі
+  reserve/dispatch/settle публікують; скасування (`held`) і перенесення; остаточне видалення
+  каталогу забирає політику, завдання й цілі. `tests/catalog-space-scheduled-publication.test.ts`
+  (13): запит лишає протокол 1 (з варіаціями й без), створення пише порожні клітинки й ключ у
+  зв'язку, з варіаціями чекає їх і не робить копії оригіналу; лінія стрічки пише адресу копії
+  (чи варіацію рядка за сідованим розподілом) під fence, чекає неготової копії, звіряє
+  `absent`; раунд оновлювача зберігає відео-колонку, яку стрічка має в момент запису.
+  `tests/catalog-publication-lane.test.ts` (+1), `tests/product-catalog-dialog.test.tsx` (+1, T099
+  змінено), `tests/catalog-space-variants.test.ts` і `tests/catalog-space-create.test.ts` (відмови
+  замінено на прийняття).
+- [x] T102 [US1] Відкладена публікація для стрічки: лінія `catalog_video_publication_*` поверх
   `applyFeedPublicationCells` (T039) без Drive-базової перевірки. Тест: T101.
+  Міграція `20261226300000_space_storage_catalog_scheduled_publication.sql`; `catalog-updater/space-publication.ts`
+  (свій claim і контекст, запис/звірка стрічки) у `publication-lane.ts` і хвилинному проході;
+  `feed-writer.ts` (раунд без відео бере відео-колонку стрічки на момент запису);
+  `catalog-space-source.ts`, `catalog-space-variants.ts`, `product-catalog.ts`, `drive-ops/index.ts`;
+  діалог R2 показує «Опублікувати пізніше». Ціль — `source` з версією простору, а не окремий вид
+  для набору варіацій (research.md R15 «Відкладена публікація»).
 - [ ] T103 [P] [US1] Тест для T104 — каталоги картинок, кілька креативів (062) і каталоги запусків у
   R2-просторі.
 - [ ] T104 [US1] Ці три шляхи для R2 (зараз відмовляють `MULTI_CREATIVE_UNSUPPORTED` /
   `STORAGE_BACKEND_MISMATCH` до запису). Тест: T103.
-  **Стан T101–T104 (2026-11-28, п'ята сесія): не почато, бо кожен — окремий конвеєр.** Точний
-  обсяг, щоб брати з цього місця:
+  **Стан T101–T104 (2026-11-28, шоста сесія): T101/T102 зроблено (вище); T103/T104 не почато, бо
+  кожен — окремий конвеєр.** Обсяг, записаний п'ятою сесією (пункт T102 — історія, рішення див.
+  research.md R15):
   - T102 (відкладена публікація). Відмовляють `assertSpaceCatalogRequest`/`spaceCatalogVariations`
     (`catalog-space-source.ts`) і `spaceCatalogVideoAuthority.prepare` (`catalog-space-variants.ts`).
     Треба: (1) R2-ціль публікації — `catalog_publication_targets` знає лише `video_set`

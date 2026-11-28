@@ -111,3 +111,39 @@ it('stops chaining when a pass settles everything, moves nothing, or the budget 
   await runPublicationPasses(slow as never, () => now);
   expect(slow).toHaveBeenCalledTimes(1);
 });
+
+it('runs the jobs of R2 catalogs first with their own claim, and a failure there never stops Drive (057 T102)', async () => {
+  const feeds = {
+    feedUrl: (key: string) => key,
+    putFeed: vi.fn(),
+    readFeed: vi.fn(),
+    removeFeed: vi.fn(),
+    purgeUrls: vi.fn()
+  };
+  for (const spaceFails of [false, true]) {
+    const rpc = vi.fn(async (name: string) => {
+      if (name === 'service_claim_space_catalog_publication_jobs')
+        return spaceFails
+          ? { data: null, error: { message: 'boom' } }
+          : { data: { serverNow: Date.now(), items: [] }, error: null };
+      return {
+        data: name === 'service_mark_due_catalog_publications_unsupported' ? 0 : null,
+        error: null
+      };
+    });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const result = await runCatalogPublicationLane(
+      { rpc } as never,
+      '78400000-0000-4000-8000-000000000001',
+      name => (name === 'SOTY_ENVIRONMENT' ? 'beta' : undefined),
+      feeds as never
+    );
+    error.mockRestore();
+    expect(result).toMatchObject({ enabled: false, code: 'CATALOG_WRITE_UNSUPPORTED' });
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+      'service_claim_space_catalog_publication_jobs',
+      'service_mark_due_catalog_publications_unsupported'
+    ]);
+    expect(feeds.putFeed).not.toHaveBeenCalled();
+  }
+});

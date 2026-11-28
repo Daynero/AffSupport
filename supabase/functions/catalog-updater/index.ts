@@ -17,7 +17,11 @@ import {
   prepareScheduledCatalogVideoSets
 } from '../drive-ops/updater-variants.ts';
 import { runCatalogPublicationScheduler } from './publication-authority.ts';
-import { isPublicationLaneRequest, runCatalogPublicationLane } from './publication-lane.ts';
+import {
+  isPublicationLaneRequest,
+  runCatalogPublicationLane,
+  runSpaceCatalogPublicationsSafely
+} from './publication-lane.ts';
 import { prepareCatalogClaims } from './claim-preparation.ts';
 import { catalogUpdaterRpcError } from './rpc-error.ts';
 import { drawCatalogImagePool } from '../_shared/catalog-image-draw.ts';
@@ -154,8 +158,11 @@ Deno.serve(async request => {
     // The ten-second deferred-publication lane runs the publication scheduler only.
     const parsed = await parseJsonBody(request);
     if (isPublicationLaneRequest(parsed.ok ? parsed.value : null)) {
-      const publications = await runCatalogPublicationLane(service, publicationWorkerId, name =>
-        Deno.env.get(name)
+      const publications = await runCatalogPublicationLane(
+        service,
+        publicationWorkerId,
+        name => Deno.env.get(name),
+        catalogFeedStoreFromEnv(key => Deno.env.get(key))
       );
       return successResponse({ publications });
     }
@@ -199,6 +206,13 @@ Deno.serve(async request => {
       siteUrl: Deno.env.get('WISHLY_SITE_URL')
     });
     let publications: Awaited<ReturnType<typeof runCatalogPublicationScheduler>> | undefined;
+    // 057 T102: the jobs of R2 catalogs (their feed, no Drive) on the per-minute pass too: the
+    // ten-second lane wakes only for recently due work.
+    await runSpaceCatalogPublicationsSafely(
+      service,
+      publicationWorkerId,
+      catalogFeedStoreFromEnv(key => Deno.env.get(key))
+    );
     if (!targetedNativeSheets)
       publications = await runCatalogPublicationScheduler({
         service,

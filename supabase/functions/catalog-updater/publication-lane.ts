@@ -10,6 +10,8 @@ import { TeamFunctionError } from '../_shared/errors.ts';
 import { targetedCatalogWriterEnabled } from '../_shared/restitch-native.ts';
 import { runCatalogPublicationScheduler } from './publication-authority.ts';
 import { createTargetedCatalogPublicationIo } from './publication-io.ts';
+import type { CatalogFeedStore } from '../_shared/catalog-feed.ts';
+import { runSpaceCatalogPublications } from './space-publication.ts';
 
 /** True when the request asks for the deferred-publication lane only. */
 export function isPublicationLaneRequest(body: unknown): boolean {
@@ -34,8 +36,13 @@ type Env = (name: string) => string | undefined;
 export async function runCatalogPublicationLane(
   service: ServiceRpcClient,
   workerId: string,
-  env: Env
+  env: Env,
+  /** 057 T102: the feed store (catalog-feed-store.ts); null where it is not configured. */
+  feeds: CatalogFeedStore | null = null
 ) {
+  // The jobs of R2 catalogs first — their own claim, their feed, no Drive. Nothing at all without
+  // the feed store; a failure never stops the Drive lane below.
+  await runSpaceCatalogPublicationsSafely(service, workerId, feeds);
   const targeted = targetedCatalogWriterEnabled({
     enabled: env('CATALOG_NATIVE_SHEETS_BETA'),
     variants: env('SOTY_CATALOG_VIDEO_VARIANTS'),
@@ -81,6 +88,29 @@ export async function runCatalogPublicationLane(
       (await driveFor(credential)).withRequestDeadline(Date.now() + 7000)
   });
   return result;
+}
+
+/** The lane for R2 catalogs (space-publication.ts), logged instead of thrown. */
+export async function runSpaceCatalogPublicationsSafely(
+  service: ServiceRpcClient,
+  workerId: string,
+  store: CatalogFeedStore | null
+) {
+  if (!store) return { enabled: false as const };
+  try {
+    return await runSpaceCatalogPublications({
+      service,
+      workerId,
+      store,
+      log: (message, detail) => console.error(message, detail)
+    });
+  } catch (error) {
+    console.error(
+      '[catalog-publication] space lane pending',
+      error instanceof Error ? error.message : 'UNKNOWN'
+    );
+    return { enabled: true as const, failed: true as const };
+  }
 }
 
 /** How many scheduler passes one lane call may chain, and for how long. */

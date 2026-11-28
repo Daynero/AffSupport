@@ -3986,3 +3986,19 @@ a Drive space is touched. Undo with `select cron.unschedule('soty-space-catalog-
 re-running the read body from 20261226250000 and dropping the two functions. Runs already closed
 as `AGENT_STALLED` stay closed and their variations keep their next attempt; a silent run then stays
 `working` again until a page hands it over or the member's agent claims after a lapsed lease.
+
+## 20261226300000 — 057 a catalog of an R2 space publishes its video link later
+
+Adds `private.space_catalog_publication_source_version`, `private.register_space_catalog_publication`,
+`private.space_catalog_publication_claimable`, `private.space_catalog_publication_work_due`,
+`service_claim_space_catalog_publication_jobs`, `service_space_catalog_publication_context` and the
+`space_catalog_publication_removed` trigger on `team_materials` (R2 catalog rows only); replaces the
+R2-only `service_link_space_catalog_feed` (registers a scheduled policy with `spacePublicationKey`);
+patches `catalog_publication_source_matches` (a `space-v1:` branch first),
+`catalog_publication_work_due` (`or private.space_catalog_publication_work_due(p_recent)`),
+`service_mark_due_catalog_publications_unsupported` and `service_list_initial_catalog_recovery`
+(both skip R2 spaces). Undo by re-running those four bodies and the link body from the migrations
+that last defined them (20261226250000 for the link), dropping the trigger and the new functions.
+Scheduled R2 policies already registered then have no writer: hold them first
+(`service_save_catalog_publication` with `held`), or their catalogs keep empty video cells; such a
+catalog can no longer be deleted for good until its publication rows are removed by hand.

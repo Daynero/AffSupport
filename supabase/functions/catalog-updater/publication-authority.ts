@@ -44,7 +44,9 @@ const uncertain = () => new TeamFunctionError('PROCESS_RESULT_UNCERTAIN', { retr
 export function createCatalogPublicationAuthority(
   service: RpcClient,
   workerId: string,
-  io: CatalogPublicationIo
+  io: CatalogPublicationIo,
+  /** 057 T102: the feed's lane claims the jobs of R2 catalogs with its own claim. */
+  options: { claimRpc?: string } = {}
 ): CatalogPublicationAuthority {
   if (
     !uuid(workerId) ||
@@ -99,7 +101,7 @@ export function createCatalogPublicationAuthority(
   };
   return {
     async claim(limit) {
-      const raw = await rpc('service_claim_catalog_publication_jobs', {
+      const raw = await rpc(options.claimRpc ?? 'service_claim_catalog_publication_jobs', {
         p_worker: workerId,
         p_limit: Math.min(limit, 3)
       });

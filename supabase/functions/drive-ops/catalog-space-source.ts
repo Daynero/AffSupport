@@ -163,27 +163,31 @@ function asLiveFile(found: SpaceMaterial): DriveFileMetadata {
 /**
  * The create request an R2 space carries out. The dialog's video protocol (1) without re-stitched
  * videos and published at once makes the same catalog as a request without it, which the space
- * carries out as that. With re-stitched variations published at once (T096) it stays protocol 1
- * — the space's own video authority makes the variations (catalog-space-variants.ts) — but loses
- * what names a Drive executor or the copy option: the member's own agent runs them, and the
- * video of a space's catalog is always its R2 copy. Anything else keeps its fields and is refused
- * before anything is made.
+ * carries out as that. With re-stitched variations (T096), or a link published later (T102), it
+ * stays protocol 1 — the durable generator plans it and the space's own video authority answers
+ * for its videos (catalog-space-variants.ts) — but loses what names a Drive executor or the copy
+ * option: the member's own agent runs the variations, and the video of a space's catalog is
+ * always its R2 copy. Anything else keeps its fields and is refused before anything is made.
  */
 export function spaceCatalogRequest(
   request: CreateProductCatalogRequest
 ): CreateProductCatalogRequest {
   if (
     request.catalogVideoProtocolVersion === 1 &&
-    request.restitchEnabled === true &&
-    request.videoPublication?.mode === 'immediate'
+    (request.restitchEnabled === true ||
+      (request.restitchEnabled === false &&
+        request.videoVariationCount === 1 &&
+        request.videoPublication?.mode === 'scheduled')) &&
+    (request.videoPublication?.mode === 'immediate' ||
+      request.videoPublication?.mode === 'scheduled')
   ) {
     const {
       expectedExecutorId: _executor,
       foregroundExecutor: _foreground,
       copyVideoToR2: _copy,
-      ...variations
+      ...kept
     } = request;
-    return variations;
+    return kept;
   }
   if (
     request.catalogVideoProtocolVersion !== 1 ||
@@ -206,16 +210,33 @@ export function spaceCatalogRequest(
   return plain;
 }
 
-/** Whether an R2 request is the one with re-stitched variations its video authority makes. */
-export function spaceCatalogVariations(request: CreateProductCatalogRequest): boolean {
+/** What names a Drive executor, a re-stitch already made or the copy option: none of it is R2's. */
+function spaceProtocolRequest(request: CreateProductCatalogRequest): boolean {
   return (
     request.catalogVideoProtocolVersion === 1 &&
-    request.restitchEnabled === true &&
-    request.videoPublication?.mode === 'immediate' &&
     !request.restitchOperationId &&
     !request.foregroundExecutor &&
     request.expectedExecutorId === undefined &&
     request.copyVideoToR2 !== true
+  );
+}
+
+/** Whether an R2 request is the one with re-stitched variations its video authority makes. */
+export function spaceCatalogVariations(request: CreateProductCatalogRequest): boolean {
+  return (
+    spaceProtocolRequest(request) &&
+    request.restitchEnabled === true &&
+    (request.videoPublication?.mode === 'immediate' ||
+      request.videoPublication?.mode === 'scheduled')
+  );
+}
+
+/** T102: whether an R2 request publishes its video link later (with or without variations). */
+export function spaceCatalogScheduled(request: CreateProductCatalogRequest): boolean {
+  return (
+    spaceProtocolRequest(request) &&
+    request.videoPublication?.mode === 'scheduled' &&
+    (request.restitchEnabled === true || request.videoVariationCount === 1)
   );
 }
 
@@ -225,7 +246,9 @@ export function assertSpaceCatalogRequest(request: CreateProductCatalogRequest):
     throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
   if (
     request.restitchOperationId ||
-    (request.catalogVideoProtocolVersion !== undefined && !spaceCatalogVariations(request))
+    (request.catalogVideoProtocolVersion !== undefined &&
+      !spaceCatalogVariations(request) &&
+      !spaceCatalogScheduled(request))
   )
     throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
 }
@@ -237,6 +260,14 @@ export function spaceCatalogDeps(input: {
   log(message: string, detail: string): void;
   /** T096: the variation set the catalog links, once the video authority found it ready. */
   variationSet?: () => string | null;
+  /**
+   * T102: the rows' variation addresses the authority proved, for a catalog whose cells wait for
+   * a later publication: the catalog's own video link is then its first variation, never a copy
+   * of the original.
+   */
+  variationLinks?: () => readonly string[] | null;
+  /** T102: the creation's key, when its link is published later: the link registers the policy. */
+  publicationKey?: string | null;
 }): SpaceCatalogDeps {
   const { rpc, feeds, signal, log } = input;
   let actor: string | null = null;
@@ -357,12 +388,17 @@ export function spaceCatalogDeps(input: {
     async link({ teamId, videoId, companionId, replaces, record }) {
       if (!actor) throw new TeamFunctionError('WRONG_STATE');
       const setId = input.variationSet?.() ?? null;
+      const publicationKey = input.publicationKey ?? null;
       const value = await rpc('service_link_space_catalog_feed', {
         p_team: teamId,
         p_video: videoId,
         p_companion: companionId,
         p_replaces: replaces,
-        p_record: setId ? { ...record, spaceVariantSetId: setId } : record,
+        p_record: {
+          ...record,
+          ...(setId ? { spaceVariantSetId: setId } : {}),
+          ...(publicationKey ? { spacePublicationKey: publicationKey } : {})
+        },
         p_actor: actor
       });
       if (!isRecord(value)) throw new TeamFunctionError('INVALID_RESPONSE');
@@ -408,6 +444,8 @@ export function spaceCatalogDeps(input: {
     },
     space: {
       async videoLink({ teamId, actorId, video }) {
+        const variation = input.variationLinks?.()?.[0];
+        if (variation) return variation;
         const value = await rpc('service_space_catalog_video_link', {
           p_team: teamId,
           p_actor: actorId,

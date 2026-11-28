@@ -283,9 +283,9 @@ export interface ProductCatalogDeps {
 }
 
 /**
- * 057: what a catalog of an R2 space takes from the space instead of Drive. Only a single video
- * creative published at once is offered there: re-stitched videos, scheduled publication and
- * image or multi-creative catalogs have no R2 path yet and are refused before anything is made.
+ * 057: what a catalog of an R2 space takes from the space instead of Drive. A single video
+ * creative, re-stitched or not, published at once or later (T096, T102), is offered there; image
+ * or multi-creative catalogs have no R2 path yet and are refused before anything is made.
  */
 export interface CatalogSpaceSource {
   /** The public address of the video's R2 copy (050), planned or verified; never a Drive link. */
@@ -816,12 +816,17 @@ export async function createProductCatalog(
     deps.videoDelivery?.kind === 'assigned'
       ? deps.videoDelivery.videoLinks
       : null;
+  // 057 T102: a link published later leaves the cells empty; the link registers its policy.
+  const spaceDeferred =
+    space && request.catalogVideoProtocolVersion === 1 && deps.videoDelivery?.kind === 'deferred';
   if (space) {
     if (kind !== 'video' || (request.creatives?.length ?? 1) > 1)
       throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
     if (
       request.restitchOperationId ||
-      (request.catalogVideoProtocolVersion !== undefined && !spaceVariationLinks?.length)
+      (request.catalogVideoProtocolVersion !== undefined &&
+        !spaceVariationLinks?.length &&
+        !spaceDeferred)
     )
       throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
   }

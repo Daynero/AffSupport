@@ -250,21 +250,6 @@ describe('a catalog of an R2 space', () => {
       [{ restitchOperationId: COPY }, 'STORAGE_BACKEND_MISMATCH'],
       [
         {
-          catalogVideoProtocolVersion: 1,
-          restitchEnabled: true,
-          videoVariationCount: 2,
-          videoPublication: {
-            mode: 'scheduled',
-            localDateTime: '2026-12-01T10:00',
-            timeZone: 'Europe/Kyiv',
-            resolvedOffset: '+02:00',
-            dueAt: '2026-12-01T08:00:00.000Z'
-          }
-        },
-        'STORAGE_BACKEND_MISMATCH'
-      ],
-      [
-        {
           creativeKind: 'video',
           creatives: [
             { materialId: VIDEO, alias: 'a', copies: 2 },
@@ -319,8 +304,32 @@ describe('a catalog of an R2 space', () => {
         }
       })
     );
-    expect(spaceCatalogRequest(scheduled)).toBe(scheduled);
-    expect(() => assertSpaceCatalogRequest(scheduled)).toThrow(TeamFunctionError);
+    // T102: a link published later keeps the protocol; its video authority answers for it.
+    expect(spaceCatalogRequest(scheduled)).toEqual(scheduled);
+    expect(() => assertSpaceCatalogRequest(scheduled)).not.toThrow();
+  });
+
+  it('refuses the protocol without the videos its authority proved, before anything is read', async () => {
+    const f = setup();
+    await expect(
+      createProductCatalog(
+        f.deps,
+        request({
+          catalogVideoProtocolVersion: 1,
+          restitchEnabled: true,
+          videoVariationCount: 2,
+          videoPublication: {
+            mode: 'scheduled',
+            localDateTime: '2026-12-01T10:00',
+            timeZone: 'Europe/Kyiv',
+            resolvedOffset: '+02:00',
+            dueAt: '2026-12-01T08:00:00.000Z'
+          }
+        }),
+        ACTOR
+      )
+    ).rejects.toMatchObject({ code: 'STORAGE_BACKEND_MISMATCH' });
+    expect(f.rpc).not.toHaveBeenCalled();
   });
 
   it('gives the generator a Drive client that refuses every call', async () => {

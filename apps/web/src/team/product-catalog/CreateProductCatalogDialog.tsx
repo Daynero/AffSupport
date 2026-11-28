@@ -659,7 +659,8 @@ export function CreateProductCatalogDialog({
         let publication: Parameters<
           typeof teamApi.createProductCatalogVideo
         >[0]['videoPublication'] = { mode: 'immediate' };
-        if (videoDraft.delayed && !feedSpace) {
+        // 057 T102: an R2 space publishes later too (its feed's lane writes the link when due).
+        if (videoDraft.delayed) {
           const resolved = resolveCatalogPublicationDraft(
             {
               localDateTime: `${videoDraft.date}T${videoDraft.time}`,
@@ -1390,7 +1391,6 @@ export function CreateProductCatalogDialog({
               restitch={restitch}
               productCount={productTotal}
               disabled={busy}
-              {...(feedSpace ? { part: 'variations' as const } : {})}
             />
           )}
           {(!feedSpace || videoProtocol) && (

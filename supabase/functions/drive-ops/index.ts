@@ -126,6 +126,7 @@ import {
   assertSpaceCatalogRequest,
   spaceCatalogDeps,
   spaceCatalogRequest,
+  spaceCatalogScheduled,
   spaceCatalogVariations
 } from './catalog-space-source.ts';
 import {
@@ -2918,6 +2919,8 @@ async function createSpaceProductCatalog(
   assertSpaceCatalogRequest(spaceRequest);
   // T096: re-stitched variations are the same feature flag as on Drive.
   const variations = spaceCatalogVariations(spaceRequest);
+  // T102: a link published later is registered by the link; the feed's lane writes it when due.
+  const scheduled = spaceCatalogScheduled(spaceRequest);
   if (
     variations &&
     !nativeRestitchEnabled({
@@ -2938,14 +2941,16 @@ async function createSpaceProductCatalog(
     feeds,
     signal: request.signal,
     log: (message, detail) => console.error(message, detail),
-    variationSet: () => binding.setId
+    variationSet: () => binding.setId,
+    variationLinks: () => binding.videoLinks ?? null,
+    publicationKey: scheduled ? spaceRequest.idempotencyKey : null
   });
   const created = createDurableProductCatalog(
     {
       ...productCatalogDeps(request, configured.caller, configured.service),
       ...overrides,
       ...space,
-      ...(variations
+      ...(variations || scheduled
         ? {
             initialVideoAuthority: spaceCatalogVideoAuthority({
               rpc,

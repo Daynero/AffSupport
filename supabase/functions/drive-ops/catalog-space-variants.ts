@@ -12,6 +12,7 @@ import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
 import type { SpaceCatalogRpc } from './catalog-space-source.ts';
 import {
+  CatalogVideoPreparationPending,
   catalogPlanVideoSets,
   type CatalogInitialVideoAuthority,
   type CatalogInitialVideoPlan,
@@ -36,13 +37,18 @@ import {
  *   set to the catalog and makes the catalog the copies' user; there is no Drive publication to
  *   verify afterwards, so `registerCreated` and the re-verification lane have nothing to do.
  *
- * Only an immediate publication of one video is carried out; a scheduled one and several
- * creatives are refused before anything is admitted.
+ * A link published later (T102) is the same set: the creation waits for every variation as for
+ * one published at once (so the catalog never names a variation that does not exist), then makes
+ * the catalog with empty video cells; the link registers the scheduled policy, and the feed's
+ * publication lane writes these addresses when it is due. Several creatives are refused before
+ * anything is admitted.
  */
 
 export interface SpaceVariantBinding {
   /** The set whose outputs the catalog links, once `prepare` answered ready. */
   setId: string | null;
+  /** T102: the rows' addresses `prepare` proved, kept for a catalog whose cells wait for later. */
+  videoLinks?: readonly string[] | null;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -104,7 +110,8 @@ export function spaceCatalogVideoAuthority(input: {
       return now;
     },
     async prepare({ intentId, plan }) {
-      if (plan.preferences.videoPublication.mode !== 'immediate')
+      const scheduled = plan.preferences.videoPublication.mode === 'scheduled';
+      if (!scheduled && plan.preferences.videoPublication.mode !== 'immediate')
         throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
       if (catalogPlanVideoSets(plan, sourceMaterialId).length > 1)
         throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
@@ -132,8 +139,20 @@ export function spaceCatalogVideoAuthority(input: {
       );
       if (progress.requestedCount !== count)
         throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
-      if (progress.state !== 'ready')
+      if (progress.state !== 'ready') {
+        // T102: a Drive set answers a later link with the catalog at once and its cells filled
+        // when the set is ready; an R2 creation waits for its variations either way.
+        if (scheduled)
+          throw new CatalogVideoPreparationPending({
+            outcome: 'preparing_video',
+            catalogIntentId: intentId,
+            videoSetId: setId,
+            requestedCount: count,
+            registeredCount: progress.registeredCount,
+            state: progress.state
+          });
         return { state: progress.state, registeredCount: progress.registeredCount };
+      }
       const outputs = await rpc('service_space_catalog_variant_outputs', {
         p_team: teamId,
         p_actor: actorId,
@@ -182,6 +201,7 @@ export function spaceCatalogVideoAuthority(input: {
         return urls[index]!;
       });
       binding.setId = setId;
+      binding.videoLinks = videoLinks;
       return { state: 'ready', videoLinks };
     },
     // The link registered the set with the catalog in its own transaction.

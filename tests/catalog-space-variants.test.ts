@@ -4,7 +4,6 @@ import {
   parseCatalogFeedCsv,
   type CatalogFeedStore
 } from '../supabase/functions/_shared/catalog-feed';
-import { TeamFunctionError } from '../supabase/functions/_shared/errors';
 import {
   assertSpaceCatalogRequest,
   spaceCatalogDeps,
@@ -140,7 +139,7 @@ describe('the request of a catalog with variations in an R2 space', () => {
     expect(() => assertSpaceCatalogRequest(request)).not.toThrow();
   });
 
-  it('is refused when its link is scheduled: that has no R2 path yet', () => {
+  it('stays protocol 1 when its link is published later (T102)', () => {
     const scheduled = spaceCatalogRequest(
       parseCreateProductCatalogRequest(
         variations({
@@ -154,8 +153,8 @@ describe('the request of a catalog with variations in an R2 space', () => {
         })
       )
     );
-    expect(spaceCatalogVariations(scheduled)).toBe(false);
-    expect(() => assertSpaceCatalogRequest(scheduled)).toThrow(TeamFunctionError);
+    expect(spaceCatalogVariations(scheduled)).toBe(true);
+    expect(() => assertSpaceCatalogRequest(scheduled)).not.toThrow();
   });
 });
 
@@ -220,19 +219,16 @@ describe('the video authority of an R2 space', () => {
     expect(binding.setId).toBe(p.setId);
   });
 
-  it('refuses an incomplete output list and a scheduled publication', async () => {
+  it('refuses an incomplete output list and a publication mode it does not know', async () => {
     const short = authorityRpc({ state: 'ready', outputs: [{ index: 0, materialId: output(0) }] });
     await expect(
       authority(short.rpc, { setId: null }).prepare({ intentId: INTENT, plan: plan() })
     ).rejects.toMatchObject({ code: 'PROCESS_RESULT_UNCERTAIN' });
-    const scheduled = { ...plan() };
-    scheduled.preferences = {
-      ...scheduled.preferences,
-      videoPublication: { mode: 'scheduled' } as never
-    };
+    const held = { ...plan() };
+    held.preferences = { ...held.preferences, videoPublication: { mode: 'held' } as never };
     const f = authorityRpc();
     await expect(
-      authority(f.rpc, { setId: null }).prepare({ intentId: INTENT, plan: scheduled })
+      authority(f.rpc, { setId: null }).prepare({ intentId: INTENT, plan: held })
     ).rejects.toMatchObject({ code: 'STORAGE_BACKEND_MISMATCH' });
     expect(f.rpc).not.toHaveBeenCalled();
   });

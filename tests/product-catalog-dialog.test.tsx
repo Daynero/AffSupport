@@ -178,7 +178,7 @@ describe('creating a catalog', () => {
     }
   });
 
-  it('in an R2 space offers re-stitched variations published at once, never a later link (057 T099)', async () => {
+  it('in an R2 space offers re-stitched variations, published at once by default (057 T099)', async () => {
     const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
     rememberSpaceBackend(TEAM_ID, 'r2');
     try {
@@ -194,7 +194,7 @@ describe('creating a catalog', () => {
         screen.getByLabelText(/^Link(?: · Required)?$/),
         'https://offer.example.test/'
       );
-      expect(screen.queryByRole('switch', { name: 'Schedule the video link' })).toBeNull();
+      expect(screen.getByRole('switch', { name: 'Schedule the video link' })).toBeTruthy();
       expect(screen.queryByRole('checkbox', { name: /Copy the video to R2/u })).toBeNull();
       await user.click(screen.getByRole('checkbox', { name: 'Re-stitch video' }));
       const variations = await screen.findByLabelText(/^Video variations/u);
@@ -210,6 +210,41 @@ describe('creating a catalog', () => {
         videoVariationCount: 10,
         videoPublication: { mode: 'immediate' }
       });
+      expect(sent).not.toHaveProperty('copyVideoToR2');
+      expect(document.body.textContent ?? '').not.toMatch(/Google/u);
+    } finally {
+      rememberSpaceBackend(TEAM_ID, 'drive');
+    }
+  });
+
+  it('in an R2 space publishes the video link later, without «Google» (057 T101)', async () => {
+    const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
+    rememberSpaceBackend(TEAM_ID, 'r2');
+    try {
+      const createProductCatalogVideo = vi.fn().mockResolvedValue(created);
+      const client = dialogClient({
+        getRestitchDefaults: vi.fn().mockResolvedValue(restitchDefaults),
+        canRestitch: vi.fn().mockResolvedValue('yes'),
+        createProductCatalogVideo
+      } as Partial<DialogClient>);
+      renderDialog(client);
+      const user = userEvent.setup();
+      await user.type(
+        screen.getByLabelText(/^Link(?: · Required)?$/),
+        'https://offer.example.test/'
+      );
+      await user.click(screen.getByRole('switch', { name: 'Schedule the video link' }));
+      await waitFor(() => expect(confirm().disabled).toBe(false));
+      await user.click(confirm());
+      await waitFor(() => expect(createProductCatalogVideo).toHaveBeenCalled());
+      const sent = createProductCatalogVideo.mock.calls[0]![0];
+      expect(sent).toMatchObject({
+        catalogVideoProtocolVersion: 1,
+        restitchEnabled: false,
+        videoVariationCount: 1,
+        videoPublication: { mode: 'scheduled', timeZone: expect.any(String) }
+      });
+      expect(Date.parse(sent.videoPublication.dueAt)).toBeGreaterThan(Date.now());
       expect(sent).not.toHaveProperty('copyVideoToR2');
       expect(document.body.textContent ?? '').not.toMatch(/Google/u);
     } finally {
