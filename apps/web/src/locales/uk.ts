@@ -4526,7 +4526,7 @@ export const uk: Record<keyof typeof en, string> = {
     'Деякі простори ще відкриті лише старим правилом. Підтвердьте, щоб призупинити їх.',
   tariffErrorDateInvalid: 'Дата кінця не може бути в минулому.',
   spaceStorageErrorBackendMismatch:
-    'Цей простір зберігає файли в Soty, а не в Google Drive, тож тут ця дія недоступна.',
+    'Цей простір зберігає файли у сховищі Soty, де ця дія поки недоступна.',
   spaceStorageErrorPilotRequired:
     'Простори зі сховищем Soty — у закритому пілоті. Попросіть адміністратора про доступ.',
   spaceStorageErrorClientUpdate:

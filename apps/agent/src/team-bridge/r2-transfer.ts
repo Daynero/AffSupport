@@ -304,7 +304,9 @@ export class SpaceR2Transfer {
         uploadId,
         ...(request.audioFingerprint && /^[a-f0-9]{64}$/u.test(request.audioFingerprint)
           ? { audioFingerprint: request.audioFingerprint }
-          : {})
+          : {}),
+        // 071 on R2: a background re-stitch's finding, bound to the content id it read.
+        ...(request.restitchPrep ? { restitchPrep: request.restitchPrep } : {})
       },
       signal
     );

@@ -484,7 +484,8 @@ async function copyOne(
       const identity = await catalogPublicationSourceIdentity(
         {
           materialId: claim.sourceMaterialId,
-          connectionId: claim.connectionId,
+          // Only a Drive claim reaches here: a space claim has its source MD5 by now.
+          connectionId: claim.connectionId!,
           fileId: claim.fileId,
           checksum: metadata.checksum,
           mimeType: metadata.mimeType,

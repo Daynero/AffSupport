@@ -3907,3 +3907,12 @@ predicate in the private claim to `catalog_connection_usable`, the `has_work` te
 the trigger, the queue and the new functions. Space-sourced copies then fail as
 `VIDEO_R2_SOURCE_UNAVAILABLE`, feed catalogs are no longer claimed by the updater, and queued feed
 CSVs stay in the public bucket until removed by hand (`feeds/{feed_id}.csv`).
+
+## 20261226220000 — 057 what a finished run in an R2 space leaves
+
+Adds the service-only `service_commit_space_transcript` (an R2 transcript only, while its object
+still holds the named content id) and patches `service_record_material_restitch_prep` to read the
+source's bytes identity as `coalesce(drive_version, content_id of its committed object)`; for a
+Drive material that is its Drive version, exactly as before. Undo by dropping the new function and
+re-running the recorder's definition from 20261224300000. R2 transcription results then keep no
+text for search, and R2 re-stitch findings are no longer kept (each answers false as before).

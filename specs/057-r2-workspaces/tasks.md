@@ -295,6 +295,18 @@
   - результат фіксується як матеріал з `processed_from` і категорією `process`;
   - `quiesced` і повтор фіналізації ідемпотентні.
 - [x] T035 [US1] Маршрути `/process/start`, `/process/output/finalize`, `/process/output/quiesced` у `supabase/functions/space-storage/process.ts`. Поведінка — як `handleProcessStart` (`supabase/functions/drive-ops/index.ts:2106`), `handleProcessOutputFinalize` (:2471), `handleProcessOutputQuiesced` (:2315). Чисті перевірки взяти з `supabase/functions/drive-ops/handler.ts`, не копіювати. Веб `apps/web/src/api/client.ts` (:704, :1044) передає агенту R2-гранти. Тест: T034.
+
+  **Доповнення 2026-11-28 (відкладене з T035):** після фіналізації R2-запуску, як на Drive:
+  текст транскрипту читається з bucket (≤1 МіБ + 4 Б) і зберігається для пошуку через
+  `service_commit_space_transcript` — лише поки файл тримає той самий `content_id`
+  (`transcript_source_version` лишається null через `team_materials_transcript_identity_check`);
+  знахідка перезашивки (`restitchPrep`, агент шле її і в R2-фіналізацію) пишеться в
+  `service_record_material_restitch_prep` проти `content_id` джерела (для Drive — `drive_version`,
+  як було). Міграція `20261226220000_space_storage_run_results.sql`, тести
+  `tests/space-storage-process.test.ts`, `tests/agent-r2-transfer.test.ts`,
+  `supabase/tests/database/space-storage-run-results.test.sql`. Запуск поверх оригіналу
+  (`versionOfMaterialId`) і далі відмовляє — тепер кодом `STORAGE_BACKEND_MISMATCH` з поясненням у
+  вебі (текст без «Google»).
 - [x] T036 [P] [US1] Тест для T037 — `tests/catalog-feed-writer.test.ts`:
   - CSV байт у байт: заголовок `PRODUCT_CATALOG_TEMPLATE`, рядки з `buildProductCatalogRows`;
   - `text/csv; charset=utf-8`;

@@ -4551,7 +4551,7 @@ export const en = {
     'Some spaces are still open only by the old rule. Confirm to pause them.',
   tariffErrorDateInvalid: 'The end date cannot be in the past.',
   spaceStorageErrorBackendMismatch:
-    'This space keeps its files in Soty, not in Google Drive, so this action is not available here.',
+    'This space keeps its files in Soty storage, where this action is not available yet.',
   spaceStorageErrorPilotRequired:
     'Spaces on Soty storage are in a closed pilot. Ask the administrator for access.',
   spaceStorageErrorClientUpdate:

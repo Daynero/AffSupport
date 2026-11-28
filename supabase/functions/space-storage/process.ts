@@ -22,21 +22,31 @@
  * - quiesced: the agent settled without a result; an open output session is aborted and its
  *   reservation released.
  *
- * Not on R2 yet, refused at start: a new version of the source (versions are refused on R2 for
- * now), catalog variants (their own route, T041) and the retired translation.
+ * After finalize, as on Drive: a transcription's text is read back from the bucket and kept for
+ * search (`service_commit_space_transcript`), and a re-stitch's finding about its source is
+ * recorded against the source's content id (`service_record_material_restitch_prep`). Both are
+ * best-effort: the result is committed either way.
+ *
+ * Not on R2 yet, refused at start: a run over its own source (a new version — R2 spaces have no
+ * versions yet, STORAGE_BACKEND_MISMATCH), catalog variants (their own route, T041) and the
+ * retired translation.
  */
 // @deno-types="../../../packages/shared/dist/team/contract.d.ts"
 import {
   AGENT_INTAKE_MAX_BYTES,
   OPERATION_GRANT_TTL_SECONDS,
-  RANGE_REQUEST_MAX_BYTES
+  RANGE_REQUEST_MAX_BYTES,
+  TRANSCRIPT_INDEX_MAX_BYTES
 } from '../../../packages/shared/dist/team/contract.js';
+// @deno-types="../../../packages/shared/dist/team/transcript.d.ts"
+import { ingestTranscript } from '../../../packages/shared/dist/team/transcript.js';
 // @deno-types="../../../packages/shared/dist/team/space-storage.d.ts"
 import {
   isSpaceContentId,
   isSpaceUuid,
   parseByteCount,
   spaceFilesUrl,
+  spaceObjectKey,
   SPACE_STORAGE_LIMITS
 } from '../../../packages/shared/dist/team/space-storage.js';
 import { TeamFunctionError } from '../_shared/errors.ts';
@@ -76,7 +86,17 @@ export interface ProcessDeps {
   /** The signed-in member for `/process/start`; null on the agent's ticketed routes. */
   actorId: string | null;
   rpc: Rpc;
-  bucket: SpaceUploadBucket | null;
+  /** `rangeGet` reads a transcription's text back after finalize (the bucket's, `r2-space.ts`). */
+  bucket:
+    | (SpaceUploadBucket & {
+        rangeGet?(
+          key: string,
+          start: number,
+          end: number,
+          signal: AbortSignal
+        ): Promise<Uint8Array>;
+      })
+    | null;
   readGrant: SpaceReadGrantConfig | null;
   journal: (entry: SpaceStorageJournalEntry) => Promise<unknown>;
   operationId: string;
@@ -140,6 +160,10 @@ export interface ProcessStartCommand {
 export function parseProcessStartCommand(body: unknown): ProcessStartCommand {
   if (!isRecord(body)) return refuse('INVALID_INPUT');
   if (body.toolId === 'translation') return refuse('FEATURE_RETIRED');
+  // No versions in an R2 space yet: a run over its own source is refused with a code the web
+  // explains, never turned into a copy.
+  if (body.versionOfMaterialId !== undefined && body.versionOfMaterialId !== null)
+    return refuse('STORAGE_BACKEND_MISMATCH');
   const destination = body.destinationFolderId;
   if (
     !isSpaceUuid(body.teamId) ||
@@ -154,8 +178,6 @@ export function parseProcessStartCommand(body: unknown): ProcessStartCommand {
     body.idempotencyKey.startsWith('catalog-variant:') ||
     typeof body.toolId !== 'string' ||
     !Object.hasOwn(PROCESS_TOOL_RULES, body.toolId) ||
-    // No versions in an R2 space yet: an overwrite run is refused, not turned into a copy.
-    (body.versionOfMaterialId !== undefined && body.versionOfMaterialId !== null) ||
     (body.conflictMode !== 'cancel' && body.conflictMode !== 'keep_both') ||
     !Number.isSafeInteger(body.agentContractVersion) ||
     (body.agentContractVersion as number) < 1 ||
@@ -783,6 +805,13 @@ export async function finalizeProcessOutput(
     throw cause;
   }
   const finalized = await finalize();
+  // As on Drive, the text first, then the companion link; both best-effort.
+  if (!finalized.reused && operation.toolId === 'transcription')
+    await ingestSpaceTranscript(deps, {
+      teamId: grant.teamId,
+      actorId: grant.actorId,
+      materialId: finalized.materialId
+    }).catch(() => undefined);
   // 012: a transcription is its video's transcript companion. Best-effort, as on Drive: the
   // text file is committed either way. The fingerprint comes only from this ticketed path.
   if (!finalized.reused && operation.toolId === 'transcription' && operation.sourceMaterialId) {
@@ -798,7 +827,71 @@ export async function finalizeProcessOutput(
       p_text: null
     }).catch(() => undefined);
   }
+  // 071: a re-stitch that read its source reports what it found; kept only for the run's own
+  // source at the bytes the agent read (its content id). Never a reason to fail the run.
+  if (isRecord(body.restitchPrep) && operation.toolId === 'restitch')
+    await call(deps.rpc, 'service_record_material_restitch_prep', {
+      p_operation: operation.operationId,
+      p_prep: body.restitchPrep
+    }).catch(() => undefined);
   return finalized;
+}
+
+/**
+ * The text of a transcription result, kept on its material for search (Drive:
+ * `cacheGeneratedTextResult`). Reads at most the index limit plus a few bytes, so a longer file
+ * is recorded as truncated; any failure is recorded as `unavailable` with its code.
+ */
+export async function ingestSpaceTranscript(
+  deps: Pick<ProcessDeps, 'rpc' | 'bucket' | 'signal'>,
+  input: { teamId: string; actorId: string; materialId: string }
+): Promise<void> {
+  const { materials } = await readMaterials(
+    { teamId: input.teamId, materialIds: [input.materialId] },
+    { actorId: input.actorId, rpc: deps.rpc }
+  );
+  const material = materials.find(item => item.id === input.materialId);
+  if (!material || material.kind !== 'file' || !isSpaceContentId(material.contentId)) return;
+  const totalBytes = Number(parseByteCount(material.sizeBytes) ?? -1n);
+  const dot = material.name.lastIndexOf('.');
+  const extension = dot > 0 ? material.name.slice(dot + 1).toLowerCase() : null;
+  let state: 'full' | 'truncated' | 'invalid_encoding' | 'unavailable' = 'unavailable';
+  let text: string | null = null;
+  let indexedBytes = 0;
+  let errorCode: string | null = null;
+  try {
+    if (!Number.isSafeInteger(totalBytes) || totalBytes < 0 || !deps.bucket?.rangeGet)
+      throw new TeamFunctionError('STORAGE_UNAVAILABLE');
+    const readBytes = Math.min(totalBytes, TRANSCRIPT_INDEX_MAX_BYTES + 4);
+    const bytes =
+      readBytes === 0
+        ? new Uint8Array(0)
+        : await deps.bucket.rangeGet(
+            spaceObjectKey(input.teamId, material.contentId),
+            0,
+            readBytes - 1,
+            deps.signal ?? new AbortController().signal
+          );
+    const ingested = ingestTranscript(bytes, { extension, totalBytes });
+    state =
+      ingested.state === 'not_applicable' || ingested.state === 'pending'
+        ? 'unavailable'
+        : ingested.state;
+    text = ingested.text;
+    indexedBytes = ingested.indexedBytes;
+    errorCode = ingested.errorCode;
+  } catch (cause) {
+    errorCode = cause instanceof TeamFunctionError ? cause.code : 'STORAGE_UNAVAILABLE';
+  }
+  await call(deps.rpc, 'service_commit_space_transcript', {
+    p_material: input.materialId,
+    p_content_id: material.contentId,
+    p_expected_extension: extension,
+    p_state: state,
+    p_text: text,
+    p_indexed_bytes: indexedBytes,
+    p_error_code: errorCode
+  });
 }
 
 /** The agent settled without a result: an output session still open is closed. Repeatable. */

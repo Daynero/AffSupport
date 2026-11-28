@@ -228,6 +228,38 @@ describe('agent R2 output upload (057 T033)', () => {
     expect(cloud.state.finalizes[0]).toMatchObject({ operationId: OPERATION, uploadId: UPLOAD });
   });
 
+  it('hands a re-stitch finding to the finalize, and nothing when there is none', async () => {
+    const prep = {
+      detectorVersion: 3,
+      detectedStartSeconds: 0,
+      detectedEndSeconds: 8,
+      profile: { width: 720 },
+      driveVersion: 'c'.repeat(64)
+    };
+    const cloud = fakeCloud();
+    const transfer = new SpaceR2Transfer({
+      fetchImpl: cloud.fetchImpl,
+      temporaryRoot: root,
+      journalRoot: path.join(root, 'journal-prep'),
+      threadBudget: () => null,
+      retryDelayMs: 0
+    });
+    await transfer.uploadResult(
+      { ...uploadRequest(), restitchPrep: prep } as Parameters<typeof transfer.uploadResult>[0],
+      new AbortController().signal
+    );
+    expect(cloud.state.finalizes[0]).toMatchObject({ restitchPrep: prep });
+    const plain = fakeCloud();
+    await new SpaceR2Transfer({
+      fetchImpl: plain.fetchImpl,
+      temporaryRoot: root,
+      journalRoot: path.join(root, 'journal-plain'),
+      threadBudget: () => null,
+      retryDelayMs: 0
+    }).uploadResult(uploadRequest(), new AbortController().signal);
+    expect(plain.state.finalizes[0]).not.toHaveProperty('restitchPrep');
+  });
+
   it('runs one part at a time when the power governor allows one thread', async () => {
     const cloud = fakeCloud();
     const transfer = new SpaceR2Transfer({

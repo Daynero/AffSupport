@@ -58,6 +58,8 @@ function fakeWorld(options: { tool?: string; childNames?: string[]; category?: s
     transitions: [] as Record<string, unknown>[],
     finalizes: 0,
     links: [] as Record<string, unknown>[],
+    transcripts: [] as Record<string, unknown>[],
+    preps: [] as Record<string, unknown>[],
     grantValid: true,
     admitted: [] as Record<string, unknown>[]
   };
@@ -165,7 +167,22 @@ function fakeWorld(options: { tool?: string; childNames?: string[]; category?: s
           }
         ];
       case 'service_read_space_materials':
+        if ((args.p_ids as string[]).includes(OUTPUT) && state.upload)
+          return [
+            snapshot(
+              OUTPUT,
+              state.upload.contentId,
+              BYTES.length,
+              options.tool === 'transcription' ? 'Clip.txt' : 'Clip-compressed.mp4'
+            )
+          ];
         return [snapshot(SOURCE, SOURCE_CONTENT, 400, 'Clip.mp4')];
+      case 'service_commit_space_transcript':
+        state.transcripts.push(args);
+        return true;
+      case 'service_record_material_restitch_prep':
+        state.preps.push(args);
+        return true;
       case 'service_admit_space_upload': {
         state.admitted.push(args.p_input as Record<string, unknown>);
         const input = args.p_input as Record<string, unknown>;
@@ -362,8 +379,9 @@ describe('space-storage /process/start (057 T035)', () => {
   });
 
   it('refuses what an R2 space cannot do yet, before anything is opened', async () => {
+    // A run over its own source would be a new version; R2 spaces have none yet.
     expect(() => parseProcessStartCommand({ ...startBody, versionOfMaterialId: SOURCE })).toThrow(
-      'INVALID_INPUT'
+      'STORAGE_BACKEND_MISMATCH'
     );
     expect(() =>
       parseProcessStartCommand({ ...startBody, idempotencyKey: 'catalog-variant:abc-123' })
@@ -610,5 +628,138 @@ describe('space-storage /process/output (057 T035)', () => {
       { acknowledged: true }
     );
     expect(calls.filter(call => call === 'abort')).toHaveLength(1);
+  });
+});
+
+describe('space-storage what a finished run leaves (057, deferred from T035)', () => {
+  async function finishRun(tool: string, extra: Record<string, unknown> = {}, text = BYTES) {
+    const world = fakeWorld({ tool });
+    const contentId = await outputContentId();
+    const { bucket } = fakeBucket(() => [{ partNumber: 1, etag: PART_MD5, bytes: BYTES.length }]);
+    const reads: string[] = [];
+    const reading = Object.assign(bucket, {
+      rangeGet: vi.fn(async (key: string, start: number, end: number) => {
+        reads.push(`${key} ${start}-${end}`);
+        return text.slice(start, end + 1);
+      })
+    });
+    const d = await deps(world.rpc, reading, null);
+    await startProcessOutput(
+      {
+        operationId: OPERATION,
+        ticket: TICKET,
+        bytes: BYTES.length,
+        contentId,
+        contentType: 'text/plain',
+        outputUploadProtocolVersion: 3
+      },
+      d
+    );
+    const done = await finalizeProcessOutput(
+      { operationId: OPERATION, ticket: TICKET, uploadId: UPLOAD, ...extra },
+      d
+    );
+    return { world, reads, contentId, done, d };
+  }
+
+  it('keeps a transcription text for search, bound to its content id, before linking it', async () => {
+    const { world, reads, contentId } = await finishRun('transcription');
+    expect(reads).toEqual([`t/${TEAM}/o/${contentId} 0-${BYTES.length - 1}`]);
+    expect(world.state.transcripts).toEqual([
+      {
+        p_material: OUTPUT,
+        p_content_id: contentId,
+        p_expected_extension: 'txt',
+        p_state: 'full',
+        p_text: 'compressed',
+        p_indexed_bytes: BYTES.length,
+        p_error_code: null
+      }
+    ]);
+    const order = world.rpc.mock.calls.map(([name]) => name);
+    expect(order.indexOf('service_commit_space_transcript')).toBeLessThan(
+      order.indexOf('service_link_transcript_companion')
+    );
+  });
+
+  it('records an unreadable transcription as unavailable, and never fails the run', async () => {
+    const world = fakeWorld({ tool: 'transcription' });
+    const contentId = await outputContentId();
+    const { bucket } = fakeBucket(() => [{ partNumber: 1, etag: PART_MD5, bytes: BYTES.length }]);
+    const d = await deps(
+      world.rpc,
+      Object.assign(bucket, {
+        rangeGet: vi.fn(async () => {
+          throw new TeamFunctionError('STORAGE_UNAVAILABLE');
+        })
+      }),
+      null
+    );
+    await startProcessOutput(
+      {
+        operationId: OPERATION,
+        ticket: TICKET,
+        bytes: BYTES.length,
+        contentId,
+        contentType: 'text/plain',
+        outputUploadProtocolVersion: 3
+      },
+      d
+    );
+    await expect(
+      finalizeProcessOutput({ operationId: OPERATION, ticket: TICKET, uploadId: UPLOAD }, d)
+    ).resolves.toMatchObject({ state: 'succeeded', materialId: OUTPUT });
+    expect(world.state.transcripts).toMatchObject([
+      { p_state: 'unavailable', p_text: null, p_error_code: 'STORAGE_UNAVAILABLE' }
+    ]);
+  });
+
+  it('does not read a transcript for any other tool', async () => {
+    const { world, reads } = await finishRun('compressor');
+    expect(reads).toEqual([]);
+    expect(world.state.transcripts).toEqual([]);
+  });
+
+  it('records a re-stitch finding for the run, and only for a re-stitch', async () => {
+    const prep = {
+      detectorVersion: 3,
+      detectedStartSeconds: 0.5,
+      detectedEndSeconds: 9,
+      profile: { width: 1080 },
+      driveVersion: SOURCE_CONTENT
+    };
+    const restitch = await finishRun('restitch', { restitchPrep: prep });
+    expect(restitch.world.state.preps).toEqual([{ p_operation: OPERATION, p_prep: prep }]);
+    const other = await finishRun('compressor', { restitchPrep: prep });
+    expect(other.world.state.preps).toEqual([]);
+  });
+
+  it('keeps the run succeeded when the prep record is refused', async () => {
+    const world = fakeWorld({ tool: 'restitch' });
+    const inner = world.rpc.getMockImplementation()!;
+    world.rpc.mockImplementation(async (name, args) => {
+      if (name === 'service_record_material_restitch_prep') throw { message: 'INVALID_INPUT' };
+      return inner(name, args);
+    });
+    const contentId = await outputContentId();
+    const { bucket } = fakeBucket(() => [{ partNumber: 1, etag: PART_MD5, bytes: BYTES.length }]);
+    const d = await deps(world.rpc, bucket, null);
+    await startProcessOutput(
+      {
+        operationId: OPERATION,
+        ticket: TICKET,
+        bytes: BYTES.length,
+        contentId,
+        contentType: 'video/mp4',
+        outputUploadProtocolVersion: 3
+      },
+      d
+    );
+    await expect(
+      finalizeProcessOutput(
+        { operationId: OPERATION, ticket: TICKET, uploadId: UPLOAD, restitchPrep: {} },
+        d
+      )
+    ).resolves.toMatchObject({ state: 'succeeded' });
   });
 });
