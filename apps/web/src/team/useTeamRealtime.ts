@@ -4,6 +4,7 @@ import { realtimeTopic } from '../lib/realtimeTopic';
 import { useEffect, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabaseClient } from '../lib/supabase';
+import { parseSpaceStorageSignal, publishSpaceStorageSignal } from './storage/spaceSignals';
 
 export type TeamRealtimeDomain =
   | 'catalog'
@@ -23,8 +24,13 @@ export function useTeamRealtime(input: {
   onRefetch: (domains?: readonly TeamRealtimeDomain[]) => void | Promise<void>;
   enabled?: boolean;
   retryNonce?: number;
+  /**
+   * 057: the space keeps its files on R2, so its changes also arrive as
+   * `team_space_storage_signals` on this same channel. A Drive space never subscribes.
+   */
+  r2?: boolean;
 }): TeamRealtimeState {
-  const { teamId, onRefetch, enabled = true, retryNonce = 0 } = input;
+  const { teamId, onRefetch, enabled = true, retryNonce = 0, r2 = false } = input;
   const [state, setState] = useState<TeamRealtimeState>(
     enabled && teamId ? 'connecting' : 'disabled'
   );
@@ -96,7 +102,7 @@ export function useTeamRealtime(input: {
       else domain.forEach(value => domains.add(value));
       if (!refreshing) schedule();
     };
-    const channel: RealtimeChannel = supabase
+    const workspace: RealtimeChannel = supabase
       .channel(realtimeTopic(`team-workspace:${teamId}`))
       .on(
         'postgres_changes',
@@ -210,20 +216,42 @@ export function useTeamRealtime(input: {
           urgentDirty = true;
           if (!refreshing) schedule(true);
         }
-      )
-      .subscribe(status => {
-        if (!active) return;
-        if (status === 'SUBSCRIBED') {
-          subscribed = true;
-          refetch();
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          subscribed = false;
-          setState('reconnecting');
-        } else if (status === 'CLOSED') {
-          subscribed = false;
-          setState('reconnecting');
-        }
-      });
+      );
+    /*
+     * 057 (R7): an R2 space's own change feed. A signal names the folder it touched, so it goes
+     * straight to the screens showing that folder (`spaceSignals`) instead of through the broad
+     * catalog read above; a dropped connection is still covered by the full read on SUBSCRIBED.
+     */
+    const channel: RealtimeChannel = (
+      r2
+        ? workspace.on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'team_space_storage_signals',
+              filter: `team_id=eq.${teamId}`
+            },
+            payload => {
+              if (!active) return;
+              const signal = parseSpaceStorageSignal(payload?.new);
+              if (signal && signal.teamId === teamId) publishSpaceStorageSignal(signal);
+            }
+          )
+        : workspace
+    ).subscribe(status => {
+      if (!active) return;
+      if (status === 'SUBSCRIBED') {
+        subscribed = true;
+        refetch();
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        subscribed = false;
+        setState('reconnecting');
+      } else if (status === 'CLOSED') {
+        subscribed = false;
+        setState('reconnecting');
+      }
+    });
 
     const onVisibility = () => {
       if (document.visibilityState === 'visible') refetch();
@@ -239,7 +267,7 @@ export function useTeamRealtime(input: {
       }
       void supabase.removeChannel(channel);
     };
-  }, [enabled, onRefetch, retryNonce, teamId]);
+  }, [enabled, onRefetch, retryNonce, teamId, r2]);
 
   return state;
 }

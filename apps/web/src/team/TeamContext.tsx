@@ -24,6 +24,8 @@ import {
 } from './useTeamRealtime';
 import { CatalogFreshness, CatalogFreshnessContext } from './catalog/CatalogFreshness';
 import { useWakeCatalogSync } from './useWakeCatalogSync';
+import { retainSpaceCache } from './storage/spaceCache';
+import { spaceOnR2 } from './storage/spaceSignals';
 
 const ACTIVE_TEAM_STORAGE_KEY = 'wishly.active-team.v1';
 
@@ -146,6 +148,18 @@ export function TeamProvider({
       if (privateCacheEpoch() === epoch) setPrivateCacheScope(null, '');
     };
   }, [actor, privateAccessScope]);
+  /*
+   * 057 (FR-037): once the server has said which spaces this account sees, the cache of any
+   * other space — and of any other account — goes. Only a confirmed list counts: an empty list
+   * while it is still loading, or after a failed read, says nothing about access.
+   */
+  useEffect(() => {
+    if (!actor || !client || loadingTeams || error) return;
+    void retainSpaceCache(
+      actor,
+      teams.filter(team => team.permissions.view).map(team => team.id)
+    );
+  }, [actor, client, loadingTeams, error, teams]);
   const catalogFreshness = useMemo(() => new CatalogFreshness(), []);
   const catalogRevision = useSyncExternalStore(
     catalogFreshness.subscribe,
@@ -314,14 +328,17 @@ export function TeamProvider({
    * when the address leaves it; which space to reopen is remembered, and `/team` walks back in.
    */
   const insideSpace = useBrowserRoute().startsWith('/team');
+  // 057: an R2 space has no Drive feed to wake; its changes arrive as signals (FR-040).
+  const activeOnR2 = spaceOnR2(activeTeam?.id, activeTeam);
   const channelState = useTeamRealtime({
     teamId: insideSpace ? (activeTeam?.id ?? null) : null,
     onRefetch: handleRealtimeRefetch,
     retryNonce: realtimeRetryNonce,
-    enabled: realtime && insideSpace
+    enabled: realtime && insideSpace,
+    r2: activeOnR2
   });
   // An open space keeps its Drive feed on the 1-minute cadence (perf 1.4.3).
-  useWakeCatalogSync(realtime && insideSpace ? (activeTeam?.id ?? null) : null);
+  useWakeCatalogSync(realtime && insideSpace && !activeOnR2 ? (activeTeam?.id ?? null) : null);
   const realtimeState = useMemo(
     () =>
       channelState === 'connected' && activeTeam && !catalogFreshness.isFresh(activeTeam.id)

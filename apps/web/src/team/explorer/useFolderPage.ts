@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { settleRead, type ReadResult } from './readSettle';
 import { useOptionalTeam } from '../TeamContext';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { createReadCoordinator, withReadDeadline } from '../readCoordinator';
 import { isHousekeepingFile } from '../catalog/housekeeping';
 import { useCatalogRead } from '../catalog/CatalogFreshness';
+import { isTeamMaterialRow } from '@video-compressor/shared';
 import type {
   FolderPage,
   FolderPageCursor,
   TeamMaterialRow,
   TeamMaterialRowKind
 } from '@video-compressor/shared';
+import { rememberSpaceMaterials, spaceRootOf } from '../../api/space-storage';
+import { readSpaceCache, writeSpaceCache, type SpaceCacheAddress } from '../storage/spaceCache';
+import { spaceOnR2, useSpaceStorageSignals } from '../storage/spaceSignals';
 
 /**
  * One folder's rows, a page at a time, from the index (011, FR-009/FR-010).
@@ -77,6 +81,49 @@ function remember(client: object, scopeKey: string, folder: RememberedFolder | n
   if (folders.size > REMEMBERED_FOLDERS) folders.delete(folders.keys().next().value as string);
 }
 
+/**
+ * 057 (FR-037): an R2 folder's first page as IndexedDB keeps it between visits. Only a window
+ * of exactly one page is written, so the cursor it carries is the one that page ends on.
+ */
+interface CachedFolderPage {
+  rows: TeamMaterialRow[];
+  total: number | null;
+  next: FolderPageCursor | null;
+  hidden: number;
+}
+
+function parseCachedFolderPage(value: unknown): CachedFolderPage | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const page = value as Record<string, unknown>;
+  const next = page.next as Record<string, unknown> | null | undefined;
+  if (
+    !Array.isArray(page.rows) ||
+    page.rows.length === 0 ||
+    !page.rows.every(isTeamMaterialRow) ||
+    !(page.total === null || (typeof page.total === 'number' && page.total >= 0)) ||
+    typeof page.hidden !== 'number' ||
+    !(
+      next === null ||
+      (typeof next === 'object' && typeof next.sortKey === 'string' && typeof next.id === 'string')
+    )
+  )
+    return null;
+  return value as CachedFolderPage;
+}
+
+/** Whether a signal about `folderId` concerns the folder this page lists. */
+function signalTouches(
+  teamId: string,
+  parentFolderId: string | null,
+  folderId: string | null
+): boolean {
+  if (folderId === null || folderId === parentFolderId) return true;
+  if (parentFolderId !== null) return false;
+  // The root is listed as null; the server names it by its material id, once this client knows it.
+  const root = spaceRootOf(teamId);
+  return root === null || root === folderId;
+}
+
 export interface FolderPageState {
   rows: TeamMaterialRow[];
   total: number | null;
@@ -126,6 +173,17 @@ export function useFolderPage(input: {
   ]);
   const activeScope = useRef(scopeKey);
   activeScope.current = scopeKey;
+  /* 057: only an R2 space is cached between visits and follows storage signals; a Drive
+     space takes none of the paths below that depend on it. */
+  const onR2 = spaceOnR2(
+    teamId,
+    access?.teams?.find(team => team.id === teamId) ?? access?.activeTeam ?? null
+  );
+  const cacheScope = JSON.stringify([parentFolderId, kindsKey]);
+  const cacheAddress = useMemo<SpaceCacheAddress | null>(
+    () => (onR2 && actor ? { actorId: actor, teamId, kind: 'page', scope: cacheScope } : null),
+    [onR2, actor, teamId, cacheScope]
+  );
   const beginRead = useCatalogRead(teamId);
   const [rows, setRows] = useState<TeamMaterialRow[]>([]);
   const rowsRef = useRef(rows);
@@ -155,6 +213,8 @@ export function useFolderPage(input: {
   const hiddenSoFar = useRef(0);
   /** The rows on show are remembered ones, not yet confirmed by a read of this visit. */
   const fromMemory = useRef(false);
+  /** The scope a read last answered for: a cached page arriving later must not cover it. */
+  const answeredScope = useRef<string | null>(null);
 
   const fetchPage = useCallback(
     async (after: FolderPageCursor | null, replace: boolean, reportFailure = false) => {
@@ -194,6 +254,7 @@ export function useFolderPage(input: {
         setTotal(Math.max(0, page.total - hiddenSoFar.current));
         setNext(page.next);
         setDataScope(scopeKey);
+        answeredScope.current = scopeKey;
         if (!replace) loadedPages.current += 1;
         setError(false);
         read.succeed();
@@ -275,6 +336,7 @@ export function useFolderPage(input: {
               }
               fromMemory.current = false;
               setDataScope(scopeKey);
+              answeredScope.current = scopeKey;
               setError(false);
               read.succeed();
               return 'ok';
@@ -362,12 +424,31 @@ export function useFolderPage(input: {
       setDataScope(scopeKey);
       setError(false);
     }
+    /* 057: a warm open of an R2 folder this session has not read yet paints what IndexedDB
+       kept, unless the read below has already answered; that read then replaces it. */
+    let current = true;
+    if (!seen && cacheAddress) {
+      void readSpaceCache(cacheAddress, parseCachedFolderPage).then(cached => {
+        if (!cached || !current || activeScope.current !== scopeKey) return;
+        if (answeredScope.current === scopeKey) return;
+        rememberSpaceMaterials(teamId, cached.rows);
+        setRows(cached.rows);
+        setTotal(cached.total);
+        setNext(cached.next);
+        loadedPages.current = 1;
+        hiddenSoFar.current = cached.hidden;
+        fromMemory.current = true;
+        setDataScope(scopeKey);
+        setError(false);
+      });
+    }
     const visible = () => {
       if (document.visibilityState !== 'hidden') void refreshWindow();
     };
     if (document.visibilityState !== 'hidden') void refreshWindow();
     document.addEventListener('visibilitychange', visible);
     return () => {
+      current = false;
       document.removeEventListener('visibilitychange', visible);
       owner.stop();
       if (coordinator.current === owner) coordinator.current = null;
@@ -376,7 +457,7 @@ export function useFolderPage(input: {
       for (const controller of controllers.current) controller.abort();
       controllers.current.clear();
     };
-  }, [performRefresh, refreshWindow, client, scopeKey]);
+  }, [performRefresh, refreshWindow, client, scopeKey, cacheAddress, teamId]);
 
   // What a completed read shows is what the folder is remembered as.
   useEffect(() => {
@@ -388,7 +469,20 @@ export function useFolderPage(input: {
         ? { rows, total, next, hidden: hiddenSoFar.current, pages: loadedPages.current }
         : null
     );
-  }, [client, scopeKey, dataScope, loading, error, rows, total, next]);
+    // 057: and, for an R2 space, what the next visit opens on — the first page only.
+    if (cacheAddress && !fromMemory.current && loadedPages.current === 1)
+      writeSpaceCache(
+        cacheAddress,
+        rows.length > 0 ? { rows, total, next, hidden: hiddenSoFar.current } : null
+      );
+  }, [client, scopeKey, dataScope, loading, error, rows, total, next, cacheAddress]);
+
+  /* 057 (R7): a signal about this folder, or about the space as a whole, re-reads it in place.
+     The rows stay on screen until the new answer replaces them. */
+  useSpaceStorageSignals(teamId, onR2, signal => {
+    if (signal.kind === 'usage' || document.visibilityState === 'hidden') return;
+    if (signalTouches(teamId, parentFolderId, signal.folderId)) void refreshWindow();
+  });
 
   useEffect(() => {
     if (revision === 0 || document.visibilityState === 'hidden') return;

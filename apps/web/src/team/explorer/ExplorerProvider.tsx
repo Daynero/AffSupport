@@ -8,11 +8,16 @@ import {
   useState,
   type ReactNode
 } from 'react';
+import { isTeamFolderNode } from '@video-compressor/shared';
 import type { TeamFolderNode, TeamMaterialRow } from '@video-compressor/shared';
 import { trackTeamIndexCompleted } from '../../analytics/service';
 import { compareNames } from './sort';
 import { useCatalogRead } from '../catalog/CatalogFreshness';
 import { settleRead, type ReadResult } from './readSettle';
+import { useOptionalAuth } from '../../auth/AuthContext';
+import { useOptionalTeam } from '../TeamContext';
+import { readSpaceCache, writeSpaceCache, type SpaceCacheAddress } from '../storage/spaceCache';
+import { spaceOnR2, useSpaceStorageSignals } from '../storage/spaceSignals';
 
 /**
  * The explorer's shared state (011): the one-call folder tree, the open
@@ -59,6 +64,11 @@ const ExplorerContext = createContext<ExplorerContextValue | null>(null);
 
 const REFRESH_DEBOUNCE_MS = 500;
 
+/** 057: the tree of an R2 space as IndexedDB keeps it; a record of another shape is not used. */
+function parseCachedTree(value: unknown): TeamFolderNode[] | null {
+  return Array.isArray(value) && value.every(isTeamFolderNode) ? value : null;
+}
+
 export function ExplorerProvider({
   teamId,
   client,
@@ -77,6 +87,20 @@ export function ExplorerProvider({
   children: ReactNode;
 }) {
   const beginRead = useCatalogRead(teamId);
+  /* 057 (FR-037): an R2 space's tree, with the counters on it, opens from IndexedDB and is
+     read again underneath; its signals re-read it. A Drive space takes neither path. */
+  const actor = useOptionalAuth()?.user?.id ?? null;
+  const team = useOptionalTeam();
+  const onR2 = spaceOnR2(
+    teamId,
+    team?.teams?.find(space => space.id === teamId) ?? team?.activeTeam ?? null
+  );
+  const cacheAddress = useMemo<SpaceCacheAddress | null>(
+    () => (onR2 && actor ? { actorId: actor, teamId, kind: 'tree', scope: '' } : null),
+    [onR2, actor, teamId]
+  );
+  const cacheAddressRef = useRef(cacheAddress);
+  cacheAddressRef.current = cacheAddress;
   const [nodes, setNodes] = useState<TeamFolderNode[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -107,6 +131,7 @@ export function ExplorerProvider({
           // The server orders by byte, the list beside the tree by the reader's language: in
           // Ukrainian "Вставки" came first in the list and last in the tree.
           setNodes([...value].sort((a, b) => compareNames(a.name, b.name)));
+          if (cacheAddressRef.current) writeSpaceCache(cacheAddressRef.current, value);
           setError(false);
           status.succeed();
           // FR-035: the moment every folder is listed, once per indexing run.
@@ -146,12 +171,32 @@ export function ExplorerProvider({
   useEffect(() => {
     activeRef.current = true;
     setNodes(null);
+    const sequence = readSequence.current + 1;
     void read();
+    // 057: a warm open paints the kept tree unless the read has already answered.
+    const address = cacheAddressRef.current;
+    if (address)
+      void readSpaceCache(address, parseCachedTree).then(cached => {
+        if (!cached || !activeRef.current || readSequence.current !== sequence) return;
+        setNodes(current => current ?? [...cached].sort((a, b) => compareNames(a.name, b.name)));
+      });
     return () => {
       activeRef.current = false;
       readSequence.current += 1;
     };
   }, [read]);
+
+  /* 057 (R7): a change of folder contents can add, rename or recount a folder; the tree is one
+     read, so a burst of signals is gathered into one. */
+  const [signalled, setSignalled] = useState(0);
+  useSpaceStorageSignals(teamId, onR2, signal => {
+    if (signal.kind === 'content') setSignalled(value => value + 1);
+  });
+  useEffect(() => {
+    if (signalled === 0) return;
+    const timer = window.setTimeout(() => void read(), REFRESH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [read, signalled]);
 
   useEffect(() => {
     if (revision === 0) return;

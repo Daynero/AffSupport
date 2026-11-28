@@ -5,6 +5,8 @@ import { useFolderResync } from './useFolderResync';
 import type { useOptionalWorkspaceOperations } from './WorkspaceOperationsProvider';
 import type { useExplorer } from './ExplorerProvider';
 import type { ExplorerShellClient } from './ExplorerShell';
+import { useOptionalTeam } from '../TeamContext';
+import { spaceOnR2 } from '../storage/spaceSignals';
 
 /** A progress tick refreshes the visible folder at most this often (028). */
 const PROGRESS_REFRESH_MIN_MS = 5_000;
@@ -25,7 +27,8 @@ export function useExplorerResync({
   role,
   workspaceOperations,
   notifyStateChanged,
-  onComplete
+  onComplete,
+  onR2: onR2Override
 }: {
   teamId: string;
   client: ExplorerShellClient;
@@ -37,8 +40,13 @@ export function useExplorerResync({
   workspaceOperations: ReturnType<typeof useOptionalWorkspaceOperations>;
   notifyStateChanged: () => void;
   onComplete: () => Promise<void>;
+  /** 057 (FR-040): an R2 space has no Drive scan — no button, no panel, no polling. */
+  onR2?: boolean;
 }) {
   const { t } = useI18n();
+  const team = useOptionalTeam();
+  const onR2 =
+    onR2Override ?? spaceOnR2(teamId, team?.teams.find(space => space.id === teamId) ?? null);
   const { push } = useToasts();
   const lastProgressRefresh = useRef(0);
   const activeFolderIds = currentFolderId
@@ -50,8 +58,9 @@ export function useExplorerResync({
    * The request RPCs admit the space's owner and admins only; the button
    * says the same, so nobody sees a control the server will refuse (028).
    */
-  const canResync = !readOnly && (role === 'owner' || role === 'admin');
+  const canResync = !onR2 && !readOnly && (role === 'owner' || role === 'admin');
   const folderResync = useFolderResync({
+    enabled: !onR2,
     teamId,
     folderId: currentFolderId ?? '__root__',
     // The whole-space scan is an ancestor of every folder: inside a child it

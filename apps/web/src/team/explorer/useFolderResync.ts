@@ -192,7 +192,13 @@ export function useFolderResync(input: {
   onOutcome: (outcome: FolderResyncOutcome) => void;
   /** Progress moved: a bounded chance to show what was written so far. */
   onProgress?: (status: FolderSyncStatus) => void;
+  /**
+   * 057 (FR-040): false for an R2 space, which has no Drive to scan — no remembered job is
+   * resumed, nothing is polled, and starting one does nothing.
+   */
+  enabled?: boolean;
 }) {
+  const enabled = input.enabled ?? true;
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<FolderSyncStatus | null>(null);
   const active = useRef<AbortController | null>(null);
@@ -204,6 +210,11 @@ export function useFolderResync(input: {
 
   useEffect(() => {
     const { teamId, folderId, client } = input;
+    if (!enabled) {
+      setRunning(false);
+      setStatus(null);
+      return;
+    }
     const scope = input.scopeFolderIds ?? (folderId ? [folderId] : []);
     setRunning(
       Boolean(
@@ -223,7 +234,7 @@ export function useFolderResync(input: {
       active.current?.abort();
       active.current = null;
     };
-  }, [input.teamId, input.folderId, scopeKey]);
+  }, [input.teamId, input.folderId, scopeKey, enabled]);
 
   /** True while the job belongs to what the screen shows now. */
   const inScope = (teamId: string, scopeFolderId: string): boolean => {
@@ -364,6 +375,7 @@ export function useFolderResync(input: {
   const start = async () => {
     const { teamId, folderId, client } = input;
     if (
+      !enabled ||
       active.current ||
       accepting.current ||
       !folderId ||
@@ -442,7 +454,7 @@ export function useFolderResync(input: {
         const value = readMemory(memoryKey(teamId, id));
         return value !== null && value !== UNKNOWN_JOB;
       }) ?? input.folderId;
-    if (!scopeFolderId || !client.cancelFolderSync) return;
+    if (!enabled || !scopeFolderId || !client.cancelFolderSync) return;
     const key = memoryKey(teamId, scopeFolderId);
     const requestId = status?.requestId ?? readMemory(`${key}:request`);
     if (!requestId) return;
