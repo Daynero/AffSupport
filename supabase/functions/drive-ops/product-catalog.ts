@@ -144,6 +144,11 @@ export interface ProductCatalogDeps {
    */
   resolveCreativeSourceLinks?: (name: string) => Promise<readonly string[] | null>;
 
+  /**
+   * 057: where the catalog document goes. Absent — every Drive space — it is the Google sheet,
+   * exactly as before; an R2 space hands in its feed writer.
+   */
+  documentWriter?: CatalogDocumentWriter;
   /** Durable adapter owns reconciliation; an uncertain output must not be trashed blindly. */
   preserveUncertainOutput?: boolean;
   /** Reconciles an already-created sheet before repeating XLSX conversion. */
@@ -668,6 +673,114 @@ async function shareCreativeVideo(
   return (await ensureAnyoneReader(creative.drive, creative.live.id, permissions)).added;
 }
 
+/**
+ * 057: where a new catalog's rows are written and committed as the catalog's material.
+ *
+ * The Google sheet (`googleCatalogDocumentWriter`) is the default and the only writer a Drive
+ * space ever gets. An R2 space writes its feed instead (`catalog-feed-document.ts`), whose
+ * address is what `sheet_url` holds. A writer cleans up after its own failures; once it has
+ * returned, `discard` removes what it made (lost race, rollback) and never throws.
+ */
+export interface CatalogDocument {
+  name: string;
+  sheetUrl: string;
+  materialId: string;
+  /** Extra fields of the catalog record (an R2 feed: its id and bytes). */
+  record?: Record<string, unknown>;
+  discard(why: 'lost the race' | 'rolled back'): Promise<void>;
+  /** An older document the link retired. */
+  retire(retired: { driveFileId: string; resourceKey: string | null }): Promise<void>;
+}
+
+export interface CatalogDocumentWriter {
+  write(input: {
+    name: string;
+    parentId: string;
+    credentialId: string;
+    rows: XlsxCell[][];
+    authority: OperationAuthority;
+    actorId: string;
+  }): Promise<CatalogDocument>;
+}
+
+/** The Google sheet: converted from XLSX (or native on the local beta), shared, committed. */
+export function googleCatalogDocumentWriter(
+  deps: ProductCatalogDeps,
+  drive: CatalogDrive
+): CatalogDocumentWriter {
+  return {
+    async write({ name, parentId, credentialId, rows: sheetRows, authority, actorId }) {
+      const recoveredFile = await deps.readCreatedFile?.(parentId, credentialId);
+      const file =
+        recoveredFile ??
+        (deps.nativeSpreadsheet
+          ? await (() => {
+              if (!drive.createNativeSpreadsheet || !drive.writeNativeSpreadsheet)
+                throw new TeamFunctionError('INVALID_RESPONSE');
+              return drive.createNativeSpreadsheet({ name, parentId });
+            })()
+          : await drive.createConvertedFile({
+              name,
+              parentId,
+              sourceMimeType: XLSX_MIME_TYPE,
+              targetMimeType: SPREADSHEET_MIME_TYPE,
+              bytes: deps.buildWorkbook
+                ? await deps.buildWorkbook(sheetRows)
+                : await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows: sheetRows })
+            }));
+      let committedFile = file;
+      const created = { driveFileId: file.id, resourceKey: file.resourceKey ?? null };
+      const discard = (why: string) => trashQuietly(deps, drive, created, why);
+      try {
+        // Both depend on the durable provider-file receipt, not on one another.
+        // Drain sharing even when binding fails before entering recovery/cleanup.
+        if (deps.nativeSpreadsheet) {
+          if (!drive.writeNativeSpreadsheet) throw new TeamFunctionError('INVALID_RESPONSE');
+          [committedFile] = await alongside(
+            drive.writeNativeSpreadsheet({
+              fileId: file.id,
+              sheetName: PRODUCT_CATALOG_SHEET_NAME,
+              rows: sheetRows
+            }),
+            ensureAnyoneReader(drive, file.id)
+          );
+          await deps.bindIntent({
+            authority,
+            actorId,
+            name: committedFile.name,
+            sizeBytes: committedFile.size
+          });
+        } else {
+          await alongside(
+            deps.bindIntent({ authority, actorId, name: file.name, sizeBytes: file.size }),
+            ensureAnyoneReader(drive, file.id)
+          );
+        }
+        const sheetUrl = committedFile.webViewLink ?? '';
+        if (!/^https:\/\/[^\s]+$/u.test(sheetUrl)) {
+          throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
+        }
+        const committed = await deps.finalize({
+          operationId: authority.operationId,
+          actorId,
+          metadata: committedFile
+        });
+        return {
+          name: committedFile.name,
+          sheetUrl,
+          materialId: committed.materialId,
+          discard,
+          retire: retired => trashQuietly(deps, drive, retired, 'retired catalog')
+        };
+      } catch (error) {
+        // A sheet that is not shared or not committed is not a catalog. It leaves.
+        if (!deps.preserveUncertainOutput) await discard('rolled back');
+        throw error;
+      }
+    }
+  };
+}
+
 export async function createProductCatalog(
   deps: ProductCatalogDeps,
   body: unknown,
@@ -977,67 +1090,23 @@ export async function createProductCatalog(
     if (deps.rememberSheetRows) sheetRows = await deps.rememberSheetRows(sheetRows);
     if (deps.nativeSpreadsheet) nativeCatalogCellRows(sheetRows);
     await deps.beforeImageWrite?.();
-    const recoveredFile = await deps.readCreatedFile?.(destination.live.id, video.credentialId);
-    const file =
-      recoveredFile ??
-      (deps.nativeSpreadsheet
-        ? await (() => {
-            if (!drive.createNativeSpreadsheet || !drive.writeNativeSpreadsheet)
-              throw new TeamFunctionError('INVALID_RESPONSE');
-            return drive.createNativeSpreadsheet({
-              name: plan.name,
-              parentId: destination.live.id
-            });
-          })()
-        : await drive.createConvertedFile({
-            name: plan.name,
-            parentId: destination.live.id,
-            sourceMimeType: XLSX_MIME_TYPE,
-            targetMimeType: SPREADSHEET_MIME_TYPE,
-            bytes: deps.buildWorkbook
-              ? await deps.buildWorkbook(sheetRows)
-              : await buildXlsx({ sheetName: PRODUCT_CATALOG_SHEET_NAME, rows: sheetRows })
-          }));
-    let committedFile = file;
-    const created = { driveFileId: file.id, resourceKey: file.resourceKey ?? null };
+    // 057: the document is a Google sheet unless the space hands in another writer (an R2
+    // space's feed). The Google writer is the code that stood here, unchanged.
+    const writer = deps.documentWriter ?? googleCatalogDocumentWriter(deps, drive);
+    const document = await writer.write({
+      name: plan.name,
+      parentId: destination.live.id,
+      credentialId: video.credentialId,
+      rows: sheetRows,
+      authority,
+      actorId
+    });
     try {
-      // Both depend on the durable provider-file receipt, not on one another.
-      // Drain sharing even when binding fails before entering recovery/cleanup.
-      if (deps.nativeSpreadsheet) {
-        if (!drive.writeNativeSpreadsheet) throw new TeamFunctionError('INVALID_RESPONSE');
-        [committedFile] = await alongside(
-          drive.writeNativeSpreadsheet({
-            fileId: file.id,
-            sheetName: PRODUCT_CATALOG_SHEET_NAME,
-            rows: sheetRows
-          }),
-          ensureAnyoneReader(drive, file.id)
-        );
-        await deps.bindIntent({
-          authority,
-          actorId,
-          name: committedFile.name,
-          sizeBytes: committedFile.size
-        });
-      } else {
-        await alongside(
-          deps.bindIntent({ authority, actorId, name: file.name, sizeBytes: file.size }),
-          ensureAnyoneReader(drive, file.id)
-        );
-      }
-      const sheetUrl = committedFile.webViewLink ?? '';
-      if (!/^https:\/\/[^\s]+$/u.test(sheetUrl)) {
-        throw new TeamFunctionError('INVALID_RESPONSE', { retryable: false });
-      }
-      const committed = await deps.finalize({
-        operationId: authority.operationId,
-        actorId,
-        metadata: committedFile
-      });
+      const sheetUrl = document.sheetUrl;
       const linked = await deps.link({
         teamId,
         videoId,
-        companionId: committed.materialId,
+        companionId: document.materialId,
         replaces,
         record: {
           sourceLink: request.sourceLink,
@@ -1054,32 +1123,32 @@ export async function createProductCatalog(
             : {}),
           settingsSnapshot: snapshot,
           createdBy: actorId,
-          variant
+          variant,
+          ...(document.record ?? {})
         }
       });
       if (!linked.linked) {
-        if (!deps.preserveUncertainOutput)
-          await trashQuietly(deps, drive, created, 'lost the race');
+        if (!deps.preserveUncertainOutput) await document.discard('lost the race');
         if (linked.reason === 'EXISTS' && linked.existing) {
           return { outcome: 'existing', catalog: linked.existing, videoShared };
         }
         throw new TeamFunctionError('WRONG_STATE', { retryable: true });
       }
       for (const retired of linked.retired) {
-        await trashQuietly(deps, drive, retired, 'retired catalog');
+        await document.retire(retired);
       }
       if (request.copyVideoToR2)
         await deps.applyVideoR2Option?.({
           teamId,
           actorId,
-          catalogMaterialId: committed.materialId,
+          catalogMaterialId: document.materialId,
           queueCopy: request.catalogVideoProtocolVersion !== 1
         });
       return {
         outcome: replaces ? 'recreated' : 'created',
         catalog: {
-          materialId: committed.materialId,
-          name: committedFile.name,
+          materialId: document.materialId,
+          name: document.name,
           sheetUrl,
           sourceLink: request.sourceLink,
           productCount: request.productCount,
@@ -1090,7 +1159,7 @@ export async function createProductCatalog(
       };
     } catch (error) {
       // A sheet that is not shared, not committed or not linked is not a catalog. It leaves.
-      if (!deps.preserveUncertainOutput) await trashQuietly(deps, drive, created, 'rolled back');
+      if (!deps.preserveUncertainOutput) await document.discard('rolled back');
       throw error;
     }
   } catch (error) {

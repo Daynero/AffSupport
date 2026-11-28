@@ -1,4 +1,10 @@
 import { TeamFunctionError } from './errors.ts';
+import {
+  CATALOG_FEED_CONTENT_TYPE,
+  CATALOG_FEED_KEY,
+  CATALOG_FEED_MARKER_HEADER,
+  validCatalogFeedMarker
+} from './catalog-feed.ts';
 
 /**
  * The S3-compatible adapter for catalog videos (050), after `r2-catalog-images.ts`.
@@ -475,6 +481,110 @@ export class CatalogVideoR2 {
     const response = await this.send(signed, signal);
     await response.body?.cancel();
     if (!response.ok && response.status !== 404) providerFailure(response.status);
+  }
+
+  // 057: the catalog feed of an R2 space (`_shared/catalog-feed.ts`). Same public bucket and
+  // origin as the videos, its own key space, `feeds/{feed_id}.csv`; nothing above is changed.
+
+  private feedEndpoint(key: string): URL {
+    if (!CATALOG_FEED_KEY.test(key)) throw new TeamFunctionError('INVALID_INPUT');
+    return new URL(
+      `https://${this.config.accountId}.r2.cloudflarestorage.com/${this.config.publicBucket}/${key}`
+    );
+  }
+
+  feedUrl(key: string): string {
+    this.feedEndpoint(key);
+    return `${this.config.publicOrigin}/${key}`;
+  }
+
+  /** One whole PUT over the stable key: the previous feed serves until this one lands. */
+  async putFeed(
+    key: string,
+    bytes: Uint8Array,
+    marker: string,
+    signal: AbortSignal
+  ): Promise<{ etag: string }> {
+    const signed = await this.signer.sign(
+      new Request(this.feedEndpoint(key), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': CATALOG_FEED_CONTENT_TYPE,
+          'Cache-Control': 'public, max-age=60',
+          'Content-Disposition': 'inline',
+          [CATALOG_FEED_MARKER_HEADER]: validCatalogFeedMarker(marker)
+        },
+        body: new Uint8Array(bytes)
+      }),
+      { aws: { allHeaders: true } }
+    );
+    const response = await this.send(signed, signal);
+    await response.body?.cancel();
+    if (!response.ok) providerFailure(response.status);
+    return { etag: response.headers.get('etag') ?? '' };
+  }
+
+  async readFeed(
+    key: string,
+    signal: AbortSignal
+  ): Promise<{ bytes: Uint8Array; etag: string; marker: string | null } | null> {
+    const signed = await this.signer.sign(new Request(this.feedEndpoint(key), { method: 'GET' }));
+    const response = await this.send(signed, signal);
+    if (response.status === 404) {
+      await response.body?.cancel();
+      return null;
+    }
+    if (!response.ok) {
+      await response.body?.cancel();
+      providerFailure(response.status);
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return {
+      bytes,
+      etag: response.headers.get('etag') ?? '',
+      marker: response.headers.get(CATALOG_FEED_MARKER_HEADER) || null
+    };
+  }
+
+  /** Deletes a feed (its catalog is gone) and purges its address; a missing one is gone already. */
+  async removeFeed(key: string, signal: AbortSignal): Promise<void> {
+    const signed = await this.signer.sign(
+      new Request(this.feedEndpoint(key), { method: 'DELETE' })
+    );
+    const response = await this.send(signed, signal);
+    await response.body?.cancel();
+    if (!response.ok && response.status !== 404) providerFailure(response.status);
+    if (!(await this.purgeUrls([this.feedUrl(key)], signal)))
+      throw new TeamFunctionError('VIDEO_R2_CLEANUP_PARTIAL', { retryable: true });
+  }
+
+  /** Purges addresses of this origin from the zone cache; true only on Cloudflare's success. */
+  async purgeUrls(urls: readonly string[], signal: AbortSignal): Promise<boolean> {
+    if (
+      urls.length < 1 ||
+      urls.length > 30 ||
+      urls.some(url => !url.startsWith(`${this.config.publicOrigin}/`))
+    )
+      throw new TeamFunctionError('INVALID_INPUT');
+    const purge = await this.send(
+      new Request(`https://api.cloudflare.com/client/v4/zones/${this.config.zoneId}/purge_cache`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.config.purgeToken}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({ files: urls })
+      }),
+      signal
+    );
+    const payload: unknown = await purge.json().catch(() => null);
+    return (
+      purge.ok &&
+      !!payload &&
+      typeof payload === 'object' &&
+      'success' in payload &&
+      payload.success === true
+    );
   }
 
   /** Delete the public object, prove it is gone, and purge the CDN; any doubt is `CLEANUP_PARTIAL`. */

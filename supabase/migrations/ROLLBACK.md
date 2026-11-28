@@ -3878,3 +3878,14 @@ refuses a Drive space, and the category function is read only for R2 rows. Undo 
 three functions and re-running `private.space_material_category` from 20261226150000; R2 tool
 runs then answer 503 at `/process/start`, and existing outputs move back to `materials` on their
 next reference change.
+
+## 20261226200000 — 057 catalog feeds of R2 spaces
+
+Adds `feed_id`, `feed_revision`, `feed_written_at` and `feed_bytes` to
+`public.team_product_catalogs` (with checks and a unique index on `feed_id`), the service-only
+`service_record_catalog_feed` (an R2 space only: counts the feed's bytes under `catalogs`) and the
+delete trigger `catalog_feed_released` (`when old.feed_id is not null`), which takes them out
+again. A Drive catalog never has a feed, so none of it runs for one. Undo by dropping the trigger,
+its function, `service_record_catalog_feed`, the index, the checks and the four columns; an R2
+catalog then has no feed to rewrite and its updates fail retryably, and the `catalogs` meter keeps
+whatever feed bytes it last counted until the space's ledger is reconciled.

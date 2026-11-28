@@ -800,6 +800,33 @@ objects to roll back. Any temporary selection-off procedure must use compatible 
 be validated against historical snapshots first. Explicit revocation/team deletion uses durable
 purge evidence; an acknowledged managed-CDN purge does not erase third-party downloaded copies.
 
+## Catalog feeds of R2 spaces (057)
+
+A catalog in an R2 space has no Google sheet: its rows are a CSV feed in the public catalog-video
+bucket (`soty-catalog-videos-{env}-public`), key `feeds/{feed_id}.csv`, served as
+`text/csv; charset=utf-8` at `https://catalog-videos[-beta].soty.pp.ua/feeds/{feed_id}.csv`.
+Every update rewrites the same key and purges that one address with `R2_CATALOG_PURGE_TOKEN`
+(`supabase/functions/_shared/catalog-feed.ts`). The object carries `Cache-Control: public,
+max-age=60`, but the zone forces `cache-control: max-age=14400` on everything it serves
+(evidence/meta-feed-from-r2-2026-11-27.md), so a consumer that honours the browser cache could
+read a four-hour-old feed.
+
+**Required zone cache rule, per environment, before any R2 space has a catalog:**
+
+- Match: hostname `catalog-videos.soty.pp.ua` (beta: `catalog-videos-beta.soty.pp.ua`) and URI
+  path starts with `/feeds/`.
+- Edge TTL: respect origin, at most 60 s. Browser TTL: override to 60 s (or «respect origin»).
+- Everything else on the host keeps the existing year-long immutable video rule.
+
+The purge is the fast path; the rule is the bound if a purge fails (the write still succeeds and
+logs `[catalog-feed] purge failed` with the feed id only). The rule is applied by hand in the
+Cloudflare dashboard together with T002/T062 — nothing in this repository configures the zone.
+Check after applying: `curl -sI <feed url>` shows `cache-control: ... max-age=60` (or lower),
+never `max-age=14400`. Feed bytes count in the space meter under `catalogs`
+(`service_record_catalog_feed`). The feed holds exactly what the public sheet held, product links
+included (a Launch link may carry `fb_capi_token`, as the sheet's did); its id is random, and no
+log line or journal entry carries a row, a link or a token.
+
 ## Intel Mac release contract (049)
 
 New full releases require `macos-arm64`, `macos-x64` and `windows-x64` together. Historical signed channels retain their original platform set; new signed channels declare `platformSetVersion: 2`. Never add fabricated Intel entries to an old release. The runner packages both Mac targets sequentially and binds Windows hosted smoke and final installer checksums to the same source.
