@@ -40,9 +40,29 @@ export const SPACE_STORAGE_ROUTES = [
   '/materials/mutate',
   '/materials/read',
   '/trash/empty',
-  '/read-grant'
+  '/read-grant',
+  '/process/start',
+  '/materials/agent-grant',
+  '/agent/source',
+  '/process/output/start',
+  '/process/output/parts',
+  '/process/output/finalize',
+  '/process/output/quiesced'
 ] as const;
 export type SpaceStorageRoute = (typeof SPACE_STORAGE_ROUTES)[number];
+
+/**
+ * The routes the desktop agent calls with an operation ticket instead of a member's session
+ * (T033). The ticket names the person and the space; the entry skips the JWT check for these
+ * and only these.
+ */
+export const SPACE_STORAGE_TICKET_ROUTES: ReadonlySet<SpaceStorageRoute> = new Set([
+  '/agent/source',
+  '/process/output/start',
+  '/process/output/parts',
+  '/process/output/finalize',
+  '/process/output/quiesced'
+]);
 
 const UPLOAD_PATH =
   /^\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/(parts|complete|abort)$/u;

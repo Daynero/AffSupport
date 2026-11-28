@@ -1,5 +1,37 @@
+// @deno-types="../../../packages/shared/dist/team/material-category.d.ts"
+import type { MaterialCategory } from '../../../packages/shared/dist/team/material-category.js';
+// @deno-types="../../../packages/shared/dist/team/restitch.d.ts"
+import { RESTITCH_CONTRACT_VERSION } from '../../../packages/shared/dist/team/restitch.js';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { isRecord } from '../_shared/validation.ts';
+
+export interface ProcessToolRule {
+  categories: readonly MaterialCategory[];
+  contractVersion: number;
+  outputMimeType: string;
+}
+
+/**
+ * The tools a team run may start, what each reads and writes, and the oldest tool contract that
+ * may serve it. One table for both storages: drive-ops checks a Drive run against it and
+ * space-storage an R2 run (057 T035), so the two can never disagree about a tool.
+ */
+export const PROCESS_TOOL_RULES: Readonly<Record<string, ProcessToolRule>> = {
+  compressor: { categories: ['video'], contractVersion: 3, outputMimeType: 'video/mp4' },
+  transcription: { categories: ['video'], contractVersion: 6, outputMimeType: 'text/plain' },
+  landingOptimizer: {
+    categories: ['archive', 'landing'],
+    contractVersion: 2,
+    outputMimeType: 'application/zip'
+  },
+  imageEmbedding: { categories: ['video'], contractVersion: 2, outputMimeType: 'video/mp4' },
+  // 023: the catalog updater's spare copies, started for a member's open tab.
+  restitch: {
+    categories: ['video'],
+    contractVersion: RESTITCH_CONTRACT_VERSION,
+    outputMimeType: 'video/mp4'
+  }
+};
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const IDEMPOTENCY_KEY = /^[a-z0-9][a-z0-9._:-]{7,199}$/iu;

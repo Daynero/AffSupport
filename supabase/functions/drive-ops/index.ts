@@ -165,7 +165,6 @@ import {
   completeRestitchJob,
   heartbeatRestitchJob,
   recordRestitchOutput,
-  RESTITCH_CONTRACT_VERSION,
   type UpdaterRestitchDeps
 } from './updater-restitch.ts';
 import {
@@ -185,6 +184,7 @@ import {
   displayDriveName,
   normalizeReservedName,
   postconditionForMutation,
+  PROCESS_TOOL_RULES,
   validateLiveMutationTarget,
   assertExpectedMutationActor,
   validateUploadStartRequest,
@@ -241,27 +241,8 @@ interface ConsumedOperationGrant {
   maxRangeBytes: number;
 }
 
-const TOOL_RULES: Readonly<
-  Record<
-    string,
-    { categories: readonly MaterialCategory[]; contractVersion: number; outputMimeType: string }
-  >
-> = {
-  compressor: { categories: ['video'], contractVersion: 3, outputMimeType: 'video/mp4' },
-  transcription: { categories: ['video'], contractVersion: 6, outputMimeType: 'text/plain' },
-  landingOptimizer: {
-    categories: ['archive', 'landing'],
-    contractVersion: 2,
-    outputMimeType: 'application/zip'
-  },
-  imageEmbedding: { categories: ['video'], contractVersion: 2, outputMimeType: 'video/mp4' },
-  // 023: the catalog updater's spare copies, started for a member's open tab.
-  restitch: {
-    categories: ['video'],
-    contractVersion: RESTITCH_CONTRACT_VERSION,
-    outputMimeType: 'video/mp4'
-  }
-};
+// The tool rules a run is checked against live in handler.ts, shared with space-storage (057).
+const TOOL_RULES = PROCESS_TOOL_RULES;
 
 function clients(request: Request): {
   caller: RpcClient;

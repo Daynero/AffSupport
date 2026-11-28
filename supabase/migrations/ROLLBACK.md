@@ -3868,3 +3868,13 @@ material's own space upload receipt is not a reference) and `public.service_clai
 20261205122000 ones, so a Drive material is answered as before. Undo by re-running those two
 functions from 20261205122000 and dropping the two triggers and the column; R2 task uploads
 then stay as ordinary materials and their cleanups are never claimed.
+
+## 20261226190000 — 057 tool runs in an R2 space
+
+Adds the service-only `service_space_process_source`, `service_space_process_upload` and
+`service_finalize_space_process_output`, and redefines `private.space_material_category` (a
+tool's output counts under `process`; otherwise the 20261226150000 body). Every new function
+refuses a Drive space, and the category function is read only for R2 rows. Undo by dropping the
+three functions and re-running `private.space_material_category` from 20261226150000; R2 tool
+runs then answer 503 at `/process/start`, and existing outputs move back to `materials` on their
+next reference change.

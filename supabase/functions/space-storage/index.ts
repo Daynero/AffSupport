@@ -19,14 +19,28 @@ import {
   spaceRpcError,
   spaceStorageClient,
   spaceStorageRouteMatch,
-  spaceStorageRoutePath
+  spaceStorageRoutePath,
+  SPACE_STORAGE_TICKET_ROUTES
 } from './handler.ts';
 import {
   emptyTrash,
   mutateMaterials,
   parseMutateCommand,
-  parseTrashEmptyCommand
+  parseReadMaterialsCommand,
+  parseTrashEmptyCommand,
+  readMaterials
 } from './mutate.ts';
+import {
+  acknowledgeProcessQuiesced,
+  agentSource,
+  finalizeProcessOutput,
+  issueAgentDownloadGrant,
+  parseProcessStartCommand,
+  signProcessOutputParts,
+  startProcessOutput,
+  startSpaceProcess,
+  type ProcessDeps
+} from './process.ts';
 import { issueReadGrant, readSpaceReadGrantConfig, type SpaceReadGrantConfig } from './read.ts';
 import {
   abortUpload,
@@ -43,7 +57,9 @@ import {
  * space-storage (057): the storage of Soty spaces on R2. POST only, routed by path as
  * `drive-ops` is. The handler verifies the caller's JWT itself; the client never names a bucket,
  * a key or a storage URL. Routes: `/spaces/create` (T015), `/uploads/*` (T023),
- * `/materials/mutate` and `/trash/empty` (T025), `/read-grant` (T027).
+ * `/materials/mutate` and `/trash/empty` (T025), `/read-grant` (T027), and a tool run:
+ * `/process/start` for a member, `/agent/source` and `/process/output/*` for the desktop agent
+ * with its operation ticket (T033/T035) — those five never see a member's session.
  */
 
 interface RpcCapable {
@@ -95,7 +111,6 @@ Deno.serve(async request => {
     const body = await parseJsonBody(request);
     if (!body.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     const service = serviceClient();
-    const { userId } = await authorizeCaller(request, service);
     const rpc = async (name: string, args: Record<string, unknown>) => {
       const { data, error } = await (service as unknown as RpcCapable).rpc(name, args);
       if (error) throw spaceRpcError(error);
@@ -103,6 +118,36 @@ Deno.serve(async request => {
     };
     const client = spaceStorageClient(request.headers, BUILD_ID);
     const journal = (entry: unknown) => writeSpaceStorageJournal(service, entry);
+    const readGrantConfig = async () => {
+      grantConfig ??= readSpaceReadGrantConfig(key => Deno.env.get(key));
+      return grantConfig;
+    };
+
+    if (SPACE_STORAGE_TICKET_ROUTES.has(route)) {
+      // The agent: its ticket is the authority, checked by the database when it is spent.
+      const agent: ProcessDeps = {
+        actorId: null,
+        rpc,
+        bucket: route === '/agent/source' ? null : spaceBucket(),
+        readGrant: route === '/agent/source' ? await readGrantConfig() : null,
+        journal,
+        operationId: crypto.randomUUID(),
+        client,
+        signal: request.signal
+      };
+      if (route === '/agent/source')
+        return successResponse(await agentSource(body.value, agent), cors);
+      if (!agent.bucket) throw new TeamFunctionError('STORAGE_UNAVAILABLE');
+      if (route === '/process/output/start')
+        return successResponse(await startProcessOutput(body.value, agent), cors);
+      if (route === '/process/output/parts')
+        return successResponse(await signProcessOutputParts(body.value, agent), cors);
+      if (route === '/process/output/finalize')
+        return successResponse(await finalizeProcessOutput(body.value, agent), cors);
+      return successResponse(await acknowledgeProcessQuiesced(body.value, agent), cors);
+    }
+
+    const { userId } = await authorizeCaller(request, service);
 
     if (route === '/spaces/create') {
       const created = await createSpace(parseCreateSpaceCommand(body.value), {
@@ -124,9 +169,22 @@ Deno.serve(async request => {
       );
     if (route === '/trash/empty')
       return successResponse(await emptyTrash(parseTrashEmptyCommand(body.value), base), cors);
+    if (route === '/process/start')
+      return successResponse(
+        await startSpaceProcess(parseProcessStartCommand(body.value), {
+          ...base,
+          bucket: null,
+          readGrant: null
+        }),
+        cors
+      );
+    if (route === '/materials/agent-grant')
+      return successResponse(
+        await issueAgentDownloadGrant(body.value, { ...base, bucket: null, readGrant: null }),
+        cors
+      );
     if (route === '/read-grant') {
-      grantConfig ??= readSpaceReadGrantConfig(key => Deno.env.get(key));
-      const config = await grantConfig;
+      const config = await readGrantConfig();
       return successResponse(
         await issueReadGrant(parseTeamCommand(body.value), { ...base, config }),
         cors
