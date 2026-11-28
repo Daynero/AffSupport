@@ -90,9 +90,13 @@ async function generateLaunchUnchecked(
       (typeof input.expectedExecutorId !== 'string' ||
         !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/iu.test(
           input.expectedExecutorId
-        )))
+        ))) ||
+    (input.spaceForeground !== undefined && input.spaceForeground !== true)
   )
     throw new TeamFunctionError('INVALID_INPUT');
+  // 057 T119: only an R2 space's page hands its variations to the member's open Soty itself.
+  if (input.spaceForeground === true && !deps.spaceStorage)
+    throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
   const foregroundExecutor =
     input.foregroundExecutor === undefined
       ? undefined
@@ -102,8 +106,8 @@ async function generateLaunchUnchecked(
     (!foregroundExecutor || input.expectedExecutorId !== undefined)
   )
     throw new TeamFunctionError('INVALID_INPUT');
-  // 057 T115: an R2 space's variations run on the member's own agent in the background, never in
-  // a paired foreground session (whose enrollment is a Drive one).
+  // 057 T115: an R2 space's variations run on the member's own agent, never in a paired Drive
+  // foreground session (whose enrollment is a Drive one); T119: the page hands them over itself.
   if (deps.spaceStorage && foregroundExecutor)
     throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
   const params = { p_team: input.teamId, p_launch: input.launchId };
@@ -198,6 +202,7 @@ async function generateLaunchUnchecked(
           launchId: input.launchId,
           config: parsed.value,
           ...(deps.spaceStorage ? { spaceStorage: true } : {}),
+          ...(deps.spaceStorage && input.spaceForeground === true ? { spaceForeground: true } : {}),
           ...(foregroundExecutor ? { foregroundExecutor } : {}),
           // An R2 space names no executor (its acceptance requires the member's delegation).
           ...(typeof input.expectedExecutorId === 'string' && !deps.spaceStorage

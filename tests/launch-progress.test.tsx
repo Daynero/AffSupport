@@ -73,6 +73,37 @@ it('keeps video progress independent when a deferred blank catalog has already f
   fireEvent.click(screen.getByRole('button', { name: 'Cancel video generation' }));
   expect(cancel).toHaveBeenCalledOnce();
 });
+it('says what to do when nothing makes an R2 Launch’s variations (057 T119)', () => {
+  const props = {
+    generation: {
+      ...generation,
+      state: 'accepted',
+      stage: 'restitch_preparing',
+      videoGeneration: {
+        setId: '47000000-0000-4000-8000-000000000001',
+        requestedCount: 4,
+        registeredCount: 0,
+        state: 'preparing' as const,
+        waitReason: 'AGENT_REQUIRED'
+      }
+    } as LaunchGeneration,
+    teamId: 'r2-team',
+    onCancel: vi.fn(),
+    restitchEnabled: true,
+    disabled: false
+  };
+  Object.assign(workspace, { teams: [] });
+  const view = render(<LaunchGenerationProgress {...props} space />);
+  expect(
+    screen.getByText(
+      'Nothing is making the variations: Soty is not open on this computer and background work is not set up for this space. Open Soty here — or turn on background work, and they are made while this page is closed.'
+    )
+  ).toBeTruthy();
+  // A Drive Launch's progress says nothing new.
+  view.rerender(<LaunchGenerationProgress {...props} />);
+  expect(screen.queryByText(/Nothing is making the variations/u)).toBeNull();
+  delete (workspace as Record<string, unknown>).teams;
+});
 it('keeps catalog progress steady through cache invalidation and preserves it on a real disconnect', () => {
   vi.useFakeTimers();
   const props = {

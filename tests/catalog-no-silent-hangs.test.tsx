@@ -368,6 +368,17 @@ describe('codes that used to say «something went wrong»', () => {
     render(wrap(<CatalogFixButton teamId={TEAM_ID} code="ROOT_MISSING" />));
     expect(screen.getByRole('link', { name: 'Choose the Drive folder' })).toBeTruthy();
   });
+  it('an R2 space names both doors when nothing makes its variations (057 T119)', () => {
+    expect(catalogCodeMessage('AGENT_REQUIRED', t, { space: true })).toBe(
+      en.catalogWaitSpaceAgentRequired
+    );
+    // A Drive catalog keeps its own sentence, and any other code is read as before.
+    expect(catalogCodeMessage('AGENT_REQUIRED', t)).toBe(en.catalogWaitAgentRequired);
+    expect(catalogCodeMessage('AGENT_STALLED', t, { space: true })).toBe(
+      en.catalogWaitAgentStalled
+    );
+    expect(en.catalogWaitSpaceAgentRequired).not.toMatch(/Google|Drive/u);
+  });
   it('AGENT_ID_CONFLICT no longer talks about a file name', () => {
     expect(teamErrorMessage('AGENT_ID_CONFLICT', t)).toBe(en.teamErrorAgentIdConflict);
     expect(catalogCodeMessage('AGENT_ID_CONFLICT', t)).toBe(en.catalogWaitAgentIdConflict);

@@ -488,7 +488,9 @@ export const launchApi = {
     version: string,
     key: string,
     expectedExecutorId?: string,
-    foregroundExecutor?: CatalogForegroundExecutor
+    foregroundExecutor?: CatalogForegroundExecutor,
+    /** 057 T119: an R2 space's page hands its variations to the member's open Soty itself. */
+    options?: { spaceForeground?: boolean }
   ) {
     return invokeTeamFunction(
       'drive-ops/launches/generate',
@@ -501,7 +503,8 @@ export const launchApi = {
           ? { foregroundExecutor }
           : expectedExecutorId
             ? { expectedExecutorId }
-            : {})
+            : {}),
+        ...(options?.spaceForeground ? { spaceForeground: true } : {})
       },
       (v: unknown): v is { id: string; state: string } =>
         isRecord(v) && typeof v.id === 'string' && typeof v.state === 'string'

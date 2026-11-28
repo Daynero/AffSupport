@@ -87,9 +87,23 @@ const CATALOG_COPY: Readonly<Record<string, TranslationKey>> = {
 /** Where a full Google storage is cleaned up; it is the owner's Google account. */
 export const GOOGLE_STORAGE_URL = 'https://drive.google.com/settings/storage';
 
+/**
+ * 057 T119: an R2 space's variations are made by the member's open Soty, handed over by the page,
+ * or by background work when the page is closed: «nothing makes them» names both doors.
+ */
+const SPACE_CATALOG_COPY: Readonly<Record<string, TranslationKey>> = {
+  AGENT_REQUIRED: 'catalogWaitSpaceAgentRequired'
+};
+
 /** One sentence for a catalog's wait reason or failure code; unknown codes get the general one. */
-export function catalogCodeMessage(code: string | null | undefined, t: Translate): string {
-  const key = code ? CATALOG_COPY[code] : undefined;
+export function catalogCodeMessage(
+  code: string | null | undefined,
+  t: Translate,
+  options: { space?: boolean } = {}
+): string {
+  const key = code
+    ? ((options.space ? SPACE_CATALOG_COPY[code] : undefined) ?? CATALOG_COPY[code])
+    : undefined;
   return key ? t(key) : teamErrorMessage(code, t);
 }
 

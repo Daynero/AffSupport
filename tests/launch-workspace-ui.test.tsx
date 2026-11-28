@@ -65,6 +65,8 @@ vi.mock('../apps/web/src/auth/AuthContext', () => ({
   useOptionalAuth: () => ({ user: { id: seams.actor } })
 }));
 vi.mock('../apps/web/src/team/TeamContext', () => ({
+  // 057 T119: the session asks whether the space is an R2 one (a Drive space here).
+  useOptionalTeam: () => null,
   useTeam: () => ({
     revision: seams.revision,
     can: (permission: string) =>

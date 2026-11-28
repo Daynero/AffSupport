@@ -31,11 +31,16 @@ export async function prepareLaunchCatalogVideoAdmission(
     foregroundExecutor?: CatalogVideoForegroundExecutor;
     /**
      * 057 T104/T115: an R2 space's Launch: no Drive video context to read. Re-stitched, its
-     * variations are the space's own sets, run by the member's agent: no executor is named
-     * (the acceptance requires the member's recovery delegation), no ready Drive set is reused
-     * and nothing runs in the foreground.
+     * variations are the space's own sets, run by the member's agent: no executor is named, no
+     * ready Drive set is reused and no paired Drive foreground session is enrolled.
      */
     spaceStorage?: boolean;
+    /**
+     * 057 T119: the page hands the R2 variations to the member's open Soty itself (space-storage
+     * `/catalog-variants/run`, as the catalog dialog does), so the acceptance needs no background
+     * delegation; without it the delegation is required, as before.
+     */
+    spaceForeground?: boolean;
   }
 ) {
   const { teamId, actorId, config } = input;
@@ -227,6 +232,9 @@ export async function prepareLaunchCatalogVideoAdmission(
     settingsDigest,
     // Rows are disjoint between segments, so the concatenation names each row once.
     assignments: segmentAssignments.flat(),
-    ...(several ? { segmentAssignments } : {})
+    ...(several ? { segmentAssignments } : {}),
+    ...(input.spaceStorage && input.spaceForeground && config.catalog.restitchEnabled
+      ? { spaceForeground: true as const }
+      : {})
   };
 }

@@ -60,6 +60,8 @@ import { useLaunchDraft } from './useLaunchDraft';
 import { newLaunchDraft, withInitialCreative } from './launchDraftDefaults';
 import { mergeLaunchOverrides, useLaunchOverrides } from './useLaunchOverrides';
 import { useLaunchGeneration } from './useLaunchGeneration';
+import { useSpaceLaunchVariants } from './useSpaceLaunchVariants';
+import { useCatalogFeedSpace } from '../product-catalog/CatalogFeedAddress';
 import { catalogComparable, withCatalogGenerationDefaults } from './catalogGenerationDefaults';
 import { useLaunchCopy } from './useLaunchCopy';
 import { useLaunchAutosave } from './useLaunchAutosave';
@@ -192,6 +194,7 @@ export function LaunchSession({
   const { overrides, setOverrides } = manual;
   const [error, setError] = useState<string | null>(null);
   const [requestErrorCode, setRequestErrorCode] = useState<string | null>(null);
+  const feedSpace = useCatalogFeedSpace(teamId);
   // A non-retryable refusal: the server decided, nothing is running.
   const [requestErrorDefinitive, setRequestErrorDefinitive] = useState(false);
   const reportError = (failure: unknown) => {
@@ -208,7 +211,8 @@ export function LaunchSession({
         failure.code === 'AGENT_REQUIRED' &&
         draft.config.method === 'catalog' &&
         draft.config.catalog?.catalogVideoProtocolVersion === 1
-        ? t('launchesCatalogExecutorRequired')
+        ? // 057 T119: an R2 space's variations need Soty open here or background work.
+          t(feedSpace ? 'launchesSpaceVariationsAgentRequired' : 'launchesCatalogExecutorRequired')
         : failure instanceof TeamApiError && failure.code === 'SOURCE_CHANGED'
           ? t('launchesSourceChanged')
           : teamErrorMessageFor(failure, t)
@@ -743,6 +747,15 @@ export function LaunchSession({
     const next = await launchApi.detail(teamId, id);
     if (inputAuthority.current.mounted) onChange(next);
   };
+  // 057 T119: an R2 Launch's variations are handed to this computer's Soty while it is open.
+  useSpaceLaunchVariants({
+    teamId,
+    generation: detail?.generation,
+    onMade: () => {
+      if (detail) void reload(detail.id).catch(() => undefined);
+    },
+    onStopped: code => reportError(new Error(code))
+  });
   const refreshProgress = async (signal: AbortSignal) => {
     const requested = latestProgressDetail.current;
     if (!requested) return;
@@ -1846,6 +1859,7 @@ export function LaunchSession({
           onFailedRestitch={observeFailedRestitch}
           creativeAliases={draft.config.creatives?.map(creative => creative.alias)}
           teamId={teamId}
+          space={Boolean(feedSpace)}
           method={draft.config.method ?? 'other'}
           restitchEnabled={draft.config.catalog?.restitchEnabled === true}
           pendingStage={

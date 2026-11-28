@@ -7,6 +7,7 @@ import { useI18n, type TranslationKey } from '../../i18n';
 import { useTeamOperation } from '../processing/useTeamOperation';
 import { useOptionalTeam } from '../TeamContext';
 import { teamErrorMessage } from '../errors';
+import { CatalogFixButton, catalogCodeMessage } from '../catalogFixActions';
 import {
   launchProgressStages,
   launchProgressDisplayStage,
@@ -56,8 +57,11 @@ export function LaunchGenerationProgress({
   requestErrorCode,
   requestErrorDefinitive = false,
   retryActions,
-  creativeAliases
+  creativeAliases,
+  space = false
 }: {
+  /** 057 T119: an R2 space's Launch: its variations' wait reason is said, with its door. */
+  space?: boolean;
   /** 062: creatives in order, to name the video whose restitch failed. */
   creativeAliases?: readonly string[];
   onOpenRestitchSettings?: () => void;
@@ -445,6 +449,14 @@ export function LaunchGenerationProgress({
                 ? ` · ${t('teamAuditCanceled')}`
                 : ''}
         </p>
+      )}
+      {space && teamId && videoGeneration?.waitReason && videoGeneration.state === 'preparing' && (
+        <div className="flex flex-col items-start gap-2" role="status">
+          <p className="team-inline-note m-0">
+            {catalogCodeMessage(videoGeneration.waitReason, t, { space: true })}
+          </p>
+          <CatalogFixButton teamId={teamId} code={videoGeneration.waitReason} />
+        </div>
       )}
       {showNotice && (
         <div className="launch-progress-notice">

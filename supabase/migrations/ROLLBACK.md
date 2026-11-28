@@ -4054,3 +4054,15 @@ removed targets leave first). Undo by re-running the four bodies from 2026122630
 the two new functions. A catalog already registered with a 'creatives' target then reads as
 `blocked` in the feed's context (its job never publishes): hold such catalogs' publications or
 publish them first. Nothing here is a Drive function.
+
+## 20261226340000 — 057 an R2 space's variations on the member's open Soty
+
+Adds `private.space_catalog_variant_wait_reason`; replaces the R2-only
+`private.launch_space_video_generation_json` (`waitReason`, `spaceSets`) and
+`service_read_space_catalog_variants` (`waitReason: AGENT_REQUIRED`); patches the R2 branch of
+`service_accept_launch_catalog_video_generation` (the delegation check is skipped when the
+admission carries `spaceForeground: true`). Undo by re-running the acceptance body from
+20261226320000 (or replacing the patched line back), the two bodies from 20261226320000 and
+20261226290000, and dropping the new function. Launches already accepted without background work
+keep their sets; their variations then need the page again or background work, as before. No Drive
+line changes.

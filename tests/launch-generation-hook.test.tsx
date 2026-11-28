@@ -52,12 +52,14 @@ const api = vi.hoisted(() => ({
 const local = vi.hoisted(() => ({
   run: vi.fn(),
   cancel: vi.fn().mockResolvedValue(true),
-  capable: vi.fn().mockResolvedValue('yes')
+  capable: vi.fn().mockResolvedValue('yes'),
+  spaceCapable: vi.fn().mockResolvedValue('yes')
 }));
 vi.mock('../apps/web/src/team/launches/restitch-runner', () => ({ runLaunchRestitch: local.run }));
 vi.mock('../apps/web/src/api/client', () => ({
   cancelTeamAgentProcess: local.cancel,
-  agentCanRestitch: local.capable
+  agentCanRestitch: local.capable,
+  agentCanRunSpaceVariants: local.spaceCapable
 }));
 vi.mock('../apps/web/src/api/team', () => ({
   launchApi: api,
@@ -1570,3 +1572,45 @@ it('sends a generate Google briefly refused again with the same key, and never s
   expect(api.generate.mock.calls[1][3]).toBe(api.generate.mock.calls[0][3]);
   expect(api.save).toHaveBeenCalledOnce();
 }, 15_000);
+
+it.each([
+  ['yes', true],
+  ['unreachable', false],
+  ['too-old', false]
+] as const)(
+  'hands an R2 Launch’s variations over itself only when Soty here can make them (057 T119): %s',
+  async (capability, handsOver) => {
+    const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
+    rememberSpaceBackend('r2-team', 'r2');
+    local.spaceCapable.mockResolvedValueOnce(capability);
+    const config = launchConfig({
+      method: 'catalog',
+      catalog: {
+        productCount: 10,
+        restitchEnabled: true,
+        catalogVideoProtocolVersion: 1,
+        videoVariationCount: 2,
+        videoPublication: { mode: 'immediate' },
+        finalDurationMode: 'custom',
+        customFinalDurationSeconds: 120
+      }
+    });
+    api.save.mockResolvedValueOnce({ id: 'r2-launch', version: '1' });
+    api.generate.mockResolvedValueOnce({});
+    api.detail.mockResolvedValueOnce({
+      id: 'r2-launch',
+      draft: config,
+      generation: { id: 'r2-generation', state: 'accepted' }
+    });
+    const { result } = renderHook(() => useLaunchGeneration('r2-team', vi.fn()));
+    await act(async () => {
+      await result.current.generate(null, config, null, null);
+    });
+    // Never the Drive paired session and never an executor: the space's own agent.
+    expect(foreground.prepare).not.toHaveBeenCalled();
+    const call = api.generate.mock.calls[0]!;
+    expect(call.slice(0, 2)).toEqual(['r2-team', 'r2-launch']);
+    if (handsOver) expect(call.slice(4)).toEqual([undefined, undefined, { spaceForeground: true }]);
+    else expect(call).toHaveLength(4);
+  }
+);

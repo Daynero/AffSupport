@@ -25,6 +25,42 @@ export interface CatalogVideoRowProgress {
   backgroundStalled?: true;
   /** 062: with several videos, the first creative whose restitch did not settle. */
   failedOrdinal?: number;
+  /**
+   * 057 T119: the variation sets of an R2 space's Launch (one per video), which the page hands to
+   * the member's open Soty itself. A Drive generation never has them.
+   */
+  spaceSets?: CatalogVideoSpaceSet[];
+}
+
+export interface CatalogVideoSpaceSet {
+  setId: string;
+  requestedCount: number;
+  registeredCount: number;
+}
+
+function spaceSets(value: unknown): CatalogVideoSpaceSet[] | null {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 400) return null;
+  const sets: CatalogVideoSpaceSet[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return null;
+    const set = entry as Record<string, unknown>;
+    if (
+      !isCatalogCommandUuid(set.setId) ||
+      !Number.isSafeInteger(set.requestedCount) ||
+      Number(set.requestedCount) < 1 ||
+      Number(set.requestedCount) > 400 ||
+      !Number.isSafeInteger(set.registeredCount) ||
+      Number(set.registeredCount) < 0 ||
+      Number(set.registeredCount) > Number(set.requestedCount)
+    )
+      return null;
+    sets.push({
+      setId: set.setId,
+      requestedCount: Number(set.requestedCount),
+      registeredCount: Number(set.registeredCount)
+    });
+  }
+  return sets;
 }
 
 export const CATALOG_VIDEO_ROW_WAIT_REASONS = [
@@ -93,6 +129,10 @@ export function parseCatalogVideoRowProgress(value: unknown): CatalogVideoRowPro
     Number(row.failedOrdinal) >= 0 &&
     Number(row.failedOrdinal) < 400
       ? { failedOrdinal: Number(row.failedOrdinal) }
+      : {}),
+    // 057 T119: advisory too: malformed sets are dropped (the page then hands nothing over).
+    ...(row.spaceSets !== undefined && spaceSets(row.spaceSets)
+      ? { spaceSets: spaceSets(row.spaceSets)! }
       : {})
   };
 }

@@ -279,6 +279,53 @@ describe('generating a re-stitched R2 Launch', () => {
     );
   });
 
+  it('carries the page’s own hand-over to the acceptance, which then needs no background work (T119)', async () => {
+    const h = harness();
+    await generateLaunch(
+      {
+        caller: h.caller,
+        service: h.service,
+        spaceStorage: true,
+        catalogReady: vi.fn(async () => undefined),
+        proveSource: vi.fn(async () => undefined)
+      },
+      {
+        teamId: TEAM,
+        launchId: id(7),
+        expectedVersion: '3',
+        requestKey: 'generate-1',
+        spaceForeground: true
+      },
+      ACTOR
+    );
+    const accepted = h.service.rpc.mock.calls.find(
+      ([name]) => name === 'service_accept_launch_catalog_video_generation'
+    )![1] as Record<string, Record<string, unknown>>;
+    expect(accepted.p_video).toMatchObject({ executorId: null, spaceForeground: true });
+    // Not part of the frozen request: the catalog's request payload never names it.
+    expect((accepted.p_video!.plan as Record<string, unknown>).preferences).not.toHaveProperty(
+      'spaceForeground'
+    );
+  });
+
+  it('refuses the hand-over to a Drive space and a malformed one, before anything is read', async () => {
+    for (const [deps, spaceForeground, code] of [
+      [{}, true, 'STORAGE_BACKEND_MISMATCH'],
+      [{ spaceStorage: true }, 'yes', 'INVALID_INPUT']
+    ] as const) {
+      const h = harness();
+      await expect(
+        generateLaunch(
+          { caller: h.caller, service: h.service, ...deps },
+          { teamId: TEAM, launchId: id(7), expectedVersion: '3', requestKey: 'g', spaceForeground },
+          ACTOR
+        )
+      ).rejects.toMatchObject({ code });
+      expect(h.caller.rpc).not.toHaveBeenCalled();
+      expect(h.service.rpc).not.toHaveBeenCalled();
+    }
+  });
+
   it('is refused a foreground session before anything is read', async () => {
     const h = harness();
     await expect(

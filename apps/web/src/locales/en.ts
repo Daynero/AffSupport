@@ -177,6 +177,8 @@ export const en = {
     'The write is back in the queue — the links appear in the sheet within a minute.',
   catalogWaitAgentRequired:
     'Nothing can prepare the videos: no computer runs Soty with background work for this space. Open Soty and connect it.',
+  catalogWaitSpaceAgentRequired:
+    'Nothing is making the variations: Soty is not open on this computer and background work is not set up for this space. Open Soty here — or turn on background work, and they are made while this page is closed.',
   catalogWaitAgentIdConflict:
     'Background work for this space is set up on several computers and none took the videos. Set it up again on the computer where Soty runs.',
   catalogWaitAgentStalled:
@@ -608,6 +610,8 @@ export const en = {
     'The video or the re-stitch pictures changed while the launch was running. Start the generation again.',
   launchesProgressErrorUnconfirmed: 'Error — check the status',
   launchesProgressNotStarted: 'The launch did not start',
+  launchesSpaceVariationsAgentRequired:
+    'Re-stitched variations are made by Soty on your computer. Open Soty on this computer, or turn on background work for this space, and generate again. The new generation has not started.',
   launchesCatalogExecutorRequired:
     'To restitch catalog videos, open the latest Soty app and connect it to this browser. The new generation has not started.',
   launchesProgressActionRequired: 'Action required',

@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import {
+  SPACE_VARIANTS_UNREACHABLE,
   runSpaceCatalogVariants,
+  runSpaceVariantSets,
   type SpaceCatalogVariantsDeps
 } from '../apps/web/src/team/product-catalog/spaceCatalogVariants';
+import { spaceLaunchVariantSets } from '../apps/web/src/team/launches/useSpaceLaunchVariants';
 
 /**
  * 057 T099: the page that created an R2 catalog with variations hands them to the member's
@@ -171,6 +174,16 @@ describe('handing an R2 catalog’s variations to the agent', () => {
     expect(full.deps.cancel).not.toHaveBeenCalled();
   });
 
+  it('stops quietly when Soty on this computer is not reachable (T119)', async () => {
+    const away = deps({ canRestitch: vi.fn(async () => 'unreachable' as const) });
+    // Not «update Soty»: background work may make them, and the server says when nothing does.
+    expect(await runSpaceCatalogVariants(input(), away.deps)).toEqual({
+      kind: 'stopped',
+      code: SPACE_VARIANTS_UNREACHABLE
+    });
+    expect(away.deps.run).not.toHaveBeenCalled();
+  });
+
   it('syncs the owner’s library first when the space draws no pool pictures', async () => {
     const f = deps({ prepareScreens: vi.fn(async () => ({ kind: 'legacy' as const })) });
     await runSpaceCatalogVariants({ ...input(), count: 1 }, f.deps);
@@ -179,5 +192,83 @@ describe('handing an R2 catalog’s variations to the agent', () => {
       defaults,
       prepared: null
     });
+  });
+});
+
+describe('handing an R2 Launch’s variations to this computer’s Soty (T119)', () => {
+  const OTHER = '05797000-0000-4000-8000-000000000003';
+  it('makes every set of the Launch in turn, one machine per variation', async () => {
+    const f = deps({
+      run: vi.fn(async ({ setId, index }) =>
+        setId === OTHER && index === 0
+          ? { state: 'background' as const, index }
+          : { ...runAnswer(index), operationId: setId === SET ? op(index) : op(index, 2) }
+      ) as never
+    });
+    const outcome = await runSpaceVariantSets(
+      {
+        teamId: TEAM,
+        sets: [
+          { setId: SET, count: 2 },
+          { setId: OTHER, count: 2 }
+        ],
+        signal: new AbortController().signal
+      },
+      f.deps
+    );
+    // The variation background work holds is left to it; the page looks again later.
+    expect(outcome).toEqual({ kind: 'waiting' });
+    expect(f.made).toEqual([op(0), op(1), op(1, 2)]);
+    expect(vi.mocked(f.deps.run).mock.calls.map(([call]) => [call.setId, call.index])).toEqual([
+      [SET, 0],
+      [SET, 1],
+      [OTHER, 0],
+      [OTHER, 1]
+    ]);
+  });
+
+  it('stops at the first set this computer cannot make', async () => {
+    const away = deps({ canRestitch: vi.fn(async () => 'unreachable' as const) });
+    expect(
+      await runSpaceVariantSets(
+        {
+          teamId: TEAM,
+          sets: [
+            { setId: SET, count: 1 },
+            { setId: OTHER, count: 1 }
+          ],
+          signal: new AbortController().signal
+        },
+        away.deps
+      )
+    ).toEqual({ kind: 'stopped', code: SPACE_VARIANTS_UNREACHABLE });
+    expect(away.deps.canRestitch).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands over only an R2 generation’s unfinished sets while it prepares', () => {
+    const generation = (state: string, video: Record<string, unknown> | null) =>
+      ({ id: 'g', state, videoGeneration: video }) as never;
+    const video = {
+      setId: SET,
+      requestedCount: 3,
+      registeredCount: 1,
+      state: 'preparing',
+      spaceSets: [
+        { setId: SET, requestedCount: 2, registeredCount: 2 },
+        { setId: OTHER, requestedCount: 1, registeredCount: 0 }
+      ]
+    };
+    expect(spaceLaunchVariantSets(generation('accepted', video))).toEqual([
+      { setId: OTHER, count: 1 }
+    ]);
+    // A Drive generation names no space sets; a canceled or finished one hands nothing over.
+    expect(
+      spaceLaunchVariantSets(generation('accepted', { ...video, spaceSets: undefined }))
+    ).toEqual([]);
+    expect(spaceLaunchVariantSets(generation('cancel_requested', video))).toEqual([]);
+    expect(spaceLaunchVariantSets(generation('accepted', { ...video, state: 'ready' }))).toEqual(
+      []
+    );
+    expect(spaceLaunchVariantSets(generation('accepted', null))).toEqual([]);
   });
 });

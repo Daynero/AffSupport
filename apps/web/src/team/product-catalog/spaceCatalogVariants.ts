@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { RESTITCH_CONTRACT_VERSION, type TeamAgentProcessRequest } from '@video-compressor/shared';
-import { agentCanRestitch, startTeamAgentProcess } from '../../api/client';
+import { agentCanRunSpaceVariants, startTeamAgentProcess } from '../../api/client';
 import { rememberSpaceRun } from '../../api/space-operations';
 import { spaceStorageApi, type SpaceCatalogVariantRun } from '../../api/space-storage';
 import { teamApi } from '../../api/team';
@@ -20,6 +20,11 @@ import { prepareRestitchScreens } from '../restitch/screens';
  * it says so (WRONG_STATE) instead of starting twice. With the page closed, the member's delegated
  * agent finishes the rest in the background (T107); a variation it holds answers `background`
  * here, and the page waits for it instead of making it a second time.
+ *
+ * T119: a Launch's page runs the same passes over each of its sets (one per video), so an R2
+ * Launch runs on the member's open Soty in the foreground as a Drive one does. A computer whose
+ * Soty is not reachable stops a pass quietly (AGENT_UNREACHABLE): background work may be making
+ * them, and when nothing is, the server's progress says so (`waitReason: AGENT_REQUIRED`).
  */
 
 export interface SpaceCatalogVariantsDeps {
@@ -34,7 +39,7 @@ export interface SpaceCatalogVariantsDeps {
 
 const defaultDeps: SpaceCatalogVariantsDeps = {
   run: input => spaceStorageApi.runCatalogVariant(input),
-  canRestitch: () => agentCanRestitch(),
+  canRestitch: () => agentCanRunSpaceVariants(),
   prepareScreens: (teamId, defaults) => prepareRestitchScreens(teamId, defaults),
   ensureImages: (teamId, defaults) => ensureRestitchImages(teamId, defaults),
   process: request => startTeamAgentProcess(request),
@@ -57,6 +62,12 @@ function codeOf(error: unknown): string {
     return error.code;
   return error instanceof Error ? error.message : 'PROCESS_FAILED';
 }
+
+/**
+ * The code of a pass that stopped because Soty on this computer is not reachable: not a failure
+ * to show, the server's progress says when nothing else makes the variations.
+ */
+export const SPACE_VARIANTS_UNREACHABLE = 'AGENT_UNREACHABLE';
 
 /** Codes that say this computer, not this run, is the problem: trying the next run is pointless. */
 const STOPPING = new Set([
@@ -107,8 +118,9 @@ export async function runSpaceCatalogVariants(
   },
   deps: SpaceCatalogVariantsDeps = defaultDeps
 ): Promise<SpaceCatalogVariantsOutcome> {
-  if ((await deps.canRestitch()) !== 'yes')
-    return { kind: 'stopped', code: 'AGENT_UPDATE_REQUIRED' };
+  const capability = await deps.canRestitch();
+  if (capability === 'unreachable') return { kind: 'stopped', code: SPACE_VARIANTS_UNREACHABLE };
+  if (capability !== 'yes') return { kind: 'stopped', code: 'AGENT_UPDATE_REQUIRED' };
   let waiting = false;
   for (let index = 0; index < input.count; index++) {
     // Each variation gets as many runs as the server allows; it says when there are no more.
@@ -158,16 +170,52 @@ export async function runSpaceCatalogVariants(
 /** How long a pass that found work elsewhere, or stopped, waits before it looks again. */
 export const SPACE_VARIANTS_RETRY_MS = 20_000;
 
+/** One set of variations to make: the dialog's one, or one per video of a Launch (T119). */
+export interface SpaceVariantSetWork {
+  setId: string;
+  count: number;
+}
+
+/** Passes over the sets in order; the first that stops (or is aborted) decides the outcome. */
+export async function runSpaceVariantSets(
+  input: {
+    teamId: string;
+    sets: readonly SpaceVariantSetWork[];
+    signal: AbortSignal;
+    onMade?: () => void;
+  },
+  deps: SpaceCatalogVariantsDeps = defaultDeps
+): Promise<SpaceCatalogVariantsOutcome> {
+  let waiting = false;
+  let ended = false;
+  for (const set of input.sets) {
+    const outcome = await runSpaceCatalogVariants(
+      {
+        teamId: input.teamId,
+        setId: set.setId,
+        count: set.count,
+        signal: input.signal,
+        ...(input.onMade ? { onMade: input.onMade } : {})
+      },
+      deps
+    );
+    if (outcome.kind === 'stopped') return outcome;
+    if (outcome.kind === 'waiting') waiting = true;
+    if (outcome.kind === 'ended') ended = true;
+    if (input.signal.aborted) return { kind: 'waiting' };
+  }
+  return waiting ? { kind: 'waiting' } : ended ? { kind: 'ended' } : { kind: 'done' };
+}
+
 /**
- * Runs passes while the dialog shows an R2 creation whose variations are not all made. A pass
- * never starts twice for the same set at once; leaving stops new hand-overs (a run already
- * with the agent goes on).
+ * Runs passes while the page shows an R2 creation whose variations are not all made — the
+ * catalog dialog's set, or each set of a Launch (T119). A pass never starts twice for the same
+ * sets at once; leaving stops new hand-overs (a run already with the agent goes on).
  */
 export function useSpaceCatalogVariantRunner(input: {
   active: boolean;
   teamId: string;
-  setId: string | null;
-  count: number;
+  sets: readonly SpaceVariantSetWork[];
   onMade(): void;
   onStopped(code: string): void;
 }): void {
@@ -175,16 +223,16 @@ export function useSpaceCatalogVariantRunner(input: {
   const [tick, setTick] = useState(0);
   const latest = useRef(input);
   latest.current = input;
-  const { active, teamId, setId, count } = input;
+  const { active, teamId } = input;
+  const key = input.sets.map(set => `${set.setId}:${set.count}`).join(',');
   useEffect(() => {
-    if (!active || !setId || running.current === setId) return;
+    if (!active || !key || running.current === key) return;
     const controller = new AbortController();
-    running.current = setId;
+    running.current = key;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    void runSpaceCatalogVariants({
+    void runSpaceVariantSets({
       teamId,
-      setId,
-      count,
+      sets: latest.current.sets,
       signal: controller.signal,
       onMade: () => latest.current.onMade()
     })
@@ -196,12 +244,12 @@ export function useSpaceCatalogVariantRunner(input: {
           timer = setTimeout(() => setTick(value => value + 1), SPACE_VARIANTS_RETRY_MS);
       })
       .finally(() => {
-        if (running.current === setId) running.current = null;
+        if (running.current === key) running.current = null;
       });
     return () => {
       controller.abort();
       if (timer) clearTimeout(timer);
-      if (running.current === setId) running.current = null;
+      if (running.current === key) running.current = null;
     };
-  }, [active, teamId, setId, count, tick]);
+  }, [active, teamId, key, tick]);
 }

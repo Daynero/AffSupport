@@ -79,7 +79,7 @@ import {
 } from './duration-preference';
 import { ProductCatalogProgress } from './ProductCatalogProgress';
 import { CatalogRestitchProgress } from './CatalogRestitchProgress';
-import { useSpaceCatalogVariantRunner } from './spaceCatalogVariants';
+import { SPACE_VARIANTS_UNREACHABLE, useSpaceCatalogVariantRunner } from './spaceCatalogVariants';
 import { ensureRestitchImages } from '../restitch/images';
 import { prepareRestitchScreens } from '../restitch/screens';
 
@@ -1067,13 +1067,18 @@ export function CreateProductCatalogDialog({
       videoPending.registeredCount < videoPending.requestedCount
     ),
     teamId,
-    setId: videoPending?.videoSetId ?? null,
-    count: videoPending?.requestedCount ?? 0,
+    sets: videoPending?.videoSetId
+      ? [{ setId: videoPending.videoSetId, count: videoPending.requestedCount }]
+      : [],
     onMade: () => {
       readSoon.current = Date.now() + CREATION_FAST_READ_WINDOW_MS;
       if (videoKey.current) void checkVideoRef.current();
     },
-    onStopped: code => setFailure(teamErrorMessageFor({ code }, t))
+    // T119: Soty not reachable here is not a failure: background work may make them, and when
+    // nothing does the creation's read says so (waitReason AGENT_REQUIRED, shown below).
+    onStopped: code => {
+      if (code !== SPACE_VARIANTS_UNREACHABLE) setFailure(teamErrorMessageFor({ code }, t));
+    }
   });
   useEffect(() => {
     if (videoProtocol && videoKey.current) void checkVideoRef.current();
@@ -1510,7 +1515,9 @@ export function CreateProductCatalogDialog({
             videoPending.registeredCount < videoPending.requestedCount &&
             (videoPending.waitReason ? (
               <div className="product-catalog-dialog-missing" role="status">
-                <p className="team-inline-note">{catalogCodeMessage(videoPending.waitReason, t)}</p>
+                <p className="team-inline-note">
+                  {catalogCodeMessage(videoPending.waitReason, t, { space: Boolean(feedSpace) })}
+                </p>
                 <CatalogFixButton
                   teamId={teamId}
                   code={videoPending.waitReason}

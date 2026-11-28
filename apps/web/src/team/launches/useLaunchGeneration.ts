@@ -14,7 +14,7 @@ import {
   type LaunchCreativeAnalytics
 } from '@video-compressor/shared';
 import { runLaunchRestitch } from './restitch-runner';
-import { cancelTeamAgentProcess } from '../../api/client';
+import { agentCanRunSpaceVariants, cancelTeamAgentProcess } from '../../api/client';
 import type {
   LaunchDetail,
   LaunchDraft,
@@ -55,8 +55,9 @@ export function useLaunchGeneration(
 ) {
   const admissionGuard = useRef(beforeAdmission);
   admissionGuard.current = beforeAdmission;
-  // 057 T115: an R2 space's variations run on the member's agent in the background: no paired
-  // foreground session and no executor named (the server requires the member's delegation).
+  // 057 T115/T119: an R2 space's variations run on the member's own agent: no paired Drive
+  // foreground session and no executor named. With Soty open here the page hands them over itself
+  // (spaceForeground, LaunchSession's runner); otherwise the server requires background work.
   const spaceVariations = useCatalogFeedSpace(teamId);
   const [busy, setBusy] = useState(false);
   const [pendingStage, setPendingStage] = useState<LaunchStage | null>(null);
@@ -267,6 +268,9 @@ export function useLaunchGeneration(
     admissionDispatched?: boolean;
     foregroundRequired?: boolean;
     sourceMaterialId?: string;
+    /** T119: an R2 re-stitched Launch; `spaceForeground` once this computer's Soty was asked. */
+    spaceRestitch?: boolean;
+    spaceForeground?: boolean;
   } | null>(null);
   const requireRequestOwner = () => {
     const owner = requestOwner.current;
@@ -350,6 +354,11 @@ export function useLaunchGeneration(
           intended.config.catalog.restitchEnabled &&
           !spaceVariations
             ? { expectedExecutorId: recoveryInstallation() ?? undefined }
+            : {}),
+          ...(intended.config.catalog?.catalogVideoProtocolVersion === 1 &&
+          intended.config.catalog.restitchEnabled &&
+          spaceVariations
+            ? { spaceRestitch: true }
             : {})
         };
         saveIntent.current = null;
@@ -375,20 +384,35 @@ export function useLaunchGeneration(
         pending.foregroundPrepared = true;
         setPendingStage('preparing');
         launchLocalStage({ flowId, launchId: pending.id }, 'preparing');
+        // T119: asked once per request, so a retry sends the same admission.
+        if (pending.spaceRestitch && pending.spaceForeground === undefined)
+          pending.spaceForeground = (await agentCanRunSpaceVariants()) === 'yes';
         pending.admissionDispatched = true;
         return withLaunchTransientRetry(
           () =>
             launchReply(
-              pending.expectedExecutorId || foregroundExecutor
+              pending.spaceForeground
                 ? launchApi.generate(
                     teamId,
                     pending.id,
                     pending.version,
                     pending.key,
-                    foregroundExecutor ? undefined : pending.expectedExecutorId,
-                    foregroundExecutor
+                    undefined,
+                    undefined,
+                    {
+                      spaceForeground: true
+                    }
                   )
-                : launchApi.generate(teamId, pending.id, pending.version, pending.key)
+                : pending.expectedExecutorId || foregroundExecutor
+                  ? launchApi.generate(
+                      teamId,
+                      pending.id,
+                      pending.version,
+                      pending.key,
+                      foregroundExecutor ? undefined : pending.expectedExecutorId,
+                      foregroundExecutor
+                    )
+                  : launchApi.generate(teamId, pending.id, pending.version, pending.key)
             ),
           {
             signal: controller.signal,

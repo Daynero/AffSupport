@@ -1039,6 +1039,25 @@ export async function agentCanRestitch(automaticEndFrame = false): Promise<Resti
   }
 }
 
+/**
+ * 057 T119: whether Soty on this computer can make an R2 space's re-stitched variations now —
+ * reachable, a stitcher, and speaking the space's storage (team workspace contract 3), which is
+ * how its runs read the source and write the output.
+ */
+export async function agentCanRunSpaceVariants(): Promise<RestitchCapability> {
+  try {
+    const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
+    const contracts = health.toolContracts ?? {};
+    return toolContractCompatible('teamWorkspace', contracts) &&
+      toolContractCompatible('stitcher', contracts) &&
+      spaceStorageAgentSupported(contracts)
+      ? 'yes'
+      : 'too-old';
+  } catch {
+    return 'unreachable';
+  }
+}
+
 export async function startTeamAgentProcess(
   input: TeamAgentProcessRequest
 ): Promise<TeamFileOperationResult> {

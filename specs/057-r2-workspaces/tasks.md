@@ -632,6 +632,35 @@
   під час запису раунду). Веб: `LaunchEditor.tsx`. Прив'язка посилань креативів у знімок
   (`service_confirm_catalog_creative_links`) для R2 не викликається: оновлювач з політикою бере
   клітинки зі стрічки.
+- [x] T118 [P] [US1] Тест для T119 — варіації R2-запуску на відкритому Soty члена (передній план), фонова
+  робота — продовження (інцидент 2026-11-27: каталог застряг на `AGENT_REQUIRED`, бо не було
+  делегування). `supabase/tests/database/launch-space-variant-foreground.test.sql` (17): без
+  відкритого Soty й фонової роботи — `AGENT_REQUIRED`, як на Drive; зі `spaceForeground` —
+  прийнято без делегування, набір простору, без виконавця; прогрес називає набори (`spaceSets`);
+  сторінка отримує варіацію на відкриття, відкритий запуск видається знову, фонова робота бере
+  наступну, а не ту, що робить сторінка, сторінка чекає орендовану (`background`); відкритий
+  запуск — причини немає; нічого не відкрито, делегування немає, дві хвилини тиші —
+  `waitReason: AGENT_REQUIRED` у прогресі, у запуску (`get_launch`) і в читанні створення; з
+  делегуванням — причини немає; лише фонова робота — прийнято, як було; Drive-рядки прийняття
+  незмінні. Vitest: `tests/launch-space-catalog-variants.test.ts` (+2: `spaceForeground` доходить до
+  `p_video`, не до замороженого запиту; Drive і неправильне значення — відмова до читання),
+  `tests/space-catalog-variant-runner.test.ts` (+4: недосяжний Soty — тиха зупинка
+  `AGENT_UNREACHABLE`, проходи по кожному набору запуску, зупинка на першому, вибір незроблених
+  наборів), `tests/launch-generation-hook.test.tsx` (+3: `spaceForeground` лише коли Soty тут може,
+  без Drive-сесії й виконавця), `tests/catalog-video-row-progress.test.ts` (+1: `spaceSets`),
+  `tests/catalog-no-silent-hangs.test.tsx` (+1: R2-речення з обома дверима, без «Google»),
+  `tests/launch-progress.test.tsx` (+1: причина й двері в прогресі R2-запуску, Drive — без змін).
+- [x] T119 [US1] Реалізація T118 (research.md R15 «Передній план»). Міграція
+  `20261226340000_space_storage_variant_foreground.sql`: R2-гілка `service_accept_launch_catalog_video_generation`
+  не вимагає делегування, коли сторінка сама передає варіації (`p_video.spaceForeground`);
+  `private.space_catalog_variant_wait_reason`; `launch_space_video_generation_json` (`waitReason`,
+  `spaceSets`), `service_read_space_catalog_variants` (`waitReason`). Edge: `launches.ts`
+  (`spaceForeground`: лише R2, лише `true`), `launch-catalog-video.ts`. Shared:
+  `CatalogVideoRowProgress.spaceSets`. Веб: `agentCanRunSpaceVariants` (контракт 3),
+  `useLaunchGeneration.ts` (питає Soty раз на запит), `useSpaceLaunchVariants.ts` + `LaunchSession.tsx`
+  (передає набори запуску агентові, як діалог), `spaceCatalogVariants.ts` (набори, тиха зупинка на
+  недосяжному Soty — раніше діалог казав «оновіть Soty»), `LaunchGenerationProgress.tsx` і діалог
+  (`catalogCodeMessage(..., { space })`, `CatalogFixButton`), uk+en.
 - [ ] T105 [US1] Приймання на беті (частина T062): каталог з 10 варіаціями в пілотному R2-просторі,
   агент arm64 і Windows, видалення каталогу — 0 об'єктів у bucket простору й у публічному.
 - [x] T106 [P] [US1] Тест для T107 — фонове доведення варіацій R2-каталогу:

@@ -138,7 +138,7 @@ update private.team_recovery_delegations set revoked_at=null where team_id=pg_te
 insert into seen select 'wait1', pg_temp.wait(1);
 select is(pg_temp.v('wait1'), '{"state":"preparing","setCount":1}'::jsonb, 'the waiting generation reads its space set');
 select is((select state from public.team_launch_generations where id=pg_temp.id(5,1)), 'accepted', 'and waits');
-select is(private.launch_space_video_generation_json(pg_temp.team(),pg_temp.id(5,1)) - 'activeChildOperationId',
+select is(private.launch_space_video_generation_json(pg_temp.team(),pg_temp.id(5,1)) - 'activeChildOperationId' - 'spaceSets',
   jsonb_build_object('setId',pg_temp.id(8,10),'requestedCount',2,'registeredCount',0,'state','preparing'), 'its progress is the set''s');
 select set_config('request.jwt.claim.sub',pg_temp.owner()::text,true);
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.owner(),'role','authenticated')::text,true);

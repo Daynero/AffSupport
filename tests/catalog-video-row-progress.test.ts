@@ -57,3 +57,23 @@ it('keeps a wait reason, known or newer, and drops only a malformed one (072)', 
   ).not.toHaveProperty('waitReason');
   expect(parseCatalogVideoRowProgress(progress)).not.toHaveProperty('waitReason');
 });
+
+it('keeps an R2 Launch’s sets for the page that hands them over, dropping malformed ones (057 T119)', () => {
+  const sets = [
+    { setId: progress.setId, requestedCount: 3, registeredCount: 1 },
+    { setId: '22222222-2222-4222-8222-222222222222', requestedCount: 2, registeredCount: 1 }
+  ];
+  expect(parseCatalogVideoRowProgress({ ...progress, spaceSets: sets })).toEqual({
+    ...progress,
+    spaceSets: sets
+  });
+  for (const spaceSets of [
+    [],
+    [{ ...sets[0], setId: 'x' }],
+    [{ ...sets[0], registeredCount: 4 }],
+    'x'
+  ])
+    expect(parseCatalogVideoRowProgress({ ...progress, spaceSets })).toEqual(progress);
+  // A Drive generation's segments are not sets to hand over.
+  expect(parseCatalogVideoRowProgress({ ...progress, segments: sets })).toEqual(progress);
+});
