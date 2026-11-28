@@ -714,6 +714,12 @@ const teamRecoveryWorker = new TeamRecoveryWorker({
         protectedProcess: protectedCatalogVariantProcess
       }
     : undefined,
+  // 057 T121: an R2 space's pictures, made here between background claims. The bridge is the
+  // page's own (one job at a time across both), declared just below.
+  spaceDerivatives: {
+    busy: () => spaceDerivativeBridge.busy(),
+    run: request => spaceDerivativeBridge.run(request)
+  },
   record: (code, props) => diagnosticsLog.record('team', code, props)
 });
 entitlementGate.onBeforeActorChange(actorId => teamRecoveryWorker.prepareActorChange(actorId));

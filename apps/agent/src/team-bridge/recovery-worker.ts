@@ -32,6 +32,7 @@ import {
   type RecoveryRegistration
 } from './recovery-journal.js';
 import type { TeamProcessBridge, TeamProcessRequest } from './process.js';
+import { spaceDerivativeRequest, type SpaceDerivativeRequest } from './r2-derivatives.js';
 import {
   HEARTBEAT_RETRY_MS,
   heartbeatWatchdog,
@@ -183,6 +184,14 @@ export interface RecoveryWorkerOptions {
     process?: Pick<TeamProcessBridge, 'process' | 'cancel'>;
     protectedProcess?: Parameters<typeof runCatalogVariantRecovery>[0]['protectedProcess'];
   };
+  /**
+   * 057 T121: what makes an R2 space's pictures here (`r2-derivatives.ts`, under the power
+   * governor). Absent, this Soty takes no picture job in the background.
+   */
+  spaceDerivatives?: {
+    busy(): boolean;
+    run(request: SpaceDerivativeRequest): Promise<unknown>;
+  };
   secrets?: RecoverySecretStore;
   fetch?: typeof fetch;
   now?: () => number;
@@ -196,6 +205,12 @@ export const REJECTED_REASK_MS = 3_600_000;
  * this computer's state never takes the turn of the probe that resumes the work.
  */
 export const PROBE_GAP_MS = 61_000;
+/**
+ * 057 T121: picture jobs of an R2 space taken after one claim found no other work, one after
+ * another — the next claim comes back in `claimMs` for the rest, so a folder of HEVC clips is
+ * worked through without this computer doing nothing else for long.
+ */
+export const SPACE_DERIVATIVES_PER_IDLE_CLAIM = 5;
 /**
  * Drive refused this video's output for a reason no retry of the same work changes: the storage
  * is full, the connection needs renewing (072). The variant was already closed with that code;
@@ -1065,6 +1080,50 @@ export class TeamRecoveryWorker {
     timer.unref();
     this.#timers.set(r.delegationId, timer);
   }
+  /**
+   * 057 T121: the pictures an R2 space still lacks (research R5), made here between claims when
+   * this computer is otherwise idle: the server leases one job at a time to this member's
+   * credential and names its source ticket; the bridge reads the file through space-storage,
+   * runs ffmpeg under the power governor and stages the result with the lease. Never more than
+   * one heavy thing: nothing is taken while a tool run or a page's own picture job is going.
+   * A failure here never touches the delegation — the job's lease lapses and it is tried again.
+   */
+  async #backfillSpaceDerivatives(r: RecoveryRegistration, credential: string): Promise<void> {
+    const bridge = this.options.spaceDerivatives;
+    if (!bridge) return;
+    const root = r.endpoint.replace(/team-recovery$/u, '');
+    for (let taken = 0; taken < SPACE_DERIVATIVES_PER_IDLE_CLAIM; taken += 1) {
+      if (
+        this.#closed ||
+        this.#updatePaused ||
+        !this.#isCurrent(r) ||
+        (this.options.allowed && !this.options.allowed()) ||
+        bridge.busy() ||
+        this.options.process.busy()
+      )
+        return;
+      let value: Record<string, unknown>;
+      try {
+        value = await this.#call(r.endpoint, 'derivative_claim', credential, {
+          teamWorkspaceContractVersion: AGENT_TOOL_CONTRACTS.teamWorkspace
+        });
+      } catch {
+        return;
+      }
+      if (value.job === null || value.job === undefined) return;
+      const request = spaceDerivativeRequest({
+        job: value.job,
+        transferUrl: root + 'space-storage/agent/source',
+        cloudBaseUrl: root + 'space-storage'
+      });
+      if (!request || request.job.teamId !== r.teamId) return;
+      try {
+        await bridge.run(request);
+      } catch {
+        return;
+      }
+    }
+  }
   async #call(endpoint: string, action: string, credential: string, body: Record<string, unknown>) {
     let response: Response;
     let value: unknown;
@@ -1441,6 +1500,9 @@ export class TeamRecoveryWorker {
         this.#retryNotBefore.delete(r.delegationId);
         this.#serverRetryNotBefore.delete(r.delegationId);
         await this.#checkpoint(r, requestId, null, 'settled');
+        // 057 T121: nothing else to do in an R2 space — its pictures still owed, if any.
+        if (value.workspaceStorage === 'r2' && secrets.claim)
+          await this.#backfillSpaceDerivatives(r, secrets.claim);
         this.#schedule(r, RECOVERY_BUDGET.claimMs);
         return;
       }

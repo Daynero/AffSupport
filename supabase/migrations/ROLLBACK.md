@@ -4081,3 +4081,10 @@ subtract each R2 space's charged `catalog_image_storage` bytes from its `catalog
 shared_bytes). Drive spaces: the library trigger returns at its first line for them; nothing else
 of theirs is touched.
 
+## 20261226370000 — 057 an R2 space's pictures made in the background (T121)
+
+Adds `public.service_space_recovery_derivative_actor(bytea, jsonb)` (service role only). Nothing
+else changes; `service_team_recovery` is untouched. Undo: drop the function. Agents that ask
+`derivative_claim` are then refused with an unclassified error and keep working through the page's
+own claims; Drive spaces never call it.
+

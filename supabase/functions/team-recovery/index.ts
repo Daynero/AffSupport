@@ -29,6 +29,16 @@ import {
   heartbeatSpaceCatalogVariantJob,
   type SpaceVariantRecoveryDeps
 } from '../space-storage/catalog-variant-recovery.ts';
+import { claimDerivativeJob, type SpaceDerivativeBucket } from '../space-storage/derivatives.ts';
+
+/** A claim reads no bucket: the job's bytes are read by the agent through its ticket. */
+const NO_DERIVATIVE_BUCKET: SpaceDerivativeBucket = {
+  signPut: () => Promise.reject(new TeamFunctionError('STORAGE_UNAVAILABLE')),
+  head: () => Promise.reject(new TeamFunctionError('STORAGE_UNAVAILABLE')),
+  rangeGet: () => Promise.reject(new TeamFunctionError('STORAGE_UNAVAILABLE')),
+  copy: () => Promise.reject(new TeamFunctionError('STORAGE_UNAVAILABLE')),
+  remove: () => Promise.reject(new TeamFunctionError('STORAGE_UNAVAILABLE'))
+};
 
 /** Refusals from variant admission that are answers, not lost replies. */
 const DEFINITE_ADMISSION_REFUSALS = [
@@ -142,7 +152,35 @@ Deno.serve(async request => {
             screenRefusals: body.screenRefusals
           }),
         heartbeat: (actorId, body) => heartbeatSpaceCatalogVariantJob(spaceDeps(actorId), body),
-        complete: (actorId, body) => completeSpaceCatalogVariantJob(spaceDeps(actorId), body)
+        complete: (actorId, body) => completeSpaceCatalogVariantJob(spaceDeps(actorId), body),
+        // 057 T121: the credential names the member and the space; space-storage's own claim
+        // leases the job and issues its source ticket, as for the page's `/derivatives/claim`.
+        derivativeClaim: async (digest, body) => {
+          const { data, error } = await service.rpc('service_space_recovery_derivative_actor', {
+            p_hash: digest,
+            p_input: body
+          });
+          if (error) throw spaceRpcError(error);
+          if (
+            !isRecord(data) ||
+            typeof data.actorId !== 'string' ||
+            typeof data.teamId !== 'string'
+          )
+            throw new TeamFunctionError('INVALID_RESPONSE');
+          const deps = spaceDeps(data.actorId);
+          return claimDerivativeJob(
+            { teamId: data.teamId },
+            {
+              actorId: data.actorId,
+              rpc: deps.rpc,
+              bucket: NO_DERIVATIVE_BUCKET,
+              journal: deps.journal,
+              operationId: deps.operationId,
+              client: deps.client,
+              signal: request.signal
+            }
+          );
+        }
       },
       variants: nativeRestitchEnabled({
         enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),

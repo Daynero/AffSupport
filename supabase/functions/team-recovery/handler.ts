@@ -25,6 +25,8 @@ const ACTIONS = [
   'heartbeat',
   'checkpoint',
   'settle',
+  // 057 T121: an R2 space's picture jobs, taken by the member's Soty between its claims.
+  'derivative_claim',
   ...CATALOG_VARIANT_ACTIONS
 ] as const;
 export interface RecoveryHandlerDeps {
@@ -45,6 +47,12 @@ export interface RecoveryHandlerDeps {
     claim(actorId: string, body: Record<string, unknown>): Promise<unknown>;
     heartbeat(actorId: string, body: Record<string, unknown>): Promise<unknown>;
     complete(actorId: string, body: Record<string, unknown>): Promise<unknown>;
+    /**
+     * 057 T121: one picture job of the credential's R2 space, as its member — the database
+     * decides from the claim credential who that is (never the body). `{ job: null }` when
+     * nothing waits.
+     */
+    derivativeClaim?(hash: string, body: { teamWorkspaceContract?: number }): Promise<unknown>;
   };
   variants?: (
     action: CatalogVariantRecoveryAction,
@@ -150,6 +158,19 @@ export async function handleRecovery(
     throw new TeamFunctionError('AGENT_UPDATE_REQUIRED');
   const credential = token(request.headers.get('x-team-recovery-credential'));
   const hash = await deps.hash(credential);
+  if (action === 'derivative_claim') {
+    if (!deps.space?.derivativeClaim) throw new TeamFunctionError('STORAGE_UNAVAILABLE');
+    const workspace = body.teamWorkspaceContractVersion;
+    return deps.space.derivativeClaim(
+      hash,
+      typeof workspace === 'number' &&
+        Number.isSafeInteger(workspace) &&
+        workspace >= 1 &&
+        workspace <= 1000
+        ? { teamWorkspaceContract: workspace }
+        : {}
+    );
+  }
   if (isCatalogVariantRecoveryAction(action)) {
     if (!deps.variants) throw new TeamFunctionError('AGENT_UPDATE_REQUIRED');
     return deps.variants(action, hash, parseCatalogVariantRecoveryInput(action, body), credential);
@@ -260,7 +281,13 @@ export async function handleRecovery(
     const value = object(claimed);
     assertCompatible(value);
     const operation = deps.token();
-    const response = { ...value, operationCredential: value.job === null ? null : operation };
+    const response = {
+      ...value,
+      operationCredential: value.job === null ? null : operation,
+      // 057 T121: an R2 space's agent learns it may ask for picture jobs between its claims.
+      // A Drive space's response is exactly what it was.
+      ...(authorized.storageBackend === 'r2' ? { workspaceStorage: 'r2' } : {})
+    };
     return deps.rpc('register_claim', hash, {
       requestId,
       response,
