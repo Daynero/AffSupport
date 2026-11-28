@@ -282,6 +282,10 @@ export function spaceCatalogDeps(input: {
   log(message: string, detail: string): void;
   /** T096: the variation set the catalog links, once the video authority found it ready. */
   variationSet?: () => string | null;
+  /** T115: a Launch's catalog of several re-stitched videos links one set per video. */
+  variationSets?: () => readonly string[] | null;
+  /** T115: a video creative's own first variation (its record in the catalog's layout). */
+  variationLinkOf?: (materialId: string) => string | null;
   /**
    * T102: the rows' variation addresses the authority proved, for a catalog whose cells wait for
    * a later publication: the catalog's own video link is then its first variation, never a copy
@@ -414,6 +418,7 @@ export function spaceCatalogDeps(input: {
     async link({ teamId, videoId, companionId, replaces, record, publicationKey: deferredKey }) {
       if (!actor) throw new TeamFunctionError('WRONG_STATE');
       const setId = input.variationSet?.() ?? null;
+      const setIds = input.variationSets?.() ?? null;
       // The generator names the key of a deferred creation; a Launch's catalog step has no
       // other way to know it before its frozen request is read (T104).
       const publicationKey = input.publicationKey ?? deferredKey ?? null;
@@ -425,6 +430,7 @@ export function spaceCatalogDeps(input: {
         p_record: {
           ...record,
           ...(setId ? { spaceVariantSetId: setId } : {}),
+          ...(setIds?.length ? { spaceVariantSetIds: setIds } : {}),
           ...(publicationKey ? { spacePublicationKey: publicationKey } : {})
         },
         p_actor: actor
@@ -472,7 +478,7 @@ export function spaceCatalogDeps(input: {
     },
     space: {
       async videoLink({ teamId, actorId, video }) {
-        const variation = input.variationLinks?.()?.[0];
+        const variation = input.variationLinkOf?.(video.id) ?? input.variationLinks?.()?.[0];
         if (variation) return variation;
         const value = await rpc('service_space_catalog_video_link', {
           p_team: teamId,

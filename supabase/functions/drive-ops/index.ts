@@ -72,7 +72,11 @@ import { createCatalogImageDriveSources } from '../_shared/catalog-drive-image-r
 import { catalogImageObject } from '../_shared/catalog-images.ts';
 import { CatalogImageR2, readCatalogR2Config } from '../_shared/r2-catalog-images.ts';
 import { AwsClient } from 'npm:aws4fetch@1.0.20';
-import { acceptLaunchBatch, recoverLaunchBatchOther } from './launch-batch.ts';
+import {
+  acceptLaunchBatch,
+  recoverLaunchBatchOther,
+  type LaunchBatchDeps
+} from './launch-batch.ts';
 import {
   handleCatalogRename,
   recoverCatalogRenames,
@@ -3086,11 +3090,20 @@ function existingCatalogFrom(row: Record<string, unknown> | null): ExistingCatal
   };
 }
 
+/** 057 T115: a bulk launch learns which of its spaces is an R2 one (launch-batch.ts). */
+function launchBatchDeps(service: ReturnType<typeof clients>['service']): LaunchBatchDeps {
+  return {
+    spaceStorage: async (teamId, actorId) =>
+      (await spaceStorageBackendOf(service, teamId, actorId)) === 'r2'
+  };
+}
+
 /**
- * 057 T104: the catalog step of an R2 space's Launch — the same executor over the space's storage
- * seam (catalog-space-source.ts) and video authority, the space's pictures publisher, and the
- * Launch's source proven in the space by content (launch-space-source.ts). Re-stitching is
- * refused before such a Launch is accepted, so the authority only answers the plan's clock.
+ * 057 T104/T115: the catalog step of an R2 space's Launch — the same executor over the space's
+ * storage seam (catalog-space-source.ts) and video authority, the space's pictures publisher, and
+ * the Launch's source proven in the space by content (launch-space-source.ts). Re-stitched, its
+ * variations are the space's sets admitted with the Launch (one per video): the authority reads
+ * them with the Launch's frozen settings, and the link binds every one.
  */
 function spaceLaunchCatalogExecution(
   request: Request,
@@ -3102,15 +3115,21 @@ function spaceLaunchCatalogExecution(
   if (!feeds) throw new TeamFunctionError('STORAGE_UNAVAILABLE', { retryable: true });
   const rpc = (name: string, parameters: Record<string, unknown>) =>
     rpcValue(configured.service, name, parameters);
+  const binding: SpaceVariantBinding = { setId: null };
   const space = spaceCatalogDeps({
     rpc,
     feeds,
     signal: request.signal,
     log: (message, detail) => console.error(message, detail),
+    variationSet: () => binding.setId,
+    variationSets: () => binding.setIds ?? null,
+    variationLinks: () => binding.videoLinks ?? null,
+    variationLinkOf: materialId => binding.creativeLinks?.[materialId] ?? null,
     publishCreativeImages: spaceCreativeImagePublisher(configured.service)
   });
   return {
     service: configured.service,
+    spaceStorage: true,
     // Launch always creates a new reserved variation, never recreates an existing catalog.
     catalog: {
       ...productCatalogDeps(request, configured.caller, configured.service),
@@ -3118,17 +3137,17 @@ function spaceLaunchCatalogExecution(
       readLiveCatalogs: async () => []
     },
     driveFor: space.fullDriveFor,
-    createInitialVideoAuthority: async identity => {
-      if (identity.restitchEnabled)
-        throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
-      return spaceCatalogVideoAuthority({
+    createInitialVideoAuthority: async identity =>
+      spaceCatalogVideoAuthority({
         rpc,
         teamId: identity.teamId,
         actorId: identity.actorId,
         sourceMaterialId: identity.sourceMaterialId,
-        binding: { setId: null }
-      });
-    },
+        binding,
+        ...(identity.frozenRestitchDefaults
+          ? { frozenSettings: identity.frozenRestitchDefaults }
+          : {})
+      }),
     proveSource: async (_config, source) => {
       const parsed = parseLaunchSources(source);
       if (!parsed) throw new TeamFunctionError('SOURCE_CHANGED');
@@ -3812,15 +3831,26 @@ Deno.serve(async request => {
       await requireNamedWorkerSecret(request);
       const batchOther = await recoverLaunchBatchOther(
         configured.service,
-        (teamId, actorId, config, sources) =>
-          proveLaunchSource(
-            request,
-            configured.service,
-            teamId,
-            actorId,
-            config.materialId,
-            sources
-          )
+        async (teamId, actorId, config, sources) => {
+          // 057 T115: an R2 space's source is proven in the space by content, every creative.
+          if ((await spaceStorageBackendOf(configured.service, teamId, actorId)) === 'r2')
+            await proveSpaceLaunchSource(
+              (name, parameters) => rpcValue(configured.service, name, parameters),
+              teamId,
+              actorId,
+              sources
+            );
+          else
+            await proveLaunchSource(
+              request,
+              configured.service,
+              teamId,
+              actorId,
+              config.materialId,
+              sources
+            );
+        },
+        launchBatchDeps(configured.service)
       ).catch(error => ({ pending: true, errorCode: launchFailure(error).code }));
       const recovered = await runLaunchCatalogRecovery(
         configured.service,
@@ -4084,7 +4114,15 @@ Deno.serve(async request => {
     if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT', { retryable: false });
     const body = parsed.value;
     if (path === '/launches/batch')
-      return successResponse(await acceptLaunchBatch(configured.service, userId, body), cors);
+      return successResponse(
+        await acceptLaunchBatch(
+          configured.service,
+          userId,
+          body,
+          launchBatchDeps(configured.service)
+        ),
+        cors
+      );
     if (
       path === '/catalog-publication/action' ||
       path === '/catalog-publication/read' ||

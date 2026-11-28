@@ -165,11 +165,11 @@ export function LaunchEditor({
     if (submitted && invalidSubSettings) setSubSettingsOpen(true);
   }, [submitted, invalidSubSettings]);
   const scheduledPublication = config.catalog?.videoPublication?.mode === 'scheduled';
-  /* 057 T104: an R2 space's Launch catalog is its feed, its videos and pictures always R2:
-     re-stitching and a later link for several creatives or pictures have no path there yet, and
-     the copy option is no option. A choice already made stays visible, so it can be undone. */
+  /* 057 T104/T115: an R2 space's Launch catalog is its feed, its videos and pictures always R2:
+     re-stitching makes the space's own variations, a later link for several creatives or
+     pictures has no path there yet, and the copy option is no option. A choice already made
+     stays visible, so it can be undone. */
   const feedSpace = useCatalogFeedSpace(teamId);
-  const offerRestitch = !feedSpace || config.catalog?.restitchEnabled === true;
   const offerPublication =
     !feedSpace || (creativeCount <= 1 && creativeKind !== 'image') || scheduledPublication;
   const account = accounts.find(account =>
@@ -918,7 +918,7 @@ export function LaunchEditor({
                           labelled field above the row and drop the switch a line down (next QA
                           2026-11-21). What an option adds appears beside it, in its row or in the column
                           to the right. */}
-                      {creativeKind !== 'image' && offerRestitch && (
+                      {creativeKind !== 'image' && (
                         <div className="launch-editor-catalog-row">
                           <div className="launch-editor-restitch">
                             <Switch

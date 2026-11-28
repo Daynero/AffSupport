@@ -35,9 +35,10 @@ export interface LaunchGenerationDeps {
   caller: ServiceRpcClient;
   service: ServiceRpcClient;
   /**
-   * 057 T104: the Launch is an R2 space's. What its catalog cannot make there yet is refused
+   * 057 T104/T115: the Launch is an R2 space's. What its catalog cannot make there yet is refused
    * before anything is accepted (launch-space-source.ts), and its admission reads no Drive
-   * video context; a Drive space's Launch never sets it.
+   * video context (re-stitched, it freezes the space's variation sets); a Drive space's Launch
+   * never sets it.
    */
   spaceStorage?: boolean;
   proveSource?: (
@@ -101,6 +102,10 @@ async function generateLaunchUnchecked(
     (!foregroundExecutor || input.expectedExecutorId !== undefined)
   )
     throw new TeamFunctionError('INVALID_INPUT');
+  // 057 T115: an R2 space's variations run on the member's own agent in the background, never in
+  // a paired foreground session (whose enrollment is a Drive one).
+  if (deps.spaceStorage && foregroundExecutor)
+    throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
   const params = { p_team: input.teamId, p_launch: input.launchId };
   // Lookup before live source resolution, including after an authoritative commit whose reply was lost.
   const previous = await rpc(deps.caller, 'find_launch_generation', {
@@ -194,7 +199,8 @@ async function generateLaunchUnchecked(
           config: parsed.value,
           ...(deps.spaceStorage ? { spaceStorage: true } : {}),
           ...(foregroundExecutor ? { foregroundExecutor } : {}),
-          ...(typeof input.expectedExecutorId === 'string'
+          // An R2 space names no executor (its acceptance requires the member's delegation).
+          ...(typeof input.expectedExecutorId === 'string' && !deps.spaceStorage
             ? { expectedExecutorId: input.expectedExecutorId }
             : {})
         })

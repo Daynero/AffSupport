@@ -31,6 +31,12 @@ import { CatalogStepYield } from './creative-image-pool.ts';
 import { TEAM_ERROR_CODES } from '../../../packages/shared/dist/team/transport.js';
 export interface LaunchCatalogExecutionDeps {
   service: ServiceRpcClient;
+  /**
+   * 057 T115: the Launch is an R2 space's. Its variations are the space's sets: the creation waits
+   * for all of them before any catalog exists (never a blank catalog waiting for its videos), and
+   * the Drive sets' settling has nothing to settle. Never set for a Drive space.
+   */
+  spaceStorage?: boolean;
   createInitialVideoAuthority?: (identity: {
     teamId: string;
     actorId: string;
@@ -162,7 +168,8 @@ export async function executeLaunchCatalog(
     if (
       !protocolVideo ||
       !config.catalog.restitchEnabled ||
-      config.catalog.videoPublication?.mode !== 'scheduled'
+      config.catalog.videoPublication?.mode !== 'scheduled' ||
+      deps.spaceStorage
     )
       return false;
     const original = await call(deps.service, 'service_read_initial_catalog_video', {
@@ -495,7 +502,7 @@ export async function executeLaunchCatalog(
       actorId
     );
     if ('outcome' in created && created.outcome === 'preparing_video') {
-      if (created.state === 'unknown') {
+      if (created.state === 'unknown' && !deps.spaceStorage) {
         // Preparation already requeued what may be retried; what is still
         // unknown here either cannot be proven or has no retry left. With several
         // videos (062) each set is settled and read on its own.

@@ -4017,3 +4017,27 @@ bodies from the migrations that last defined them (20261221100000 for the source
 20261223350000 for the attach), dropping the triggers, the functions and the column. Pictures
 already counted keep their bytes in `space_storage_usage` until recounted; R2 Launch catalogs
 already made keep working, only new R2 Launches fail at their source again.
+
+## 20261226320000 — 057 a re-stitched Launch catalog and bulk launches in an R2 space
+
+Replaces the unique index `space_catalog_variant_sets_intent` (one set per creation) with
+`space_catalog_variant_sets_intent_source` (one per creation and video); adds
+`private.admit_launch_space_catalog_set`, `private.launch_space_video_sets`,
+`private.launch_space_video_generation_json` and the trigger `launch_space_catalog_variants_cancel`
+on `team_launch_generations` (R2 spaces only, `when ... private.space_is_r2(new.team_id)`);
+replaces the R2-only `service_link_space_catalog_feed` (`spaceVariantSetIds`) and
+`service_space_catalog_variant_links` (null for a catalog with several sets); patches
+`service_admit_space_catalog_variants` (a plan's video segment; the set by creation and video),
+`service_accept_launch_catalog_video_generation` (R2 branch before the Drive context, before the
+Drive set acceptance, and `case ... null` for the context's Drive set),
+`accept_launch_catalog_video_segments` (R2 admission before the Drive proof, no Drive set on the
+segment rows), `service_wait_launch_catalog_video` (space sets when there are no Drive sets),
+`get_launch_before_started_at` (`coalesce` with the space progress),
+`private.list_launches_pre_assignment` (an R2 `when` before the Drive branch) and
+`service_attach_launch_catalog_before_catalog_sub` (the R2 sets check before the insert). Undo by
+re-running each patched body from the migrations that last defined it (20261226250000 for the
+admit and the variant links, 20261226310000 for the link and the attach, 20261224290000 for the
+acceptance, 20261224310000 for the list, 20261221110000 for the segments, the wait and the Launch
+read), dropping the trigger and the new functions and recreating the old index — which fails while
+a creation holds more than one set: cancel such Launches first (their generations' sets go
+`canceled`) and delete their extra sets. Every Drive branch is the text it was, so a Drive space is unaffected either way.

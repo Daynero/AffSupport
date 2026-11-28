@@ -13,9 +13,10 @@ import type { SpaceCatalogRpc } from './catalog-space-source.ts';
  * is the space's (catalog-space-source.ts).
  *
  * What an R2 Launch catalog cannot do yet is refused before the Launch is accepted, so nothing is
- * frozen that its catalog step would then refuse: re-stitched videos (the Launch admission plans a
- * Drive video set), a legacy catalog request (the dialog's protocol is the only one in a space),
- * and a later link for several creatives or for pictures (a publication target per creative).
+ * frozen that its catalog step would then refuse: a legacy catalog request (the dialog's protocol
+ * is the only one in a space) and a later link for several creatives or for pictures (a
+ * publication target per creative). Re-stitched videos are the space's own variation sets, one
+ * per video, admitted with the Launch (T115, 20261226320000).
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -32,7 +33,7 @@ export function assertSpaceLaunchCatalog(config: LaunchConfig): void {
   const catalog = config.catalog;
   const several =
     (config.creatives?.length ?? 1) > 1 || (config.creativeKind ?? 'video') !== 'video';
-  if (catalog.restitchEnabled || catalog.catalogVideoProtocolVersion !== 1)
+  if (catalog.catalogVideoProtocolVersion !== 1)
     throw new TeamFunctionError(
       several ? 'MULTI_CREATIVE_UNSUPPORTED' : 'STORAGE_BACKEND_MISMATCH',
       {

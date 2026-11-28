@@ -514,7 +514,7 @@
   «пізніше» — для кількох креативів; зроблений вибір видно, щоб його зняти; Drive — як було.
   `tests/catalog-space-create.test.ts` (відмову кількох відео одразу замінено перезашитими).
 - [x] T104 [US1] Ці три шляхи для R2 без перезашивки (раніше `MULTI_CREATIVE_UNSUPPORTED` /
-  `STORAGE_BACKEND_MISMATCH` до запису). Тест: T103. Решта — T114/T115.
+  `STORAGE_BACKEND_MISMATCH` до запису). Тест: T103. Решта — T114/T115 (зроблено), T116/T117.
   Міграція `20261226310000_space_storage_catalog_creatives.sql`: `service_reserve_space_creative_image`
   (`private.launch_creative_images`, версія `space-v1:<content id>`, контрольна сума — перші 32 hex,
   відмова `STORAGE_QUOTA_EXCEEDED`), `space_counted` + тригер обліку `catalogs`,
@@ -534,33 +534,78 @@
   публікатор картинок простору у `/product-catalog/create`), `catalog-updater/feed-writer.ts`
   (`creativeCells`) і `worker.ts` (стрічка кількох відео/картинок не падає `MULTI_CREATIVE_UNSUPPORTED`).
   Веб: `LaunchEditor.tsx` (R2: без перезашивки, без опції копії, «пізніше» лише для одного відео).
-- [ ] T114 [P] [US1] Тест для T115 — решта T104 у R2-просторі:
-  - перезашитий каталог запуску одного відео: допуск запуску (`prepareLaunchCatalogVideoAdmission`,
-    `service_accept_launch_catalog_video_generation`) приймає набір простору
-    (`service_admit_space_catalog_variants` під `launch:<generation>:catalog`, налаштування члена з
-    тривалістю запуску), а не `service_accept_catalog_video_set` (Drive, `drive_version` джерела,
-    виконавець `team_recovery_delegations`); очікування запуску (`waitForRegisteredVideoDependency`,
-    `service_wait_launch_catalog_video`, `settleVideoFailures`) читає прогрес набору простору
-    (`service_read_space_catalog_variants` / `space_catalog_variant_progress`), а не
-    `service_read_catalog_video_acceptance`; повторне використання готового набору (`service_find_launch_catalog_video_reuse`) — лише Drive;
-    приєднання (`service_attach_launch_catalog_before_catalog_sub`, умова `x.video_set_id`) перевіряє
-    набір простору;
-  - кілька відео з перезашивкою: набір простору на сегмент (`plan.segments`, `accept_launch_catalog_video_segments`
-    сьогодні пише Drive-набори), авторитет простору (`catalog-space-variants.ts` відмовляє
-    `catalogPlanVideoSets > 1`) готує набори сегментів, адреси за сегментами (`catalogSegmentRowIds`,
-    сід сегмента), `failedOrdinal`; фонове доведення (T107) і прибиральник (T113) — на кожен набір;
-  - пізнє посилання для кількох креативів і картинок: ціль публікації на сегмент
-    (`catalog_publication_target_segments`, `kind='creatives'`), контекст стрічки
-    (`service_space_catalog_publication_context` знає одну ціль `source`) і письменник
-    (`space-publication.ts` пише лише відео-колонку; картинкам — H); ріст `creatives`-цілі на Drive теж
-    відмовляє (`prepare_catalog_growth_video_recipe`);
-  - масові запуски: `acceptLaunchBatch` (`launch-batch.ts`) кличе `prepareLaunchCatalogVideoAdmission`
-    без `spaceStorage`, тож у R2 його відмовляє `service_initial_catalog_video_context` (нема Drive-
-    підключення, `SOURCE_CHANGED`) до прийняття; треба передати бекенд і `assertSpaceLaunchCatalog`, а
-    `service_settle_launch_batch` (читає `catalog_initial_publication_checks`) — R2-гілку, як у приєднанні.
-    Legacy-запит каталогу запуску (без протоколу 1) у R2 відмовляє `STORAGE_BACKEND_MISMATCH` —
-    вебклієнт його не шле, лишити так.
-- [ ] T115 [US1] Реалізація T114 (research.md R15 «Каталоги запусків і креативи»). Тест: T114.
+- [x] T114 [P] [US1] Тест для T115 — перезашиті каталоги запусків і масові запуски в R2-просторі.
+  `supabase/tests/database/launch-space-catalog-variants.test.sql` (36): прийняття запуску одного
+  перезашитого відео (внутрішній допуск запуску й заморожування ресурсів — заглушки в транзакції
+  тесту) — набір простору під створенням `launch:<generation>:catalog` із налаштуваннями члена й
+  тривалістю запуску, варіація на запит, контекст без Drive-набору й виконавця, Drive-набору немає;
+  `expectedExecutorId` — `INVALID_INPUT`, без делегування фонової роботи — `AGENT_REQUIRED`;
+  очікування читає набір простору (`preparing`, `setCount`), прогрес запуску (`get_launch`) — його,
+  фоновий агент члена бере варіацію запуску, тричі невдала варіація — `unknown` і генерація
+  `interrupted:PROCESS_RESULT_UNCERTAIN`; кілька відео — набір на сегмент зі своєю часткою,
+  сегменти без Drive-набору, відео поза планом і чужий набір сегмента — `WRONG_STATE`, повторний
+  допуск — той самий набір, очікування бачить усі набори й називає `failedOrdinal`; зв'язок
+  `spaceVariantSetIds` (менше двох — `INVALID_INPUT`, набір іншого створення — `WRONG_STATE`) прив'язує
+  обидва набори й використовує копію кожного виходу, без копії оригіналів, оновлювачу —
+  `service_space_catalog_variant_links` null; приєднання — лише коли кожен набір прив'язаний;
+  скасування генерації скасовує набір і відкритий запуск агента; Drive-тексти прийняття й сегментів
+  незмінні; огорожа прибирання. `tests/launch-space-catalog-variants.test.ts` (14): допуск R2 читає
+  лише налаштування члена й годинник (без Drive-контексту й пошуку готового набору), не називає
+  виконавця, планує набір на відео; виконання на передньому плані — `STORAGE_BACKEND_MISMATCH` до
+  будь-якого читання; Drive-запуск і далі потребує виконавця (`AGENT_REQUIRED`, той самий виклик контексту);
+  `generateLaunch` R2 приймає без виконавця навіть названого сторінкою, виконання на передньому плані
+  відмовляє до читання; авторитет простору: кожен набір із замороженими налаштуваннями запуску, `failedOrdinal`,
+  рядки кожного відео — його варіації за сідом сегмента, `setIds`/`creativeLinks`, пізніше для
+  кількох — `MULTI_CREATIVE_UNSUPPORTED` до читання; каталог двох перезашитих відео пише рядки
+  варіаціями й зв'язує `spaceVariantSetIds`, без копії оригіналу; крок каталогу R2 не чекає «порожнього»
+  каталогу; масовий запуск R2 — без Drive-контексту, відмова учасника `STORAGE_BACKEND_MISMATCH` до
+  плану, Drive — як було. Оновлено T104-тести: `tests/launch-space-catalog.test.ts` (відмови
+  перезашивки замінено прийняттям), `tests/launch-catalog-settings.test.tsx` (редактор R2 пропонує
+  перезашивку).
+- [x] T115 [US1] Реалізація T114 (research.md R15 «Перезашиті каталоги запусків і масові запуски»).
+  Тест: T114. Міграція `20261226320000_space_storage_launch_catalog_variants.sql`: унікальність набору
+  — (створення, відео); `service_admit_space_catalog_variants` приймає відео-сегмент плану;
+  `service_accept_launch_catalog_video_generation` — R2-гілка (без виконавця, делегування члена
+  обов'язкове, `private.admit_launch_space_catalog_set`, контекст без Drive-набору);
+  `accept_launch_catalog_video_segments` — набір простору на сегмент; `service_wait_launch_catalog_video`,
+  `private.launch_space_video_generation_json` (+ `get_launch_before_started_at`,
+  `list_launches_pre_assignment`), приєднання, тригер скасування, `service_link_space_catalog_feed`
+  (`spaceVariantSetIds`), `service_space_catalog_variant_links`. Edge: `launch-space-source.ts`
+  (перезашивка дозволена), `launch-catalog-video.ts` (`service_space_catalog_variant_defaults`, без
+  виконавця, без повторного використання й виконання на передньому плані), `launches.ts`, `launch-catalog.ts`
+  (`spaceStorage`), `catalog-space-variants.ts` (набір на відео, `frozenSettings`),
+  `catalog-space-source.ts` (`variationSets`, `variationLinkOf`), `product-catalog.ts` (кілька
+  перезашитих відео), `launch-batch.ts` (`LaunchBatchDeps.spaceStorage`), `index.ts` (крок каталогу
+  R2 з прив'язкою, масові запуски й доведення джерела `other` у просторі). Веб: `LaunchEditor.tsx`
+  (перезашивка в R2), `useLaunchGeneration.ts` (у R2 без виконання на передньому плані й виконавця). Решта —
+  T116/T117.
+- [ ] T116 [P] [US1] Тест для T117 — пізнє посилання для кількох креативів і картинок у R2-просторі
+  (запуск; зараз `MULTI_CREATIVE_UNSUPPORTED` до прийняття: `assertSpaceLaunchCatalog`, авторитет
+  простору, `createProductCatalog`):
+  - реєстрація: `service_link_space_catalog_feed` з `spacePublicationKey` для каталогу кількох
+    відео чи картинок реєструє ціль `creatives` (`catalog_publication_target_segments`) із
+    сегментами-джерелами (`video_set_id` null, `source_version` `space-v1:<content id>` кожного
+    креативу; FK `video_set_id` веде на Drive-рецепти, тому набір простору не пишеться в сегмент, а
+    знаходиться за каталогом і відео, як для `source`); `register_space_catalog_publication` сьогодні
+    будує лише `source` з `i.video_material_id`;
+  - контекст (`service_space_catalog_publication_context` сьогодні `blocked` для `t.kind <> 'source'`)
+    — сегменти з `rowStart/rowCount`: відео без перезашивки — R2-копія креативу; перезашите відео —
+    виходи набору простору цього відео з рядками й сідом сегмента (`plan.segments`); картинка —
+    опублікована `c1/`-адреса (`launch_creative_images` за `space-v1:` вмістом); `waiting`, поки копія
+    не готова; квитанції `r2` на кожен матеріал;
+  - письменник (`catalog-updater/space-publication.ts`): адреси рядків за сегментами; для картинок —
+    колонка H (`CATALOG_IMAGE_COLUMN`) замість відео: `applyFeedPublicationCells` /
+    `verifyFeedPublicationCells` пишуть і звіряють лише відео-колонку — потрібна колонка цілі;
+  - оновлювач до строку: `creativeCells` тримає відео-клітинки стрічки, але каталог картинок пише H
+    з макета (`publicationHeld` — посилань у макеті немає): до й після публікації H має братися зі
+    стрічки, інакше раунд зітре опубліковану картинку;
+  - авторитет: кілька перезашитих відео з пізнім посиланням чекають усіх наборів, як одне (T102), і
+    зв'язок передає `spaceVariantSetIds` разом із `spacePublicationKey`;
+  - ріст `creatives`-цілі відмовляє (`prepare_catalog_growth_video_recipe`,
+    `MULTI_CREATIVE_UNSUPPORTED`) — і в R2 теж; дії менеджера (утримати, перенести, «додати зараз»)
+    над `creatives`-ціллю R2;
+  - веб: редактор запуску R2 пропонує «пізніше» для кількох креативів і картинок.
+- [ ] T117 [US1] Реалізація T116. Тест: T116.
 - [ ] T105 [US1] Приймання на беті (частина T062): каталог з 10 варіаціями в пілотному R2-просторі,
   агент arm64 і Windows, видалення каталогу — 0 об'єктів у bucket простору й у публічному.
 - [x] T106 [P] [US1] Тест для T107 — фонове доведення варіацій R2-каталогу:

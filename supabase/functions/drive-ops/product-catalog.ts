@@ -833,7 +833,12 @@ export async function createProductCatalog(
     request.videoPublication?.mode === 'immediate' &&
     deps.videoDelivery === undefined;
   if (space) {
-    if ((kind !== 'video' || (request.creatives?.length ?? 1) > 1) && !spaceCreatives)
+    // T115: several videos, each linked from its own variations the authority proved.
+    if (
+      (kind !== 'video' || (request.creatives?.length ?? 1) > 1) &&
+      !spaceCreatives &&
+      !(kind === 'video' && spaceVariationLinks?.length)
+    )
       throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
     if (
       request.restitchOperationId ||
@@ -940,7 +945,7 @@ export async function createProductCatalog(
       : (spaceVariationLinks?.[0] ?? (await space.videoLink({ teamId, actorId, video })))
     : videoShareLink(liveVideo.id, liveVideo.resourceKey ?? video.resourceKey);
   // Every other video is shared the same way; a restitched one links its set's outputs instead.
-  // In a space each one is its own R2 copy (T104).
+  // In a space each one is its own R2 copy (T104), or its own first variation (T115).
   const creativeVideoLinks: string[] = [originalVideoLink];
   for (const creative of proven) {
     if (kind !== 'video') break;

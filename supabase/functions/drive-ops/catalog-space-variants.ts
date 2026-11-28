@@ -40,15 +40,23 @@ import {
  * A link published later (T102) is the same set: the creation waits for every variation as for
  * one published at once (so the catalog never names a variation that does not exist), then makes
  * the catalog with empty video cells; the link registers the scheduled policy, and the feed's
- * publication lane writes these addresses when it is due. Several creatives are refused before
- * anything is admitted.
+ * publication lane writes these addresses when it is due.
+ *
+ * T115: a Launch's catalog of several re-stitched videos (062) has a set per video, admitted with
+ * the Launch (20261226320000); each video's rows take its own variations through its segment's
+ * seed, and the link binds every set. A later link for several videos is refused (it needs a
+ * publication target per creative).
  */
 
 export interface SpaceVariantBinding {
   /** The set whose outputs the catalog links, once `prepare` answered ready. */
   setId: string | null;
+  /** T115: a Launch's catalog of several videos links a set per video (each video's own). */
+  setIds?: readonly string[] | null;
   /** T102: the rows' addresses `prepare` proved, kept for a catalog whose cells wait for later. */
   videoLinks?: readonly string[] | null;
+  /** T115: each video creative's own first variation, for the creative's record in the layout. */
+  creativeLinks?: Readonly<Record<string, string>> | null;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
@@ -94,12 +102,39 @@ function parseProgress(value: unknown, setId: string): Progress {
   };
 }
 
+/** One video's set of a plan: its rows, its requests and its seed (a plan's segment, or the plan). */
+interface PlannedSet {
+  ordinal: number;
+  setId: string;
+  sourceMaterialId: string;
+  rowIds: string[];
+  variantCount: number;
+  requestIds: string[];
+  seed: string;
+}
+
+function plannedSets(plan: CatalogInitialVideoPlan, sourceMaterialId: string): PlannedSet[] {
+  return catalogPlanVideoSets(plan, sourceMaterialId).map(set => {
+    const segment = plan.segments?.find(candidate => candidate.ordinal === set.ordinal);
+    return {
+      ...set,
+      requestIds: segment ? segment.childRequestIds : plan.childRequestIds,
+      seed: segment ? segment.assignmentSeed : plan.assignmentSeed
+    };
+  });
+}
+
 export function spaceCatalogVideoAuthority(input: {
   rpc: SpaceCatalogRpc;
   teamId: string;
   actorId: string;
   sourceMaterialId: string;
   binding: SpaceVariantBinding;
+  /**
+   * T115: the settings a Launch froze when it was accepted (its sets were admitted then); a set
+   * admitted here for the first time freezes the member's current settings instead.
+   */
+  frozenSettings?: TeamRestitchDefaults;
 }): CatalogInitialVideoAuthority {
   const { rpc, teamId, actorId, sourceMaterialId, binding } = input;
   return {
@@ -113,95 +148,132 @@ export function spaceCatalogVideoAuthority(input: {
       const scheduled = plan.preferences.videoPublication.mode === 'scheduled';
       if (!scheduled && plan.preferences.videoPublication.mode !== 'immediate')
         throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
-      if (catalogPlanVideoSets(plan, sourceMaterialId).length > 1)
+      const sets = plannedSets(plan, sourceMaterialId);
+      // T115: a later link for several videos needs a publication target per creative.
+      if (sets.length > 1 && scheduled)
         throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
-      const setId = plan.setId;
       const count = plan.preferences.videoVariationCount;
-      if (!setId || !UUID.test(setId) || plan.childRequestIds.length !== count)
+      if (
+        sets.length < 1 ||
+        plan.childRequestIds.length !== count ||
+        sets.reduce((total, set) => total + set.variantCount, 0) !== count ||
+        sets.some(set => !UUID.test(set.setId) || set.requestIds.length !== set.variantCount)
+      )
         throw new TeamFunctionError('INVALID_RESPONSE');
-      const settings = spaceVariantSettings(
-        await rpc('service_space_catalog_variant_defaults', { p_team: teamId, p_actor: actorId }),
-        plan.preferences.restitchDuration
-      );
+      const settings =
+        input.frozenSettings ??
+        spaceVariantSettings(
+          await rpc('service_space_catalog_variant_defaults', { p_team: teamId, p_actor: actorId }),
+          plan.preferences.restitchDuration
+        );
+      const digest = settings ? await sha256Hex(JSON.stringify(settings)) : null;
       // A set admitted before keeps what it froze; a new one needs settings that make a file.
-      const progress = parseProgress(
-        await rpc('service_admit_space_catalog_variants', {
-          p_team: teamId,
-          p_actor: actorId,
-          p_intent: intentId,
-          p_set: setId,
-          p_source: sourceMaterialId,
-          p_requests: plan.childRequestIds,
-          p_settings: settings,
-          p_settings_digest: settings ? await sha256Hex(JSON.stringify(settings)) : null
-        }),
-        setId
-      );
-      if (progress.requestedCount !== count)
-        throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
-      if (progress.state !== 'ready') {
+      let registered = 0;
+      const states: Array<Progress['state']> = [];
+      let failedOrdinal: number | undefined;
+      for (const set of sets) {
+        const progress = parseProgress(
+          await rpc('service_admit_space_catalog_variants', {
+            p_team: teamId,
+            p_actor: actorId,
+            p_intent: intentId,
+            p_set: set.setId,
+            p_source: set.sourceMaterialId,
+            p_requests: set.requestIds,
+            p_settings: settings,
+            p_settings_digest: digest
+          }),
+          set.setId
+        );
+        if (progress.requestedCount !== set.variantCount)
+          throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+        registered += progress.registeredCount;
+        states.push(progress.state);
+        if (progress.state === 'unknown') failedOrdinal ??= set.ordinal;
+      }
+      // The worst set decides, as for Drive sets (catalog_video_sets_state).
+      const state: Progress['state'] = states.includes('unknown')
+        ? 'unknown'
+        : states.includes('canceled')
+          ? 'canceled'
+          : states.includes('preparing')
+            ? 'preparing'
+            : 'ready';
+      if (state !== 'ready') {
         // T102: a Drive set answers a later link with the catalog at once and its cells filled
         // when the set is ready; an R2 creation waits for its variations either way.
         if (scheduled)
           throw new CatalogVideoPreparationPending({
             outcome: 'preparing_video',
             catalogIntentId: intentId,
-            videoSetId: setId,
+            videoSetId: sets[0]!.setId,
             requestedCount: count,
-            registeredCount: progress.registeredCount,
-            state: progress.state
+            registeredCount: registered,
+            state
           });
-        return { state: progress.state, registeredCount: progress.registeredCount };
+        return {
+          state,
+          registeredCount: registered,
+          ...(sets.length > 1 && failedOrdinal !== undefined ? { failedOrdinal } : {})
+        };
       }
-      const outputs = await rpc('service_space_catalog_variant_outputs', {
-        p_team: teamId,
-        p_actor: actorId,
-        p_set: setId
-      });
-      if (
-        !Array.isArray(outputs) ||
-        outputs.length !== count ||
-        outputs.some(
-          (output, index) =>
-            !isRecord(output) ||
-            output.index !== index ||
-            typeof output.materialId !== 'string' ||
-            !UUID.test(output.materialId)
-        )
-      )
-        throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
-      const urls: string[] = [];
+      const byRow = new Map<string, string>();
+      const creativeLinks: Record<string, string> = {};
       let planned = false;
-      for (const output of outputs as Array<{ materialId: string }>) {
-        const link = await rpc('service_space_catalog_video_link', {
+      for (const set of sets) {
+        const outputs = await rpc('service_space_catalog_variant_outputs', {
           p_team: teamId,
           p_actor: actorId,
-          p_material: output.materialId
+          p_set: set.setId
         });
-        if (!isRecord(link) || !isCatalogVideoR2PublicUrl(link.url))
-          throw new TeamFunctionError('INVALID_RESPONSE');
-        if (link.state !== 'ready') planned = true;
-        urls.push(link.url as string);
+        if (
+          !Array.isArray(outputs) ||
+          outputs.length !== set.variantCount ||
+          outputs.some(
+            (output, index) =>
+              !isRecord(output) ||
+              output.index !== index ||
+              typeof output.materialId !== 'string' ||
+              !UUID.test(output.materialId)
+          )
+        )
+          throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
+        const urls: string[] = [];
+        for (const output of outputs as Array<{ materialId: string }>) {
+          const link = await rpc('service_space_catalog_video_link', {
+            p_team: teamId,
+            p_actor: actorId,
+            p_material: output.materialId
+          });
+          if (!isRecord(link) || !isCatalogVideoR2PublicUrl(link.url))
+            throw new TeamFunctionError('INVALID_RESPONSE');
+          if (link.state !== 'ready') planned = true;
+          urls.push(link.url as string);
+        }
+        // Each video's rows take its own variations through its own seed (one set: the plan's).
+        const assignment = createCatalogVideoAssignment({
+          recipeRevision: 1,
+          recipeRowIds: set.rowIds,
+          variantCount: set.variantCount,
+          seed: set.seed
+        });
+        for (const row of assignment.assignments)
+          byRow.set(row.recipeRowId, urls[row.videoVariantIndex]!);
+        const first = byRow.get(set.rowIds[0]!.toLowerCase());
+        if (first) creativeLinks[set.sourceMaterialId] = first;
       }
       // The copies not made yet are made by the catalog video worker; nudge it once.
       if (planned)
         await rpc('service_catalog_video_r2_kick', { p_route: 'claim' }).catch(() => undefined);
-      const assignment = createCatalogVideoAssignment({
-        recipeRevision: 1,
-        recipeRowIds: plan.recipeRowIds,
-        variantCount: count,
-        seed: plan.assignmentSeed
-      });
-      const byRow = new Map(
-        assignment.assignments.map(row => [row.recipeRowId, row.videoVariantIndex])
-      );
       const videoLinks = plan.recipeRowIds.map(row => {
-        const index = byRow.get(row.toLowerCase());
-        if (index === undefined) throw new TeamFunctionError('INVALID_RESPONSE');
-        return urls[index]!;
+        const url = byRow.get(row.toLowerCase());
+        if (url === undefined) throw new TeamFunctionError('INVALID_RESPONSE');
+        return url;
       });
-      binding.setId = setId;
+      binding.setId = sets.length === 1 ? sets[0]!.setId : null;
+      binding.setIds = sets.length > 1 ? sets.map(set => set.setId) : null;
       binding.videoLinks = videoLinks;
+      binding.creativeLinks = creativeLinks;
       return { state: 'ready', videoLinks };
     },
     // The link registered the set with the catalog in its own transaction.

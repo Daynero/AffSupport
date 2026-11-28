@@ -22,6 +22,7 @@ import type {
   LaunchStage
 } from '@video-compressor/shared';
 import { launchApi, teamApi } from '../../api/team';
+import { useCatalogFeedSpace } from '../product-catalog/CatalogFeedAddress';
 import { TeamApiError } from '../../api/team';
 type SaveIntent = {
   teamId: string;
@@ -54,6 +55,9 @@ export function useLaunchGeneration(
 ) {
   const admissionGuard = useRef(beforeAdmission);
   admissionGuard.current = beforeAdmission;
+  // 057 T115: an R2 space's variations run on the member's agent in the background: no paired
+  // foreground session and no executor named (the server requires the member's delegation).
+  const spaceVariations = useCatalogFeedSpace(teamId);
   const [busy, setBusy] = useState(false);
   const [pendingStage, setPendingStage] = useState<LaunchStage | null>(null);
   const [, refreshIntentState] = useState(0);
@@ -340,9 +344,11 @@ export function useLaunchGeneration(
           sourceMaterialId: intended.config.materialId,
           foregroundRequired:
             intended.config.catalog?.catalogVideoProtocolVersion === 1 &&
-            intended.config.catalog.restitchEnabled,
+            intended.config.catalog.restitchEnabled &&
+            !spaceVariations,
           ...(intended.config.catalog?.catalogVideoProtocolVersion === 1 &&
-          intended.config.catalog.restitchEnabled
+          intended.config.catalog.restitchEnabled &&
+          !spaceVariations
             ? { expectedExecutorId: recoveryInstallation() ?? undefined }
             : {})
         };

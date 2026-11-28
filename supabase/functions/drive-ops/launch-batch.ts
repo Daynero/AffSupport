@@ -17,6 +17,17 @@ import { TeamFunctionError } from '../_shared/errors.ts';
 import { launchFailure, launchRetryAfterMs } from '../_shared/launch-failures.ts';
 import type { ServiceRpcClient } from '../_shared/credentials.ts';
 import { prepareLaunchCatalogVideoAdmission } from './launch-catalog-video.ts';
+import { assertSpaceLaunchCatalog } from './launch-space-source.ts';
+
+/**
+ * 057 T115: which spaces are R2 ones. A bulk launch there is admitted as a single Launch of an R2
+ * space is (`/launches/generate`): what its catalog cannot make there is refused per member, and
+ * its video admission reads no Drive video context. Without it every space is a Drive one, as
+ * before.
+ */
+export interface LaunchBatchDeps {
+  spaceStorage?: (teamId: string, actorId: string) => Promise<boolean>;
+}
 
 async function rpc(service: ServiceRpcClient, name: string, args: Record<string, unknown>) {
   const { data, error } = await service.rpc(name, args);
@@ -42,7 +53,8 @@ async function prepareLaunchBatch(
   service: ServiceRpcClient,
   command: LaunchBatchCommand,
   context: Record<string, unknown>,
-  allowSkip = false
+  allowSkip = false,
+  deps: LaunchBatchDeps = {}
 ) {
   if (!Array.isArray(context.items) || context.items.length !== command.items.length)
     throw new TeamFunctionError('INVALID_RESPONSE');
@@ -72,6 +84,12 @@ async function prepareLaunchBatch(
     }
   };
   const actorId = command.expectedActorId;
+  // Read once per batch, inside a member's admission: a lost read is that member's (pending).
+  let backend: Promise<boolean> | null = null;
+  const spaceStorage = () =>
+    deps.spaceStorage
+      ? (backend ??= deps.spaceStorage(command.teamId, actorId))
+      : Promise.resolve(false);
   const prepared: Record<string, unknown>[] = new Array(command.items.length);
   let cursor = 0;
   const prepare = async () => {
@@ -107,6 +125,8 @@ async function prepareLaunchBatch(
         if (!preview.ok) throw new TeamFunctionError('INVALID_INPUT');
         let video: Awaited<ReturnType<typeof prepareLaunchCatalogVideoAdmission>> | null = null;
         if (config.value.method === 'catalog') {
+          const space = await spaceStorage();
+          if (space) assertSpaceLaunchCatalog(config.value);
           const ready = await rpc(metadata, 'service_launch_worker_ready', {});
           if (ready !== true) throw new TeamFunctionError('NO_WORK');
           video = await prepareLaunchCatalogVideoAdmission(metadata, {
@@ -114,7 +134,8 @@ async function prepareLaunchBatch(
             actorId,
             launchId: selected.launchId,
             config: config.value,
-            ...(command.expectedExecutorId
+            ...(space ? { spaceStorage: true } : {}),
+            ...(command.expectedExecutorId && !space
               ? { expectedExecutorId: command.expectedExecutorId }
               : {})
           });
@@ -186,7 +207,12 @@ function receipt(value: unknown, command: LaunchBatchCommand) {
     throw new TeamFunctionError('INVALID_RESPONSE');
   return result;
 }
-export async function acceptLaunchBatch(service: ServiceRpcClient, actorId: string, raw: unknown) {
+export async function acceptLaunchBatch(
+  service: ServiceRpcClient,
+  actorId: string,
+  raw: unknown,
+  deps: LaunchBatchDeps = {}
+) {
   const command = parseLaunchBatchCommand(raw);
   if (!command) throw new TeamFunctionError('INVALID_INPUT');
   if (command.expectedActorId !== actorId) throw new TeamFunctionError('PERMISSION_DENIED');
@@ -194,7 +220,7 @@ export async function acceptLaunchBatch(service: ServiceRpcClient, actorId: stri
     context = await rpc(service, 'service_launch_batch_context', args);
   if (!isRecord(context)) throw new TeamFunctionError('INVALID_RESPONSE');
   if (context.batch !== undefined) return receipt(context.batch, command);
-  const prepared = await prepareLaunchBatch(service, command, context);
+  const prepared = await prepareLaunchBatch(service, command, context, false, deps);
   return receipt(
     await rpc(service, 'service_accept_launch_batch', { ...args, p_prepared: prepared }),
     command
@@ -202,14 +228,17 @@ export async function acceptLaunchBatch(service: ServiceRpcClient, actorId: stri
 }
 /** The existing scheduled worker claims at most three due members from one
  * batch. Original CAS/keys and a short server lease fence every late retry. */
-export async function recoverLaunchBatchAdmission(service: ServiceRpcClient) {
+export async function recoverLaunchBatchAdmission(
+  service: ServiceRpcClient,
+  deps: LaunchBatchDeps = {}
+) {
   const claim = await rpc(service, 'service_claim_launch_batch_admission_recovery', { p_limit: 3 });
   if (claim === null) return null;
   if (!isRecord(claim) || !isLaunchUuid(claim.owner) || !isRecord(claim.context))
     throw new TeamFunctionError('INVALID_RESPONSE');
   const command = parseLaunchBatchCommand(claim.command);
   if (!command) throw new TeamFunctionError('INVALID_RESPONSE');
-  const prepared = await prepareLaunchBatch(service, command, claim.context, true);
+  const prepared = await prepareLaunchBatch(service, command, claim.context, true, deps);
   return receipt(
     await rpc(service, 'service_retry_launch_batch_admission', {
       ...commandArgs(command),
@@ -229,12 +258,13 @@ export async function recoverLaunchBatchOther(
     actorId: string,
     config: LaunchConfig,
     sources: LaunchSourceSnapshot
-  ) => Promise<void>
+  ) => Promise<void>,
+  deps: LaunchBatchDeps = {}
 ) {
   await rpc(service, 'service_settle_launch_batch_cancellations', { p_limit: 3 });
   // Admission failures leave bounded leases for the next pass. Existing accepted
   // children still progress even if the retry-context transport is unavailable.
-  await recoverLaunchBatchAdmission(service).catch(() => null);
+  await recoverLaunchBatchAdmission(service, deps).catch(() => null);
   const rows = await rpc(service, 'service_list_launch_batch_other_recovery', { p_limit: 3 });
   if (!Array.isArray(rows) || rows.length > 3) throw new TeamFunctionError('INVALID_RESPONSE');
   const result = { completed: 0, pending: 0 };

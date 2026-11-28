@@ -302,7 +302,7 @@ it('lands every press of «Generate» on the first visible error, focuses and fl
   }
 });
 
-it('offers an R2 space only what its Launch catalog can make there (057 T104)', async () => {
+it('offers an R2 space only what its Launch catalog can make there (057 T104/T115)', async () => {
   const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
   rememberSpaceBackend('r2-team', 'r2');
   const draft = newLaunchDraft();
@@ -326,13 +326,15 @@ it('offers an R2 space only what its Launch catalog can make there (057 T104)', 
     ]
   };
   const view = render(<LaunchEditor {...props} teamId="r2-team" config={draft} />);
-  // Re-stitching has no R2 path yet, and the copy is no option: a space's catalog is always R2.
-  expect(screen.queryByRole('switch', { name: 'Restitch video' })).toBeNull();
+  // Re-stitching makes the space's own variations (T115); the copy is no option: a space's
+  // catalog is always R2.
+  expect(screen.getByRole('switch', { name: 'Restitch video' })).toBeTruthy();
   expect(screen.queryByRole('switch', { name: 'Copy the video to R2' })).toBeNull();
   expect(view.container.querySelector('.launch-editor-catalog-publication')).not.toBeNull();
   view.rerender(<LaunchEditor {...props} teamId="r2-team" config={several} />);
   // A later link for several videos needs a target per video: not offered there yet.
   expect(view.container.querySelector('.launch-editor-catalog-publication')).toBeNull();
+  expect(screen.getByRole('switch', { name: 'Restitch video' })).toBeTruthy();
   view.rerender(
     <LaunchEditor
       {...props}
@@ -340,8 +342,7 @@ it('offers an R2 space only what its Launch catalog can make there (057 T104)', 
       config={{ ...draft, catalog: { ...draft.catalog!, restitchEnabled: true } }}
     />
   );
-  // A choice already made stays visible, so it can be undone.
-  expect(screen.getByRole('switch', { name: 'Restitch video' })).toBeTruthy();
+  expect(screen.getByRole('switch', { name: 'Restitch video' })).toHaveProperty('checked', true);
   view.rerender(<LaunchEditor {...props} teamId="drive-team" config={several} />);
   expect(screen.getByRole('switch', { name: 'Restitch video' })).toBeTruthy();
   expect(view.container.querySelector('.launch-editor-catalog-publication')).not.toBeNull();

@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { prepareLaunchCatalogVideoAdmission } from '../supabase/functions/drive-ops/launch-catalog-video';
-import { generateLaunch } from '../supabase/functions/drive-ops/launches';
 import {
   assertSpaceLaunchCatalog,
   proveSpaceLaunch,
@@ -13,9 +12,10 @@ import { launchConfig } from './fixtures/launches';
 
 /**
  * 057 T103/T104: a Launch of an R2 space. Its source is named by content and proven in the space;
- * what its catalog cannot make there yet (re-stitching, a legacy request, a later link for
- * several creatives or pictures) is refused before the Launch is accepted, and its admission
- * reads no Drive video context. A Drive Launch is admitted exactly as before.
+ * what its catalog cannot make there yet (a legacy request, a later link for several creatives or
+ * pictures) is refused before the Launch is accepted, and its admission reads no Drive video
+ * context. Re-stitched Launches are T115's (launch-space-catalog-variants.test.ts). A Drive
+ * Launch is admitted exactly as before.
  */
 
 const id = (n: number) => '05791060-0000-4000-8000-' + String(n).padStart(12, '0');
@@ -73,10 +73,21 @@ describe('an R2 space Launch catalog', () => {
     expect(() => assertSpaceLaunchCatalog(catalog({ several: true }))).not.toThrow();
     expect(() => assertSpaceLaunchCatalog(catalog({ image: true, several: true }))).not.toThrow();
     expect(() => assertSpaceLaunchCatalog(catalog({ publication: scheduled }))).not.toThrow();
+    // T115: re-stitched, one video or several, at once; one video published later too.
+    expect(() => assertSpaceLaunchCatalog(catalog({ restitch: true }))).not.toThrow();
+    expect(() =>
+      assertSpaceLaunchCatalog(catalog({ restitch: true, several: true }))
+    ).not.toThrow();
+    expect(() =>
+      assertSpaceLaunchCatalog(catalog({ restitch: true, publication: scheduled }))
+    ).not.toThrow();
     const refused: Array<[LaunchConfig, string]> = [
-      [catalog({ restitch: true }), 'STORAGE_BACKEND_MISMATCH'],
       [catalog({ legacy: true }), 'STORAGE_BACKEND_MISMATCH'],
-      [catalog({ restitch: true, several: true }), 'MULTI_CREATIVE_UNSUPPORTED'],
+      [catalog({ legacy: true, several: true }), 'MULTI_CREATIVE_UNSUPPORTED'],
+      [
+        catalog({ restitch: true, several: true, publication: scheduled }),
+        'MULTI_CREATIVE_UNSUPPORTED'
+      ],
       [catalog({ several: true, publication: scheduled }), 'MULTI_CREATIVE_UNSUPPORTED'],
       [catalog({ image: true, publication: scheduled }), 'MULTI_CREATIVE_UNSUPPORTED']
     ];
@@ -100,12 +111,6 @@ describe('an R2 space Launch catalog', () => {
     expect(admitted.executorId).toBeNull();
     expect(admitted.plan.segments).toHaveLength(2);
     expect(rpc.mock.calls.map(([name]) => name)).toEqual(['service_catalog_publication_clock']);
-    await expect(
-      prepareLaunchCatalogVideoAdmission(
-        { rpc },
-        { teamId: TEAM, actorId: ACTOR, config: catalog({ restitch: true }), spaceStorage: true }
-      )
-    ).rejects.toMatchObject({ code: 'STORAGE_BACKEND_MISMATCH' });
   });
 
   it('a Drive Launch still reads its video context', async () => {
@@ -127,28 +132,6 @@ describe('an R2 space Launch catalog', () => {
       p_executor: null,
       p_require_executor: false
     });
-  });
-
-  it('a re-stitched one is refused before its sources are read or anything is accepted', async () => {
-    const draft = catalog({ restitch: true });
-    const caller = {
-      rpc: vi.fn(async (name: string) =>
-        name === 'find_launch_generation'
-          ? { data: null, error: null }
-          : name === 'get_launch'
-            ? { data: { version: '3', draft }, error: null }
-            : { data: null, error: { message: 'unexpected' } }
-      )
-    };
-    const service = { rpc: vi.fn(async () => ({ data: null, error: { message: 'unexpected' } })) };
-    await expect(
-      generateLaunch(
-        { caller, service, spaceStorage: true, catalogReady: vi.fn(async () => undefined) },
-        { teamId: TEAM, launchId: id(4), expectedVersion: '3', requestKey: 'generate-1' },
-        ACTOR
-      )
-    ).rejects.toMatchObject({ code: 'STORAGE_BACKEND_MISMATCH' });
-    expect(service.rpc).not.toHaveBeenCalled();
   });
 });
 

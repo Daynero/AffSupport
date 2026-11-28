@@ -29,7 +29,12 @@ export async function prepareLaunchCatalogVideoAdmission(
     config: LaunchConfig;
     expectedExecutorId?: string;
     foregroundExecutor?: CatalogVideoForegroundExecutor;
-    /** 057 T104: an R2 space's Launch, never re-stitched there: no Drive video context to read. */
+    /**
+     * 057 T104/T115: an R2 space's Launch: no Drive video context to read. Re-stitched, its
+     * variations are the space's own sets, run by the member's agent: no executor is named
+     * (the acceptance requires the member's recovery delegation), no ready Drive set is reused
+     * and nothing runs in the foreground.
+     */
     spaceStorage?: boolean;
   }
 ) {
@@ -42,11 +47,19 @@ export async function prepareLaunchCatalogVideoAdmission(
   const several = creatives.length > 1;
   if (creatives.length < 1 || (kind === 'image' && config.catalog.restitchEnabled))
     throw new TeamFunctionError('INVALID_INPUT');
-  if (input.spaceStorage && config.catalog.restitchEnabled)
+  if (input.spaceStorage && input.foregroundExecutor)
     throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
   // The context names the executor and the re-stitch defaults, which only re-stitching reads.
+  // An R2 space has the member's effective defaults only (the same the acceptance compares).
   const context = input.spaceStorage
-    ? { data: { executorId: null, defaults: null }, error: null }
+    ? config.catalog.restitchEnabled
+      ? await service
+          .rpc('service_space_catalog_variant_defaults', { p_team: teamId, p_actor: actorId })
+          .then(result => ({
+            data: { executorId: null, defaults: result.data },
+            error: result.error
+          }))
+      : { data: { executorId: null, defaults: null }, error: null }
     : await service.rpc('service_initial_catalog_video_context', {
         p_team: teamId,
         p_actor: actorId,
@@ -98,6 +111,12 @@ export async function prepareLaunchCatalogVideoAdmission(
         }
       : {})
   };
+  // An R2 space names no executor: its acceptance requires the member's recovery delegation.
+  if (input.spaceStorage && 'expectedExecutorId' in preferences) {
+    const { expectedExecutorId: _none, ...rest } = preferences;
+    void _none;
+    preferences = rest as typeof preferences;
+  }
   let plan = await createCatalogInitialVideoPlanV2(
     preferences,
     kind,
@@ -126,8 +145,8 @@ export async function prepareLaunchCatalogVideoAdmission(
   }
   const settingsDigest = settings ? await catalogVideoSettingsDigest(settings) : null;
   let acceptedExecutor = executorId;
-  // A ready set of an earlier Launch is reused only for a single video (R5).
-  if (settings && input.launchId && !several) {
+  // A ready set of an earlier Launch is reused only for a single video (R5), on Drive.
+  if (settings && input.launchId && !several && !input.spaceStorage) {
     const reuse = await service.rpc('service_find_launch_catalog_video_reuse', {
       p_team: teamId,
       p_launch: input.launchId,
@@ -186,7 +205,7 @@ export async function prepareLaunchCatalogVideoAdmission(
       if (retired.error) throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
     }
   }
-  if (config.catalog.restitchEnabled && !acceptedExecutor)
+  if (config.catalog.restitchEnabled && !acceptedExecutor && !input.spaceStorage)
     throw new TeamFunctionError('AGENT_REQUIRED', { retryable: false });
   const segments = catalogPlanSegments(plan) ?? [];
   // One assignment per restitched video, over its own rows and with its own seed. A single
