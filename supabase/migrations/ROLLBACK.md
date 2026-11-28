@@ -3976,3 +3976,13 @@ refused `STORAGE_QUOTA_EXCEEDED`; a Drive space keeps `VIDEO_R2_QUOTA_EXCEEDED` 
 dropping the triggers and functions, subtracting the counted copies from each R2 space's
 `catalogs` row (`sum(size_bytes) where space_counted`), releasing the `catalog_video` reservations,
 then dropping the column and restoring the check.
+
+## 20261226290000 — 057 a silent variation run of an R2 space is closed
+
+Adds `private.space_catalog_variant_run_life`, `private.sweep_space_catalog_variant_runs` and the
+pg_cron job `soty-space-catalog-variant-stalled-runs`, and replaces the R2-only
+`service_read_space_catalog_variants` (adds `waitReason`/`retry` and `variantsFailed`). Nothing of
+a Drive space is touched. Undo with `select cron.unschedule('soty-space-catalog-variant-stalled-runs')`,
+re-running the read body from 20261226250000 and dropping the two functions. Runs already closed
+as `AGENT_STALLED` stay closed and their variations keep their next attempt; a silent run then stays
+`working` again until a page hands it over or the member's agent claims after a lapsed lease.

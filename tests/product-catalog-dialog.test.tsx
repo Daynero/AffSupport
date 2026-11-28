@@ -1269,6 +1269,44 @@ describe('a creation still running behind the catalogs list (1.4.3)', () => {
     expect(screen.queryByText(/_v3_catalog/)).toBeNull();
   });
 
+  it.each([
+    [
+      'retrying after Soty went silent',
+      { waitReason: 'AGENT_STALLED', retry: { attempt: 2, of: 3 } },
+      /The next attempt \(2 of 3\) starts on its own as soon as Soty answers\./u
+    ],
+    [
+      'out of attempts',
+      { state: 'unknown', variantsFailed: true },
+      /A video could not be made in three attempts\. Cancel the creation and create the catalog again\./u
+    ]
+  ])(
+    'says when an R2 variation is %s, never an eternal «working» (057 T113)',
+    async (_label, extra, text) => {
+      const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
+      rememberSpaceBackend(TEAM_ID, 'r2');
+      try {
+        localStorage.setItem(
+          `soty:catalog-video-create:v1:${preferenceUserId}:${TEAM_ID}:${VIDEO.id}`,
+          pendingKey
+        );
+        const listClient = client({
+          readProductCatalogVideo: vi.fn().mockResolvedValue({ ...pending, ...extra })
+        });
+        renderList(listClient);
+        await userEvent.click(await screen.findByRole('button', { name: 'Show progress' }));
+        expect(await screen.findByText('Videos ready: 2 of 5')).toBeTruthy();
+        expect(await screen.findByText(text)).toBeTruthy();
+        if ('retry' in extra)
+          expect(screen.getByText(/Soty with background work has not answered/u)).toBeTruthy();
+        else expect(screen.queryByText(/The next attempt/u)).toBeNull();
+        expect(document.body.textContent ?? '').not.toMatch(/Google/u);
+      } finally {
+        rememberSpaceBackend(TEAM_ID, 'drive');
+      }
+    }
+  );
+
   it('shows no running creation when this browser has none', async () => {
     renderList(client());
     expect(await screen.findByText(catalog.name)).toBeTruthy();

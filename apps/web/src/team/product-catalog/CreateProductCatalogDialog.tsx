@@ -1520,6 +1520,20 @@ export function CreateProductCatalogDialog({
             ) : videoPending.backgroundStalled ? (
               <CatalogBackgroundStalledNote teamId={teamId} onRetried={() => void checkVideo()} />
             ) : null)}
+          {/* 057 T113: an R2 variation whose run went silent is retried, or has used its tries. */}
+          {videoPending?.retry && videoPending.state === 'preparing' && (
+            <p role="status" className="team-inline-note">
+              {t('catalogVideoVariantRetrying', {
+                attempt: videoPending.retry.attempt,
+                of: videoPending.retry.of
+              })}
+            </p>
+          )}
+          {videoPending?.variantsFailed && videoPending.state === 'unknown' && (
+            <p role="alert" className="team-inline-error">
+              {t('catalogVideoVariantsFailed')}
+            </p>
+          )}
           {/* Only while a video is still owed by the computer: once every video
               is registered the server assembles the catalog on its own. */}
           {(videoPending?.agentSilent || videoPending?.agentUnreachable) &&

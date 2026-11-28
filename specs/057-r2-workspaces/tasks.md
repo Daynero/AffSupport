@@ -539,6 +539,22 @@
   `CatalogVideoR2UsageSection` не малюється в R2-просторі. Попутно: якорі `deno-type-dependencies.ts`
   для `team/restitch`, `catalog-video-set`, `transcript`, `space-read`. Тест: T110.
 
+- [x] T112 [P] [US1] Тест для T113 — `supabase/tests/database/catalog-space-variants-stalled.test.sql` (30):
+  запуск сторінки з ознаками життя не чіпається; той самий, мовчазний понад вікно, закривається
+  `AGENT_STALLED` (retryable), бронь імені знята, квитки відкликані, відкрите завантаження виходу
+  `expired`, резерв місця повернуто; варіація `pending`, наступну спробу бере claim агента;
+  запуск під живою орендою не чіпається, прострочена оренда — через 10 хв, оренда знімається;
+  третя мовчазна спроба лишає варіацію `failed`; читання діалогу — `waitReason`/`retry` або
+  `variantsFailed`; крон-лінія. `tests/product-catalog-dialog.test.tsx` (+2): «наступна спроба N з 3»
+  і «не вдалося за три спроби» без «Google».
+- [x] T113 [US1] Завислий запуск варіації (research.md R15 «Завислий запуск»): міграція
+  `20261226290000_space_storage_catalog_variant_stalled_runs.sql` — `private.space_catalog_variant_run_life`
+  (переходи запуску, видачі квитків, завантаження виходу), `private.sweep_space_catalog_variant_runs`
+  (2 год тиші без оренди, 10 хв після простроченої оренди, ≤50 за прохід), pg_cron
+  `soty-space-catalog-variant-stalled-runs` кожні 5 хв, `service_read_space_catalog_variants`
+  (`waitReason`, `retry`, `variantsFailed`); веб — `CreateProductCatalogDialog.tsx`,
+  `catalog-video-creation.ts`, uk+en. Drive-набори не змінюються. Тест: T112.
+
 ### Фаза 5 — US7: відчутно швидше (ядро M1) (P1)
 
 **Мета**: пряма передача, похідні при фіксації, кеш і Realtime.

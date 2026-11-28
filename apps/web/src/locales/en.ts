@@ -135,6 +135,10 @@ export const en = {
   catalogVideoCreationCanceled: 'Catalog creation canceled.',
   catalogVideoAgentSilent:
     'Soty on the computer is not responding. If the app restarted, creation continues on its own; otherwise open Soty or cancel the creation.',
+  catalogVideoVariantRetrying:
+    'The next attempt ({attempt} of {of}) starts on its own as soon as Soty answers.',
+  catalogVideoVariantsFailed:
+    'A video could not be made in three attempts. Cancel the creation and create the catalog again.',
   catalogVideoCreationWaitingAgent:
     'Waiting for the computer agent. Turn on background work on this computer to continue.',
   catalogVideoCreationCanceling: 'Cancellation requested; waiting for confirmation.',

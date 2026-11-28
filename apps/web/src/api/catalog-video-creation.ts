@@ -45,6 +45,13 @@ export interface CatalogVideoPreparingResult {
   waitReason?: string;
   /** 072: background work exists but has not taken this set since it was accepted. */
   backgroundStalled?: true;
+  /**
+   * 057 T113 (R2 space): a variation's last run went silent and was closed; the next attempt
+   * starts on its own (`waitReason` is then AGENT_STALLED).
+   */
+  retry?: { attempt: number; of: number };
+  /** 057 T113 (R2 space): a variation used its three attempts; the creation cannot finish. */
+  variantsFailed?: true;
 }
 /** Pending work is an acknowledged operation, never a completed catalog. */
 export function isCatalogVideoPreparingResult(
