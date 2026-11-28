@@ -40,6 +40,18 @@ export interface CreativeImagePublisherDeps {
     },
     signal: AbortSignal
   ): Promise<Uint8Array>;
+  /**
+   * 057 T104: how the picture's publication is reserved. Absent, it is keyed by the Drive file's
+   * version and checksum (`service_reserve_launch_creative_image`), exactly as before; an R2
+   * space keys it by the object's content id instead (catalog-space-creative-images.ts).
+   */
+  reserve?(input: {
+    teamId: string;
+    actorId: string;
+    material: CatalogVideo;
+    live: DriveFileMetadata;
+    attempt: string;
+  }): Promise<unknown>;
   optimize?: typeof optimizeCatalogImage;
   verifyAnonymous?: typeof verifyAnonymousImage;
   /** Per image; the function's own wall clock bounds the whole catalog. */
@@ -140,19 +152,24 @@ export function createCreativeImagePublisher(
     const r2 = deps.r2;
     if (!r2) throw new TeamFunctionError('IMAGE_PROVIDER_UNAVAILABLE', { retryable: true });
     const { live, material } = image;
-    if (!live.version || !live.checksum || !/^[0-9a-f]{32}$/iu.test(live.checksum))
+    if (
+      !deps.reserve &&
+      (!live.version || !live.checksum || !/^[0-9a-f]{32}$/iu.test(live.checksum))
+    )
       throw new TeamFunctionError('SOURCE_CHANGED', { retryable: false });
     if (live.size !== null && live.size > SOURCE_MAX_BYTES)
       throw new TeamFunctionError('CREATIVE_IMAGE_TOO_LARGE', { retryable: false });
     const attempt = crypto.randomUUID();
     const reservation = parseCreativeImageReservation(
-      await rpc(deps.service, 'service_reserve_launch_creative_image', {
-        p_team: teamId,
-        p_material: material.id,
-        p_version: live.version,
-        p_checksum: live.checksum.toLowerCase(),
-        p_attempt: attempt
-      })
+      deps.reserve
+        ? await deps.reserve({ teamId, actorId, material, live, attempt })
+        : await rpc(deps.service, 'service_reserve_launch_creative_image', {
+            p_team: teamId,
+            p_material: material.id,
+            p_version: live.version,
+            p_checksum: live.checksum!.toLowerCase(),
+            p_attempt: attempt
+          })
     );
     await observe('creative_image.accepted', attempt);
     if (reservation.state === 'ready') {

@@ -255,9 +255,10 @@ describe('a catalog of an R2 space', () => {
             { materialId: VIDEO, alias: 'a', copies: 2 },
             { materialId: COPY, alias: 'b', copies: 1 }
           ],
+          // T104: several creatives published at once are made; re-stitched ones are not yet.
           catalogVideoProtocolVersion: 1,
-          restitchEnabled: false,
-          videoVariationCount: 1,
+          restitchEnabled: true,
+          videoVariationCount: 2,
           videoPublication: { mode: 'immediate' }
         },
         'MULTI_CREATIVE_UNSUPPORTED'

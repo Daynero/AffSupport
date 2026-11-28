@@ -163,11 +163,12 @@ function asLiveFile(found: SpaceMaterial): DriveFileMetadata {
 /**
  * The create request an R2 space carries out. The dialog's video protocol (1) without re-stitched
  * videos and published at once makes the same catalog as a request without it, which the space
- * carries out as that. With re-stitched variations (T096), or a link published later (T102), it
- * stays protocol 1 — the durable generator plans it and the space's own video authority answers
- * for its videos (catalog-space-variants.ts) — but loses what names a Drive executor or the copy
- * option: the member's own agent runs the variations, and the video of a space's catalog is
- * always its R2 copy. Anything else keeps its fields and is refused before anything is made.
+ * carries out as that. With re-stitched variations (T096), a link published later (T102) or a
+ * Launch's creatives (T104: 062 accepts them only on the protocol), it stays protocol 1 — the
+ * durable generator plans it and the space's own video authority answers for its videos
+ * (catalog-space-variants.ts) — but loses what names a Drive executor or the copy option: the
+ * member's own agent runs the variations, and the video or picture of a space's catalog is always
+ * its R2 copy. Anything else keeps its fields and is refused before anything is made.
  */
 export function spaceCatalogRequest(
   request: CreateProductCatalogRequest
@@ -177,7 +178,7 @@ export function spaceCatalogRequest(
     (request.restitchEnabled === true ||
       (request.restitchEnabled === false &&
         request.videoVariationCount === 1 &&
-        request.videoPublication?.mode === 'scheduled')) &&
+        (request.videoPublication?.mode === 'scheduled' || request.creatives !== undefined))) &&
     (request.videoPublication?.mode === 'immediate' ||
       request.videoPublication?.mode === 'scheduled')
   ) {
@@ -240,15 +241,36 @@ export function spaceCatalogScheduled(request: CreateProductCatalogRequest): boo
   );
 }
 
+/**
+ * T104: whether an R2 request is a Launch's creatives published at once without re-stitching —
+ * one video, several videos (each its own R2 copy) or pictures (each published to `c1/`).
+ */
+export function spaceCatalogCreatives(request: CreateProductCatalogRequest): boolean {
+  return (
+    spaceProtocolRequest(request) &&
+    request.creatives !== undefined &&
+    request.restitchEnabled === false &&
+    request.videoVariationCount === 1 &&
+    request.videoPublication?.mode === 'immediate'
+  );
+}
+
+/** Several creatives or pictures: what one video link over every row cannot carry. */
+export function spaceCatalogSeveral(request: CreateProductCatalogRequest): boolean {
+  return (request.creativeKind ?? 'video') !== 'video' || (request.creatives?.length ?? 1) > 1;
+}
+
 /** What an R2 space cannot make yet, refused before a creation intent exists (same as the generator). */
 export function assertSpaceCatalogRequest(request: CreateProductCatalogRequest): void {
-  if ((request.creativeKind ?? 'video') !== 'video' || (request.creatives?.length ?? 1) > 1)
+  // Re-stitched or later-published several creatives need a set or a target per creative.
+  if (spaceCatalogSeveral(request) && !spaceCatalogCreatives(request))
     throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
   if (
     request.restitchOperationId ||
     (request.catalogVideoProtocolVersion !== undefined &&
       !spaceCatalogVariations(request) &&
-      !spaceCatalogScheduled(request))
+      !spaceCatalogScheduled(request) &&
+      !spaceCatalogCreatives(request))
   )
     throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
 }
@@ -268,6 +290,8 @@ export function spaceCatalogDeps(input: {
   variationLinks?: () => readonly string[] | null;
   /** T102: the creation's key, when its link is published later: the link registers the policy. */
   publicationKey?: string | null;
+  /** T104: the 062 publisher over the space's pictures (catalog-space-creative-images.ts). */
+  publishCreativeImages?: ProductCatalogDeps['publishCreativeImages'];
 }): SpaceCatalogDeps {
   const { rpc, feeds, signal, log } = input;
   let actor: string | null = null;
@@ -295,8 +319,10 @@ export function spaceCatalogDeps(input: {
     fullDriveFor: async () => drive,
     driveFor: async () => drive,
     readCreatedFile: async () => null,
-    // No R2 path exists yet for these; the generator refuses them first (CatalogSpaceSource).
-    publishCreativeImages: undefined,
+    // A space's pictures are always published to R2: it has no Drive to link them from.
+    publishCreativeImages: input.publishCreativeImages
+      ? images => input.publishCreativeImages!({ ...images, copyToR2: true })
+      : undefined,
     async resolveRestitchedVideo() {
       refused();
     },
@@ -385,10 +411,12 @@ export function spaceCatalogDeps(input: {
       },
       log
     }),
-    async link({ teamId, videoId, companionId, replaces, record }) {
+    async link({ teamId, videoId, companionId, replaces, record, publicationKey: deferredKey }) {
       if (!actor) throw new TeamFunctionError('WRONG_STATE');
       const setId = input.variationSet?.() ?? null;
-      const publicationKey = input.publicationKey ?? null;
+      // The generator names the key of a deferred creation; a Launch's catalog step has no
+      // other way to know it before its frozen request is read (T104).
+      const publicationKey = input.publicationKey ?? deferredKey ?? null;
       const value = await rpc('service_link_space_catalog_feed', {
         p_team: teamId,
         p_video: videoId,

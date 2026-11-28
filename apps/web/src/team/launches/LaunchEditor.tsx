@@ -46,6 +46,7 @@ import { LaunchDateField } from './LaunchDateField';
 import { launchPixel } from './launchPixel';
 import { newLaunchCatalogConfig } from './launchCatalogDefaults';
 import { CatalogVideoR2Toggle } from '../product-catalog/CatalogVideoR2Toggle';
+import { useCatalogFeedSpace } from '../product-catalog/CatalogFeedAddress';
 import { prefetchCatalogVideoR2Availability } from '../product-catalog/useCatalogVideoR2Availability';
 import { teamApi } from '../../api/team';
 
@@ -164,6 +165,13 @@ export function LaunchEditor({
     if (submitted && invalidSubSettings) setSubSettingsOpen(true);
   }, [submitted, invalidSubSettings]);
   const scheduledPublication = config.catalog?.videoPublication?.mode === 'scheduled';
+  /* 057 T104: an R2 space's Launch catalog is its feed, its videos and pictures always R2:
+     re-stitching and a later link for several creatives or pictures have no path there yet, and
+     the copy option is no option. A choice already made stays visible, so it can be undone. */
+  const feedSpace = useCatalogFeedSpace(teamId);
+  const offerRestitch = !feedSpace || config.catalog?.restitchEnabled === true;
+  const offerPublication =
+    !feedSpace || (creativeCount <= 1 && creativeKind !== 'image') || scheduledPublication;
   const account = accounts.find(account =>
     account.agents.some(agent => agent.id === config.agentRowId)
   );
@@ -910,7 +918,7 @@ export function LaunchEditor({
                           labelled field above the row and drop the switch a line down (next QA
                           2026-11-21). What an option adds appears beside it, in its row or in the column
                           to the right. */}
-                      {creativeKind !== 'image' && (
+                      {creativeKind !== 'image' && offerRestitch && (
                         <div className="launch-editor-catalog-row">
                           <div className="launch-editor-restitch">
                             <Switch
@@ -959,33 +967,37 @@ export function LaunchEditor({
                           )}
                         </div>
                       )}
-                      <div className="launch-editor-catalog-row">
-                        <CatalogVideoR2Toggle
-                          mode="create"
-                          teamId={teamId}
-                          control="switch"
-                          media={creativeKind === 'image' ? 'image' : 'video'}
-                          checked={config.catalog!.copyVideoToR2 === true}
-                          disabled={disabled}
-                          onChange={copyVideoToR2 =>
-                            changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
-                          }
-                        />
-                      </div>
-                      <div className="launch-editor-catalog-publication flex basis-full flex-col gap-2">
-                        <Suspense fallback={null}>
-                          <LaunchCatalogVideoFields
-                            part="publication"
+                      {!feedSpace && (
+                        <div className="launch-editor-catalog-row">
+                          <CatalogVideoR2Toggle
+                            mode="create"
+                            teamId={teamId}
+                            control="switch"
                             media={creativeKind === 'image' ? 'image' : 'video'}
-                            value={config.catalog!}
+                            checked={config.catalog!.copyVideoToR2 === true}
                             disabled={disabled}
-                            onChange={catalog => changed({ catalog })}
+                            onChange={copyVideoToR2 =>
+                              changed({ catalog: { ...config.catalog!, copyVideoToR2 } })
+                            }
                           />
-                        </Suspense>
-                        {creativeKind === 'image' && scheduledPublication && (
-                          <p className="ui-field-help">{t('launchImagesScheduleHint')}</p>
-                        )}
-                      </div>
+                        </div>
+                      )}
+                      {offerPublication && (
+                        <div className="launch-editor-catalog-publication flex basis-full flex-col gap-2">
+                          <Suspense fallback={null}>
+                            <LaunchCatalogVideoFields
+                              part="publication"
+                              media={creativeKind === 'image' ? 'image' : 'video'}
+                              value={config.catalog!}
+                              disabled={disabled}
+                              onChange={catalog => changed({ catalog })}
+                            />
+                          </Suspense>
+                          {creativeKind === 'image' && scheduledPublication && (
+                            <p className="ui-field-help">{t('launchImagesScheduleHint')}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {/* The duration takes the half of the shelf the switches leave empty. */}
                     {creativeKind !== 'image' && (

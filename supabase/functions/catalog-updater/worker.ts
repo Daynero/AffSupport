@@ -898,7 +898,8 @@ async function updateOne(
     // 062: one link written over every row would mix several videos or cover images:
     // such a catalog is only ever written by the targeted writer, under its policy.
     const layout = item.creatives;
-    if (!nonVideo && layout && (layout.creatives.length > 1 || layout.kind === 'image'))
+    // 057 T104: a feed keeps each creative's own link instead (feeds.creativeCells, below).
+    if (!nonVideo && !feeds && layout && (layout.creatives.length > 1 || layout.kind === 'image'))
       throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
     if (
       layout?.kind === 'image' &&
@@ -969,7 +970,19 @@ async function updateOne(
     // current_video_link and the spare's shared_link stay Drive identities.
     // 057 T098: a feed of re-stitched variations keeps its rows' variations (null otherwise).
     const feedVideoCells =
-      feeds && !nonVideo ? ((await feeds.variantCells?.(item, count)) ?? null) : null;
+      feeds && !nonVideo
+        ? ((await feeds.variantCells?.(item, count)) ??
+          (await feeds.creativeCells?.(item, count)) ??
+          null)
+        : null;
+    if (
+      feeds &&
+      !nonVideo &&
+      !feedVideoCells &&
+      layout &&
+      (layout.creatives.length > 1 || layout.kind === 'image')
+    )
+      throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
     const videoR2 =
       nonVideo || feedVideoCells
         ? null

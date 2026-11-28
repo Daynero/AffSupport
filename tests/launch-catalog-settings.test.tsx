@@ -301,3 +301,48 @@ it('lands every press of «Generate» on the first visible error, focuses and fl
     Element.prototype.scrollIntoView = original;
   }
 });
+
+it('offers an R2 space only what its Launch catalog can make there (057 T104)', async () => {
+  const { rememberSpaceBackend } = await import('../apps/web/src/api/space-storage');
+  rememberSpaceBackend('r2-team', 'r2');
+  const draft = newLaunchDraft();
+  draft.method = 'catalog';
+  const props = {
+    sources: null,
+    accounts: [],
+    offers: [],
+    buyers: [],
+    onChange: vi.fn(),
+    disabled: false,
+    onRefreshSources: vi.fn()
+  };
+  const several = {
+    ...draft,
+    materialId: '05791070-0000-4000-8000-000000000001',
+    creativeKind: 'video' as const,
+    creatives: [
+      { materialId: '05791070-0000-4000-8000-000000000001', alias: 'a', copies: 50, pinned: null },
+      { materialId: '05791070-0000-4000-8000-000000000002', alias: 'b', copies: 50, pinned: null }
+    ]
+  };
+  const view = render(<LaunchEditor {...props} teamId="r2-team" config={draft} />);
+  // Re-stitching has no R2 path yet, and the copy is no option: a space's catalog is always R2.
+  expect(screen.queryByRole('switch', { name: 'Restitch video' })).toBeNull();
+  expect(screen.queryByRole('switch', { name: 'Copy the video to R2' })).toBeNull();
+  expect(view.container.querySelector('.launch-editor-catalog-publication')).not.toBeNull();
+  view.rerender(<LaunchEditor {...props} teamId="r2-team" config={several} />);
+  // A later link for several videos needs a target per video: not offered there yet.
+  expect(view.container.querySelector('.launch-editor-catalog-publication')).toBeNull();
+  view.rerender(
+    <LaunchEditor
+      {...props}
+      teamId="r2-team"
+      config={{ ...draft, catalog: { ...draft.catalog!, restitchEnabled: true } }}
+    />
+  );
+  // A choice already made stays visible, so it can be undone.
+  expect(screen.getByRole('switch', { name: 'Restitch video' })).toBeTruthy();
+  view.rerender(<LaunchEditor {...props} teamId="drive-team" config={several} />);
+  expect(screen.getByRole('switch', { name: 'Restitch video' })).toBeTruthy();
+  expect(view.container.querySelector('.launch-editor-catalog-publication')).not.toBeNull();
+});

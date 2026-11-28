@@ -4002,3 +4002,18 @@ that last defined them (20261226250000 for the link), dropping the trigger and t
 Scheduled R2 policies already registered then have no writer: hold them first
 (`service_save_catalog_publication` with `held`), or their catalogs keep empty video cells; such a
 catalog can no longer be deleted for good until its publication rows are removed by hand.
+
+## 20261226310000 — 057 a Launch's catalog in an R2 space: several videos or pictures
+
+Adds `service_reserve_space_creative_image`, `private.space_creative_image_ledger` (two triggers on
+`private.launch_creative_images`, R2 spaces only), the column `launch_creative_images.space_counted`
+and `private.space_launch_material_version`; replaces the R2-only `service_link_space_catalog_feed`
+(uses every video creative's copy, no video copy for a picture catalog); patches
+`private.launch_sources_from_config` (`coalesce` of the Drive version with the space version, no
+`materialDriveFileId` for a file without a Drive connection) and
+`service_attach_launch_catalog_before_catalog_sub` (`not private.space_is_r2(p_team) and` before the
+Drive publication check). Undo by re-running the link body from 20261226300000 and the two patched
+bodies from the migrations that last defined them (20261221100000 for the sources,
+20261223350000 for the attach), dropping the triggers, the functions and the column. Pictures
+already counted keep their bytes in `space_storage_usage` until recounted; R2 Launch catalogs
+already made keep working, only new R2 Launches fail at their source again.

@@ -5,7 +5,10 @@ import {
   buildProductCatalogRows,
   PRODUCT_CATALOG_TEMPLATE
 } from '../supabase/functions/_shared/product-catalog';
-import { catalogVideoColumnIndices } from '../supabase/functions/_shared/catalog-updater';
+import {
+  CATALOG_IMAGE_COLUMN,
+  catalogVideoColumnIndices
+} from '../supabase/functions/_shared/catalog-updater';
 import {
   CatalogVideoR2,
   type CatalogVideoR2Config
@@ -294,6 +297,81 @@ describe('an update of a feed catalog', () => {
     await expect(broken.deps.feeds!.variantCells!(item, 3)).rejects.toMatchObject({
       code: 'PROCESS_RESULT_UNCERTAIN'
     });
+  });
+
+  // 057 T103: a Launch's catalog of several videos or of pictures in an R2 space.
+  const creatives = (kind: 'video' | 'image', count: number) => ({
+    _catalogCreativeKind: kind,
+    _catalogCreatives: Array.from({ length: count }, (_, ordinal) => ({
+      ordinal,
+      materialId: `0579103${ordinal}-0000-4000-8000-000000000001`,
+      alias: `c${ordinal}`,
+      kind,
+      link:
+        kind === 'image'
+          ? `https://catalog-images.test/c1/0579103${ordinal}-0000-4000-8000-000000000001`
+          : `https://catalog-videos-dev.test/v/${String(ordinal + 5).repeat(32)}.mp4`,
+      linkKind: 'r2'
+    })),
+    _catalogRowCreatives: count === 1 ? [0, 0, 0] : [0, 0, 1]
+  });
+  const snapshot = (extra: Record<string, unknown>) => ({
+    settings_snapshot: {
+      title: 'Polo',
+      description: 'Knit',
+      price: 10,
+      imageLink: 'https://img.test/a.png',
+      ...extra
+    }
+  });
+
+  it('a catalog of several videos keeps each block’s own video in a round (T103)', async () => {
+    const f = setup({ rows: [feedRow(snapshot(creatives('video', 2)))] });
+    const resolveVideoLink = vi.fn();
+    (f.deps as { resolveVideoLink?: unknown }).resolveVideoLink = resolveVideoLink;
+    await runCatalogUpdaterTick(f.deps, { budgetMs: 8000 });
+    expect(f.deps.complete).toHaveBeenCalled();
+    // One link resolved for the catalog would be written over both blocks.
+    expect(resolveVideoLink).not.toHaveBeenCalled();
+    expect(f.drive.getFile).not.toHaveBeenCalled();
+    expect(
+      f
+        .feedRows()
+        .slice(2)
+        .map(row => row[VIDEO_COLUMN])
+    ).toEqual([1, 2, 3].map(n => `${PUBLISHED}?p=${n}`));
+    expect(
+      f
+        .feedRows()
+        .slice(2)
+        .map(row => row[ID_COLUMN]!.split('-')[0])
+    ).toEqual(['c0', 'c0', 'c1']);
+  });
+
+  it('a catalog of several videos is not grown: one block would take the other’s rows (T103)', async () => {
+    const f = setup({ rows: [feedRow(snapshot(creatives('video', 2)))] });
+    const item = parseClaimedCatalog(feedRow(snapshot(creatives('video', 2))))!;
+    expect(await f.deps.feeds!.creativeCells!(item, 4)).toBeNull();
+    expect(await f.deps.feeds!.creativeCells!(item, 3)).toEqual(
+      [1, 2, 3].map(n => `${PUBLISHED}?p=${n}`)
+    );
+    const single = parseClaimedCatalog(feedRow(snapshot(creatives('video', 1))))!;
+    expect(await f.deps.feeds!.creativeCells!(single, 3)).toBeNull();
+  });
+
+  it('a picture catalog keeps its pictures and no video in a round (T103)', async () => {
+    const f = setup({ rows: [feedRow(snapshot(creatives('image', 2)))] });
+    await runCatalogUpdaterTick(f.deps, { budgetMs: 8000 });
+    expect(f.deps.complete).toHaveBeenCalled();
+    const rows = f.feedRows().slice(2);
+    expect(rows.map(row => row[VIDEO_COLUMN])).toEqual(['', '', '']);
+    expect(rows.map(row => row[CATALOG_IMAGE_COLUMN])).toEqual([
+      'https://catalog-images.test/c1/05791030-0000-4000-8000-000000000001',
+      'https://catalog-images.test/c1/05791030-0000-4000-8000-000000000001',
+      'https://catalog-images.test/c1/05791031-0000-4000-8000-000000000001'
+    ]);
+    const item = parseClaimedCatalog(feedRow(snapshot(creatives('image', 1))))!;
+    expect(await f.deps.feeds!.creativeCells!(item, 5)).toEqual(['', '', '', '', '']);
   });
 
   it('a feed that no longer reads as the catalog stops the round before any write', async () => {

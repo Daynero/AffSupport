@@ -32,6 +32,13 @@ export interface CatalogFeedUpdater {
    * round adds take the variations in turn; one link over every row would undo the variations.
    */
   variantCells?(item: ClaimedCatalog, count: number): Promise<string[] | null>;
+  /**
+   * 057 T104: the video cells of a Launch's catalog of several videos or of pictures (null for
+   * any other feed). Each row keeps the video its creative's block links now — read back from
+   * the feed; one link over every row would mix the creatives up. A picture catalog's video
+   * cells stay empty, its pictures are its creatives' own (H is rebuilt from the layout).
+   */
+  creativeCells?(item: ClaimedCatalog, count: number): Promise<string[] | null>;
   write(item: ClaimedCatalog, rows: Cell[][], marker: string): Promise<void>;
   verify(item: ClaimedCatalog, marker: string): Promise<void>;
 }
@@ -157,6 +164,19 @@ export function createCatalogFeedUpdater(deps: {
       return Array.from({ length: count }, (_, index) =>
         index < kept.length ? kept[index]! : (links[index % links.length] as string)
       );
+    },
+
+    async creativeCells(item, count) {
+      const layout = item.creatives;
+      if (!layout || (layout.kind === 'video' && layout.creatives.length < 2)) return null;
+      // Several videos never grow: the round refuses it (MULTI_CREATIVE_UNSUPPORTED).
+      if (layout.kind === 'video' && count !== item.productCount) return null;
+      const feed = feedOf(item);
+      const rows = await readCatalogFeedCells(deps.store, feed.feedId, deps.signal);
+      if (rows.length !== item.productCount + 2 || count < item.productCount) throw uncertain();
+      const column = catalogVideoColumnIndices()[0]!;
+      const kept = rows.slice(2).map(row => (layout.kind === 'image' ? '' : row[column]!));
+      return Array.from({ length: count }, (_, index) => kept[index] ?? '');
     },
 
     async write(item, rows, marker) {

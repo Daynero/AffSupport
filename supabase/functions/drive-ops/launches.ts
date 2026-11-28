@@ -3,6 +3,7 @@ import {
   type CatalogVideoForegroundExecutor
 } from '../../../packages/shared/dist/team/catalog-video-foreground.js';
 import { prepareLaunchCatalogVideoAdmission } from './launch-catalog-video.ts';
+import { assertSpaceLaunchCatalog } from './launch-space-source.ts';
 import { launchFailure } from '../_shared/launch-failures.ts';
 import {
   parseLaunchConfig,
@@ -33,6 +34,12 @@ export interface LaunchGenerationDeps {
   }) => Promise<void>;
   caller: ServiceRpcClient;
   service: ServiceRpcClient;
+  /**
+   * 057 T104: the Launch is an R2 space's. What its catalog cannot make there yet is refused
+   * before anything is accepted (launch-space-source.ts), and its admission reads no Drive
+   * video context; a Drive space's Launch never sets it.
+   */
+  spaceStorage?: boolean;
   proveSource?: (
     teamId: string,
     actor: string,
@@ -149,6 +156,7 @@ async function generateLaunchUnchecked(
     throw new TeamFunctionError('LAUNCH_VERSION_CONFLICT');
   const parsed = parseLaunchConfig(detail.draft);
   if (!parsed.ok) throw new TeamFunctionError('INVALID_INPUT');
+  if (deps.spaceStorage) assertSpaceLaunchCatalog(parsed.value);
   // Both methods use the hosted catalog coordinator after any Launch-owned local child.
   if (parsed.value.method === 'catalog') {
     if (!deps.catalogReady) throw new TeamFunctionError('NO_WORK');
@@ -184,6 +192,7 @@ async function generateLaunchUnchecked(
           actorId: actor,
           launchId: input.launchId,
           config: parsed.value,
+          ...(deps.spaceStorage ? { spaceStorage: true } : {}),
           ...(foregroundExecutor ? { foregroundExecutor } : {}),
           ...(typeof input.expectedExecutorId === 'string'
             ? { expectedExecutorId: input.expectedExecutorId }

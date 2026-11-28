@@ -487,36 +487,80 @@
   `catalog-space-source.ts`, `catalog-space-variants.ts`, `product-catalog.ts`, `drive-ops/index.ts`;
   діалог R2 показує «Опублікувати пізніше». Ціль — `source` з версією простору, а не окремий вид
   для набору варіацій (research.md R15 «Відкладена публікація»).
-- [ ] T103 [P] [US1] Тест для T104 — каталоги картинок, кілька креативів (062) і каталоги запусків у
-  R2-просторі.
-- [ ] T104 [US1] Ці три шляхи для R2 (зараз відмовляють `MULTI_CREATIVE_UNSUPPORTED` /
-  `STORAGE_BACKEND_MISMATCH` до запису). Тест: T103.
-  **Стан T101–T104 (2026-11-28, шоста сесія): T101/T102 зроблено (вище); T103/T104 не почато, бо
-  кожен — окремий конвеєр.** Обсяг, записаний п'ятою сесією (пункт T102 — історія, рішення див.
-  research.md R15):
-  - T102 (відкладена публікація). Відмовляють `assertSpaceCatalogRequest`/`spaceCatalogVariations`
-    (`catalog-space-source.ts`) і `spaceCatalogVideoAuthority.prepare` (`catalog-space-variants.ts`).
-    Треба: (1) R2-ціль публікації — `catalog_publication_targets` знає лише `video_set`
-    (Drive-набір `catalog_video_sets`) і `source` (версія Drive-джерела): потрібен вид для
-    `space_catalog_variant_sets` і для джерела-об'єкта простору (`content_id`); (2) R2-аналог
-    `service_begin/finish_initial_catalog_publication` без `catalog_initial_publication_checks`
-    (`file_id`/`connection_id`/`root_folder_id`) і без legacy-adoption-блоку — політика й завдання
-    одразу `waiting`; `registerCreated` R2-авторитету реєструє їх у тій самій транзакції, що
-    `service_link_space_catalog_feed`; (3) робітник публікації (`catalog-updater`,
-    `service_claim_catalog_publication_jobs` → `publication-cells.ts`) для каталогу зі стрічкою
-    бере адреси R2-копій цілі (`service_space_catalog_variant_links` / копія джерела) і пише
-    `applyFeedPublicationCells`, перевіряє `verifyFeedPublicationCells`, без Drive-базової
-    перевірки (`catalog-publication-baseline.ts`); (4) до строку оновлювач тримає порожні клітинки
-    відео (`held`), як на Drive; (5) діалог R2 показує «Опублікувати пізніше» (зараз ховає), uk+en.
-  - T104, каталог картинок: `publishCreativeImages` у `spaceCatalogDeps` — `undefined`; потрібна
-    публікація картинок простору в публічний bucket каталогів (як 045 для Drive-пулу) і облік у
-    `catalogs` (як T111 для відео).
-  - T104, кілька креативів (062): авторитет простору приймає один набір (`catalogPlanVideoSets` > 1 →
-    `MULTI_CREATIVE_UNSUPPORTED`); потрібен набір на сегмент (`plan.segments`), адреси за сегментами
-    і `failedOrdinal`, без перезашивки — копія кожного джерела.
-  - T104, каталоги запусків: ключ `launch:` у `drive-ops /product-catalog/create` завжди йде Drive-
-    гілкою (`launch-catalog.ts`, `launch-created-catalog-video.ts`, Drive-контекст запуску);
-    потрібна R2-гілка запуску через `createSpaceProductCatalog`.
+- [x] T103 [P] [US1] Тест для T104 — каталоги картинок, кілька креативів (062) і каталоги запусків у
+  R2-просторі (без перезашивки; посилання одразу, одне відео — і пізніше).
+  `supabase/tests/database/catalog-space-creatives.test.sql` (30): резерв картинки за content id
+  (Drive-простір, інший вміст, не картинка, чужий, нема місця — відмови; втрачена спроба передає
+  той самий резерв), опублікована — раз у `catalogs`, повторне використання, очищена — байти назад,
+  Drive-резерв незмінний; зв'язок двох відео користується копією кожного, відео без копії
+  відмовляє зв'язок, каталог картинок не планує й не використовує відеокопій; джерело запуску —
+  `space-v1:<content id>` без Drive file id (кожен креатив теж), ідентичність є, Drive-джерело
+  незмінне; приєднання R2-каталогу без Drive-перевірки, Drive — як було.
+  `supabase/tests/database/catalog-space-growth-publication.test.sql` (14): **ріст на R2-каталозі з
+  політикою** (прогалина з T102) — раунд Drive (claim, non-video контекст, запис, завершення)
+  зростає 3→4, політика переходить на ревізію 2 над тією ж ціллю, нове завдання `waiting`, claim
+  стрічки бере його, контекст називає 4 товари. Працювало без змін — тепер закрито тестом.
+  `tests/catalog-space-creatives.test.ts` (7): кілька відео — кожен блок своя R2-копія, без Drive;
+  картинки — у `c1/` через публікатор простору, H — картинка креативу, відео-клітинки порожні,
+  відеокопій немає; заморожений запит запуску одного відео (протокол 1, `copyVideoToR2`) робиться як
+  є; відкладене посилання називає ключ створення зв'язку; перезашивка / пізніше для кількох —
+  `MULTI_CREATIVE_UNSUPPORTED` до читання; публікатор: резерв за content id, читання з bucket
+  простору, зміна байтів — `SOURCE_CHANGED`. `tests/launch-space-catalog.test.ts` (5): що
+  відмовляє запуск R2 до прийняття, допуск без Drive-контексту (Drive — читає, як було),
+  перезашитий — до читання джерел; доведення джерела креатив за креативом і папки каталогу.
+  `tests/catalog-updater-feed.test.ts` (+3): оновлення стрічки кількох відео зберігає відео кожного
+  блоку (без 050-резолву), не росте; каталог картинок — H з макета, відео порожні.
+  `tests/launch-catalog-settings.test.tsx` (+1): редактор запуску R2 ховає перезашивку й опцію копії,
+  «пізніше» — для кількох креативів; зроблений вибір видно, щоб його зняти; Drive — як було.
+  `tests/catalog-space-create.test.ts` (відмову кількох відео одразу замінено перезашитими).
+- [x] T104 [US1] Ці три шляхи для R2 без перезашивки (раніше `MULTI_CREATIVE_UNSUPPORTED` /
+  `STORAGE_BACKEND_MISMATCH` до запису). Тест: T103. Решта — T114/T115.
+  Міграція `20261226310000_space_storage_catalog_creatives.sql`: `service_reserve_space_creative_image`
+  (`private.launch_creative_images`, версія `space-v1:<content id>`, контрольна сума — перші 32 hex,
+  відмова `STORAGE_QUOTA_EXCEEDED`), `space_counted` + тригер обліку `catalogs`,
+  `service_link_space_catalog_feed` (копія кожного відео креативів; картинки — без відеокопії й
+  resolve), `private.space_launch_material_version` + патч `launch_sources_from_config`
+  (coalesce Drive-версії, без `materialDriveFileId` для R2-файлу), патч
+  `service_attach_launch_catalog_before_catalog_sub` (R2 не потребує `catalog_initial_publication_checks`).
+  Edge: `catalog-space-creative-images.ts` (джерело публікатора 062: резерв за content id, читання з
+  bucket простору), `creative-images.ts` (необов'язковий `reserve`; Drive-резерв той самий),
+  `catalog-space-source.ts` (`spaceCatalogCreatives`, `spaceCatalogSeveral`, протокол лишається для
+  креативів, публікатор завжди R2, ключ відкладеного зв'язку від генератора), `product-catalog.ts`
+  (R2: кожне відео — своя копія, картинки без відео й без Drive-шерингу; протокол без перезашивки з
+  публікацією одразу; `publicationKey` у `link` лише для R2), `launch-space-source.ts` (що відмовляє,
+  доведення джерела за вмістом і папки), `launches.ts`/`launch-catalog-video.ts` (`spaceStorage`:
+  відмова до прийняття, допуск без Drive-контексту), `drive-ops/index.ts` (`/launches/generate`,
+  `/launches/sources/refresh`, `/launches/recover` за бекендом; `spaceLaunchCatalogExecution`;
+  публікатор картинок простору у `/product-catalog/create`), `catalog-updater/feed-writer.ts`
+  (`creativeCells`) і `worker.ts` (стрічка кількох відео/картинок не падає `MULTI_CREATIVE_UNSUPPORTED`).
+  Веб: `LaunchEditor.tsx` (R2: без перезашивки, без опції копії, «пізніше» лише для одного відео).
+- [ ] T114 [P] [US1] Тест для T115 — решта T104 у R2-просторі:
+  - перезашитий каталог запуску одного відео: допуск запуску (`prepareLaunchCatalogVideoAdmission`,
+    `service_accept_launch_catalog_video_generation`) приймає набір простору
+    (`service_admit_space_catalog_variants` під `launch:<generation>:catalog`, налаштування члена з
+    тривалістю запуску), а не `service_accept_catalog_video_set` (Drive, `drive_version` джерела,
+    виконавець `team_recovery_delegations`); очікування запуску (`waitForRegisteredVideoDependency`,
+    `service_wait_launch_catalog_video`, `settleVideoFailures`) читає прогрес набору простору
+    (`service_read_space_catalog_variants` / `space_catalog_variant_progress`), а не
+    `service_read_catalog_video_acceptance`; повторне використання готового набору (`service_find_launch_catalog_video_reuse`) — лише Drive;
+    приєднання (`service_attach_launch_catalog_before_catalog_sub`, умова `x.video_set_id`) перевіряє
+    набір простору;
+  - кілька відео з перезашивкою: набір простору на сегмент (`plan.segments`, `accept_launch_catalog_video_segments`
+    сьогодні пише Drive-набори), авторитет простору (`catalog-space-variants.ts` відмовляє
+    `catalogPlanVideoSets > 1`) готує набори сегментів, адреси за сегментами (`catalogSegmentRowIds`,
+    сід сегмента), `failedOrdinal`; фонове доведення (T107) і прибиральник (T113) — на кожен набір;
+  - пізнє посилання для кількох креативів і картинок: ціль публікації на сегмент
+    (`catalog_publication_target_segments`, `kind='creatives'`), контекст стрічки
+    (`service_space_catalog_publication_context` знає одну ціль `source`) і письменник
+    (`space-publication.ts` пише лише відео-колонку; картинкам — H); ріст `creatives`-цілі на Drive теж
+    відмовляє (`prepare_catalog_growth_video_recipe`);
+  - масові запуски: `acceptLaunchBatch` (`launch-batch.ts`) кличе `prepareLaunchCatalogVideoAdmission`
+    без `spaceStorage`, тож у R2 його відмовляє `service_initial_catalog_video_context` (нема Drive-
+    підключення, `SOURCE_CHANGED`) до прийняття; треба передати бекенд і `assertSpaceLaunchCatalog`, а
+    `service_settle_launch_batch` (читає `catalog_initial_publication_checks`) — R2-гілку, як у приєднанні.
+    Legacy-запит каталогу запуску (без протоколу 1) у R2 відмовляє `STORAGE_BACKEND_MISMATCH` —
+    вебклієнт його не шле, лишити так.
+- [ ] T115 [US1] Реалізація T114 (research.md R15 «Каталоги запусків і креативи»). Тест: T114.
 - [ ] T105 [US1] Приймання на беті (частина T062): каталог з 10 варіаціями в пілотному R2-просторі,
   агент arm64 і Windows, видалення каталогу — 0 об'єктів у bucket простору й у публічному.
 - [x] T106 [P] [US1] Тест для T107 — фонове доведення варіацій R2-каталогу:

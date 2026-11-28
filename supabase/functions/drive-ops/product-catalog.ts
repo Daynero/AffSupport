@@ -278,6 +278,11 @@ export interface ProductCatalogDeps {
     companionId: string;
     replaces: string | null;
     record: Record<string, unknown>;
+    /**
+     * 057 T102/T104: an R2 space's catalog whose link is published later names its creation's
+     * key here, so its link registers the publication policy. Never set for a Drive space.
+     */
+    publicationKey?: string;
   }): Promise<CatalogLinkOutcome>;
   log(message: string, detail: string): void;
 }
@@ -819,14 +824,23 @@ export async function createProductCatalog(
   // 057 T102: a link published later leaves the cells empty; the link registers its policy.
   const spaceDeferred =
     space && request.catalogVideoProtocolVersion === 1 && deps.videoDelivery?.kind === 'deferred';
+  // 057 T104: a Launch's catalog published at once without re-stitching (its frozen request
+  // keeps the protocol): each creative linked from its own R2 copy or published picture.
+  const spaceCreatives =
+    space &&
+    request.catalogVideoProtocolVersion === 1 &&
+    request.restitchEnabled === false &&
+    request.videoPublication?.mode === 'immediate' &&
+    deps.videoDelivery === undefined;
   if (space) {
-    if (kind !== 'video' || (request.creatives?.length ?? 1) > 1)
+    if ((kind !== 'video' || (request.creatives?.length ?? 1) > 1) && !spaceCreatives)
       throw new TeamFunctionError('MULTI_CREATIVE_UNSUPPORTED', { retryable: false });
     if (
       request.restitchOperationId ||
       (request.catalogVideoProtocolVersion !== undefined &&
         !spaceVariationLinks?.length &&
-        !spaceDeferred)
+        !spaceDeferred &&
+        !spaceCreatives)
     )
       throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
   }
@@ -919,13 +933,21 @@ export async function createProductCatalog(
     videoShared = (await ensureAnyoneReader(drive, liveVideo.id, videoPermissions)).added;
   }
   // A catalog of variations links no copy of the original: its record names the first variation.
+  // A space's picture catalog has no video at all: its rows' video cells are empty (R19).
   const originalVideoLink = space
-    ? (spaceVariationLinks?.[0] ?? (await space.videoLink({ teamId, actorId, video })))
+    ? kind === 'image'
+      ? ''
+      : (spaceVariationLinks?.[0] ?? (await space.videoLink({ teamId, actorId, video })))
     : videoShareLink(liveVideo.id, liveVideo.resourceKey ?? video.resourceKey);
   // Every other video is shared the same way; a restitched one links its set's outputs instead.
+  // In a space each one is its own R2 copy (T104).
   const creativeVideoLinks: string[] = [originalVideoLink];
   for (const creative of proven) {
     if (kind !== 'video') break;
+    if (space) {
+      creativeVideoLinks.push(await space.videoLink({ teamId, actorId, video: creative.material }));
+      continue;
+    }
     if (!(request.catalogVideoProtocolVersion === 1 && request.restitchEnabled))
       await shareCreativeVideo(deps, teamId, actorId, creative);
     creativeVideoLinks.push(
@@ -933,8 +955,8 @@ export async function createProductCatalog(
     );
   }
   // Without R2 an image creative is linked from Drive, so it is opened to anyone with the
-  // link the same way a video is (and needs `edit` for that).
-  if (kind === 'image' && request.copyVideoToR2 !== true) {
+  // link the same way a video is (and needs `edit` for that). A space's is always R2.
+  if (!space && kind === 'image' && request.copyVideoToR2 !== true) {
     if (videoPermissions.length === 0)
       await shareCreativeVideo(deps, teamId, actorId, { material: video, drive, live: liveVideo });
     for (const creative of proven) await shareCreativeVideo(deps, teamId, actorId, creative);
@@ -1172,7 +1194,8 @@ export async function createProductCatalog(
           createdBy: actorId,
           variant,
           ...(document.record ?? {})
-        }
+        },
+        ...(spaceDeferred ? { publicationKey: request.idempotencyKey } : {})
       });
       if (!linked.linked) {
         if (!deps.preserveUncertainOutput) await document.discard('lost the race');

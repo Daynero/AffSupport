@@ -122,8 +122,16 @@ import {
 import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
 import { spaceStorageBackendOf } from '../_shared/space-storage-backend.ts';
 import { catalogFeedStoreFromEnv } from '../_shared/catalog-feed-store.ts';
+import { SpaceR2, readSpaceR2Config } from '../_shared/r2-space.ts';
+import { spaceCreativeImageSource } from './catalog-space-creative-images.ts';
+import {
+  proveSpaceLaunch,
+  proveSpaceLaunchMaterial,
+  proveSpaceLaunchSource
+} from './launch-space-source.ts';
 import {
   assertSpaceCatalogRequest,
+  spaceCatalogCreatives,
   spaceCatalogDeps,
   spaceCatalogRequest,
   spaceCatalogScheduled,
@@ -468,6 +476,35 @@ function creativeImageR2(): CatalogImageR2 | null {
         new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' })
       )
     : null;
+}
+
+/** 057: the space bucket, read on the server (an R2 space's picture creatives). */
+function spaceR2(): SpaceR2 | null {
+  const configured = readSpaceR2Config(key => Deno.env.get(key));
+  return configured
+    ? new SpaceR2(
+        configured,
+        new AwsClient({
+          accessKeyId: configured.accessKeyId,
+          secretAccessKey: configured.secretAccessKey,
+          service: 's3',
+          region: 'auto'
+        }),
+        (input, init) => fetch(input, init)
+      )
+    : null;
+}
+
+/** 057 T104: 062's picture publisher over an R2 space's files (always R2, keyed by content). */
+function spaceCreativeImagePublisher(service: RpcClient) {
+  return createCreativeImagePublisher({
+    service,
+    r2: creativeImageR2(),
+    ...spaceCreativeImageSource({
+      rpc: (name, parameters) => rpcValue(service, name, parameters),
+      space: spaceR2()
+    })
+  });
 }
 
 function productionSignals(request: Request): OAuthProductionSignals {
@@ -2921,6 +2958,8 @@ async function createSpaceProductCatalog(
   const variations = spaceCatalogVariations(spaceRequest);
   // T102: a link published later is registered by the link; the feed's lane writes it when due.
   const scheduled = spaceCatalogScheduled(spaceRequest);
+  // T104: a Launch's creatives keep the protocol; the authority only answers the plan's clock.
+  const creatives = spaceCatalogCreatives(spaceRequest);
   if (
     variations &&
     !nativeRestitchEnabled({
@@ -2943,14 +2982,15 @@ async function createSpaceProductCatalog(
     log: (message, detail) => console.error(message, detail),
     variationSet: () => binding.setId,
     variationLinks: () => binding.videoLinks ?? null,
-    publicationKey: scheduled ? spaceRequest.idempotencyKey : null
+    publicationKey: scheduled ? spaceRequest.idempotencyKey : null,
+    publishCreativeImages: spaceCreativeImagePublisher(configured.service)
   });
   const created = createDurableProductCatalog(
     {
       ...productCatalogDeps(request, configured.caller, configured.service),
       ...overrides,
       ...space,
-      ...(variations || scheduled
+      ...(variations || scheduled || creatives
         ? {
             initialVideoAuthority: spaceCatalogVideoAuthority({
               rpc,
@@ -3043,6 +3083,60 @@ function existingCatalogFrom(row: Record<string, unknown> | null): ExistingCatal
     productCount,
     variant: safeInteger(row.variant) ?? undefined,
     createdAt: stringValue(row, 'created_at') ?? stringValue(row, 'createdAt')
+  };
+}
+
+/**
+ * 057 T104: the catalog step of an R2 space's Launch — the same executor over the space's storage
+ * seam (catalog-space-source.ts) and video authority, the space's pictures publisher, and the
+ * Launch's source proven in the space by content (launch-space-source.ts). Re-stitching is
+ * refused before such a Launch is accepted, so the authority only answers the plan's clock.
+ */
+function spaceLaunchCatalogExecution(
+  request: Request,
+  configured: ReturnType<typeof clients>,
+  teamId: string,
+  actorId: string
+): Parameters<typeof executeLaunchCatalog>[0] {
+  const feeds = catalogFeedStoreFromEnv(key => Deno.env.get(key));
+  if (!feeds) throw new TeamFunctionError('STORAGE_UNAVAILABLE', { retryable: true });
+  const rpc = (name: string, parameters: Record<string, unknown>) =>
+    rpcValue(configured.service, name, parameters);
+  const space = spaceCatalogDeps({
+    rpc,
+    feeds,
+    signal: request.signal,
+    log: (message, detail) => console.error(message, detail),
+    publishCreativeImages: spaceCreativeImagePublisher(configured.service)
+  });
+  return {
+    service: configured.service,
+    // Launch always creates a new reserved variation, never recreates an existing catalog.
+    catalog: {
+      ...productCatalogDeps(request, configured.caller, configured.service),
+      ...space,
+      readLiveCatalogs: async () => []
+    },
+    driveFor: space.fullDriveFor,
+    createInitialVideoAuthority: async identity => {
+      if (identity.restitchEnabled)
+        throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
+      return spaceCatalogVideoAuthority({
+        rpc,
+        teamId: identity.teamId,
+        actorId: identity.actorId,
+        sourceMaterialId: identity.sourceMaterialId,
+        binding: { setId: null }
+      });
+    },
+    proveSource: async (_config, source) => {
+      const parsed = parseLaunchSources(source);
+      if (!parsed) throw new TeamFunctionError('SOURCE_CHANGED');
+      await proveSpaceLaunchSource(rpc, teamId, actorId, parsed);
+    },
+    proveCatalog: async resource => {
+      await proveSpaceLaunchMaterial(rpc, { teamId, actorId, materialId: resource.materialId });
+    }
   };
 }
 
@@ -3731,6 +3825,14 @@ Deno.serve(async request => {
       const recovered = await runLaunchCatalogRecovery(
         configured.service,
         async (teamId, generationId, actorId) => {
+          // 057 T104: an R2 space's Launch runs over the space's seam; a Drive one as before.
+          if ((await spaceStorageBackendOf(configured.service, teamId, actorId)) === 'r2')
+            return executeLaunchCatalog(
+              spaceLaunchCatalogExecution(request, configured, teamId, actorId),
+              teamId,
+              generationId,
+              actorId
+            );
           const catalog = productCatalogDeps(request, configured.caller, configured.service);
           // Launch always creates a new reserved variation, never recreates an existing catalog.
           return executeLaunchCatalog(
@@ -4170,12 +4272,27 @@ Deno.serve(async request => {
         })
       );
       if (!source) throw new TeamFunctionError('SOURCE_CHANGED');
-      await proveLaunchSource(request, configured.service, teamId, userId, source.materialId);
+      // 057 T104: an R2 space's file is proven in the space; there is no Drive to ask.
+      if ((await spaceStorageBackendOf(configured.service, teamId, userId)) === 'r2')
+        await proveSpaceLaunchMaterial(
+          (name, parameters) => rpcValue(configured.service, name, parameters),
+          { teamId, actorId: userId, materialId: source.materialId }
+        );
+      else await proveLaunchSource(request, configured.service, teamId, userId, source.materialId);
       value = await rpcValue(configured.caller, 'resolve_launch_selection', {
         p_team: teamId,
         p_config: body.config
       });
     } else if (path === '/launches/generate') {
+      // 057 T104: an R2 space's Launch: refused what its catalog cannot make there, its source
+      // proven in the space by content. A Drive space's Launch is generated exactly as before.
+      // A malformed space id is generateLaunch's to refuse (INVALID_INPUT), as before.
+      const spaceLaunch =
+        typeof body.teamId === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(body.teamId) &&
+        (await spaceStorageBackendOf(configured.service, body.teamId, userId)) === 'r2';
+      const spaceRpc = (name: string, parameters: Record<string, unknown>) =>
+        rpcValue(configured.service, name, parameters);
       value = await generateLaunch(
         {
           caller: configured.caller,
@@ -4246,7 +4363,18 @@ Deno.serve(async request => {
               // frame. Selecting restitch does not require saving workspace settings.
               await catalog.destination({ teamId, actorId: actor, folderId: video.parentFolderId });
             }
-          }
+          },
+          ...(spaceLaunch
+            ? {
+                spaceStorage: true,
+                proveSource: (
+                  teamId: string,
+                  actor: string,
+                  config: LaunchConfig,
+                  source: LaunchSourceSnapshot
+                ) => proveSpaceLaunch(spaceRpc, teamId, actor, config, source)
+              }
+            : {})
         },
         body,
         userId

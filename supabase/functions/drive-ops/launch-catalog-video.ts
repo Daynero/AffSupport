@@ -29,6 +29,8 @@ export async function prepareLaunchCatalogVideoAdmission(
     config: LaunchConfig;
     expectedExecutorId?: string;
     foregroundExecutor?: CatalogVideoForegroundExecutor;
+    /** 057 T104: an R2 space's Launch, never re-stitched there: no Drive video context to read. */
+    spaceStorage?: boolean;
   }
 ) {
   const { teamId, actorId, config } = input;
@@ -40,13 +42,18 @@ export async function prepareLaunchCatalogVideoAdmission(
   const several = creatives.length > 1;
   if (creatives.length < 1 || (kind === 'image' && config.catalog.restitchEnabled))
     throw new TeamFunctionError('INVALID_INPUT');
-  const context = await service.rpc('service_initial_catalog_video_context', {
-    p_team: teamId,
-    p_actor: actorId,
-    p_source: config.materialId,
-    p_executor: input.expectedExecutorId ?? null,
-    p_require_executor: false
-  });
+  if (input.spaceStorage && config.catalog.restitchEnabled)
+    throw new TeamFunctionError('STORAGE_BACKEND_MISMATCH', { retryable: false });
+  // The context names the executor and the re-stitch defaults, which only re-stitching reads.
+  const context = input.spaceStorage
+    ? { data: { executorId: null, defaults: null }, error: null }
+    : await service.rpc('service_initial_catalog_video_context', {
+        p_team: teamId,
+        p_actor: actorId,
+        p_source: config.materialId,
+        p_executor: input.expectedExecutorId ?? null,
+        p_require_executor: false
+      });
   if (context.error || !isRecord(context.data))
     throw new TeamFunctionError('TEAM_TRANSPORT_UNAVAILABLE');
   // The foreground controller drives one set per enrollment (R6): several videos go to
