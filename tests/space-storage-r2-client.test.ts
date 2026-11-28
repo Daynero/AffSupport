@@ -223,6 +223,20 @@ describe('multipart', () => {
     ).toBe('INVALID_INPUT');
   });
 
+  it('names an upload that is already gone (completed or aborted) as NOT_FOUND', async () => {
+    const { r2 } = client([
+      () => new Response('<Error><Code>NoSuchUpload</Code></Error>', { status: 404 }),
+      () => new Response('<Error><Code>NoSuchUpload</Code></Error>', { status: 404 })
+    ]);
+    const signal = new AbortController().signal;
+    expect(await code(r2.listParts(STAGING, 'up-1', signal))).toBe('NOT_FOUND');
+    expect(
+      await code(
+        r2.completeMultipart(STAGING, 'up-1', [{ partNumber: 1, etag: 'a'.repeat(32) }], signal)
+      )
+    ).toBe('NOT_FOUND');
+  });
+
   it('aborts, and an already gone upload is not an error', async () => {
     const { r2, signed } = client([
       () => new Response(null, { status: 204 }),

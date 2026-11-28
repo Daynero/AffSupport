@@ -191,7 +191,8 @@ describe('the shared request checks', () => {
     );
     expect(path).toBe('/spaces/create');
     expect(spaceStorageRoute(path)).toBe('/spaces/create');
-    expect(() => spaceStorageRoute('/uploads/admit')).toThrow('NOT_FOUND');
+    expect(() => spaceStorageRoute('/share-links')).toThrow('NOT_FOUND');
+    expect(() => spaceStorageRoute('/uploads/{id}/parts')).toThrow('NOT_FOUND');
     expect(spaceStorageRoutePath(new URL('https://x/functions/v1/other'))).toBe('/');
   });
 

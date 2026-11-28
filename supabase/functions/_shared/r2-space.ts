@@ -280,6 +280,8 @@ export class SpaceR2 {
       if (marker > 0) url.searchParams.set('part-number-marker', String(marker));
       const response = await this.send(await this.signer.sign(new Request(url)), signal);
       const body = await this.text(response);
+      // NoSuchUpload: completed or aborted already. The caller decides which (T023 retry).
+      if (response.status === 404) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
       if (!response.ok) providerFailure(response.status);
       if (!body.includes('<ListPartsResult')) invalidResponse();
       for (const block of xmlBlocks(body, 'Part')) {
@@ -345,6 +347,7 @@ export class SpaceR2 {
     );
     const response = await this.send(signed, signal, bytes);
     const text = await this.text(response);
+    if (response.status === 404) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
     if (!response.ok) providerFailure(response.status);
     // S3 may answer 200 with an error document; only a result with an ETag is a completion.
     const etag = text.includes('<CompleteMultipartUploadResult') ? xmlValue(text, 'ETag') : null;

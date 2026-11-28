@@ -15,6 +15,10 @@ import {
   parseSpaceQuotaDetails,
   parseSpaceReadGrantResult,
   parseSpaceStorageSummary,
+  parseSpaceMaterialSnapshot,
+  parseSpaceMutationResult,
+  parseSpaceTrashEmptied,
+  spaceFilesUrl,
   spaceContentId,
   spaceDerivativeKey,
   spaceObjectKey,
@@ -358,5 +362,74 @@ describe('codes', () => {
     expect(SPACE_STORAGE_ERROR_STATUS.R2_PILOT_REQUIRED).toBe(403);
     expect(SPACE_STORAGE_ERROR_STATUS.STORAGE_OBJECT_TOO_LARGE).toBe(413);
     expect(SPACE_STORAGE_ERROR_STATUS.STORAGE_QUOTA_EXCEEDED).toBe(409);
+  });
+});
+
+describe('materials and mutations (T023, T025)', () => {
+  const TEAM = '05700000-0000-4000-8000-000000000011';
+  const file = {
+    id: '05700000-0000-4000-8000-000000000111',
+    teamId: TEAM,
+    parentMaterialId: '05700000-0000-4000-8000-000000000101',
+    name: 'Clip.mp4',
+    kind: 'file',
+    lifecycle: 'active',
+    materialRevision: '9007199254740993',
+    contentId: 'a'.repeat(64),
+    sizeBytes: '107374182400',
+    mimeType: 'video/mp4'
+  };
+  const folder = { ...file, kind: 'folder', contentId: null, sizeBytes: null, mimeType: null };
+
+  it('reads a file and a folder and refuses mixed shapes', () => {
+    expect(parseSpaceMaterialSnapshot(file)).toEqual({ ok: true, value: file });
+    expect(parseSpaceMaterialSnapshot(folder).ok).toBe(true);
+    expect(parseSpaceMaterialSnapshot({ ...folder, contentId: 'a'.repeat(64) }).ok).toBe(false);
+    expect(parseSpaceMaterialSnapshot({ ...file, contentId: null }).ok).toBe(false);
+    expect(parseSpaceMaterialSnapshot({ ...file, kind: 'shortcut' }).ok).toBe(false);
+    expect(parseSpaceMaterialSnapshot({ ...file, lifecycle: 'missing' }).ok).toBe(false);
+    expect(parseSpaceMaterialSnapshot({ ...file, materialRevision: 3 }).ok).toBe(false);
+    expect(parseSpaceMaterialSnapshot({ ...file, parentMaterialId: 'drive-folder' }).ok).toBe(
+      false
+    );
+  });
+
+  it('reads mutation and trash answers', () => {
+    expect(parseSpaceMutationResult({ materials: [file], contentRevision: '4' })).toEqual({
+      ok: true,
+      value: { materials: [file], contentRevision: '4' }
+    });
+    expect(
+      parseSpaceMutationResult({ materials: [folder], contentRevision: '4', created: false }).ok
+    ).toBe(true);
+    expect(parseSpaceMutationResult({ materials: [file], contentRevision: 4 }).ok).toBe(false);
+    expect(parseSpaceMutationResult({ materials: [{}], contentRevision: '4' }).ok).toBe(false);
+    expect(parseSpaceTrashEmptied({ deleted: 2, purgesQueued: 1, contentRevision: '5' }).ok).toBe(
+      true
+    );
+    expect(parseSpaceTrashEmptied({ deleted: -1, purgesQueued: 1, contentRevision: '5' }).ok).toBe(
+      false
+    );
+  });
+
+  it('builds files-host addresses with the grant in g and a download name in dl', () => {
+    const url = spaceFilesUrl({
+      filesOrigin: 'https://files-beta.soty.pp.ua',
+      teamId: TEAM,
+      contentId: 'b'.repeat(64),
+      grant: 'g'.repeat(123),
+      derivative: { recipeVersion: 1, variant: 'tile' }
+    });
+    expect(url).toBe(
+      `https://files-beta.soty.pp.ua/t/${TEAM}/d/${'b'.repeat(64)}/1/tile?g=${'g'.repeat(123)}`
+    );
+    expect(() =>
+      spaceFilesUrl({
+        filesOrigin: 'http://files-beta.soty.pp.ua',
+        teamId: TEAM,
+        contentId: 'b'.repeat(64),
+        grant: 'x'
+      })
+    ).toThrow();
   });
 });

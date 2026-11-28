@@ -576,3 +576,153 @@ export function parseSpaceQuotaDetails(
   const freeBytes = parseByteCount(value.freeBytes);
   return needBytes === null || freeBytes === null ? fail : okValue({ needBytes, freeBytes });
 }
+
+// Materials and mutations (T023, T025) -------------------------------------------------------
+
+export const SPACE_MUTATION_ACTIONS = [
+  'rename',
+  'move',
+  'create_folder',
+  'trash',
+  'restore',
+  'copy'
+] as const;
+export type SpaceMutationAction = (typeof SPACE_MUTATION_ACTIONS)[number];
+export const isSpaceMutationAction = oneOf(SPACE_MUTATION_ACTIONS);
+
+/** Materials one `/materials/mutate` call may name. */
+export const SPACE_MUTATION_BATCH = 100;
+
+/** The folder every task drop lands in, made on first use (T031). */
+export const SPACE_TASK_DROP_FOLDER_NAME = 'Task attachments';
+
+/**
+ * One R2 material as `space-storage` returns it after a commit or a mutation. Revisions and
+ * bytes are decimal strings. `contentId` names the original's bytes (null for a folder).
+ */
+export interface SpaceMaterialSnapshot {
+  id: string;
+  teamId: string;
+  parentMaterialId: string | null;
+  name: string;
+  kind: 'file' | 'folder';
+  lifecycle: 'active' | 'trashed';
+  materialRevision: string;
+  contentId: string | null;
+  sizeBytes: string | null;
+  mimeType: string | null;
+}
+
+const decimal = (value: unknown): value is string => parseByteCount(value) !== null;
+
+export function parseSpaceMaterialSnapshot(value: unknown): SpaceParsed<SpaceMaterialSnapshot> {
+  if (
+    !isRecord(value) ||
+    !isSpaceUuid(value.id) ||
+    !isSpaceUuid(value.teamId) ||
+    (value.parentMaterialId !== null && !isSpaceUuid(value.parentMaterialId)) ||
+    typeof value.name !== 'string' ||
+    value.name.length < 1 ||
+    value.name.length > SPACE_STORAGE_LIMITS.maxNameLength ||
+    (value.kind !== 'file' && value.kind !== 'folder') ||
+    (value.lifecycle !== 'active' && value.lifecycle !== 'trashed') ||
+    !decimal(value.materialRevision) ||
+    (value.kind === 'folder'
+      ? value.contentId !== null || value.sizeBytes !== null
+      : !isSpaceContentId(value.contentId) || !decimal(value.sizeBytes)) ||
+    (value.mimeType !== null && (typeof value.mimeType !== 'string' || value.mimeType.length > 255))
+  )
+    return fail;
+  return okValue({
+    id: value.id,
+    teamId: value.teamId,
+    parentMaterialId: value.parentMaterialId as string | null,
+    name: value.name,
+    kind: value.kind,
+    lifecycle: value.lifecycle,
+    materialRevision: value.materialRevision as string,
+    contentId: value.contentId as string | null,
+    sizeBytes: value.sizeBytes as string | null,
+    mimeType: value.mimeType as string | null
+  });
+}
+
+export interface SpaceMutationResult {
+  materials: SpaceMaterialSnapshot[];
+  contentRevision: string;
+  /** `create_folder` with `ensure`: whether the folder was made by this call. */
+  created?: boolean;
+}
+
+export function parseSpaceMutationResult(value: unknown): SpaceParsed<SpaceMutationResult> {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.materials) ||
+    value.materials.length > SPACE_MUTATION_BATCH * 2 ||
+    !decimal(value.contentRevision) ||
+    (value.created !== undefined && typeof value.created !== 'boolean')
+  )
+    return fail;
+  const materials: SpaceMaterialSnapshot[] = [];
+  for (const item of value.materials) {
+    const parsed = parseSpaceMaterialSnapshot(item);
+    if (!parsed.ok) return fail;
+    materials.push(parsed.value);
+  }
+  return okValue({
+    materials,
+    contentRevision: value.contentRevision as string,
+    ...(value.created === undefined ? {} : { created: value.created })
+  });
+}
+
+export interface SpaceTrashEmptied {
+  deleted: number;
+  purgesQueued: number;
+  contentRevision: string;
+}
+
+export function parseSpaceTrashEmptied(value: unknown): SpaceParsed<SpaceTrashEmptied> {
+  if (
+    !isRecord(value) ||
+    !count(value.deleted) ||
+    !count(value.purgesQueued) ||
+    !decimal(value.contentRevision)
+  )
+    return fail;
+  return okValue({
+    deleted: value.deleted,
+    purgesQueued: value.purgesQueued,
+    contentRevision: value.contentRevision as string
+  });
+}
+
+/**
+ * A read URL on the files host (`space-read` Worker): the original, or one derivative, of one
+ * object, with the read grant in `g`. `download` adds `dl`, which makes the Worker answer
+ * `Content-Disposition: attachment` with a safe name. The grant must never be logged.
+ */
+export function spaceFilesUrl(input: {
+  filesOrigin: string;
+  teamId: string;
+  contentId: string;
+  grant: string;
+  derivative?: { recipeVersion: number; variant: SpaceDerivativeVariant };
+  download?: string;
+}): string {
+  const path = input.derivative
+    ? spaceDerivativeKey(
+        input.teamId,
+        input.contentId,
+        input.derivative.recipeVersion,
+        input.derivative.variant
+      )
+    : spaceObjectKey(input.teamId, input.contentId);
+  const origin = new URL(input.filesOrigin);
+  if (origin.protocol !== 'https:' || origin.origin !== input.filesOrigin)
+    throw new TypeError('Invalid files origin');
+  const url = new URL(`/${path}`, origin);
+  url.searchParams.set('g', input.grant);
+  if (input.download !== undefined) url.searchParams.set('dl', input.download);
+  return url.toString();
+}

@@ -147,8 +147,7 @@ create function pg_temp.usage(p_category text) returns text language sql as $$
  select coalesce((select bytes||'/'||objects||'/'||shared_bytes from public.space_storage_usage
   where team_id='05700000-0000-4000-8000-000000000011' and category=p_category),'0/0/0')
 $$;
-insert into public.space_object_refs(object_id,owner_kind,owner_id,team_id,category) values
- ('05700000-0000-4000-8000-000000000301','material','05700000-0000-4000-8000-000000000111','05700000-0000-4000-8000-000000000011','materials');
+-- The file's own reference is kept by its trigger (20261226150000), so it counts already.
 select is(pg_temp.usage('materials'),'100/1/0','a referenced object counts in its category');
 insert into public.space_object_refs(object_id,owner_kind,owner_id,team_id,category) values
  ('05700000-0000-4000-8000-000000000301','task_attachment','05700000-0000-4000-8000-0000000001a1','05700000-0000-4000-8000-000000000011','attachments');

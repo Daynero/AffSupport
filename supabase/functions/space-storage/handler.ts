@@ -30,9 +30,36 @@ import { isRecord } from '../_shared/validation.ts';
 
 export type Rpc = (name: string, args: Record<string, unknown>) => Promise<unknown>;
 
-/** The routes this function answers; anything else is NOT_FOUND. */
-export const SPACE_STORAGE_ROUTES = ['/spaces/create'] as const;
+/** The routes this function answers; anything else is NOT_FOUND. `{id}` is an upload id. */
+export const SPACE_STORAGE_ROUTES = [
+  '/spaces/create',
+  '/uploads/admit',
+  '/uploads/{id}/parts',
+  '/uploads/{id}/complete',
+  '/uploads/{id}/abort',
+  '/materials/mutate',
+  '/materials/read',
+  '/trash/empty',
+  '/read-grant'
+] as const;
 export type SpaceStorageRoute = (typeof SPACE_STORAGE_ROUTES)[number];
+
+const UPLOAD_PATH =
+  /^\/uploads\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/(parts|complete|abort)$/u;
+
+/** The route of a path and, for an upload route, the upload it names. */
+export function spaceStorageRouteMatch(path: string): {
+  route: SpaceStorageRoute;
+  uploadId: string | null;
+} {
+  const upload = UPLOAD_PATH.exec(path);
+  if (upload)
+    return {
+      route: `/uploads/{id}/${upload[2]}` as SpaceStorageRoute,
+      uploadId: upload[1]!
+    };
+  return { route: spaceStorageRoute(path), uploadId: null };
+}
 
 /** The path after `/space-storage`, as `routePath()` in drive-ops reads it. */
 export function spaceStorageRoutePath(url: URL): string {
@@ -42,7 +69,9 @@ export function spaceStorageRoutePath(url: URL): string {
 }
 
 export function spaceStorageRoute(path: string): SpaceStorageRoute {
-  const route = SPACE_STORAGE_ROUTES.find(candidate => candidate === path);
+  const route = SPACE_STORAGE_ROUTES.find(
+    candidate => candidate === path && !candidate.includes('{')
+  );
   if (!route) throw new TeamFunctionError('NOT_FOUND', { retryable: false });
   return route;
 }

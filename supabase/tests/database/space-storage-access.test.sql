@@ -87,8 +87,9 @@ select is((select array_agg(r->>'name' order by r->>'sortKey') from seen, jsonb_
  array['F1','Clip.mp4'],'folders first, the trashed file left out');
 select is((select r->>'parentFolderId' from seen, jsonb_array_elements(value->'rows') r where label='page' and r->>'name'='Clip.mp4'),
  '05710000-0000-4000-8000-000000000101','an R2 row''s parent is its folder''s id');
-select ok((select (r->'driveFileId') = 'null'::jsonb from seen, jsonb_array_elements(value->'rows') r where label='page' and r->>'name'='Clip.mp4'),
- 'and it has no Drive id');
+select is((select r->>'driveFileId' from seen, jsonb_array_elements(value->'rows') r where label='page' and r->>'name'='Clip.mp4'),
+ (select r->>'id' from seen, jsonb_array_elements(value->'rows') r where label='page' and r->>'name'='Clip.mp4'),
+ 'and its key is its own id, never a Drive id (20261226150000)');
 select is((select array_agg(r->>'name') from seen, jsonb_array_elements(value->'rows') r where label='page_f1'),array['Deep.mp4'],
  'a sub-folder page lists its own children');
 select is((select array_agg(r->>'name' order by r->>'name') from seen, jsonb_array_elements(value->'items') r where label='subtree'),
