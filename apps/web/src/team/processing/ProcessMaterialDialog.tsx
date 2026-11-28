@@ -17,6 +17,8 @@ import { FolderPicker, type FolderPickerClient } from '../catalog/FolderPicker';
 import { useToasts } from '../../components/toast';
 import { teamErrorMessage } from '../errors';
 import { Alert, Button, FormField, Input, RadioGroup } from '../../components/ui/index';
+import { spaceMaterialOf } from '../../api/space-storage';
+import { SpaceStorageWarning } from '../storage/SpaceStorageWarning';
 
 type TeamProcessTool = 'compressor' | 'imageEmbedding' | 'transcription' | 'landingOptimizer';
 
@@ -222,6 +224,13 @@ export function ProcessMaterialDialog({
         />
       </FormField>
 
+      {/* 057 (US9.4): what the result will take, from 80 % of an R2 space's storage. */}
+      <SpaceStorageWarning
+        teamId={teamId}
+        addBytes={
+          toolId === 'compressor' ? (spaceMaterialOf(teamId, material.id)?.sizeBytes ?? 0) : 0
+        }
+      />
       {conflict && (
         <Alert
           className="team-file-conflict"

@@ -592,6 +592,11 @@ export interface SpaceStorageSummary {
   reservedBytes: bigint;
   segments: SpaceStorageSegment[];
   revision: number;
+  /**
+   * Pictures of the platform's pool the space's catalogs show (052, T053): shown beside the
+   * scale, never part of `usedBytes` — the space neither stores nor frees them. Zero when absent.
+   */
+  poolBytes: bigint;
 }
 
 /** `get_space_storage_summary`: the segments must add up to `usedBytes`, each category once. */
@@ -613,7 +618,182 @@ export function parseSpaceStorageSummary(value: unknown): SpaceParsed<SpaceStora
   }
   if (new Set(segments.map(segment => segment.category)).size !== segments.length) return fail;
   if (segments.reduce((sum, segment) => sum + segment.bytes, 0n) !== usedBytes) return fail;
-  return okValue({ capacityBytes, usedBytes, reservedBytes, segments, revision: value.revision });
+  const poolBytes = value.poolBytes === undefined ? 0n : parseByteCount(value.poolBytes);
+  if (poolBytes === null) return fail;
+  return okValue({
+    capacityBytes,
+    usedBytes,
+    reservedBytes,
+    segments,
+    revision: value.revision,
+    poolBytes
+  });
+}
+
+/**
+ * How full a space is, as the scale and every place that adds bytes say it (US9.4): a warning
+ * from 80 %, a stronger one from 95 %, and full at 100 % — reserved bytes included, because they
+ * are already promised to an upload or a generation under way.
+ */
+export type SpaceStorageLevel = 'ok' | 'warning' | 'critical' | 'full';
+export const SPACE_STORAGE_THRESHOLDS = { warning: 0.8, critical: 0.95 } as const;
+
+export function spaceStorageLevel(input: {
+  usedBytes: bigint;
+  reservedBytes: bigint;
+  capacityBytes: bigint;
+  /** What the action about to run would add. */
+  addBytes?: bigint;
+}): SpaceStorageLevel {
+  if (input.capacityBytes <= 0n) return 'full';
+  const taken = input.usedBytes + input.reservedBytes + (input.addBytes ?? 0n);
+  if (taken >= input.capacityBytes) return 'full';
+  // Integer arithmetic: a share of a bigint, compared in thousandths.
+  const permille = (taken * 1000n) / input.capacityBytes;
+  if (permille >= BigInt(Math.round(SPACE_STORAGE_THRESHOLDS.critical * 1000))) return 'critical';
+  if (permille >= BigInt(Math.round(SPACE_STORAGE_THRESHOLDS.warning * 1000))) return 'warning';
+  return 'ok';
+}
+
+/** One thing of a category, as `list_space_storage_items` lists it (US9.2). */
+export interface SpaceStorageItem {
+  kind: 'file' | 'catalog' | 'library';
+  /** The material (a file, or a catalog's companion); null for the library. */
+  id: string | null;
+  name: string | null;
+  bytes: bigint;
+  /** What stays when this thing is deleted (another reference, catalog, the library). */
+  sharedBytes: bigint;
+  /** Exactly what deleting it gives back. */
+  freedBytes: bigint;
+  authorId: string | null;
+  authorName: string | null;
+  at: string | null;
+  parentFolderId: string | null;
+  materialKind: string | null;
+  mimeType: string | null;
+  trashed: boolean;
+}
+
+export interface SpaceStorageItemsPage {
+  category: SpaceStorageCategory;
+  items: SpaceStorageItem[];
+  total: number;
+  nextCursor: string | null;
+}
+
+export const SPACE_STORAGE_ITEM_SORTS = ['size', 'date', 'author'] as const;
+export type SpaceStorageItemSort = (typeof SPACE_STORAGE_ITEM_SORTS)[number];
+
+const nullableText = (value: unknown, max = 1024): value is string | null =>
+  value === null || value === undefined || (typeof value === 'string' && value.length <= max);
+
+function parseSpaceStorageItem(value: unknown): SpaceStorageItem | null {
+  if (!isRecord(value)) return null;
+  if (value.kind !== 'file' && value.kind !== 'catalog' && value.kind !== 'library') return null;
+  const bytes = parseByteCount(value.bytes);
+  const sharedBytes = parseByteCount(value.sharedBytes);
+  const freedBytes = parseByteCount(value.freedBytes);
+  if (bytes === null || sharedBytes === null || freedBytes === null) return null;
+  if (sharedBytes > bytes || freedBytes > bytes) return null;
+  const id = value.id ?? null;
+  if (id !== null && !isSpaceUuid(id)) return null;
+  if (value.kind !== 'library' && id === null) return null;
+  const authorId = value.authorId ?? null;
+  if (authorId !== null && !isSpaceUuid(authorId)) return null;
+  if (
+    !nullableText(value.name) ||
+    !nullableText(value.authorName, 240) ||
+    !nullableText(value.parentFolderId, 128) ||
+    !nullableText(value.materialKind, 64) ||
+    !nullableText(value.mimeType, 255) ||
+    (value.at !== null && value.at !== undefined && !timestamp(value.at)) ||
+    (value.trashed !== undefined && typeof value.trashed !== 'boolean')
+  )
+    return null;
+  return {
+    kind: value.kind,
+    id,
+    name: (value.name as string | null | undefined) ?? null,
+    bytes,
+    sharedBytes,
+    freedBytes,
+    authorId,
+    authorName: (value.authorName as string | null | undefined) ?? null,
+    at: (value.at as string | null | undefined) ?? null,
+    parentFolderId: (value.parentFolderId as string | null | undefined) ?? null,
+    materialKind: (value.materialKind as string | null | undefined) ?? null,
+    mimeType: (value.mimeType as string | null | undefined) ?? null,
+    trashed: value.trashed === true
+  };
+}
+
+export function parseSpaceStorageItemsPage(value: unknown): SpaceParsed<SpaceStorageItemsPage> {
+  if (
+    !isRecord(value) ||
+    !isSpaceStorageCategory(value.category) ||
+    !Array.isArray(value.items) ||
+    !count(value.total) ||
+    !(
+      value.nextCursor === null ||
+      value.nextCursor === undefined ||
+      (typeof value.nextCursor === 'string' && /^[0-9]{1,6}$/u.test(value.nextCursor))
+    )
+  )
+    return fail;
+  const items: SpaceStorageItem[] = [];
+  for (const item of value.items) {
+    const parsed = parseSpaceStorageItem(item);
+    if (!parsed) return fail;
+    items.push(parsed);
+  }
+  return okValue({
+    category: value.category,
+    items,
+    total: value.total,
+    nextCursor: (value.nextCursor as string | null | undefined) ?? null
+  });
+}
+
+export const CATALOG_STORAGE_PARTS = ['feed', 'videos', 'variations', 'pictures', 'pool'] as const;
+export type CatalogStoragePart = (typeof CATALOG_STORAGE_PARTS)[number];
+
+/** `get_catalog_storage_breakdown` (US9.3): what it takes, what stays, what deleting it frees. */
+export interface CatalogStorageBreakdown {
+  catalogId: string;
+  totalBytes: bigint;
+  sharedBytes: bigint;
+  freedBytes: bigint;
+  parts: { kind: CatalogStoragePart; bytes: bigint; sharedBytes: bigint; count: number }[];
+}
+
+export function parseCatalogStorageBreakdown(value: unknown): SpaceParsed<CatalogStorageBreakdown> {
+  if (!isRecord(value) || !isSpaceUuid(value.catalogId) || !Array.isArray(value.parts)) return fail;
+  const totalBytes = parseByteCount(value.totalBytes);
+  const sharedBytes = parseByteCount(value.sharedBytes);
+  const freedBytes = parseByteCount(value.freedBytes);
+  if (totalBytes === null || sharedBytes === null || freedBytes === null) return fail;
+  if (sharedBytes + freedBytes !== totalBytes) return fail;
+  const parts: CatalogStorageBreakdown['parts'] = [];
+  for (const part of value.parts) {
+    if (
+      !isRecord(part) ||
+      !(CATALOG_STORAGE_PARTS as readonly unknown[]).includes(part.kind) ||
+      !count(part.count)
+    )
+      return fail;
+    const bytes = parseByteCount(part.bytes);
+    const shared = parseByteCount(part.sharedBytes);
+    if (bytes === null || shared === null || shared > bytes) return fail;
+    parts.push({
+      kind: part.kind as CatalogStoragePart,
+      bytes,
+      sharedBytes: shared,
+      count: part.count
+    });
+  }
+  if (parts.reduce((sum, part) => sum + part.bytes, 0n) !== totalBytes) return fail;
+  return okValue({ catalogId: value.catalogId, totalBytes, sharedBytes, freedBytes, parts });
 }
 
 /** `STORAGE_QUOTA_EXCEEDED` details: how much the upload needs and how much is free. */

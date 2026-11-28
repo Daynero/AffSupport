@@ -4066,3 +4066,18 @@ admission carries `spaceForeground: true`). Undo by re-running the acceptance bo
 20261226290000, and dropping the new function. Launches already accepted without background work
 keep their sets; their variations then need the page again or background work, as before. No Drive
 line changes.
+
+## 20261226360000 — 057 what an R2 space's storage holds (T053)
+
+Adds `private.space_shared_catalog_uncount`, `private.space_catalog_image_ledger` (trigger
+`space_catalog_image_ledger` on `private.catalog_image_storage`), `private.space_usage_signal` (five
+statement triggers on `space_storage_usage` and `space_storage_reservations`),
+`private.space_pool_bytes`, `private.space_catalog_breakdown` and the reads
+`get_space_storage_summary`, `get_catalog_storage_breakdown`, `list_space_storage_items`; replaces
+the R2-only `private.space_content_changed` (its `usage` row is skipped when the transaction already
+wrote one). The backfill adds an R2 space's charged library pictures under `catalogs` (shared).
+Undo: drop the triggers and functions, re-run `space_content_changed` from 20261226150000, and
+subtract each R2 space's charged `catalog_image_storage` bytes from its `catalogs` row (bytes and
+shared_bytes). Drive spaces: the library trigger returns at its first line for them; nothing else
+of theirs is touched.
+

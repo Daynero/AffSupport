@@ -81,8 +81,10 @@ select is(pg_temp.used('materials'),300::bigint,'usage counts its bytes');
 select is((select state from public.space_storage_reservations where operation_id=(select (value->>'uploadId')::uuid from seen where label='a1')),
  'committed','the reservation is settled');
 select is((select content_revision from public.teams where id=pg_temp.team()),1::bigint,'content_revision rises once');
+-- 20261226360000: admission's reservation already said `usage` in this transaction; the commit
+-- adds its content and does not say usage twice.
 select is((select array_agg(kind order by id) from public.team_space_storage_signals where team_id=pg_temp.team()),
- array['content','usage'],'the space is signalled');
+ array['usage','content'],'the space is signalled');
 select is((select reason||':'||state from public.space_derivative_jobs where object_id=(select object_id from public.space_uploads where id=(select (value->>'uploadId')::uuid from seen where label='a1'))),
  'client_skipped:pending_agent','what the client did not make waits for an agent');
 select is(pg_temp.finish('05722000-0000-4000-8000-000000000002',(select (value->>'uploadId')::uuid from seen where label='a1'),pg_temp.cid('a'))->>'id',

@@ -252,7 +252,7 @@
   `SelectMenu` (з пошуком), `SearchField`, `Textarea`.
 - Вибір: `Checkbox`, `RadioGroup` (зокрема варіант `pictos` — це саме та
   picto-група, що описана вище), `SegmentedControl`, `Slider`, `Switch`.
-- Стан: `Empty`, `Progress` (з `flowing`, коли робота справді йде), `StageProgress` (підтверджені етапи в одну смугу), `Skeleton`, `Spinner`, `Tooltip`, `HelpTip` («?» біля назви налаштування — той самий FieldLabel, що вище), `Kbd`.
+- Стан: `Empty`, `Progress` (з `flowing`, коли робота справді йде), `StageProgress` (підтверджені етапи в одну смугу), `StorageMeter` (057: пам'ять R2-простору однією смугою — сегменти категорій з токенів `--color-storage-*`, штрихування «Резервується», вільне; легенда з назвою й обсягом — керування з клавіатури й пальцем, `compact` для телефона), `Skeleton`, `Spinner`, `Tooltip`, `HelpTip` («?» біля назви налаштування — той самий FieldLabel, що вище), `Kbd`.
 - Підказки: `Tooltip` — для контролу, що вже щось робить; усе інше пише звичайний
   `title`, і його малює `HintLayer` інвентаря тією самою міткою, з тією самою
   затримкою й розігрівом (070). `data-tip` більше немає.

@@ -1,7 +1,12 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { Button, Progress, SegmentedControl } from '../apps/web/src/components/ui/index';
+import {
+  Button,
+  Progress,
+  SegmentedControl,
+  StorageMeter
+} from '../apps/web/src/components/ui/index';
 import { StatusBadge } from '../apps/web/src/components/StatusBadge';
 import { SotyLoader } from '../apps/web/src/components/SotyLoader';
 import { SotyLogo, SotyMark } from '../apps/web/src/components/SotyLogo';
@@ -100,5 +105,38 @@ describe('Soty UI components', () => {
     expect(logo).toContain('Soty');
     expect(renderToStaticMarkup(<SotyMark size={20} />)).toContain('/icon-192.png');
     expect(renderToStaticMarkup(<SotyLoader />)).toContain('ribbon-center');
+  });
+  it('draws the storage scale from the inventory: segments, hatch, free, words (057, T054)', () => {
+    const markup = renderToStaticMarkup(
+      <StorageMeter
+        compact
+        level="warning"
+        segments={[
+          { category: 'materials', label: 'Materials', bytes: 600 },
+          { category: 'catalogs', label: 'Catalogs', bytes: 200 }
+        ]}
+        reservedBytes={50}
+        capacityBytes={1000}
+        formatBytes={bytes => `${bytes} B`}
+        formatShare={share => `${Math.round(share * 100)} %`}
+        labels={{
+          name: 'Space storage',
+          summary: 'Used 800 B of 1000 B',
+          reserved: 'Being written',
+          free: 'Free',
+          level: 'Almost full'
+        }}
+      />
+    );
+    const root = classes(markup, 'ui-storage-meter');
+    expect(root).toContain('is-compact');
+    expect(markup).toContain('data-level="warning"');
+    expect(markup).toContain('class="ui-storage-meter-segment" data-category="materials"');
+    expect(markup).toContain(
+      'class="ui-storage-meter-segment is-reserved" data-category="reserved"'
+    );
+    expect(markup).toContain('role="meter"');
+    expect(markup).toContain('Almost full');
+    expect(markup).toContain('150 B');
   });
 });

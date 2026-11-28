@@ -131,14 +131,14 @@ insert into public.team_space_storage_signals(team_id,kind,folder_id,revision) v
  ('05700000-0000-4000-8000-000000000012','content','05700000-0000-4000-8000-000000000201',1);
 set local role authenticated;
 select set_config('request.jwt.claim.sub','05700000-0000-4000-8000-000000000001',true);
-select is((select array_agg(team_id::text order by team_id) from public.team_space_storage_signals),
+select is((select array_agg(distinct team_id::text) from public.team_space_storage_signals),
  array['05700000-0000-4000-8000-000000000011'],'a member reads only the signals of their own space');
 select throws_ok($$select count(*) from public.space_objects$$,'42501',null,'objects are not readable by clients');
 select throws_ok($$select count(*) from public.space_uploads$$,'42501',null,'nor uploads');
 select throws_ok($$insert into public.team_space_storage_signals(team_id,kind,revision) values('05700000-0000-4000-8000-000000000011','usage',2)$$,
  '42501',null,'nor may a client write a signal');
 select set_config('request.jwt.claim.sub','05700000-0000-4000-8000-000000000002',true);
-select is((select array_agg(team_id::text order by team_id) from public.team_space_storage_signals),
+select is((select array_agg(distinct team_id::text) from public.team_space_storage_signals),
  array['05700000-0000-4000-8000-000000000012'],'the other space''s member reads only theirs');
 reset role;
 

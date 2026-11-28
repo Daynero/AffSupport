@@ -32,6 +32,7 @@ import {
   Popover,
   Progress,
   StageProgress,
+  StorageMeter,
   RadioGroup,
   SegmentedControl,
   Select,
@@ -716,6 +717,9 @@ export default function DesignSystemPage() {
             />
             <Spinner label="Working" />
           </Row>
+          <Row title="storage meter">
+            <StorageMeterDemo />
+          </Row>
           <Row title="tooltip">
             <Tooltip label="The first of a group waits; its neighbours do not.">
               <Button variant="outline">Hover me</Button>
@@ -786,6 +790,99 @@ export default function DesignSystemPage() {
           onConfirm={() => setConfirm(false)}
         />
       )}
+    </div>
+  );
+}
+
+/* 057 (FR-046): the storage scale in every state it has — calm, 80 %, 95 %, full, with work
+   being written, the phone's compact form, and one that only shows. */
+const STORAGE_GB = 1_000_000_000;
+const storageBytes = (bytes: number) =>
+  `${new Intl.NumberFormat('en', { maximumFractionDigits: 1 }).format(bytes / STORAGE_GB)} GB`;
+const storageShare = (share: number) =>
+  new Intl.NumberFormat('en', { style: 'percent', maximumFractionDigits: 1 }).format(share);
+const storageSegments = (scale: number) => [
+  { category: 'materials' as const, label: 'Materials', bytes: 4.2 * STORAGE_GB * scale },
+  { category: 'catalogs' as const, label: 'Catalogs', bytes: 5.1 * STORAGE_GB * scale },
+  { category: 'process' as const, label: 'Processing results', bytes: 1.3 * STORAGE_GB * scale },
+  { category: 'attachments' as const, label: 'Task attachments', bytes: 0.4 * STORAGE_GB * scale },
+  { category: 'versions' as const, label: 'Previous versions', bytes: 0.2 * STORAGE_GB * scale },
+  { category: 'trash' as const, label: 'Trash', bytes: 0.6 * STORAGE_GB * scale }
+];
+
+function StorageMeterDemo() {
+  const [selected, setSelected] = useState<
+    'materials' | 'catalogs' | 'process' | 'attachments' | 'versions' | 'trash' | null
+  >(null);
+  const variants = [
+    { title: 'calm', scale: 0.5, reserved: 0, level: 'ok' as const },
+    { title: '80 %', scale: 1, reserved: 0.3, level: 'warning' as const, word: 'Almost full' },
+    {
+      title: '95 %',
+      scale: 1.15,
+      reserved: 0.4,
+      level: 'critical' as const,
+      word: 'Space is running out'
+    },
+    { title: 'full', scale: 1.27, reserved: 0, level: 'full' as const, word: 'No space left' }
+  ];
+  return (
+    <div className="flex w-full flex-col gap-6">
+      {variants.map(variant => {
+        const segments = storageSegments(variant.scale);
+        const used = segments.reduce((sum, segment) => sum + segment.bytes, 0);
+        return (
+          <StorageMeter
+            key={variant.title}
+            segments={segments}
+            reservedBytes={variant.reserved * STORAGE_GB}
+            capacityBytes={15 * STORAGE_GB}
+            level={variant.level}
+            selected={selected}
+            onSelect={setSelected}
+            formatBytes={storageBytes}
+            formatShare={storageShare}
+            labels={{
+              name: 'Space storage',
+              summary: `Used ${storageBytes(used)} of 15 GB`,
+              reserved: 'Being written',
+              free: 'Free',
+              ...(variant.word ? { level: variant.word } : {})
+            }}
+          />
+        );
+      })}
+      <div className="flex max-w-sm flex-col gap-2">
+        <StorageMeter
+          compact
+          segments={storageSegments(0.8)}
+          reservedBytes={0.5 * STORAGE_GB}
+          capacityBytes={15 * STORAGE_GB}
+          onSelect={setSelected}
+          selected={selected}
+          formatBytes={storageBytes}
+          formatShare={storageShare}
+          labels={{
+            name: 'Space storage',
+            summary: 'Used 9.4 GB of 15 GB',
+            reserved: 'Being written',
+            free: 'Free'
+          }}
+        />
+      </div>
+      <StorageMeter
+        segments={storageSegments(0.3)}
+        reservedBytes={0}
+        capacityBytes={15 * STORAGE_GB}
+        formatBytes={storageBytes}
+        formatShare={storageShare}
+        labels={{
+          name: 'Space storage',
+          summary: 'Used 3.5 GB of 15 GB (display only)',
+          reserved: 'Being written',
+          free: 'Free'
+        }}
+      />
     </div>
   );
 }

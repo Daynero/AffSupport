@@ -157,6 +157,8 @@
 @import './launch-settings.css' layer(soty);
 /* The re-stitch timeline of the space settings (071). */
 @import './restitch-timeline.css' layer(soty);
+/* The storage scale of an R2 space and its memory panel (057, US9). */
+@import './storage-meter.css' layer(soty);
 /* The task editor, refined over the legacy sheet and the board's (070, 9и). */
 @import './task-editor.css' layer(soty);
 @import './skin.css' layer(soty);

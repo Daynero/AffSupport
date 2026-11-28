@@ -32,6 +32,8 @@ import {
   trimJobs,
   type UploadVideoChoice
 } from './uploadVideoChoice';
+import { openSpaceStorage, spaceStorageNotice } from '../storage/SpaceStorageWarning';
+import { useStorageWords } from '../storage/useSpaceStorage';
 
 /** The one question a drop with videos in it waits on (070): how many, and the answer. */
 export interface UploadVideoQuestion {
@@ -106,6 +108,10 @@ export function useExplorerUploads({
   onTrimVideos?: (jobs: AgentQueueItem[]) => void;
 }) {
   const { t } = useI18n();
+  // The scale's words, read by the upload when it runs (a fresh object each render).
+  const words = useStorageWords();
+  const storageWords = useRef(words);
+  storageWords.current = words;
   const { push, update, dismiss } = useToasts();
   /** How many files are still going up; the zone stays lit while any is. */
   const [uploading, setUploading] = useState(0);
@@ -168,6 +174,22 @@ export function useExplorerUploads({
         list.filter(item => isVideoUpload(item.file.name, item.file.type)).length
       );
       if (!videoChoice) return;
+      // 057 (US9.4): an R2 space says, before a byte moves, what the drop will take once it is
+      // 80 % full — and holds back a drop that cannot fit, which the server would refuse anyway.
+      const notice = await spaceStorageNotice(
+        teamId,
+        list.reduce((sum, item) => sum + item.file.size, 0),
+        storageWords.current
+      );
+      if (notice) {
+        push({
+          tone: notice.level === 'warning' ? 'warning' : 'error',
+          text: `${notice.title}. ${notice.text}`,
+          ...(notice.level === 'full' ? { sticky: true } : {}),
+          action: { label: t('spaceStorageFreeUp'), run: () => openSpaceStorage(teamId) }
+        });
+        if (notice.level === 'full') return;
+      }
       const toTrim: { materialId: string; name: string; folderId: string | null }[] = [];
       // No folder open means the space root, which the server resolves from the
       // connection. Inferring it from the first top-level folder refused every

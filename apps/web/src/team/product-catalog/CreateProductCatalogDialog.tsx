@@ -82,6 +82,8 @@ import { CatalogRestitchProgress } from './CatalogRestitchProgress';
 import { SPACE_VARIANTS_UNREACHABLE, useSpaceCatalogVariantRunner } from './spaceCatalogVariants';
 import { ensureRestitchImages } from '../restitch/images';
 import { prepareRestitchScreens } from '../restitch/screens';
+import { spaceMaterialOf } from '../../api/space-storage';
+import { SpaceStorageWarning } from '../storage/SpaceStorageWarning';
 
 export interface CreateProductCatalogClient {
   readCatalogPublication?: typeof teamApi.readCatalogPublication;
@@ -1484,6 +1486,19 @@ export function CreateProductCatalogDialog({
             </div>
           )}
 
+          {/* 057 (US9.4): the catalog's copy and its variations, from 80 % of an R2 space. */}
+          {feedSpace && (
+            <SpaceStorageWarning
+              teamId={teamId}
+              addBytes={
+                (spaceMaterialOf(teamId, video.id)?.sizeBytes ?? 0) *
+                Math.max(
+                  1,
+                  /^\d+$/u.test(videoDraft.variationCount) ? Number(videoDraft.variationCount) : 1
+                )
+              }
+            />
+          )}
           {phase.kind === 'busy' && phase.step === 'restitch' && (
             <CatalogRestitchProgress
               key={`${teamId}:${restitchOperationId ?? 'preparing'}`}

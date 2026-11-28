@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
-import { BadgeCheck } from 'lucide-react';
+import { BadgeCheck, HardDrive } from 'lucide-react';
 import type { TeamTariff } from '@video-compressor/shared';
 import { useOptionalAuth } from '../../auth/AuthContext';
 import { Badge } from '../../components/ui/index';
 import { useI18n } from '../../i18n';
+import { isR2Space } from '../../api/space-storage';
+import { navigateTo } from '../../lib/navigation';
+import { storageItemRoute } from '../storage/SpaceStorageDialog';
+import { StorageMeterPanel } from '../storage/StorageMeterPanel';
+import { useOptionalTeam } from '../TeamContext';
 import { SettingsSection } from '../workspace/SettingsSection';
 import { ContactAdminButton } from './ContactAdminButton';
 import { formatTariffDay, planName } from './format';
@@ -17,7 +22,41 @@ import { useOptionalSpaceAccess } from './useSpaceAccess';
  * a space that is on a running plan — one the old rule or an administrator
  * holds open has nothing here to say (US2), so the section is not drawn.
  */
-export function SpaceTariffSection({
+export function SpaceTariffSection(props: {
+  teamId: string;
+  spaceName: string;
+  client: { getTeamTariff?: (teamId: string) => Promise<TeamTariff> };
+}) {
+  // 057 (US9.1): an R2 space's storage is drawn beside its tariff — its capacity is the plan's.
+  return (
+    <>
+      {isR2Space(props.teamId) && <SpaceStorageSection teamId={props.teamId} />}
+      <TariffSection {...props} />
+    </>
+  );
+}
+
+/** «Пам'ять простору» in the settings: the same panel the space's state opens. */
+function SpaceStorageSection({ teamId }: { teamId: string }) {
+  const { t } = useI18n();
+  const activeTeam = useOptionalTeam()?.activeTeam ?? null;
+  return (
+    <SettingsSection
+      icon={HardDrive}
+      titleId="team-space-storage-title"
+      title={t('spaceStorageTitle')}
+      className="space-storage-settings"
+    >
+      <StorageMeterPanel
+        teamId={teamId}
+        canDelete={Boolean(activeTeam?.permissions?.delete)}
+        onOpenItem={item => navigateTo(storageItemRoute(teamId, item))}
+      />
+    </SettingsSection>
+  );
+}
+
+function TariffSection({
   teamId,
   spaceName,
   client

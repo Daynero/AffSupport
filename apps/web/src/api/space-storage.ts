@@ -8,12 +8,15 @@ import {
   isSpaceDerivativeVariant,
   isSpaceUuid,
   parseByteCount,
+  parseCatalogStorageBreakdown,
   parseSpaceAdmitResult,
   parseSpaceDerivativeUrls,
   parseSpaceMaterialSnapshot,
   parseSpaceMutationResult,
   parseSpacePartUrls,
   parseSpaceReadGrantResult,
+  parseSpaceStorageItemsPage,
+  parseSpaceStorageSummary,
   parseSpaceTrashEmptied,
   parseTeamProcessStartResult,
   parseTeamRestitchDefaults,
@@ -22,6 +25,7 @@ import {
 } from '@video-compressor/shared';
 import type {
   AppEnvironment,
+  CatalogStorageBreakdown,
   SpaceAdmitResult,
   SpaceDerivativeDeclaration,
   SpaceDerivativeUrl,
@@ -32,6 +36,10 @@ import type {
   SpaceParsed,
   SpacePartUrl,
   SpaceReadGrantResult,
+  SpaceStorageCategory,
+  SpaceStorageItemSort,
+  SpaceStorageItemsPage,
+  SpaceStorageSummary,
   SpaceTrashEmptied,
   StorageBackend,
   TeamProcessStartResult,
@@ -42,7 +50,24 @@ import { builtForEnvironment, type SiteChannel } from '../lib/config';
 import { privateCacheActorEpoch, registerPrivateCache } from '../team/private-cache-scope';
 // A cycle, as with `team-catalog-video-r2`: `team.ts` routes to this module and this module
 // calls through `team.ts`'s transport. Neither touches the other while it is being loaded.
-import { invokeTeamFunction, TeamApiError, type TeamProcessStartInput } from './team';
+import {
+  invokeTeamFunction,
+  TeamApiError,
+  untypedTeamRpc,
+  type TeamProcessStartInput
+} from './team';
+
+/** A read through PostgREST, parsed or refused as INVALID_RESPONSE (never a guess). */
+async function readRpc<T>(
+  name: string,
+  args: Record<string, unknown>,
+  parse: (value: unknown) => SpaceParsed<T>
+): Promise<T> {
+  const value = await untypedTeamRpc(name, args);
+  const parsed = parse(Array.isArray(value) && value.length === 1 ? value[0] : value);
+  if (!parsed.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+  return parsed.value;
+}
 
 /**
  * 057: the web's side of Soty spaces on R2 (the `space-storage` edge function).
@@ -346,6 +371,43 @@ export function parseSpaceDerivativeJob(value: unknown): SpaceDerivativeJob | nu
 }
 
 export const spaceStorageApi = {
+  /** 057 T053: the scale — capacity, used, reserved and the six segments (US9.1). */
+  storageSummary(teamId: string): Promise<SpaceStorageSummary> {
+    return readRpc('get_space_storage_summary', { p_team: teamId }, parseSpaceStorageSummary);
+  },
+
+  /** One page of a category's things, biggest first or by date or author (US9.2). */
+  storageItems(input: {
+    teamId: string;
+    category: SpaceStorageCategory;
+    sort: SpaceStorageItemSort;
+    search?: string;
+    cursor?: string | null;
+    limit?: number;
+  }): Promise<SpaceStorageItemsPage> {
+    return readRpc(
+      'list_space_storage_items',
+      {
+        p_team: input.teamId,
+        p_category: input.category,
+        p_sort: input.sort,
+        p_search: input.search?.trim() ? input.search.trim() : null,
+        p_cursor: input.cursor ?? null,
+        p_limit: input.limit ?? 50
+      },
+      parseSpaceStorageItemsPage
+    );
+  },
+
+  /** What a catalog takes, what of it is shared and stays, what deleting it frees (US9.3). */
+  catalogStorage(catalogId: string): Promise<CatalogStorageBreakdown> {
+    return readRpc(
+      'get_catalog_storage_breakdown',
+      { p_catalog: catalogId },
+      parseCatalogStorageBreakdown
+    );
+  },
+
   admitUpload(input: SpaceAdmitInput, signal?: AbortSignal): Promise<SpaceAdmitResult> {
     return callSpaceStorage(
       'uploads/admit',

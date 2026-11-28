@@ -360,6 +360,22 @@
   --task-tag-pink: #c2418b;
   --task-tag-slate: #5f6b7a;
 
+  /* ---- Storage categories (057, FR-046) ---------------------------------
+     The six things a space's storage holds, as the scale draws them, plus
+     the hatch of bytes still being written. Data, not roles: no state is
+     read from them. The task-tag family's hues, which a team already tells
+     apart at chip size in both themes, in the ledger's order — violet for
+     the space's own files and honey for catalogs, the brand's two, first;
+     neighbours differ in lightness as well as hue, and the scale never
+     relies on them alone (gaps, legend words, hints). */
+  --color-storage-materials: #7c59e0;
+  --color-storage-catalogs: #c98a06;
+  --color-storage-process: #0f8b8d;
+  --color-storage-attachments: #c2418b;
+  --color-storage-versions: #2f6fd0;
+  --color-storage-trash: #5f6b7a;
+  --color-storage-reserved: #9a90a5;
+
   /* ---- Ink tints ----------------------------------------------------------
      Three steps of the page's own ink, for washes that must stay readable over
      whatever surface they land on. */
@@ -638,6 +654,15 @@
   --task-tag-red: #f4776a;
   --task-tag-pink: #ec84bd;
   --task-tag-slate: #9aa6b5;
+
+  /* The same seven, lifted for the dark canvas. */
+  --color-storage-materials: #a98bf2;
+  --color-storage-catalogs: #f2c14e;
+  --color-storage-process: #3cc3c0;
+  --color-storage-attachments: #ec84bd;
+  --color-storage-versions: #6ba5ee;
+  --color-storage-trash: #9aa6b5;
+  --color-storage-reserved: #b8adbe;
 
   /* Ink on a dark canvas is light: the same three steps, inverted. */
   --tint-soft: rgba(255, 255, 255, 0.06);

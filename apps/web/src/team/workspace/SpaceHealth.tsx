@@ -6,12 +6,21 @@ import { agentLocalUrl } from '../../api/client';
 import type { CatalogUpdaterState } from '../../api/team';
 import { ReconnectAction } from '../../components/ReconnectAction';
 import { ICON_SIZE, ICON_STROKE } from '../../components/icons';
-import { Button, Popover, Spinner, uiClasses } from '../../components/ui/index';
+import { Button, Popover, Spinner, StorageMeter, uiClasses } from '../../components/ui/index';
 import { useI18n, type TranslationKey } from '../../i18n';
 import { useUpdaterSummary } from '../catalog-updater/CatalogUpdaterChip';
 import { useOptionalBackgroundRender } from '../explorer/BackgroundRenderProvider';
 import { useOptionalLibraryProcessing } from '../library/LibraryProcessingProvider';
 import { ago, chipCopy, StorageChip, type StorageChipClient } from '../storage/StorageChip';
+import { SpaceStorageDialog } from '../storage/SpaceStorageDialog';
+import { spaceOnR2 } from '../storage/spaceSignals';
+import {
+  STORAGE_CATEGORY_LABEL,
+  STORAGE_LEVEL_LABEL,
+  storageLevelOf,
+  useSpaceStorage,
+  useStorageWords
+} from '../storage/useSpaceStorage';
 import { useTeam } from '../TeamContext';
 import { AgentLinkChip } from './AgentLinkChip';
 import { BackgroundWorkChip } from './BackgroundWorkChip';
@@ -92,6 +101,8 @@ export function SpaceHealth(props: SpaceHealthProps) {
   });
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLSpanElement>(null);
+  const { activeTeam } = useTeam();
+  const onR2 = spaceOnR2(props.teamId, activeTeam);
 
   // The catalog updater has its own chip beside «Перейти до…» (070, phase 9д): here it is a
   // row of the panel only, so the header never says it twice.
@@ -137,6 +148,15 @@ export function SpaceHealth(props: SpaceHealthProps) {
         onOpenChange={props.onStorageOpenChange}
         showChip={chipFor('storage')}
       />
+      {/* 057 (US9): an R2 space's storage is its memory — the same address opens its panel. */}
+      {onR2 && (
+        <SpaceStorageDialog
+          teamId={props.teamId}
+          open={props.storageOpen}
+          onClose={() => props.onStorageOpenChange(false)}
+          canDelete={Boolean(activeTeam?.permissions?.delete)}
+        />
+      )}
       {shown.map(entry =>
         'source' in entry && entry.source !== 'storage' ? (
           <span key={entry.source} className="team-space-health-chip">
@@ -189,6 +209,7 @@ export function SpaceHealth(props: SpaceHealthProps) {
         className="team-space-health-popover"
       >
         <HealthPanel
+          onR2={onR2}
           tones={health.tones}
           realtimeGraceElapsed={health.realtimeGraceElapsed}
           props={props}
@@ -207,11 +228,13 @@ function ToneIcon({ tone }: { tone: HealthTone }) {
 
 /** The five rows: what each source is doing, said in words, with the one action that fits. */
 function HealthPanel({
-  tones,
+  onR2,
+  tones: baseTones,
   realtimeGraceElapsed,
   props,
   close
 }: {
+  onR2: boolean;
   tones: Record<HealthSource, HealthTone>;
   realtimeGraceElapsed: boolean;
   props: SpaceHealthProps;
@@ -224,30 +247,92 @@ function HealthPanel({
   const batch = useOptionalLibraryProcessing();
   const updater = useUpdaterSummary(props.updater, props.updaterOffsetMs);
   const smallButton = uiClasses('button', { color: 'neutral', variant: 'outline', size: 'xs' });
+  const storage = useSpaceStorage(props.teamId, { enabled: onR2 });
+  const words = useStorageWords();
+  const storageLevel = storageLevelOf(storage.summary);
+  // 057: an R2 space's storage row is its memory; a full space needs a person.
+  const tones: Record<HealthSource, HealthTone> = onR2
+    ? {
+        ...baseTones,
+        storage: !storage.summary
+          ? 'idle'
+          : storageLevel === 'critical' || storageLevel === 'full'
+            ? 'attention'
+            : 'ok'
+      }
+    : baseTones;
 
-  const rows: Record<HealthSource, { status: string; action?: ReactNode }> = {
-    storage: {
-      status: !props.storage
-        ? t('spaceHealthStorageUnknown')
-        : storageStale(props.staleSince)
-          ? t('spaceHealthStorageStale', {
-              count: Math.floor((Date.now() - props.staleSince!) / 60_000)
-            })
-          : storageRowCopy(props.storage, t, render?.paused),
-      action: props.storage ? (
-        <Button
-          size="xs"
-          variant="outline"
-          color="neutral"
-          onClick={() => {
-            close();
-            props.onStorageOpenChange(true);
-          }}
-        >
-          {t('spaceHealthDetails')}
-        </Button>
-      ) : undefined
-    },
+  const rows: Record<HealthSource, { status: string; detail?: ReactNode; action?: ReactNode }> = {
+    storage: onR2
+      ? {
+          status: storage.summary
+            ? words.summaryLine(storage.summary)
+            : t('spaceHealthStorageUnknown'),
+          ...(storage.summary
+            ? {
+                detail: (
+                  <StorageMeter
+                    compact
+                    className="team-space-health-storage"
+                    level={storageLevel}
+                    segments={storage.summary.segments.map(segment => ({
+                      category: segment.category,
+                      label: t(STORAGE_CATEGORY_LABEL[segment.category]),
+                      bytes: Number(segment.bytes)
+                    }))}
+                    reservedBytes={Number(storage.summary.reservedBytes)}
+                    capacityBytes={Number(storage.summary.capacityBytes)}
+                    formatBytes={words.bytes}
+                    formatShare={words.share}
+                    labels={{
+                      name: t('spaceStorageTitle'),
+                      summary: words.summaryLine(storage.summary),
+                      reserved: t('spaceStorageReserved'),
+                      free: t('spaceStorageFree'),
+                      ...(storageLevel === 'ok'
+                        ? {}
+                        : { level: t(STORAGE_LEVEL_LABEL[storageLevel]) })
+                    }}
+                  />
+                )
+              }
+            : {}),
+          action: (
+            <Button
+              size="xs"
+              variant="outline"
+              color="neutral"
+              onClick={() => {
+                close();
+                props.onStorageOpenChange(true);
+              }}
+            >
+              {t('spaceHealthDetails')}
+            </Button>
+          )
+        }
+      : {
+          status: !props.storage
+            ? t('spaceHealthStorageUnknown')
+            : storageStale(props.staleSince)
+              ? t('spaceHealthStorageStale', {
+                  count: Math.floor((Date.now() - props.staleSince!) / 60_000)
+                })
+              : storageRowCopy(props.storage, t, render?.paused),
+          action: props.storage ? (
+            <Button
+              size="xs"
+              variant="outline"
+              color="neutral"
+              onClick={() => {
+                close();
+                props.onStorageOpenChange(true);
+              }}
+            >
+              {t('spaceHealthDetails')}
+            </Button>
+          ) : undefined
+        },
     agent: {
       status: !agent
         ? t('lookingForAgent')
@@ -356,6 +441,7 @@ function HealthPanel({
             <span className="team-space-health-copy">
               <strong>{t(SOURCE_NAME[source])}</strong>
               <span>{rows[source].status}</span>
+              {rows[source].detail}
             </span>
             {rows[source].action}
           </li>

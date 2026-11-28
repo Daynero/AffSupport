@@ -205,3 +205,12 @@ export {
 } from './restitch-timeline-scale';
 export type { FinalDuration, FinalHandle } from './restitch-timeline-scale';
 export { StageProgress, type ProgressStage } from './StageProgress';
+/* The scale of an R2 space's storage: categories, reservation, free (057, US9). */
+export { StorageMeter } from './StorageMeter';
+export type {
+  StorageMeterCategory,
+  StorageMeterLabels,
+  StorageMeterLevel,
+  StorageMeterProps,
+  StorageMeterSegment
+} from './StorageMeter';

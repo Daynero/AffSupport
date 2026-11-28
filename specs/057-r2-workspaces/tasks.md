@@ -415,7 +415,7 @@
 прибирає виходи й копії.
 
 - [x] T091 [P] [US1] Тест для T092 — `supabase/tests/database/catalog-space-variants.test.sql` (41) і
-  `catalog-space-create.test.sql` (+1):
+      `catalog-space-create.test.sql` (+1):
   - набір приймається раз на намір, з замороженими налаштуваннями; інший план того самого наміру,
     новий набір без налаштувань і намір без перезашивки відмовляють;
   - видача варіації: лише автор, відкритий запуск видається знову, прив'язка CAS, після збою —
@@ -428,160 +428,160 @@
   - остаточне видалення каталогу видаляє виходи, їхні об'єкти — до видалення з R2 одразу
     (`catalog_deleted`); Drive-простір не відповідає; обидві таблиці в огорожі прибирання.
 - [x] T092 [US1] Міграція `supabase/migrations/20261226250000_space_storage_catalog_variants.sql`:
-  `private.space_catalog_variant_sets` / `space_catalog_variants` з тригером огорожі; RPC
-  допуску, видачі, прив'язки, виходів, адрес, читання й скасування; виправлені
-  `service_finalize_space_process_output` (реєстрація виходу), `private.space_material_category`
-  (`catalogs`), `service_link_space_catalog_feed` (набір і використання копій); у R2-просторі
-  завершена операція може втратити посилання на остаточно видалений файл (раніше
-  `TERMINAL_OPERATION_IMMUTABLE`). Тест: T091.
+      `private.space_catalog_variant_sets` / `space_catalog_variants` з тригером огорожі; RPC
+      допуску, видачі, прив'язки, виходів, адрес, читання й скасування; виправлені
+      `service_finalize_space_process_output` (реєстрація виходу), `private.space_material_category`
+      (`catalogs`), `service_link_space_catalog_feed` (набір і використання копій); у R2-просторі
+      завершена операція може втратити посилання на остаточно видалений файл (раніше
+      `TERMINAL_OPERATION_IMMUTABLE`). Тест: T091.
 - [x] T093 [P] [US1] Тест для T094 — `tests/space-storage-catalog-variants.test.ts`: відкриття в
-  `Restitched` під `space-variant:<request>:<спроба>`, прив'язка, свіжі квитки, тривалість з
-  ідентичності варіації (повтор — та сама), зроблене/скінчене/скасоване без відкриття, свій новий
-  запуск закривається, коли інша сторінка прив'язала першою, члену ключі варіацій заборонено.
+      `Restitched` під `space-variant:<request>:<спроба>`, прив'язка, свіжі квитки, тривалість з
+      ідентичності варіації (повтор — та сама), зроблене/скінчене/скасоване без відкриття, свій новий
+      запуск закривається, коли інша сторінка прив'язала першою, члену ключі варіацій заборонено.
 - [x] T094 [US1] Маршрут `/catalog-variants/run` — `supabase/functions/space-storage/catalog-variants.ts`;
-  `startSpaceProcess` розділено на `openSpaceProcess` і `issueSpaceProcessGrants` (поведінка
-  `/process/start` та сама). Тест: T093.
+      `startSpaceProcess` розділено на `openSpaceProcess` і `issueSpaceProcessGrants` (поведінка
+      `/process/start` та сама). Тест: T093.
 - [x] T095 [P] [US1] Тест для T096 — `tests/catalog-space-variants.test.ts` (11) і
-  `tests/catalog-space-create.test.ts`: запит лишається протоколом 1 без Drive-виконавця й опції
-  копії; авторитет приймає план раз, повертає прогрес, потім адреси за сідованим розподілом; рядки
-  стрічки — кожен свою варіацію, без копії оригіналу; відкладена публікація відмовляє; читання й
-  скасування діалогу.
+      `tests/catalog-space-create.test.ts`: запит лишається протоколом 1 без Drive-виконавця й опції
+      копії; авторитет приймає план раз, повертає прогрес, потім адреси за сідованим розподілом; рядки
+      стрічки — кожен свою варіацію, без копії оригіналу; відкладена публікація відмовляє; читання й
+      скасування діалогу.
 - [x] T096 [US1] Авторитет відео простору `supabase/functions/drive-ops/catalog-space-variants.ts`;
-  `catalog-space-source.ts` (`spaceCatalogRequest`, `spaceCatalogVariations`, `spaceVariantSetId` у
-  зв'язку), `product-catalog.ts` (R2-гілка приймає доведені адреси), `drive-ops/index.ts`
-  (створення/відновлення з авторитетом під тим самим прапорцем `SOTY_CATALOG_VIDEO_VARIANTS`;
-  читання R2 лише коли Drive-читання нічого не знайшло; скасування за бекендом). Тест: T095.
+      `catalog-space-source.ts` (`spaceCatalogRequest`, `spaceCatalogVariations`, `spaceVariantSetId` у
+      зв'язку), `product-catalog.ts` (R2-гілка приймає доведені адреси), `drive-ops/index.ts`
+      (створення/відновлення з авторитетом під тим самим прапорцем `SOTY_CATALOG_VIDEO_VARIANTS`;
+      читання R2 лише коли Drive-читання нічого не знайшло; скасування за бекендом). Тест: T095.
 - [x] T097 [P] [US1] Тест для T098 — `tests/catalog-updater-feed.test.ts` (+2): «спадкове» оновлення
-  стрічки варіацій лишає кожному рядку його варіацію; додані рядки беруть варіації по черзі;
-  стрічка без варіацій — як раніше.
+      стрічки варіацій лишає кожному рядку його варіацію; додані рядки беруть варіації по черзі;
+      стрічка без варіацій — як раніше.
 - [x] T098 [US1] Оновлювач: `variantCells` у `supabase/functions/catalog-updater/feed-writer.ts` і
-  збережені клітинки відео в `worker.ts` (лише для стрічки). Тест: T097.
+      збережені клітинки відео в `worker.ts` (лише для стрічки). Тест: T097.
 - [x] T099 [P] [US1] Тест для T100 — `tests/space-catalog-variant-runner.test.ts` (5) і
-  `tests/product-catalog-dialog.test.tsx` (+1): варіації по черзі з налаштуваннями сервера,
-  невдалий запуск закривається й береться наступний, `WRONG_STATE` агента — чекати, зупинка на тому,
-  чого цей комп'ютер не може; діалог R2 пропонує перезашивку й кількість варіацій без відкладеного
-  посилання й без «Google».
+      `tests/product-catalog-dialog.test.tsx` (+1): варіації по черзі з налаштуваннями сервера,
+      невдалий запуск закривається й береться наступний, `WRONG_STATE` агента — чекати, зупинка на тому,
+      чого цей комп'ютер не може; діалог R2 пропонує перезашивку й кількість варіацій без відкладеного
+      посилання й без «Google».
 - [x] T100 [US1] Веб: `apps/web/src/team/product-catalog/spaceCatalogVariants.ts` (прохід і хук),
-  `spaceStorageApi.runCatalogVariant` у `apps/web/src/api/space-storage.ts`,
-  `CreateProductCatalogDialog.tsx`. Агент не змінюється (контракт 3). Тест: T099.
+      `spaceStorageApi.runCatalogVariant` у `apps/web/src/api/space-storage.ts`,
+      `CreateProductCatalogDialog.tsx`. Агент не змінюється (контракт 3). Тест: T099.
 - [x] T101 [P] [US1] Тест для T102 — відкладена публікація R2-каталогу (з варіаціями й без):
-  пізня адреса в стрічці в заданий час, утримання до часу, скасування.
-  `supabase/tests/database/catalog-space-scheduled-publication.test.sql` (40): версія `space-v1:`
-  і незмінні Drive-версії; зв'язок реєструє політику `scheduled` (без legacy-adoption) і завдання
-  `waiting`, оновлювач тримає клітинки; Drive-claim, «unsupported» і Drive-лінія відновлення його
-  не беруть; до строку claim нічого не бере, після — контекст чекає готової копії, далі
-  reserve/dispatch/settle публікують; скасування (`held`) і перенесення; остаточне видалення
-  каталогу забирає політику, завдання й цілі. `tests/catalog-space-scheduled-publication.test.ts`
-  (13): запит лишає протокол 1 (з варіаціями й без), створення пише порожні клітинки й ключ у
-  зв'язку, з варіаціями чекає їх і не робить копії оригіналу; лінія стрічки пише адресу копії
-  (чи варіацію рядка за сідованим розподілом) під fence, чекає неготової копії, звіряє
-  `absent`; раунд оновлювача зберігає відео-колонку, яку стрічка має в момент запису.
-  `tests/catalog-publication-lane.test.ts` (+1), `tests/product-catalog-dialog.test.tsx` (+1, T099
-  змінено), `tests/catalog-space-variants.test.ts` і `tests/catalog-space-create.test.ts` (відмови
-  замінено на прийняття).
+      пізня адреса в стрічці в заданий час, утримання до часу, скасування.
+      `supabase/tests/database/catalog-space-scheduled-publication.test.sql` (40): версія `space-v1:`
+      і незмінні Drive-версії; зв'язок реєструє політику `scheduled` (без legacy-adoption) і завдання
+      `waiting`, оновлювач тримає клітинки; Drive-claim, «unsupported» і Drive-лінія відновлення його
+      не беруть; до строку claim нічого не бере, після — контекст чекає готової копії, далі
+      reserve/dispatch/settle публікують; скасування (`held`) і перенесення; остаточне видалення
+      каталогу забирає політику, завдання й цілі. `tests/catalog-space-scheduled-publication.test.ts`
+      (13): запит лишає протокол 1 (з варіаціями й без), створення пише порожні клітинки й ключ у
+      зв'язку, з варіаціями чекає їх і не робить копії оригіналу; лінія стрічки пише адресу копії
+      (чи варіацію рядка за сідованим розподілом) під fence, чекає неготової копії, звіряє
+      `absent`; раунд оновлювача зберігає відео-колонку, яку стрічка має в момент запису.
+      `tests/catalog-publication-lane.test.ts` (+1), `tests/product-catalog-dialog.test.tsx` (+1, T099
+      змінено), `tests/catalog-space-variants.test.ts` і `tests/catalog-space-create.test.ts` (відмови
+      замінено на прийняття).
 - [x] T102 [US1] Відкладена публікація для стрічки: лінія `catalog_video_publication_*` поверх
-  `applyFeedPublicationCells` (T039) без Drive-базової перевірки. Тест: T101.
-  Міграція `20261226300000_space_storage_catalog_scheduled_publication.sql`; `catalog-updater/space-publication.ts`
-  (свій claim і контекст, запис/звірка стрічки) у `publication-lane.ts` і хвилинному проході;
-  `feed-writer.ts` (раунд без відео бере відео-колонку стрічки на момент запису);
-  `catalog-space-source.ts`, `catalog-space-variants.ts`, `product-catalog.ts`, `drive-ops/index.ts`;
-  діалог R2 показує «Опублікувати пізніше». Ціль — `source` з версією простору, а не окремий вид
-  для набору варіацій (research.md R15 «Відкладена публікація»).
+      `applyFeedPublicationCells` (T039) без Drive-базової перевірки. Тест: T101.
+      Міграція `20261226300000_space_storage_catalog_scheduled_publication.sql`; `catalog-updater/space-publication.ts`
+      (свій claim і контекст, запис/звірка стрічки) у `publication-lane.ts` і хвилинному проході;
+      `feed-writer.ts` (раунд без відео бере відео-колонку стрічки на момент запису);
+      `catalog-space-source.ts`, `catalog-space-variants.ts`, `product-catalog.ts`, `drive-ops/index.ts`;
+      діалог R2 показує «Опублікувати пізніше». Ціль — `source` з версією простору, а не окремий вид
+      для набору варіацій (research.md R15 «Відкладена публікація»).
 - [x] T103 [P] [US1] Тест для T104 — каталоги картинок, кілька креативів (062) і каталоги запусків у
-  R2-просторі (без перезашивки; посилання одразу, одне відео — і пізніше).
-  `supabase/tests/database/catalog-space-creatives.test.sql` (30): резерв картинки за content id
-  (Drive-простір, інший вміст, не картинка, чужий, нема місця — відмови; втрачена спроба передає
-  той самий резерв), опублікована — раз у `catalogs`, повторне використання, очищена — байти назад,
-  Drive-резерв незмінний; зв'язок двох відео користується копією кожного, відео без копії
-  відмовляє зв'язок, каталог картинок не планує й не використовує відеокопій; джерело запуску —
-  `space-v1:<content id>` без Drive file id (кожен креатив теж), ідентичність є, Drive-джерело
-  незмінне; приєднання R2-каталогу без Drive-перевірки, Drive — як було.
-  `supabase/tests/database/catalog-space-growth-publication.test.sql` (14): **ріст на R2-каталозі з
-  політикою** (прогалина з T102) — раунд Drive (claim, non-video контекст, запис, завершення)
-  зростає 3→4, політика переходить на ревізію 2 над тією ж ціллю, нове завдання `waiting`, claim
-  стрічки бере його, контекст називає 4 товари. Працювало без змін — тепер закрито тестом.
-  `tests/catalog-space-creatives.test.ts` (7): кілька відео — кожен блок своя R2-копія, без Drive;
-  картинки — у `c1/` через публікатор простору, H — картинка креативу, відео-клітинки порожні,
-  відеокопій немає; заморожений запит запуску одного відео (протокол 1, `copyVideoToR2`) робиться як
-  є; відкладене посилання називає ключ створення зв'язку; перезашивка / пізніше для кількох —
-  `MULTI_CREATIVE_UNSUPPORTED` до читання; публікатор: резерв за content id, читання з bucket
-  простору, зміна байтів — `SOURCE_CHANGED`. `tests/launch-space-catalog.test.ts` (5): що
-  відмовляє запуск R2 до прийняття, допуск без Drive-контексту (Drive — читає, як було),
-  перезашитий — до читання джерел; доведення джерела креатив за креативом і папки каталогу.
-  `tests/catalog-updater-feed.test.ts` (+3): оновлення стрічки кількох відео зберігає відео кожного
-  блоку (без 050-резолву), не росте; каталог картинок — H з макета, відео порожні.
-  `tests/launch-catalog-settings.test.tsx` (+1): редактор запуску R2 ховає перезашивку й опцію копії,
-  «пізніше» — для кількох креативів; зроблений вибір видно, щоб його зняти; Drive — як було.
-  `tests/catalog-space-create.test.ts` (відмову кількох відео одразу замінено перезашитими).
+      R2-просторі (без перезашивки; посилання одразу, одне відео — і пізніше).
+      `supabase/tests/database/catalog-space-creatives.test.sql` (30): резерв картинки за content id
+      (Drive-простір, інший вміст, не картинка, чужий, нема місця — відмови; втрачена спроба передає
+      той самий резерв), опублікована — раз у `catalogs`, повторне використання, очищена — байти назад,
+      Drive-резерв незмінний; зв'язок двох відео користується копією кожного, відео без копії
+      відмовляє зв'язок, каталог картинок не планує й не використовує відеокопій; джерело запуску —
+      `space-v1:<content id>` без Drive file id (кожен креатив теж), ідентичність є, Drive-джерело
+      незмінне; приєднання R2-каталогу без Drive-перевірки, Drive — як було.
+      `supabase/tests/database/catalog-space-growth-publication.test.sql` (14): **ріст на R2-каталозі з
+      політикою** (прогалина з T102) — раунд Drive (claim, non-video контекст, запис, завершення)
+      зростає 3→4, політика переходить на ревізію 2 над тією ж ціллю, нове завдання `waiting`, claim
+      стрічки бере його, контекст називає 4 товари. Працювало без змін — тепер закрито тестом.
+      `tests/catalog-space-creatives.test.ts` (7): кілька відео — кожен блок своя R2-копія, без Drive;
+      картинки — у `c1/` через публікатор простору, H — картинка креативу, відео-клітинки порожні,
+      відеокопій немає; заморожений запит запуску одного відео (протокол 1, `copyVideoToR2`) робиться як
+      є; відкладене посилання називає ключ створення зв'язку; перезашивка / пізніше для кількох —
+      `MULTI_CREATIVE_UNSUPPORTED` до читання; публікатор: резерв за content id, читання з bucket
+      простору, зміна байтів — `SOURCE_CHANGED`. `tests/launch-space-catalog.test.ts` (5): що
+      відмовляє запуск R2 до прийняття, допуск без Drive-контексту (Drive — читає, як було),
+      перезашитий — до читання джерел; доведення джерела креатив за креативом і папки каталогу.
+      `tests/catalog-updater-feed.test.ts` (+3): оновлення стрічки кількох відео зберігає відео кожного
+      блоку (без 050-резолву), не росте; каталог картинок — H з макета, відео порожні.
+      `tests/launch-catalog-settings.test.tsx` (+1): редактор запуску R2 ховає перезашивку й опцію копії,
+      «пізніше» — для кількох креативів; зроблений вибір видно, щоб його зняти; Drive — як було.
+      `tests/catalog-space-create.test.ts` (відмову кількох відео одразу замінено перезашитими).
 - [x] T104 [US1] Ці три шляхи для R2 без перезашивки (раніше `MULTI_CREATIVE_UNSUPPORTED` /
-  `STORAGE_BACKEND_MISMATCH` до запису). Тест: T103. Решта — T114/T115 (зроблено), T116/T117.
-  Міграція `20261226310000_space_storage_catalog_creatives.sql`: `service_reserve_space_creative_image`
-  (`private.launch_creative_images`, версія `space-v1:<content id>`, контрольна сума — перші 32 hex,
-  відмова `STORAGE_QUOTA_EXCEEDED`), `space_counted` + тригер обліку `catalogs`,
-  `service_link_space_catalog_feed` (копія кожного відео креативів; картинки — без відеокопії й
-  resolve), `private.space_launch_material_version` + патч `launch_sources_from_config`
-  (coalesce Drive-версії, без `materialDriveFileId` для R2-файлу), патч
-  `service_attach_launch_catalog_before_catalog_sub` (R2 не потребує `catalog_initial_publication_checks`).
-  Edge: `catalog-space-creative-images.ts` (джерело публікатора 062: резерв за content id, читання з
-  bucket простору), `creative-images.ts` (необов'язковий `reserve`; Drive-резерв той самий),
-  `catalog-space-source.ts` (`spaceCatalogCreatives`, `spaceCatalogSeveral`, протокол лишається для
-  креативів, публікатор завжди R2, ключ відкладеного зв'язку від генератора), `product-catalog.ts`
-  (R2: кожне відео — своя копія, картинки без відео й без Drive-шерингу; протокол без перезашивки з
-  публікацією одразу; `publicationKey` у `link` лише для R2), `launch-space-source.ts` (що відмовляє,
-  доведення джерела за вмістом і папки), `launches.ts`/`launch-catalog-video.ts` (`spaceStorage`:
-  відмова до прийняття, допуск без Drive-контексту), `drive-ops/index.ts` (`/launches/generate`,
-  `/launches/sources/refresh`, `/launches/recover` за бекендом; `spaceLaunchCatalogExecution`;
-  публікатор картинок простору у `/product-catalog/create`), `catalog-updater/feed-writer.ts`
-  (`creativeCells`) і `worker.ts` (стрічка кількох відео/картинок не падає `MULTI_CREATIVE_UNSUPPORTED`).
-  Веб: `LaunchEditor.tsx` (R2: без перезашивки, без опції копії, «пізніше» лише для одного відео).
+      `STORAGE_BACKEND_MISMATCH` до запису). Тест: T103. Решта — T114/T115 (зроблено), T116/T117.
+      Міграція `20261226310000_space_storage_catalog_creatives.sql`: `service_reserve_space_creative_image`
+      (`private.launch_creative_images`, версія `space-v1:<content id>`, контрольна сума — перші 32 hex,
+      відмова `STORAGE_QUOTA_EXCEEDED`), `space_counted` + тригер обліку `catalogs`,
+      `service_link_space_catalog_feed` (копія кожного відео креативів; картинки — без відеокопії й
+      resolve), `private.space_launch_material_version` + патч `launch_sources_from_config`
+      (coalesce Drive-версії, без `materialDriveFileId` для R2-файлу), патч
+      `service_attach_launch_catalog_before_catalog_sub` (R2 не потребує `catalog_initial_publication_checks`).
+      Edge: `catalog-space-creative-images.ts` (джерело публікатора 062: резерв за content id, читання з
+      bucket простору), `creative-images.ts` (необов'язковий `reserve`; Drive-резерв той самий),
+      `catalog-space-source.ts` (`spaceCatalogCreatives`, `spaceCatalogSeveral`, протокол лишається для
+      креативів, публікатор завжди R2, ключ відкладеного зв'язку від генератора), `product-catalog.ts`
+      (R2: кожне відео — своя копія, картинки без відео й без Drive-шерингу; протокол без перезашивки з
+      публікацією одразу; `publicationKey` у `link` лише для R2), `launch-space-source.ts` (що відмовляє,
+      доведення джерела за вмістом і папки), `launches.ts`/`launch-catalog-video.ts` (`spaceStorage`:
+      відмова до прийняття, допуск без Drive-контексту), `drive-ops/index.ts` (`/launches/generate`,
+      `/launches/sources/refresh`, `/launches/recover` за бекендом; `spaceLaunchCatalogExecution`;
+      публікатор картинок простору у `/product-catalog/create`), `catalog-updater/feed-writer.ts`
+      (`creativeCells`) і `worker.ts` (стрічка кількох відео/картинок не падає `MULTI_CREATIVE_UNSUPPORTED`).
+      Веб: `LaunchEditor.tsx` (R2: без перезашивки, без опції копії, «пізніше» лише для одного відео).
 - [x] T114 [P] [US1] Тест для T115 — перезашиті каталоги запусків і масові запуски в R2-просторі.
-  `supabase/tests/database/launch-space-catalog-variants.test.sql` (36): прийняття запуску одного
-  перезашитого відео (внутрішній допуск запуску й заморожування ресурсів — заглушки в транзакції
-  тесту) — набір простору під створенням `launch:<generation>:catalog` із налаштуваннями члена й
-  тривалістю запуску, варіація на запит, контекст без Drive-набору й виконавця, Drive-набору немає;
-  `expectedExecutorId` — `INVALID_INPUT`, без делегування фонової роботи — `AGENT_REQUIRED`;
-  очікування читає набір простору (`preparing`, `setCount`), прогрес запуску (`get_launch`) — його,
-  фоновий агент члена бере варіацію запуску, тричі невдала варіація — `unknown` і генерація
-  `interrupted:PROCESS_RESULT_UNCERTAIN`; кілька відео — набір на сегмент зі своєю часткою,
-  сегменти без Drive-набору, відео поза планом і чужий набір сегмента — `WRONG_STATE`, повторний
-  допуск — той самий набір, очікування бачить усі набори й називає `failedOrdinal`; зв'язок
-  `spaceVariantSetIds` (менше двох — `INVALID_INPUT`, набір іншого створення — `WRONG_STATE`) прив'язує
-  обидва набори й використовує копію кожного виходу, без копії оригіналів, оновлювачу —
-  `service_space_catalog_variant_links` null; приєднання — лише коли кожен набір прив'язаний;
-  скасування генерації скасовує набір і відкритий запуск агента; Drive-тексти прийняття й сегментів
-  незмінні; огорожа прибирання. `tests/launch-space-catalog-variants.test.ts` (14): допуск R2 читає
-  лише налаштування члена й годинник (без Drive-контексту й пошуку готового набору), не називає
-  виконавця, планує набір на відео; виконання на передньому плані — `STORAGE_BACKEND_MISMATCH` до
-  будь-якого читання; Drive-запуск і далі потребує виконавця (`AGENT_REQUIRED`, той самий виклик контексту);
-  `generateLaunch` R2 приймає без виконавця навіть названого сторінкою, виконання на передньому плані
-  відмовляє до читання; авторитет простору: кожен набір із замороженими налаштуваннями запуску, `failedOrdinal`,
-  рядки кожного відео — його варіації за сідом сегмента, `setIds`/`creativeLinks`, пізніше для
-  кількох — `MULTI_CREATIVE_UNSUPPORTED` до читання; каталог двох перезашитих відео пише рядки
-  варіаціями й зв'язує `spaceVariantSetIds`, без копії оригіналу; крок каталогу R2 не чекає «порожнього»
-  каталогу; масовий запуск R2 — без Drive-контексту, відмова учасника `STORAGE_BACKEND_MISMATCH` до
-  плану, Drive — як було. Оновлено T104-тести: `tests/launch-space-catalog.test.ts` (відмови
-  перезашивки замінено прийняттям), `tests/launch-catalog-settings.test.tsx` (редактор R2 пропонує
-  перезашивку).
+      `supabase/tests/database/launch-space-catalog-variants.test.sql` (36): прийняття запуску одного
+      перезашитого відео (внутрішній допуск запуску й заморожування ресурсів — заглушки в транзакції
+      тесту) — набір простору під створенням `launch:<generation>:catalog` із налаштуваннями члена й
+      тривалістю запуску, варіація на запит, контекст без Drive-набору й виконавця, Drive-набору немає;
+      `expectedExecutorId` — `INVALID_INPUT`, без делегування фонової роботи — `AGENT_REQUIRED`;
+      очікування читає набір простору (`preparing`, `setCount`), прогрес запуску (`get_launch`) — його,
+      фоновий агент члена бере варіацію запуску, тричі невдала варіація — `unknown` і генерація
+      `interrupted:PROCESS_RESULT_UNCERTAIN`; кілька відео — набір на сегмент зі своєю часткою,
+      сегменти без Drive-набору, відео поза планом і чужий набір сегмента — `WRONG_STATE`, повторний
+      допуск — той самий набір, очікування бачить усі набори й називає `failedOrdinal`; зв'язок
+      `spaceVariantSetIds` (менше двох — `INVALID_INPUT`, набір іншого створення — `WRONG_STATE`) прив'язує
+      обидва набори й використовує копію кожного виходу, без копії оригіналів, оновлювачу —
+      `service_space_catalog_variant_links` null; приєднання — лише коли кожен набір прив'язаний;
+      скасування генерації скасовує набір і відкритий запуск агента; Drive-тексти прийняття й сегментів
+      незмінні; огорожа прибирання. `tests/launch-space-catalog-variants.test.ts` (14): допуск R2 читає
+      лише налаштування члена й годинник (без Drive-контексту й пошуку готового набору), не називає
+      виконавця, планує набір на відео; виконання на передньому плані — `STORAGE_BACKEND_MISMATCH` до
+      будь-якого читання; Drive-запуск і далі потребує виконавця (`AGENT_REQUIRED`, той самий виклик контексту);
+      `generateLaunch` R2 приймає без виконавця навіть названого сторінкою, виконання на передньому плані
+      відмовляє до читання; авторитет простору: кожен набір із замороженими налаштуваннями запуску, `failedOrdinal`,
+      рядки кожного відео — його варіації за сідом сегмента, `setIds`/`creativeLinks`, пізніше для
+      кількох — `MULTI_CREATIVE_UNSUPPORTED` до читання; каталог двох перезашитих відео пише рядки
+      варіаціями й зв'язує `spaceVariantSetIds`, без копії оригіналу; крок каталогу R2 не чекає «порожнього»
+      каталогу; масовий запуск R2 — без Drive-контексту, відмова учасника `STORAGE_BACKEND_MISMATCH` до
+      плану, Drive — як було. Оновлено T104-тести: `tests/launch-space-catalog.test.ts` (відмови
+      перезашивки замінено прийняттям), `tests/launch-catalog-settings.test.tsx` (редактор R2 пропонує
+      перезашивку).
 - [x] T115 [US1] Реалізація T114 (research.md R15 «Перезашиті каталоги запусків і масові запуски»).
-  Тест: T114. Міграція `20261226320000_space_storage_launch_catalog_variants.sql`: унікальність набору
-  — (створення, відео); `service_admit_space_catalog_variants` приймає відео-сегмент плану;
-  `service_accept_launch_catalog_video_generation` — R2-гілка (без виконавця, делегування члена
-  обов'язкове, `private.admit_launch_space_catalog_set`, контекст без Drive-набору);
-  `accept_launch_catalog_video_segments` — набір простору на сегмент; `service_wait_launch_catalog_video`,
-  `private.launch_space_video_generation_json` (+ `get_launch_before_started_at`,
-  `list_launches_pre_assignment`), приєднання, тригер скасування, `service_link_space_catalog_feed`
-  (`spaceVariantSetIds`), `service_space_catalog_variant_links`. Edge: `launch-space-source.ts`
-  (перезашивка дозволена), `launch-catalog-video.ts` (`service_space_catalog_variant_defaults`, без
-  виконавця, без повторного використання й виконання на передньому плані), `launches.ts`, `launch-catalog.ts`
-  (`spaceStorage`), `catalog-space-variants.ts` (набір на відео, `frozenSettings`),
-  `catalog-space-source.ts` (`variationSets`, `variationLinkOf`), `product-catalog.ts` (кілька
-  перезашитих відео), `launch-batch.ts` (`LaunchBatchDeps.spaceStorage`), `index.ts` (крок каталогу
-  R2 з прив'язкою, масові запуски й доведення джерела `other` у просторі). Веб: `LaunchEditor.tsx`
-  (перезашивка в R2), `useLaunchGeneration.ts` (у R2 без виконання на передньому плані й виконавця). Решта —
-  T116/T117.
+      Тест: T114. Міграція `20261226320000_space_storage_launch_catalog_variants.sql`: унікальність набору
+      — (створення, відео); `service_admit_space_catalog_variants` приймає відео-сегмент плану;
+      `service_accept_launch_catalog_video_generation` — R2-гілка (без виконавця, делегування члена
+      обов'язкове, `private.admit_launch_space_catalog_set`, контекст без Drive-набору);
+      `accept_launch_catalog_video_segments` — набір простору на сегмент; `service_wait_launch_catalog_video`,
+      `private.launch_space_video_generation_json` (+ `get_launch_before_started_at`,
+      `list_launches_pre_assignment`), приєднання, тригер скасування, `service_link_space_catalog_feed`
+      (`spaceVariantSetIds`), `service_space_catalog_variant_links`. Edge: `launch-space-source.ts`
+      (перезашивка дозволена), `launch-catalog-video.ts` (`service_space_catalog_variant_defaults`, без
+      виконавця, без повторного використання й виконання на передньому плані), `launches.ts`, `launch-catalog.ts`
+      (`spaceStorage`), `catalog-space-variants.ts` (набір на відео, `frozenSettings`),
+      `catalog-space-source.ts` (`variationSets`, `variationLinkOf`), `product-catalog.ts` (кілька
+      перезашитих відео), `launch-batch.ts` (`LaunchBatchDeps.spaceStorage`), `index.ts` (крок каталогу
+      R2 з прив'язкою, масові запуски й доведення джерела `other` у просторі). Веб: `LaunchEditor.tsx`
+      (перезашивка в R2), `useLaunchGeneration.ts` (у R2 без виконання на передньому плані й виконавця). Решта —
+      T116/T117.
 - [x] T116 [P] [US1] Тест для T117 — пізнє посилання для кількох креативів і картинок у R2-просторі
-  (запуск; зараз `MULTI_CREATIVE_UNSUPPORTED` до прийняття: `assertSpaceLaunchCatalog`, авторитет
-  простору, `createProductCatalog`):
+      (запуск; зараз `MULTI_CREATIVE_UNSUPPORTED` до прийняття: `assertSpaceLaunchCatalog`, авторитет
+      простору, `createProductCatalog`):
   - реєстрація: `service_link_space_catalog_feed` з `spacePublicationKey` для каталогу кількох
     відео чи картинок реєструє ціль `creatives` (`catalog_publication_target_segments`) із
     сегментами-джерелами (`video_set_id` null, `source_version` `space-v1:<content id>` кожного
@@ -621,103 +621,104 @@
   посиланням — порожні клітинки, ключ у зв'язку, копії сплановані), `tests/launch-space-catalog-variants.test.ts`
   (відмову замінено очікуванням усіх наборів і `deferred`), `tests/launch-space-catalog.test.ts`,
   `tests/launch-catalog-settings.test.tsx` («пізніше» для кількох і картинок).
+
 - [x] T117 [US1] Реалізація T116. Тест: T116. Міграція `20261226330000_space_storage_catalog_scheduled_creatives.sql`:
-  `register_space_catalog_publication` — ціль `creatives` із сегментів плану
-  (`register_space_catalog_creatives_target`), `space_catalog_publication_source_version` — і для
-  картинок, `service_space_catalog_publication_context` — гілка `creatives`
-  (`space_catalog_creatives_publication_context`; `source` — той самий текст),
-  `space_catalog_publication_removed` — сегменти перед цілями. Edge: `launch-space-source.ts`,
-  `catalog-space-variants.ts`, `product-catalog.ts` (відмови зняті для пізнього посилання),
-  `catalog-updater/space-publication.ts` (сегменти, H для картинок), `feed-writer.ts` (H тримається
-  під час запису раунду). Веб: `LaunchEditor.tsx`. Прив'язка посилань креативів у знімок
-  (`service_confirm_catalog_creative_links`) для R2 не викликається: оновлювач з політикою бере
-  клітинки зі стрічки.
+      `register_space_catalog_publication` — ціль `creatives` із сегментів плану
+      (`register_space_catalog_creatives_target`), `space_catalog_publication_source_version` — і для
+      картинок, `service_space_catalog_publication_context` — гілка `creatives`
+      (`space_catalog_creatives_publication_context`; `source` — той самий текст),
+      `space_catalog_publication_removed` — сегменти перед цілями. Edge: `launch-space-source.ts`,
+      `catalog-space-variants.ts`, `product-catalog.ts` (відмови зняті для пізнього посилання),
+      `catalog-updater/space-publication.ts` (сегменти, H для картинок), `feed-writer.ts` (H тримається
+      під час запису раунду). Веб: `LaunchEditor.tsx`. Прив'язка посилань креативів у знімок
+      (`service_confirm_catalog_creative_links`) для R2 не викликається: оновлювач з політикою бере
+      клітинки зі стрічки.
 - [x] T118 [P] [US1] Тест для T119 — варіації R2-запуску на відкритому Soty члена (передній план), фонова
-  робота — продовження (інцидент 2026-11-27: каталог застряг на `AGENT_REQUIRED`, бо не було
-  делегування). `supabase/tests/database/launch-space-variant-foreground.test.sql` (17): без
-  відкритого Soty й фонової роботи — `AGENT_REQUIRED`, як на Drive; зі `spaceForeground` —
-  прийнято без делегування, набір простору, без виконавця; прогрес називає набори (`spaceSets`);
-  сторінка отримує варіацію на відкриття, відкритий запуск видається знову, фонова робота бере
-  наступну, а не ту, що робить сторінка, сторінка чекає орендовану (`background`); відкритий
-  запуск — причини немає; нічого не відкрито, делегування немає, дві хвилини тиші —
-  `waitReason: AGENT_REQUIRED` у прогресі, у запуску (`get_launch`) і в читанні створення; з
-  делегуванням — причини немає; лише фонова робота — прийнято, як було; Drive-рядки прийняття
-  незмінні. Vitest: `tests/launch-space-catalog-variants.test.ts` (+2: `spaceForeground` доходить до
-  `p_video`, не до замороженого запиту; Drive і неправильне значення — відмова до читання),
-  `tests/space-catalog-variant-runner.test.ts` (+4: недосяжний Soty — тиха зупинка
-  `AGENT_UNREACHABLE`, проходи по кожному набору запуску, зупинка на першому, вибір незроблених
-  наборів), `tests/launch-generation-hook.test.tsx` (+3: `spaceForeground` лише коли Soty тут може,
-  без Drive-сесії й виконавця), `tests/catalog-video-row-progress.test.ts` (+1: `spaceSets`),
-  `tests/catalog-no-silent-hangs.test.tsx` (+1: R2-речення з обома дверима, без «Google»),
-  `tests/launch-progress.test.tsx` (+1: причина й двері в прогресі R2-запуску, Drive — без змін).
+      робота — продовження (інцидент 2026-11-27: каталог застряг на `AGENT_REQUIRED`, бо не було
+      делегування). `supabase/tests/database/launch-space-variant-foreground.test.sql` (17): без
+      відкритого Soty й фонової роботи — `AGENT_REQUIRED`, як на Drive; зі `spaceForeground` —
+      прийнято без делегування, набір простору, без виконавця; прогрес називає набори (`spaceSets`);
+      сторінка отримує варіацію на відкриття, відкритий запуск видається знову, фонова робота бере
+      наступну, а не ту, що робить сторінка, сторінка чекає орендовану (`background`); відкритий
+      запуск — причини немає; нічого не відкрито, делегування немає, дві хвилини тиші —
+      `waitReason: AGENT_REQUIRED` у прогресі, у запуску (`get_launch`) і в читанні створення; з
+      делегуванням — причини немає; лише фонова робота — прийнято, як було; Drive-рядки прийняття
+      незмінні. Vitest: `tests/launch-space-catalog-variants.test.ts` (+2: `spaceForeground` доходить до
+      `p_video`, не до замороженого запиту; Drive і неправильне значення — відмова до читання),
+      `tests/space-catalog-variant-runner.test.ts` (+4: недосяжний Soty — тиха зупинка
+      `AGENT_UNREACHABLE`, проходи по кожному набору запуску, зупинка на першому, вибір незроблених
+      наборів), `tests/launch-generation-hook.test.tsx` (+3: `spaceForeground` лише коли Soty тут може,
+      без Drive-сесії й виконавця), `tests/catalog-video-row-progress.test.ts` (+1: `spaceSets`),
+      `tests/catalog-no-silent-hangs.test.tsx` (+1: R2-речення з обома дверима, без «Google»),
+      `tests/launch-progress.test.tsx` (+1: причина й двері в прогресі R2-запуску, Drive — без змін).
 - [x] T119 [US1] Реалізація T118 (research.md R15 «Передній план»). Міграція
-  `20261226340000_space_storage_variant_foreground.sql`: R2-гілка `service_accept_launch_catalog_video_generation`
-  не вимагає делегування, коли сторінка сама передає варіації (`p_video.spaceForeground`);
-  `private.space_catalog_variant_wait_reason`; `launch_space_video_generation_json` (`waitReason`,
-  `spaceSets`), `service_read_space_catalog_variants` (`waitReason`). Edge: `launches.ts`
-  (`spaceForeground`: лише R2, лише `true`), `launch-catalog-video.ts`. Shared:
-  `CatalogVideoRowProgress.spaceSets`. Веб: `agentCanRunSpaceVariants` (контракт 3),
-  `useLaunchGeneration.ts` (питає Soty раз на запит), `useSpaceLaunchVariants.ts` + `LaunchSession.tsx`
-  (передає набори запуску агентові, як діалог), `spaceCatalogVariants.ts` (набори, тиха зупинка на
-  недосяжному Soty — раніше діалог казав «оновіть Soty»), `LaunchGenerationProgress.tsx` і діалог
-  (`catalogCodeMessage(..., { space })`, `CatalogFixButton`), uk+en.
+      `20261226340000_space_storage_variant_foreground.sql`: R2-гілка `service_accept_launch_catalog_video_generation`
+      не вимагає делегування, коли сторінка сама передає варіації (`p_video.spaceForeground`);
+      `private.space_catalog_variant_wait_reason`; `launch_space_video_generation_json` (`waitReason`,
+      `spaceSets`), `service_read_space_catalog_variants` (`waitReason`). Edge: `launches.ts`
+      (`spaceForeground`: лише R2, лише `true`), `launch-catalog-video.ts`. Shared:
+      `CatalogVideoRowProgress.spaceSets`. Веб: `agentCanRunSpaceVariants` (контракт 3),
+      `useLaunchGeneration.ts` (питає Soty раз на запит), `useSpaceLaunchVariants.ts` + `LaunchSession.tsx`
+      (передає набори запуску агентові, як діалог), `spaceCatalogVariants.ts` (набори, тиха зупинка на
+      недосяжному Soty — раніше діалог казав «оновіть Soty»), `LaunchGenerationProgress.tsx` і діалог
+      (`catalogCodeMessage(..., { space })`, `CatalogFixButton`), uk+en.
 - [ ] T105 [US1] Приймання на беті (частина T062): каталог з 10 варіаціями в пілотному R2-просторі,
-  агент arm64 і Windows, видалення каталогу — 0 об'єктів у bucket простору й у публічному.
+      агент arm64 і Windows, видалення каталогу — 0 об'єктів у bucket простору й у публічному.
 - [x] T106 [P] [US1] Тест для T107 — фонове доведення варіацій R2-каталогу:
-  `supabase/tests/database/catalog-space-variants-background.test.sql` (33): оренда наступної
-  варіації лише цього члена, сторінка отримує `background`, прив'язка під орендою, серцебиття й
-  `cancel`, відкладення на годину без запуску, запуск простроченої оренди закривається наступним
-  claim і варіація бере наступну спробу, квитанція team-recovery для R2 (`storageBackend`,
-  `outputRecorded`) і незмінна для Drive, список крон-лінії; `tests/space-storage-catalog-variant-recovery.test.ts`
-  (8), `tests/space-storage-isolation.test.ts` (+5: R2-кроки йдуть у space-storage від імені
-  члена квитанції, Drive-claim — у Drive-оновлювач з тим самим тілом), `tests/team-recovery-worker.test.ts`
-  (+2: R2-завдання читає й пише через space-storage), `tests/catalog-initial-recovery.test.ts`
-  (+2), `tests/space-catalog-variant-runner.test.ts` (+1), `tests/space-storage-catalog-variants.test.ts`.
+      `supabase/tests/database/catalog-space-variants-background.test.sql` (33): оренда наступної
+      варіації лише цього члена, сторінка отримує `background`, прив'язка під орендою, серцебиття й
+      `cancel`, відкладення на годину без запуску, запуск простроченої оренди закривається наступним
+      claim і варіація бере наступну спробу, квитанція team-recovery для R2 (`storageBackend`,
+      `outputRecorded`) і незмінна для Drive, список крон-лінії; `tests/space-storage-catalog-variant-recovery.test.ts`
+      (8), `tests/space-storage-isolation.test.ts` (+5: R2-кроки йдуть у space-storage від імені
+      члена квитанції, Drive-claim — у Drive-оновлювач з тим самим тілом), `tests/team-recovery-worker.test.ts`
+      (+2: R2-завдання читає й пише через space-storage), `tests/catalog-initial-recovery.test.ts`
+      (+2), `tests/space-catalog-variant-runner.test.ts` (+1), `tests/space-storage-catalog-variants.test.ts`.
 - [x] T107 [US1] Фонове доведення (research.md R15): міграція
-  `20261226260000_space_storage_catalog_variant_background.sql` (оренда на `space_catalog_variants`,
-  claim/bind/heartbeat/defer/complete, `background` у видачі сторінці, квитанція
-  `service_team_recovery` для R2, `service_list_space_catalog_completions`);
-  `space-storage/catalog-variant-recovery.ts` (claim: картинки з пулів простору квитками
-  `/agent/source`, запуск як у `/catalog-variants/run`); `team-recovery` маршрутизує claim,
-  heartbeat і settle R2-квитанції туди, Drive — як було; агент бере адреси space-storage для
-  `workspaceStorage: 'r2'`; крон `drive-ops /launches/recover` доводить створення, коли всі
-  варіації зроблено (`createSpaceProductCatalog`, та сама лінія `runInitialCatalogRecovery`).
-  Тест: T106.
+      `20261226260000_space_storage_catalog_variant_background.sql` (оренда на `space_catalog_variants`,
+      claim/bind/heartbeat/defer/complete, `background` у видачі сторінці, квитанція
+      `service_team_recovery` для R2, `service_list_space_catalog_completions`);
+      `space-storage/catalog-variant-recovery.ts` (claim: картинки з пулів простору квитками
+      `/agent/source`, запуск як у `/catalog-variants/run`); `team-recovery` маршрутизує claim,
+      heartbeat і settle R2-квитанції туди, Drive — як було; агент бере адреси space-storage для
+      `workspaceStorage: 'r2'`; крон `drive-ops /launches/recover` доводить створення, коли всі
+      варіації зроблено (`createSpaceProductCatalog`, та сама лінія `runInitialCatalogRecovery`).
+      Тест: T106.
 - [x] T108 [P] [US10] Тест для T109 — `supabase/tests/database/space-trash-tool-outputs.test.sql` (12):
-  «Очистити кошик» з виходом інструмента видаляє його одразу, разом з його `processed_from`,
-  об'єкт стає до видалення з R2, джерело працює далі й зберігає свій об'єкт; джерело з виходом теж
-  видаляється, а вихід лишається звичайним файлом і рахується раз, у `materials`; зв'язок іншого
-  виду (`version_of`) і далі тримає файл у кошику.
+      «Очистити кошик» з виходом інструмента видаляє його одразу, разом з його `processed_from`,
+      об'єкт стає до видалення з R2, джерело працює далі й зберігає свій об'єкт; джерело з виходом теж
+      видаляється, а вихід лишається звичайним файлом і рахується раз, у `materials`; зв'язок іншого
+      виду (`version_of`) і далі тримає файл у кошику.
 - [x] T109 [US10] Міграція `20261226270000_space_storage_trash_tool_outputs.sql`: R2-тіло
-  `service_empty_space_trash` видаляє `processed_from` матеріалу в тій самій субтранзакції, що й
-  рядок, і перераховує другий бік (FR-048: без сиріт). Drive-кошик не змінюється. Тест: T108.
+      `service_empty_space_trash` видаляє `processed_from` матеріалу в тій самій субтранзакції, що й
+      рядок, і перераховує другий бік (FR-048: без сиріт). Drive-кошик не змінюється. Тест: T108.
 - [x] T110 [P] [US9] Тест для T111 — `supabase/tests/database/space-catalog-copy-ledger.test.sql` (14):
-  публічна копія відео каталогу в R2-просторі планується понад старий ліміт копій, резервує свої
-  байти в просторі, готова рахується раз у `catalogs` (скільки б каталогів її не брали), видалена
-  чи невдала повертає байти, а та, що не вміщається, отримує `STORAGE_QUOTA_EXCEEDED` без рядка;
-  Drive-простір і далі під старим лімітом; `tests/catalog-video-r2-ui.test.tsx` (+1): розділ «Відео
-  в R2» з окремим лімітом у R2-просторі не малюється.
+      публічна копія відео каталогу в R2-просторі планується понад старий ліміт копій, резервує свої
+      байти в просторі, готова рахується раз у `catalogs` (скільки б каталогів її не брали), видалена
+      чи невдала повертає байти, а та, що не вміщається, отримує `STORAGE_QUOTA_EXCEEDED` без рядка;
+      Drive-простір і далі під старим лімітом; `tests/catalog-video-r2-ui.test.tsx` (+1): розділ «Відео
+      в R2» з окремим лімітом у R2-просторі не малюється.
 - [x] T111 [US9] Міграція `20261226280000_space_storage_catalog_copy_ledger.sql` (FR-045/FR-047/FR-050:
-  одна межа — облік простору): рядок ліміту `service_catalog_video_r2_resolve` для R2 перевіряє
-  вільне місце простору, тригери копій резервують, рахують і повертають байти в `catalogs`;
-  `CatalogVideoR2UsageSection` не малюється в R2-просторі. Попутно: якорі `deno-type-dependencies.ts`
-  для `team/restitch`, `catalog-video-set`, `transcript`, `space-read`. Тест: T110.
+      одна межа — облік простору): рядок ліміту `service_catalog_video_r2_resolve` для R2 перевіряє
+      вільне місце простору, тригери копій резервують, рахують і повертають байти в `catalogs`;
+      `CatalogVideoR2UsageSection` не малюється в R2-просторі. Попутно: якорі `deno-type-dependencies.ts`
+      для `team/restitch`, `catalog-video-set`, `transcript`, `space-read`. Тест: T110.
 
 - [x] T112 [P] [US1] Тест для T113 — `supabase/tests/database/catalog-space-variants-stalled.test.sql` (30):
-  запуск сторінки з ознаками життя не чіпається; той самий, мовчазний понад вікно, закривається
-  `AGENT_STALLED` (retryable), бронь імені знята, квитки відкликані, відкрите завантаження виходу
-  `expired`, резерв місця повернуто; варіація `pending`, наступну спробу бере claim агента;
-  запуск під живою орендою не чіпається, прострочена оренда — через 10 хв, оренда знімається;
-  третя мовчазна спроба лишає варіацію `failed`; читання діалогу — `waitReason`/`retry` або
-  `variantsFailed`; крон-лінія. `tests/product-catalog-dialog.test.tsx` (+2): «наступна спроба N з 3»
-  і «не вдалося за три спроби» без «Google».
+      запуск сторінки з ознаками життя не чіпається; той самий, мовчазний понад вікно, закривається
+      `AGENT_STALLED` (retryable), бронь імені знята, квитки відкликані, відкрите завантаження виходу
+      `expired`, резерв місця повернуто; варіація `pending`, наступну спробу бере claim агента;
+      запуск під живою орендою не чіпається, прострочена оренда — через 10 хв, оренда знімається;
+      третя мовчазна спроба лишає варіацію `failed`; читання діалогу — `waitReason`/`retry` або
+      `variantsFailed`; крон-лінія. `tests/product-catalog-dialog.test.tsx` (+2): «наступна спроба N з 3»
+      і «не вдалося за три спроби» без «Google».
 - [x] T113 [US1] Завислий запуск варіації (research.md R15 «Завислий запуск»): міграція
-  `20261226290000_space_storage_catalog_variant_stalled_runs.sql` — `private.space_catalog_variant_run_life`
-  (переходи запуску, видачі квитків, завантаження виходу), `private.sweep_space_catalog_variant_runs`
-  (2 год тиші без оренди, 10 хв після простроченої оренди, ≤50 за прохід), pg_cron
-  `soty-space-catalog-variant-stalled-runs` кожні 5 хв, `service_read_space_catalog_variants`
-  (`waitReason`, `retry`, `variantsFailed`); веб — `CreateProductCatalogDialog.tsx`,
-  `catalog-video-creation.ts`, uk+en. Drive-набори не змінюються. Тест: T112.
+      `20261226290000_space_storage_catalog_variant_stalled_runs.sql` — `private.space_catalog_variant_run_life`
+      (переходи запуску, видачі квитків, завантаження виходу), `private.sweep_space_catalog_variant_runs`
+      (2 год тиші без оренди, 10 хв після простроченої оренди, ≤50 за прохід), pg_cron
+      `soty-space-catalog-variant-stalled-runs` кожні 5 хв, `service_read_space_catalog_variants`
+      (`waitReason`, `retry`, `variantsFailed`); веб — `CreateProductCatalogDialog.tsx`,
+      `catalog-video-creation.ts`, uk+en. Drive-набори не змінюються. Тест: T112.
 
 ### Фаза 5 — US7: відчутно швидше (ядро M1) (P1)
 
@@ -829,26 +830,26 @@
 **Мета**: шкала з категоріями, список найбільшого, попередження завчасно.
 **Незалежна перевірка**: quickstart M1 крок 6 (SC-013).
 
-- [ ] T052 [P] [US9] Тест для T053 — `supabase/tests/database/space-storage-usage.test.sql`. Фікстура US9: матеріали, три каталоги по 10 варіацій, вкладення, версії, кошик. Перевірити:
+- [x] T052 [P] [US9] Тест для T053 — `supabase/tests/database/space-storage-usage.test.sql`. Фікстура US9: матеріали, три каталоги по 10 варіацій, вкладення, версії, кошик. Перевірити:
   - сума сегментів = `usedBytes`;
   - спільне рахується раз;
   - `get_catalog_storage_breakdown` дає три числа;
   - тригери на `private.catalog_video_r2_copies` і `private.catalog_image_storage` правильно змінюють категорію `catalogs`;
   - картинка пулу позначена спільною.
-- [ ] T053 [US9] Міграція `supabase/migrations/<ts>_space_storage_usage.sql`:
+- [x] T053 [US9] Міграція `supabase/migrations/<ts>_space_storage_usage.sql`:
   - `get_space_storage_summary`, `list_space_storage_items`, `get_catalog_storage_breakdown`;
   - тригери на таблицях 050/045 лише для R2-просторів;
   - `private.space_capacity_bytes(team)` — ліміт пілоту.
 
   Тест: T052.
 
-- [ ] T054 [P] [US9] Тест для T055 — `tests/storage-meter.test.tsx` і новий випадок у `tests/design-components.test.tsx`:
+- [x] T054 [P] [US9] Тест для T055 — `tests/storage-meter.test.tsx` і новий випадок у `tests/design-components.test.tsx`:
   - сегменти мають підпис і контраст, а не лише колір;
   - клавіатурна навігація й підказка (назва, обсяг, частка);
   - штрихування «Резервується»;
   - компактний вигляд на вузькому екрані;
   - світла й темна тема через токени.
-- [ ] T055 [US9] Компонент `apps/web/src/components/ui/StorageMeter.tsx`:
+- [x] T055 [US9] Компонент `apps/web/src/components/ui/StorageMeter.tsx`:
   - експорт з `apps/web/src/components/ui/index.ts`;
   - токени `--color-storage-{materials,catalogs,process,attachments,versions,trash,reserved}` для обох тем у `apps/web/src/styles/tokens.css`;
   - приклад у `apps/web/src/dev/DesignSystemPage.tsx`;
@@ -856,17 +857,59 @@
 
   Тест: T054.
 
-- [ ] T056 [P] [US9] Тест для T057 — `tests/storage-meter-panel.test.tsx`:
+- [x] T056 [P] [US9] Тест для T057 — `tests/storage-meter-panel.test.tsx`:
   - топ-10 і повний список із пошуком і сортуванням за вагою, датою, автором;
   - відкрити й видалити зі списку;
   - попередження 80/95/100% з оцінкою «займе ≈ …» у місцях дії;
   - оновлення за сигналом `usage` без перезавантаження.
-- [ ] T057 [US9] Панель пам'яті:
+- [x] T057 [US9] Панель пам'яті:
   - `apps/web/src/team/storage/StorageMeterPanel.tsx` і `StorageItemsList.tsx` — у стані простору й у `apps/web/src/team/tariffs/SpaceTariffSection.tsx`;
   - попередження в `useExplorerUploads.ts`, діалогах створення каталогу й генерації варіацій (`apps/web/src/team/product-catalog/`), перезашивці (`apps/web/src/team/restitch/`);
   - тексти в `apps/web/src/locales`.
 
   Тест: T056.
+
+  Рішення 2026-11-28 (імплементація T052–T057):
+  - міграція `20261226360000_space_storage_usage.sql`, нових таблиць немає (огорожа не потрібна).
+    Тригер на `private.catalog_video_r2_copies` уже був (T111); новий — на
+    `private.catalog_image_storage`: картинка бібліотеки R2-простору рахується в `catalogs` раз і
+    як спільна (лишається в бібліотеці після видалення каталогу, R9). Для Drive-простору тригер
+    виходить першим рядком, облік Drive-власника (1 ГБ на акаунт) не змінено. Наявні картинки
+    R2-просторів дораховано в міграції;
+  - картинки пулу (052) — байти платформи: простір їх не зберігає й не звільняє. Тому вони не
+    входять у `usedBytes` (шкала, ліміт і R2-звірка префікса простору — одне число), а показані
+    окремо: `poolBytes` у підсумку (рядок під шкалою) і частина `pool` у розбивці каталогу як
+    спільна. Це уточнює data-model «Облік пам'яті»;
+  - сигнал: оператор-тригери на `space_storage_usage` і `space_storage_reservations` пишуть один
+    `usage` на простір і транзакцію (`created_at = now()`), `space_content_changed` більше не
+    дублює його. Два SQL-тести (commit, schema) оновлено під це;
+  - `list_space_storage_items`: файл — там, де рахується його об'єкт (спільний — один рядок);
+    каталог — цілим (стрічка, відео, варіації, картинки) з трьома числами; бібліотека — одним
+    рядком. Курсор — зсув. Картинки бібліотеки до конкретного каталогу не прив'язуються
+    (`catalog_image_uses` знає лише спробу, не каталог), тож у розбивці каталогу їх немає;
+  - «звільнить видалення» — рівно те, що видаляє наявне видалення каталогу: стрічка, відеокопії й
+    картинки креативів лише цього каталогу, варіації без інших посилань (20261226250000 §11);
+  - кольори `--color-storage-*` — родина відтінків тегів завдань (вже розрізняються на розмірі чіпа
+    в обох темах): матеріали — фіолет, каталоги — мед (два кольори бренду першими), обробка —
+    бірюза, вкладення — рожевий, версії — синій, кошик — сланцевий, «Резервується» — штрихування
+    сірим. Не ролі: стан з них не читається. Сусіди різняться й світлотою; поза кольором — проміжок
+    треку, легенда зі словами й підказка «назва · обсяг · частка»;
+  - `StorageMeter`: смуга — картинка легенди (`aria-hidden`, підказка й клік); керування — легенда
+    (одна зупинка Tab, стрілки/Home/End, Enter), `role="meter"` для читачів екрана; рівень ≥80/95/100 %
+    — словом і значком. Ширини не анімуються (лише перша поява — transform). `compact` для телефона
+    (≤640 px): тонша смуга, легенда у дві колонки;
+  - панель (`StorageMeterPanel`, `StorageItemsList`) — у стані простору (рядок «Сховище» показує
+    компактну шкалу, «Детальніше» відкриває панель за адресою `storage=1`, `SpaceStorageDialog`) і в
+    налаштуваннях поруч із тарифом (`SpaceTariffSection`, для R2). Видалення зі списку: файл — у
+    кошик, з кошика — назавжди; вкладення й каталоги лише відкриваються (каталог видаляється на
+    своєму місці з його підтвердженням);
+  - попередження (`SpaceStorageWarning`, «займе ≈ …», «Звільнити місце» → `storage=1`): скидання в
+    провідник (тост; файл, що не поміститься, не починається), створення каталогу з варіаціями
+    (оцінка — розмір відео × кількість), обробка файлу (`ProcessMaterialDialog`). Доставка
+    перезашивки з `team/restitch/` пише на комп'ютер, а не в простір, тож там попередження немає;
+    перезашивки простору — це варіації каталогу (діалог створення). «Вхідні» — з T065;
+  - нові RPC ще не в згенерованих типах: `get_space_storage_summary`, `list_space_storage_items`,
+    `get_catalog_storage_breakdown` ідуть через `untypedTeamRpc` (перевірити в T062).
 
 ### Фаза 7 — US10: видалив — і одразу зникло (P1)
 
