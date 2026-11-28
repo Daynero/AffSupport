@@ -210,6 +210,17 @@
 
   Тест: T026.
 
+  **Доповнення 2026-11-28 (рішення ведучого):** на беті API Supabase слухає лише
+  `127.0.0.1:54321`, тож Worker `space-read` ніколи туди не дістанеться. Бета читає через
+  `GET|HEAD /functions/v1/space-storage/files/t/{team}/…` (`supabase/functions/space-storage/files.ts`):
+  той самий обробник, винесений у `packages/shared/src/team/space-read.ts` (Worker лише
+  реекспортує), потік з R2 через S3, без кешу краю. Маршрут є лише коли `CATALOG_IMAGES_ENVIRONMENT`
+  = `beta`/`dev` і `SPACE_FILES_ORIGIN` = сам маршрут; у проді — 404, а `/read-grant` відмовляє
+  такій адресі. Клієнти йдуть за `filesOrigin` гранту; веб-збірка з `VITE_APP_ENVIRONMENT=beta`
+  приймає маршрут, продова — ні. На next/проді шлях читання — Worker. Тест —
+  `tests/space-read-local-route.test.ts` (увімкнено на беті, відсутній у проді, відповіді
+  тотожні Worker-у). Опис — docs/PRODUCTION.md «Reads on beta».
+
 - [x] T028 [P] [US1] Тест для T029 — `tests/space-explorer-adapter.test.ts`: R2-простір ніколи не кличе `drive-ops` чи `drive-transfer`. Drive-простір кличе те саме, що й до змін (знімок викликів).
 - [x] T029 [US1] Клієнт `apps/web/src/api/space-storage.ts` і перемикач за `storageBackend` у `apps/web/src/api/team.ts`:
   - `startUpload`/`relayUploadChunk`/`finalizeUpload` (:4842–4917);
@@ -471,6 +482,8 @@
 - [ ] T062 Приймання M1 на беті:
   - **Перед будь-яким деплоєм Worker-а з біндінгом:** створити `soty-spaces-production` і розкоментувати `[[r2_buckets]] SPACE_BUCKET` у `apps/catalog-image-delivery/wrangler.toml`. До того біндінг вимкнено, бо wrangler не деплоїть біндінг до неіснуючого кошика, а цей Worker віддає живі картинки каталогів.
   - міграції через `psql` + `schema_migrations`;
+  - у env функцій беті `SPACE_FILES_ORIGIN=http://127.0.0.1:54321/functions/v1/space-storage/files`
+    (читання через `space-storage`, не Worker; деплой Worker-а `--env beta` для приймання не потрібен);
   - кроки 1–10 [quickstart.md](quickstart.md) M1 через Playwright-драйвер беті;
   - результат — `specs/057-r2-workspaces/evidence/m1-beta-acceptance-<дата>.md`.
 

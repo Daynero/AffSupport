@@ -831,7 +831,8 @@ log line or journal entry carries a row, a link or a token.
 
 The bytes of an R2 space live in a private bucket `soty-spaces-{env}`. Browsers and agents
 upload parts straight to it on presigned URLs, and read through the `space-read` Worker on
-`files[-beta].soty.pp.ua` (research.md R3/R4). To qualify the real beta bucket, run
+`files.soty.pp.ua` for next and production (research.md R3/R4). Beta reads through the
+`space-storage` function instead (see «Reads on beta» below). To qualify the real beta bucket, run
 `node scripts/space-storage-qualify.mjs --env-file <functions .env>`. It refuses any bucket that
 does not end in `-beta`, works only under `qualify/` and empties that prefix when it is done.
 The results are in `specs/057-r2-workspaces/evidence/qualification.md`.
@@ -863,7 +864,26 @@ npx --yes wrangler@4.112.0 r2 bucket lifecycle list soty-spaces-beta
   read/write) covers it. That token cannot read the bucket's CORS or lifecycle back
   (`AccessDenied`), so readback goes through `wrangler` or the dashboard.
 
-**Files host, beta.** `[env.beta]` in `apps/catalog-image-delivery/wrangler.toml` defines a
+**Reads on beta (lead decision 2026-11-28).** The local beta stack's Supabase API listens only on
+`127.0.0.1:54321`, so a Worker on the internet can never read a space's `access_epoch` there and
+every read through `files-beta.soty.pp.ua` would answer 503. Beta therefore reads through
+`GET|HEAD <API>/functions/v1/space-storage/files/t/{team}/…?g=<grant>`
+(`supabase/functions/space-storage/files.ts`). It is the same handler as the Worker
+(`packages/shared/src/team/space-read.ts`): the same grant checks in the same order, Range/206,
+HEAD, `Referrer-Policy: no-referrer`, CSP, `Content-Disposition` and `Cache-Control`, the same
+30-second epoch cache; it streams from the bucket over S3 and keeps no edge cache. The grant is
+never logged. `tests/space-read-local-route.test.ts` holds the two to identical answers.
+
+The route exists only when the function's config says so, and fails closed:
+`CATALOG_IMAGES_ENVIRONMENT` must be `beta` or `dev` **and** `SPACE_FILES_ORIGIN` must be the
+route itself. Under `production`, a missing environment or the Worker's host it answers 404 like
+any unknown path, and `/read-grant` refuses a route-shaped `SPACE_FILES_ORIGIN` in production
+(STORAGE_UNAVAILABLE), so no production grant can point at it. The clients follow the
+`filesOrigin` of the grant: a web bundle built with `VITE_APP_ENVIRONMENT=beta` accepts the
+route, a production bundle refuses it as an invalid answer; the agent already accepts a loopback
+`http:` source URL. The beta web CSP already allows `http://127.0.0.1:*` for images and media.
+
+**Files host, beta (optional, not the read path).** `[env.beta]` in `apps/catalog-image-delivery/wrangler.toml` defines a
 separate Worker, `soty-catalog-image-delivery-beta`. It has the `SPACE_BUCKET` binding to
 `soty-spaces-beta` and the route `files-beta.soty.pp.ua/*`. The production section is not
 touched: its binding is switched on in T062, after `soty-spaces-production` exists. Each of these
@@ -880,7 +900,8 @@ run build && npx --yes wrangler@4.112.0 deploy --env beta`.
 
    The local beta stack listens only on `127.0.0.1:54321`, and the Worker refuses `http:` outside
    `dev`. So the beta files host needs a reachable address for that API, for example a
-   Cloudflare Tunnel. Without one, every read answers 503.
+   Cloudflare Tunnel. Without one, every read answers 503 — which is why beta reads through
+   `space-storage` (above) and these steps are needed only to rehearse the Worker itself.
 
 4. Set the route failure mode for `files-beta.soty.pp.ua/*` to fail closed. The hostname has no
    origin, so failing open would only swap the daily-limit error for a different one.
@@ -892,7 +913,10 @@ The beta `space-storage` function needs these in its ignored env file:
 - `R2_SPACE_ACCOUNT_ID`, `R2_SPACE_ACCESS_KEY_ID`, `R2_SPACE_SECRET_ACCESS_KEY`;
 - `R2_SPACE_BUCKET=soty-spaces-beta`;
 - `SPACE_READ_GRANT_KEYS` and `SPACE_READ_GRANT_KEY_VERSION`;
-- `SPACE_FILES_ORIGIN=https://files-beta.soty.pp.ua`.
+- `SPACE_FILES_ORIGIN=http://127.0.0.1:54321/functions/v1/space-storage/files` (the beta read
+  route; `https://files-beta.soty.pp.ua` only while rehearsing the Worker behind a tunnel).
+
+Next and production set `SPACE_FILES_ORIGIN=https://files.soty.pp.ua` and never the route.
 
 **Free Workers plan limits** (developers.cloudflare.com/workers/platform/limits, read 2026-11-28):
 

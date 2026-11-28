@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AwsClient } from 'npm:aws4fetch@1.0.20';
 import { BUILD_ID } from '../../../packages/shared/dist/release.js';
 import { authorizeCaller } from '../_shared/auth.ts';
-import { corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
+import { allowedBrowserOrigins, corsHeadersForRequest, corsPreflight } from '../_shared/cors.ts';
 import {
   errorResponse,
   mapUnknownError,
@@ -13,6 +13,15 @@ import { readSpaceR2Config, SpaceR2 } from '../_shared/r2-space.ts';
 import { writeSpaceStorageJournal } from '../_shared/space-storage-journal.ts';
 import { parseJsonBody } from '../_shared/validation.ts';
 import { createSpace } from './create.ts';
+import {
+  localEpochReader,
+  localSpaceReadPrefix,
+  parseEpoch,
+  readLocalSpaceReadConfig,
+  serveLocalSpaceRead,
+  spaceReadBucket,
+  type LocalSpaceReadConfig
+} from './files.ts';
 import {
   parseCreateSpaceCommand,
   requireSpaceStorageClient,
@@ -60,6 +69,8 @@ import {
  * `/materials/mutate` and `/trash/empty` (T025), `/read-grant` (T027), and a tool run:
  * `/process/start` for a member, `/agent/source` and `/process/output/*` for the desktop agent
  * with its operation ticket (T033/T035) — those five never see a member's session.
+ * On beta and dev only, `GET|HEAD /files/…` serves space reads in place of the Worker
+ * (`files.ts`); under a production config that path does not exist.
  */
 
 interface RpcCapable {
@@ -95,10 +106,38 @@ function spaceBucket(): SpaceR2 | null {
 }
 
 let grantConfig: Promise<SpaceReadGrantConfig | null> | null = null;
+let localReadConfig: Promise<LocalSpaceReadConfig | null> | null = null;
+let localEpoch: ((teamId: string) => Promise<bigint | null>) | null = null;
+
+/** The beta read route (`files.ts`). Its answers are the Worker's, CORS included. */
+async function localSpaceRead(request: Request, prefix: string): Promise<Response> {
+  localReadConfig ??= readLocalSpaceReadConfig(key => Deno.env.get(key));
+  const config = await localReadConfig;
+  const r2 = config ? spaceBucket() : null;
+  localEpoch ??= localEpochReader(async teamId => {
+    const { data, error } = await (serviceClient() as unknown as RpcCapable).rpc(
+      'service_space_read_epoch',
+      { p_team: teamId }
+    );
+    if (error) throw new Error('Epoch lookup failed');
+    return parseEpoch(data);
+  });
+  return serveLocalSpaceRead(request, prefix, {
+    config,
+    bucket: r2 ? spaceReadBucket(r2, request.signal) : null,
+    epoch: localEpoch,
+    allowedOrigins: [...allowedBrowserOrigins()],
+    nowSeconds: () => Math.floor(Date.now() / 1000)
+  });
+}
 
 Deno.serve(async request => {
   const preflight = corsPreflight(request);
   if (preflight) return preflight;
+  if (request.method === 'GET' || request.method === 'HEAD') {
+    const prefix = localSpaceReadPrefix(new URL(request.url));
+    if (prefix !== null) return localSpaceRead(request, prefix);
+  }
   const browserCors = corsHeadersForRequest(request);
   if (request.headers.has('origin') && !browserCors) return new Response(null, { status: 403 });
   const cors = browserCors ?? {};

@@ -15,6 +15,7 @@ import {
 } from '../../../packages/shared/dist/team/space-read-grant.js';
 // @deno-types="../../../packages/shared/dist/team/space-storage.d.ts"
 import {
+  isSpaceFilesBase,
   SPACE_STORAGE_LIMITS,
   type SpaceReadGrantResult
 } from '../../../packages/shared/dist/team/space-storage.js';
@@ -32,6 +33,8 @@ export interface SpaceReadGrantConfig {
 /**
  * `SPACE_READ_GRANT_KEYS` (JSON `{"<version>": "<base64 key>"}`, the same secret the Worker
  * holds), `SPACE_READ_GRANT_KEY_VERSION` (the version that signs) and `SPACE_FILES_ORIGIN`.
+ * `SPACE_FILES_ORIGIN` is the files host's `https:` origin; on beta and dev only it may instead
+ * be this function's own read route (`…/functions/v1/space-storage/files`, see `files.ts`).
  * Anything missing or malformed → null, and the route answers STORAGE_UNAVAILABLE.
  */
 export async function readSpaceReadGrantConfig(
@@ -51,9 +54,9 @@ export async function readSpaceReadGrantConfig(
     keys.length > 4096
   )
     return null;
+  // Production never hands out the local route, whatever the secret says.
+  if (!isSpaceFilesBase(origin, { allowLocalRoute: environment !== 'production' })) return null;
   try {
-    const url = new URL(origin);
-    if (url.protocol !== 'https:' || url.origin !== origin) return null;
     const parsed: unknown = JSON.parse(keys);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     const encoded = (parsed as Record<string, unknown>)[version];

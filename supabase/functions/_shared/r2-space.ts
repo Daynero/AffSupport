@@ -429,6 +429,88 @@ export class SpaceR2 {
     return collect(response, end - start + 1);
   }
 
+  /**
+   * One object for a reader that streams it on (the beta read route, `space-storage/files.ts`):
+   * HEAD, a whole GET, or one byte range. The body is the provider's stream, never buffered;
+   * `size` is the whole object's, also for a range. Content type and ETag are as R2 stored them.
+   */
+  async open(
+    key: string,
+    options: { method: 'GET' | 'HEAD'; range?: { offset: number; length: number } },
+    signal: AbortSignal
+  ): Promise<{
+    size: number;
+    etag: string;
+    contentType: string | null;
+    body: ReadableStream<Uint8Array> | null;
+  } | null> {
+    const range = options.range;
+    if (
+      range &&
+      (options.method !== 'GET' ||
+        !Number.isSafeInteger(range.offset) ||
+        !Number.isSafeInteger(range.length) ||
+        range.offset < 0 ||
+        range.length < 1)
+    )
+      invalidInput();
+    const headers = range
+      ? { Range: `bytes=${range.offset}-${range.offset + range.length - 1}` }
+      : undefined;
+    const response = await this.send(
+      await this.signer.sign(
+        new Request(this.endpoint(key), {
+          method: options.method,
+          ...(headers ? { headers } : {})
+        })
+      ),
+      signal
+    );
+    const drop = async () => {
+      await response.body?.cancel().catch(() => undefined);
+    };
+    if (response.status === 404) {
+      await drop();
+      return null;
+    }
+    if (response.status !== (range ? 206 : 200)) {
+      await drop();
+      if (response.ok) invalidResponse();
+      providerFailure(response.status);
+    }
+    let size: number;
+    if (range) {
+      const match = /^bytes (\d+)-(\d+)\/(\d+)$/u.exec(response.headers.get('content-range') ?? '');
+      if (
+        !match ||
+        Number(match[1]) !== range.offset ||
+        Number(match[2]) !== range.offset + range.length - 1
+      ) {
+        await drop();
+        return invalidResponse();
+      }
+      size = safeInteger(match[3], 0, SPACE_STORAGE_LIMITS.maxObjectBytes);
+    } else {
+      size = safeInteger(
+        response.headers.get('content-length'),
+        0,
+        SPACE_STORAGE_LIMITS.maxObjectBytes
+      );
+    }
+    const etag = response.headers.get('etag');
+    if (!etag || etag.length > 255) {
+      await drop();
+      return invalidResponse();
+    }
+    if (options.method === 'HEAD') await drop();
+    return {
+      size,
+      etag,
+      contentType: response.headers.get('content-type'),
+      body: options.method === 'HEAD' ? null : response.body
+    };
+  }
+
   async remove(key: string, signal: AbortSignal): Promise<void> {
     const response = await this.send(
       await this.signer.sign(new Request(this.endpoint(key), { method: 'DELETE' })),

@@ -40,7 +40,7 @@ import type {
   TeamProcessStartResult,
   TeamTransferGrant
 } from '@video-compressor/shared';
-import type { SiteChannel } from '../lib/config';
+import { builtForEnvironment, type SiteChannel } from '../lib/config';
 import { privateCacheActorEpoch, registerPrivateCache } from '../team/private-cache-scope';
 // A cycle, as with `team-catalog-video-r2`: `team.ts` routes to this module and this module
 // calls through `team.ts`'s transport. Neither touches the other while it is being loaded.
@@ -83,6 +83,19 @@ export function r2SpaceCreationAvailable(input: {
  */
 export function listsR2Spaces(channel: SiteChannel): boolean {
   return channel !== 'production';
+}
+
+/**
+ * How this bundle reads a read grant. The server names where reads go (`filesOrigin`): the
+ * files host, or — on a beta stack, whose API the files host cannot reach — the local read
+ * route of `space-storage`. Only a bundle built for beta follows the latter; a production
+ * build refuses it as an invalid answer, so a misconfigured server cannot steer it there.
+ */
+export function readGrantParser(
+  environment: AppEnvironment
+): (value: unknown) => SpaceParsed<SpaceReadGrantResult> {
+  const allowLocalRoute = environment !== 'production';
+  return value => parseSpaceReadGrantResult(value, { allowLocalRoute });
 }
 
 // Which spaces live on R2 (T029) ----------------------------------------------------------
@@ -355,7 +368,11 @@ export const spaceStorageApi = {
   readGrant(teamId: string, options: { refresh?: boolean } = {}): Promise<SpaceReadGrantResult> {
     const cached = grants.get(teamId);
     if (!options.refresh && cached && cached.freshUntil > Date.now()) return cached.promise;
-    const promise = callSpaceStorage('read-grant', { teamId }, parseSpaceReadGrantResult);
+    const promise = callSpaceStorage(
+      'read-grant',
+      { teamId },
+      readGrantParser(builtForEnvironment())
+    );
     const entry = { promise, freshUntil: Number.POSITIVE_INFINITY };
     grants.set(teamId, entry);
     promise.then(

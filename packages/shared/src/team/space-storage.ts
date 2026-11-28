@@ -510,17 +510,53 @@ export function parseSpacePartUrls(value: unknown): SpaceParsed<SpacePartUrl[]> 
 export interface SpaceReadGrantResult {
   grant: string;
   expiresAt: string;
+  /** Where reads go: the files host's origin, or on beta the local read route (see below). */
   filesOrigin: string;
 }
 
-export function parseSpaceReadGrantResult(value: unknown): SpaceParsed<SpaceReadGrantResult> {
+/**
+ * The read route of `space-storage` for beta and dev, where the Supabase API listens only on
+ * loopback and the `space-read` Worker cannot reach it. The server hands it out in place of
+ * the files host only under a non-production config; a client accepts it only when it says so.
+ */
+export const SPACE_LOCAL_FILES_PATH = '/functions/v1/space-storage/files';
+
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+/**
+ * A base that space read URLs are built on: the files host (an exact `https:` origin), or —
+ * only with `allowLocalRoute` — `<API origin>/functions/v1/space-storage/files`, where the
+ * origin is `https:` or loopback `http:`. Nothing else: no credentials, query or fragment.
+ */
+export function isSpaceFilesBase(
+  value: unknown,
+  options: { allowLocalRoute?: boolean } = {}
+): value is string {
+  if (typeof value !== 'string' || value.length > 512) return false;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.username || url.password || url.search || url.hash) return false;
+  if (url.protocol === 'https:' && url.origin === value) return true;
+  if (options.allowLocalRoute !== true) return false;
+  const local =
+    url.protocol === 'https:' || (url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname));
+  return local && value === `${url.origin}${SPACE_LOCAL_FILES_PATH}`;
+}
+
+export function parseSpaceReadGrantResult(
+  value: unknown,
+  options: { allowLocalRoute?: boolean } = {}
+): SpaceParsed<SpaceReadGrantResult> {
   if (
     !isRecord(value) ||
     typeof value.grant !== 'string' ||
     !/^[A-Za-z0-9_-]{16,256}$/u.test(value.grant) ||
     !timestamp(value.expiresAt) ||
-    !httpsUrl(value.filesOrigin) ||
-    new URL(value.filesOrigin).origin !== value.filesOrigin
+    !isSpaceFilesBase(value.filesOrigin, options)
   )
     return fail;
   return okValue({
@@ -698,9 +734,10 @@ export function parseSpaceTrashEmptied(value: unknown): SpaceParsed<SpaceTrashEm
 }
 
 /**
- * A read URL on the files host (`space-read` Worker): the original, or one derivative, of one
- * object, with the read grant in `g`. `download` adds `dl`, which makes the Worker answer
- * `Content-Disposition: attachment` with a safe name. The grant must never be logged.
+ * A read URL on the files host (`space-read` Worker) or, on beta, on the local read route: the
+ * original, or one derivative, of one object, with the read grant in `g`. `download` adds `dl`,
+ * which makes the reader answer `Content-Disposition: attachment` with a safe name. The base
+ * comes from a grant the caller has already parsed. The grant must never be logged.
  */
 export function spaceFilesUrl(input: {
   filesOrigin: string;
@@ -718,10 +755,9 @@ export function spaceFilesUrl(input: {
         input.derivative.variant
       )
     : spaceObjectKey(input.teamId, input.contentId);
-  const origin = new URL(input.filesOrigin);
-  if (origin.protocol !== 'https:' || origin.origin !== input.filesOrigin)
+  if (!isSpaceFilesBase(input.filesOrigin, { allowLocalRoute: true }))
     throw new TypeError('Invalid files origin');
-  const url = new URL(`/${path}`, origin);
+  const url = new URL(`${input.filesOrigin}/${path}`);
   url.searchParams.set('g', input.grant);
   if (input.download !== undefined) url.searchParams.set('dl', input.download);
   return url.toString();
