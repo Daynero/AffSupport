@@ -12,6 +12,20 @@ import {
 import { catalogPublicationSourceIdentity } from '../packages/shared/src/team/catalog-publication-source';
 import { md5Hex } from '../supabase/functions/_shared/md5';
 import { TeamFunctionError } from '../supabase/functions/_shared/errors';
+import { catalogVideoSpaceProof } from '../supabase/functions/catalog-video-r2/space-reader';
+import { spaceContentId } from '../packages/shared/src/team/space-storage';
+
+const SPACE_PART = 16 * 1024 * 1024;
+/** R2's view of a multipart space object: its part MD5s, its ETag and its content id. */
+async function spaceObject(bytes: Uint8Array, partBytes = SPACE_PART) {
+  const digests: string[] = [];
+  for (let start = 0; start < bytes.length; start += partBytes)
+    digests.push(md5Hex(bytes.subarray(start, Math.min(bytes.length, start + partBytes))));
+  const joined = Uint8Array.from(Buffer.concat(digests.map(hex => Buffer.from(hex, 'hex'))));
+  const content = await spaceContentId(bytes.length, digests);
+  if (!content.ok) throw new Error('content id');
+  return { etag: `"${md5Hex(joined)}-${digests.length}"`, contentId: content.contentId, digests };
+}
 
 const COPY = '50000000-0000-4000-8000-000000000201';
 const TEAM = '50000000-0000-4000-8000-000000000202';
@@ -170,9 +184,12 @@ function harness(
     route?: 'claim' | 'sweep';
     retire?: unknown[];
     purges?: unknown[];
+    feedRemovals?: unknown[];
     claimNull?: boolean;
     /** 073: a real movie layout instead of the patterned bytes. */
     source?: Uint8Array;
+    /** 057: the source is a file of an R2 space with this ETag and content id. */
+    space?: { etag: string; contentId: string; partBytes?: number; noBucket?: boolean };
   } = {}
 ) {
   const size = options.source?.length ?? options.size ?? PART * 3 + 100;
@@ -190,12 +207,38 @@ function harness(
   let driveReads = 0;
   const retire = [...(options.retire ?? [])];
   const purges = [...(options.purges ?? [])];
+  const feedRemovals = [...(options.feedRemovals ?? [])];
   const rpc = vi.fn(async (name: string, params: Record<string, unknown>) => {
     trace.push([name, params]);
     const ok = (data: unknown) => ({ data, error: null });
     switch (name) {
       case 'service_catalog_video_r2_claim':
         if (options.claimNull) return ok(null);
+        if (options.space)
+          return ok({
+            copyId: COPY,
+            teamId: TEAM,
+            fence: 3,
+            state: options.state ?? 'planned',
+            objectKey: KEY,
+            sizeBytes: size,
+            mime: 'video/mp4',
+            partBytes: options.space.partBytes ?? SPACE_PART,
+            sourceMd5: null,
+            uploadId: options.uploadId ?? null,
+            sourceVersion: options.space.contentId,
+            attempts: 1,
+            catalogMaterialId: null,
+            sourceMaterialId: TEAM,
+            connectionId: null,
+            credentialId: null,
+            rootFolderId: null,
+            fileId: options.space.contentId,
+            resourceKey: null,
+            publicOrigin: 'https://videos.test',
+            parts: options.parts ?? [],
+            sourceKind: 'space'
+          });
         return ok({
           copyId: COPY,
           teamId: TEAM,
@@ -267,6 +310,8 @@ function harness(
         return ok(retire.shift() ?? null);
       case 'service_catalog_video_r2_claim_purge':
         return ok(purges.shift() ?? null);
+      case 'service_catalog_feed_claim_removal':
+        return ok(feedRemovals.shift() ?? null);
       default:
         return ok(null);
     }
@@ -296,6 +341,22 @@ function harness(
       });
     }
   }));
+  const spaceReads: string[] = [];
+  const spaceFor = vi.fn(async (teamId: string) => {
+    expect(teamId).toBe(TEAM);
+    const reader = await driveFor();
+    return {
+      ...reader,
+      async describe(contentId: string) {
+        spaceReads.push(`describe ${contentId}`);
+        return { sizeBytes: size, proof: catalogVideoSpaceProof(options.space!.etag, size) };
+      },
+      async fetchFileRange(input: { fileId: string; start: number; end: number }) {
+        spaceReads.push(`range ${input.fileId}`);
+        return reader.fetchFileRange(input);
+      }
+    };
+  });
   let clock = 0;
   const deps: CatalogVideoR2WorkerDeps = {
     service: { rpc },
@@ -303,6 +364,7 @@ function harness(
     enabled: true,
     route: options.route ?? 'claim',
     driveFor,
+    ...(options.space && !options.space.noBucket ? { spaceFor } : {}),
     budgetMs: options.budgetMs ?? 60_000,
     random: () => 0.5,
     now: () => clock
@@ -318,6 +380,8 @@ function harness(
     calls,
     source,
     driveFor,
+    spaceFor,
+    spaceReads,
     advance,
     names: () => trace.map(([name]) => name.replace('service_catalog_video_r2_', ''))
   };
@@ -536,6 +600,7 @@ describe('catalog video R2 worker', () => {
       retired: 0,
       deleted: 1,
       purged: 1,
+      feeds: 0,
       failed: 0
     });
     expect(h.store.publicBytes).toBeNull();
@@ -548,7 +613,8 @@ describe('catalog video R2 worker', () => {
       'claim_retire',
       'claim_purge',
       'mark_purged',
-      'claim_purge'
+      'claim_purge',
+      'service_catalog_feed_claim_removal'
     ]);
     expect(
       h.trace.find(([name]) => name === 'service_catalog_video_r2_mark_deleted')![1]
@@ -926,5 +992,185 @@ describe('catalog video resumable integrity acceptance', () => {
     }
     console.info('AUDIT verification restarts', JSON.stringify({ reads, outcomes }));
     expect(outcomes.some(result => (result as { outcome: string }).outcome === 'ready')).toBe(true);
+  });
+});
+
+// Real 16 MiB space parts: the content id is defined over them, so these copies are large.
+describe('catalog video copied from an R2 space (057 T041)', { timeout: 60_000 }, () => {
+  const SIZE = SPACE_PART + 100;
+
+  it('proves a multipart space object by its content id and ETag, never asking Drive', async () => {
+    const source = video(SIZE);
+    const object = await spaceObject(source);
+    const h = harness({ source, space: object });
+    expect(await runCatalogVideoR2Worker(h.deps)).toEqual({
+      outcome: 'ready',
+      fullHashVerified: true,
+      parts: 2
+    });
+    expect(h.driveFor).toHaveBeenCalledTimes(1); // only as the fake's byte source
+    expect(h.spaceFor).toHaveBeenCalledTimes(1);
+    expect(h.spaceReads[0]).toBe(`describe ${object.contentId}`);
+    expect(h.spaceReads.slice(1).every(read => read === `range ${object.contentId}`)).toBe(true);
+    const open = h.trace.find(([name]) => name === 'service_catalog_video_r2_verification_open')!;
+    expect(open[1].p_source_md5).toBe(object.etag.slice(1, 33));
+    const advances = h.trace
+      .filter(([name]) => name === 'service_catalog_video_r2_verification_advance')
+      .map(([, p]) => p);
+    expect(advances.map(p => p.p_final_md5)).toEqual([null, object.etag.slice(1, 33)]);
+    expect(advances.at(-1)!.p_hash_state).toEqual({
+      version: 'space-1',
+      bytes: SIZE,
+      digests: Buffer.concat(object.digests.map(hex => Buffer.from(hex, 'hex'))).toString('base64')
+    });
+    expect(Buffer.from(h.store.publicBytes!).equals(Buffer.from(source))).toBe(true);
+  });
+
+  it('refuses a copy whose parts do not give back the content id', async () => {
+    const source = video(SIZE);
+    const object = await spaceObject(source);
+    const h = harness({ source, space: { ...object, contentId: 'e'.repeat(64) } });
+    expect(await runCatalogVideoR2Worker(h.deps)).toEqual({
+      outcome: 'failed',
+      code: 'VIDEO_R2_CHECKSUM_MISMATCH'
+    });
+    expect(h.names()).not.toContain('ready');
+    expect(h.store.publicBytes).toBeNull();
+  });
+
+  it('refuses a copy whose parts do not give back the ETag', async () => {
+    const source = video(SIZE);
+    const object = await spaceObject(source);
+    const h = harness({ source, space: { ...object, etag: `"${'0'.repeat(32)}-2"` } });
+    expect(await runCatalogVideoR2Worker(h.deps)).toEqual({
+      outcome: 'failed',
+      code: 'VIDEO_R2_CHECKSUM_MISMATCH'
+    });
+    expect(h.store.publicBytes).toBeNull();
+  });
+
+  it('resumes a part-by-part proof from the saved part MD5s', async () => {
+    const source = video(SIZE);
+    const object = await spaceObject(source);
+    const memory: ProofMemory = {};
+    const first = harness({ source, space: object, proofMemory: memory, budgetMs: 1_000_000 });
+    // Stop after the first verified part by failing the second advance once.
+    let advances = 0;
+    const inner = first.rpc.getMockImplementation()!;
+    first.rpc.mockImplementation(async (name, params) => {
+      if (name === 'service_catalog_video_r2_verification_advance' && ++advances === 2)
+        throw new TeamFunctionError('VIDEO_R2_PROVIDER_UNAVAILABLE', { retryable: true });
+      return inner(name, params);
+    });
+    expect(await runCatalogVideoR2Worker(first.deps)).toMatchObject({ outcome: 'retry' });
+    expect(memory.value).toMatchObject({ partsChecked: 1 });
+    const parts = first.trace
+      .filter(([name]) => name === 'service_catalog_video_r2_part')
+      .map(([, p]) => ({
+        partNumber: p.p_part as number,
+        sizeBytes: p.p_size as number,
+        sha256: p.p_sha256 as string,
+        etag: p.p_etag as string,
+        verifiedBy: 'readback' as const
+      }));
+    const second = harness({
+      source,
+      space: object,
+      proofMemory: memory,
+      state: 'verifying',
+      parts
+    });
+    second.store.staging = first.store.staging;
+    expect(await runCatalogVideoR2Worker(second.deps)).toEqual({
+      outcome: 'ready',
+      fullHashVerified: true,
+      parts: 2
+    });
+    expect(
+      second.trace.filter(([name]) => name === 'service_catalog_video_r2_verification_advance')
+    ).toHaveLength(1);
+  });
+
+  it('copies a single-part space object as a Drive file: its ETag is the whole MD5', async () => {
+    const source = video(PART * 3 + 100);
+    const contentId = 'a'.repeat(64);
+    const h = harness({
+      source,
+      space: { etag: `"${md5Hex(source)}"`, contentId, partBytes: PART }
+    });
+    expect(await runCatalogVideoR2Worker(h.deps)).toEqual({
+      outcome: 'ready',
+      fullHashVerified: true,
+      parts: 4
+    });
+    const open = h.trace.find(([name]) => name === 'service_catalog_video_r2_verification_open')!;
+    expect(open[1].p_source_md5).toBe(md5Hex(source));
+  });
+
+  it('refuses parts that are not the space parts, a changed content and a missing bucket', async () => {
+    const source = video(SIZE);
+    const object = await spaceObject(source);
+    const misaligned = harness({ source, space: { ...object, partBytes: SPACE_PART / 2 } });
+    expect(await runCatalogVideoR2Worker(misaligned.deps)).toEqual({
+      outcome: 'failed',
+      code: 'VIDEO_R2_UNSUPPORTED_FORMAT'
+    });
+    expect(misaligned.names()).not.toContain('part');
+    const noBucket = harness({ source, space: { ...object, noBucket: true } });
+    expect(await runCatalogVideoR2Worker(noBucket.deps)).toEqual({
+      outcome: 'retry',
+      code: 'VIDEO_R2_PROVIDER_UNAVAILABLE'
+    });
+    expect(() => catalogVideoSpaceProof(`"${'1'.repeat(32)}-9"`, SIZE)).toThrow();
+    expect(() => catalogVideoSpaceProof('"weird"', SIZE)).toThrow();
+  });
+
+  it('refuses a space claim that carries Drive fields', async () => {
+    const source = video(SIZE);
+    const object = await spaceObject(source);
+    const h = harness({ source, space: object });
+    const inner = h.rpc.getMockImplementation()!;
+    h.rpc.mockImplementation(async (name, params) => {
+      const answer = await inner(name, params);
+      if (name !== 'service_catalog_video_r2_claim') return answer;
+      return { data: { ...(answer.data as object), credentialId: CREDENTIAL }, error: null };
+    });
+    await expect(runCatalogVideoR2Worker(h.deps)).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE'
+    });
+  });
+});
+
+describe('catalog feed removal (057 T041)', () => {
+  it('deletes the CSV of a catalog deleted for good, purges its address, and records it', async () => {
+    const feedId = '0123456789abcdef0123456789abcdef';
+    const h = harness({ route: 'sweep', feedRemovals: [{ feedId, fence: 4 }] });
+    expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({ feeds: 1, failed: 0 });
+    expect(h.calls).toContain(
+      `DELETE ${config.accountId}.r2.cloudflarestorage.com/${config.publicBucket}/feeds/${feedId}.csv`
+    );
+    expect(h.calls.filter(c => c.includes('purge_cache'))).toHaveLength(1);
+    expect(h.trace.find(([name]) => name === 'service_catalog_feed_finish_removal')![1]).toEqual({
+      p_feed_id: feedId,
+      p_fence: 4,
+      p_success: true,
+      p_code: null
+    });
+  });
+
+  it('keeps a failed removal queued with its code and refuses a malformed claim', async () => {
+    const feedId = 'fedcba9876543210fedcba9876543210';
+    const h = harness({ route: 'sweep', feedRemovals: [{ feedId, fence: 1 }] });
+    h.deps.r2.removeFeed = async () => {
+      throw new TeamFunctionError('VIDEO_R2_CLEANUP_PARTIAL', { retryable: true });
+    };
+    expect(await runCatalogVideoR2Worker(h.deps)).toMatchObject({ feeds: 0, failed: 1 });
+    expect(
+      h.trace.find(([name]) => name === 'service_catalog_feed_finish_removal')![1]
+    ).toMatchObject({ p_success: false, p_code: 'VIDEO_R2_CLEANUP_PARTIAL' });
+    const bad = harness({ route: 'sweep', feedRemovals: [{ feedId: '../x', fence: 1 }] });
+    await expect(runCatalogVideoR2Worker(bad.deps)).rejects.toMatchObject({
+      code: 'INVALID_RESPONSE'
+    });
   });
 });

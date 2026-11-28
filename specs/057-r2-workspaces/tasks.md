@@ -329,21 +329,30 @@
 
   Тест: T040.
 
-  **Стан (2026-11-28):** зроблено `CatalogVideoSpaceReader`
-  (`supabase/functions/catalog-video-r2/space-reader.ts`, тест `tests/catalog-r2-sources.test.ts`):
-  читає об'єкт простору з його bucket під тим самим швом, що й Drive, тож копія проходить уже
-  перевірений конвеєр (частини, очищення метаданих, повна звірка, promote). Відкрито:
-  - звірка multipart-об'єкта за `content_id` (зараз копія відмовляє, бо немає MD5 усього файлу);
-  - claim копії для R2-джерела (SQL: `fileId` = `content_id`, без `credentialId`) і вибір читача у `worker.ts`;
-  - гранти `files-*` для перезашивки й варіацій (`catalog-video-process-grants.ts`, `updater-restitch.ts`, `drive-ops/index.ts:2257`);
-  - джерело `space_object` в `catalog-images/`;
-  - `supabase/tests/database/catalog-space-sources.test.sql`.
+  **Стан (2026-11-28, друга сесія):** зроблено —
+  - `CatalogVideoSpaceReader` (`supabase/functions/catalog-video-r2/space-reader.ts`) і вибір
+    читача у `worker.ts` (`spaceFor`, біндінг `R2_SPACE_*` у `catalog-video-r2/index.ts`);
+  - звірка multipart-об'єкта: `source_md5` = MD5 з ETag (`"<md5 від MD5>-N"`), перевірка йде
+    частинами простору (16 МіБ, частини копії мусять збігатися) і на останній частині дає назад і
+    ETag, і `content_id` (`spaceContentId`). Стан `space-1` (MD5 частин, base64) переживає
+    перерву. Однокусковий об'єкт (ETag = MD5 файлу) звіряється, як Drive;
+  - claim копії для R2-джерела (`fileId` = `content_id`, без Drive-полів, `sourceKind: 'space'`)
+    і `space-1` у `verification_advance` лише для R2-джерела — міграція
+    `20261226210000_space_storage_catalog_sources.sql`;
+  - claim оновлювача для стрічки (`catalog_update_target_usable`, колонки `feed_id`/`feed_revision`);
+  - видалення стрічки: остаточне видалення каталогу (рядок `team_product_catalogs`) ставить CSV у
+    `private.catalog_feed_removals`, sweep `catalog-video-r2` видаляє його й чистить кеш адреси.
+    Кошик стрічку лишає: відновлений каталог мусить оновлюватися далі;
+  - тести: `tests/catalog-video-r2-worker.test.ts` (джерело з простору, видалення стрічки),
+    `supabase/tests/database/catalog-space-sources.test.sql` (25).
 
-  Створення каталогу в R2-просторі (шов T037 готовий, `createCatalogFeedDocumentWriter`) потребує
-  того самого: відео з R2, операції без Drive, `commit` компаньйона-стрічки й читання `feedId` у
-  `link`. Claim оновлювача для стрічки (SQL повертає `feed_id`/`feed_revision` без Drive-полів) —
-  теж відкритий; воркер і парсер claim уже його приймають (T039). Видалення об'єкта стрічки при
-  видаленні каталогу (SC-014) — `CatalogVideoR2.removeFeed` є, черги ще немає.
+  Відкрито:
+  - створення каталогу в R2-просторі наскрізно (`drive-ops/product-catalog.ts`: `loadVideo`,
+    `proveVideo`, `destination`, `startOperation`/`finalize` і `link` для R2 — без Drive; `commit`
+    компаньйона-стрічки; виклик `service_catalog_video_r2_resolve` з `source_version` = `content_id`);
+  - гранти `files-*` для перезашивки й варіацій (`catalog-video-process-grants.ts`,
+    `updater-restitch.ts`, `drive-ops/index.ts:2257`) — без створення їм нема чого видавати;
+  - джерело `space_object` в імпорті `catalog-images/` (SQL перелік і читання з bucket простору).
 
 - [x] T042 [P] [US1] Тест для T043 — `tests/catalog-feed-card.test.tsx`: картка каталогу R2-простору показує й копіює адресу стрічки. Слів «Google» чи «Таблиця Google» немає. Drive-каталог без змін.
 - [x] T043 [US1] Картка каталогу у вебі: `apps/web/src/team/product-catalog/CatalogCreatedPublicationStatus.tsx`, `CatalogPublicationDialog.tsx` і місця з посиланням на таблицю показують стрічку для R2 (FR-050). Тест: T042.

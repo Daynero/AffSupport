@@ -3889,3 +3889,21 @@ again. A Drive catalog never has a feed, so none of it runs for one. Undo by dro
 its function, `service_record_catalog_feed`, the index, the checks and the four columns; an R2
 catalog then has no feed to rewrite and its updates fail retryably, and the `catalogs` meter keeps
 whatever feed bytes it last counted until the space's ledger is reconciled.
+
+## 20261226210000 — 057 catalog sources of R2 spaces
+
+Replaces `service_catalog_video_r2_claim` (a source material with a space object is claimed with
+its content id, no Drive fields and `sourceKind: 'space'`; the Drive branch is unchanged) and
+`service_catalog_video_r2_verification_advance` (adds the `space-1` part-MD5 state, accepted only
+for a space source; the Drive checks are unchanged), adds `private.catalog_video_r2_space_source`
+and `private.catalog_update_target_usable`, patches `private.claim_catalog_updater_items` to use
+the latter, recreates `service_claim_catalog_updater_items` with two more columns (`feed_id`,
+`feed_revision`, null for every Drive catalog) and a left join on the connection, and adds the
+feed removal queue `private.catalog_feed_removals` (delete trigger on `team_product_catalogs`
+when `old.feed_id is not null`, `service_catalog_feed_claim_removal`,
+`service_catalog_feed_finish_removal`, one more `has_work('sweep')` condition). Undo by restoring
+the two functions from 20261207195000 and 20261208130000, the wrapper from 20261203110000, the
+predicate in the private claim to `catalog_connection_usable`, the `has_work` text, and dropping
+the trigger, the queue and the new functions. Space-sourced copies then fail as
+`VIDEO_R2_SOURCE_UNAVAILABLE`, feed catalogs are no longer claimed by the updater, and queued feed
+CSVs stay in the public bucket until removed by hand (`feeds/{feed_id}.csv`).

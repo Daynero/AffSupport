@@ -4,6 +4,8 @@ import { authorizeCaller, requireNamedWorkerSecret } from '../_shared/auth.ts';
 import { readDriveCredential, refreshGoogleAccessToken } from '../_shared/credentials.ts';
 import { GoogleDriveClient } from '../_shared/drive.ts';
 import { CatalogVideoR2, readCatalogVideoR2Config } from '../_shared/r2-catalog-video.ts';
+import { readSpaceR2Config, SpaceR2 } from '../_shared/r2-space.ts';
+import { CatalogVideoSpaceReader } from './space-reader.ts';
 import { TeamFunctionError, errorResponse } from '../_shared/errors.ts';
 import { handleCatalogVideoR2 } from './handler.ts';
 import { runCatalogVideoR2Worker } from './worker.ts';
@@ -26,7 +28,12 @@ const environmentValues: Readonly<Record<string, string | undefined>> = {
   R2_CATALOG_VIDEO_ACCESS_KEY_ID: Deno.env.get('R2_CATALOG_VIDEO_ACCESS_KEY_ID'),
   R2_CATALOG_VIDEO_SECRET_ACCESS_KEY: Deno.env.get('R2_CATALOG_VIDEO_SECRET_ACCESS_KEY'),
   R2_CATALOG_ZONE_ID: Deno.env.get('R2_CATALOG_ZONE_ID'),
-  R2_CATALOG_PURGE_TOKEN: Deno.env.get('R2_CATALOG_PURGE_TOKEN')
+  R2_CATALOG_PURGE_TOKEN: Deno.env.get('R2_CATALOG_PURGE_TOKEN'),
+  // 057: the space bucket, the source of a catalog video in an R2 space.
+  R2_SPACE_ACCOUNT_ID: Deno.env.get('R2_SPACE_ACCOUNT_ID'),
+  R2_SPACE_ACCESS_KEY_ID: Deno.env.get('R2_SPACE_ACCESS_KEY_ID'),
+  R2_SPACE_SECRET_ACCESS_KEY: Deno.env.get('R2_SPACE_SECRET_ACCESS_KEY'),
+  R2_SPACE_BUCKET: Deno.env.get('R2_SPACE_BUCKET')
 };
 const env = (key: string) => environmentValues[key];
 
@@ -63,6 +70,19 @@ Deno.serve(async request => {
           )
         : null;
     const enabled = env('CATALOG_VIDEOS_ENABLED') === 'true' && r2 !== null;
+    const spaceConfig = readSpaceR2Config(env);
+    const spaceBucket = spaceConfig
+      ? new SpaceR2(
+          spaceConfig,
+          new AwsClient({
+            accessKeyId: spaceConfig.accessKeyId,
+            secretAccessKey: spaceConfig.secretAccessKey,
+            service: 's3',
+            region: 'auto'
+          }),
+          (input, init) => fetch(input, init)
+        )
+      : null;
     const tokens = new Map<string, Promise<string>>();
     const token = (credential: string): Promise<string> => {
       let found = tokens.get(credential);
@@ -102,7 +122,13 @@ Deno.serve(async request => {
                     ...init,
                     signal: AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])])
                   })
-                )
+                ),
+              ...(spaceBucket
+                ? {
+                    spaceFor: async (teamId: string) =>
+                      new CatalogVideoSpaceReader(spaceBucket, teamId)
+                  }
+                : {})
             })
           : { disabled: true }
     });

@@ -14,7 +14,10 @@ import {
 } from '../_shared/catalog-video-r2.ts';
 import { TeamFunctionError } from '../_shared/errors.ts';
 import { keepLease } from '../_shared/lease-keeper.ts';
-import { Md5 } from '../_shared/md5.ts';
+import { Md5, md5Hex } from '../_shared/md5.ts';
+// @deno-types="../../../packages/shared/dist/team/space-storage.d.ts"
+import { spaceContentId } from '../../../packages/shared/dist/team/space-storage.js';
+import type { CatalogVideoSpaceProof } from './space-reader.ts';
 // @deno-types="../../../packages/shared/dist/team/catalog-publication-source.d.ts"
 import { catalogPublicationSourceIdentity } from '../../../packages/shared/dist/team/catalog-publication-source.js';
 import type { DriveFileMetadata } from '../_shared/drive.ts';
@@ -32,6 +35,7 @@ import {
   sha256Hex,
   type CatalogVideoR2
 } from '../_shared/r2-catalog-video.ts';
+import { catalogFeedKey, CATALOG_FEED_ID } from '../_shared/catalog-feed.ts';
 
 const PERMIT = createCatalogVideoR2Permit();
 /** Stop taking new parts this far before the invocation deadline. */
@@ -54,12 +58,19 @@ export interface CatalogVideoDriveReader {
   }): Promise<Response>;
 }
 
+/** 057: the source of a copy in an R2 space — the space's bucket (`space-reader.ts`). */
+export interface CatalogVideoSpaceSource extends CatalogVideoDriveReader {
+  describe(contentId: string): Promise<{ sizeBytes: number; proof: CatalogVideoSpaceProof }>;
+}
+
 export interface CatalogVideoR2WorkerDeps {
   service: CatalogVideoR2Rpc;
   r2: CatalogVideoR2;
   enabled: boolean;
   route: 'claim' | 'sweep';
   driveFor(credentialId: string, signal: AbortSignal): Promise<CatalogVideoDriveReader>;
+  /** 057: absent until the space bucket is configured; a space claim then retries later. */
+  spaceFor?(teamId: string, signal: AbortSignal): Promise<CatalogVideoSpaceSource>;
   /** Overridable for tests; the real budget is the edge invocation limit. */
   budgetMs?: number;
   random?: () => number;
@@ -77,11 +88,13 @@ interface Claim {
   sourceMd5: string | null;
   sourceVersion: string;
   sourceMaterialId: string;
-  connectionId: string;
+  /** 057: `space` — a file of an R2 space; `fileId` is then its content id, with no Drive fields. */
+  sourceKind: 'drive' | 'space';
+  connectionId: string | null;
   uploadId: string | null;
   fileId: string;
   resourceKey: string | null;
-  credentialId: string;
+  credentialId: string | null;
   parts: Map<
     number,
     {
@@ -122,6 +135,38 @@ function claimOf(raw: unknown): Claim {
   const sourceMd5 = typeof value.sourceMd5 === 'string' ? value.sourceMd5 : null;
   if (sourceMd5 !== null && !/^[0-9a-f]{32}$/u.test(sourceMd5))
     throw new TeamFunctionError('INVALID_RESPONSE');
+  if (value.sourceKind !== undefined && value.sourceKind !== 'space')
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  if (value.sourceKind === 'space') {
+    const fileId = videoR2String(value.fileId, 64);
+    if (
+      !/^[0-9a-f]{64}$/u.test(fileId) ||
+      value.connectionId !== null ||
+      value.credentialId !== null ||
+      value.resourceKey !== null
+    )
+      throw new TeamFunctionError('INVALID_RESPONSE');
+    return {
+      copyId: videoR2Id(value.copyId),
+      teamId: videoR2Id(value.teamId),
+      fence: videoR2Integer(value.fence),
+      state: videoR2String(value.state, 32),
+      objectKey,
+      sizeBytes: videoR2Integer(value.sizeBytes, CATALOG_VIDEO_R2_LIMITS.maxObjectBytes),
+      partBytes: videoR2Integer(value.partBytes, CATALOG_VIDEO_R2_LIMITS.maxPartBytes),
+      sourceMd5,
+      sourceVersion: videoR2String(value.sourceVersion, 256),
+      sourceMaterialId: videoR2Id(value.sourceMaterialId),
+      sourceKind: 'space',
+      connectionId: null,
+      uploadId:
+        typeof value.uploadId === 'string' && value.uploadId.length > 0 ? value.uploadId : null,
+      fileId,
+      resourceKey: null,
+      credentialId: null,
+      parts
+    };
+  }
   return {
     copyId: videoR2Id(value.copyId),
     teamId: videoR2Id(value.teamId),
@@ -133,6 +178,7 @@ function claimOf(raw: unknown): Claim {
     sourceMd5,
     sourceVersion: videoR2String(value.sourceVersion, 256),
     sourceMaterialId: videoR2Id(value.sourceMaterialId),
+    sourceKind: 'drive',
     connectionId: videoR2Id(value.connectionId),
     uploadId:
       typeof value.uploadId === 'string' && value.uploadId.length > 0 ? value.uploadId : null,
@@ -270,6 +316,59 @@ async function sourceView(
   return view;
 }
 
+/*
+ * 057 `parts` proof state: the verified parts' MD5s, concatenated and base64-encoded, under the
+ * byte count the database checks (`service_catalog_video_r2_verification_advance`, space-1).
+ */
+function partDigestState(digests: readonly string[], bytes: number) {
+  const raw = new Uint8Array(digests.length * 16);
+  digests.forEach((hex, index) => {
+    for (let i = 0; i < 16; i += 1) raw[index * 16 + i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  });
+  let binary = '';
+  for (const byte of raw) binary += String.fromCharCode(byte);
+  return { version: 'space-1', bytes, digests: btoa(binary) };
+}
+
+function restorePartDigests(raw: unknown, bytes: number, parts: number): string[] {
+  const value = videoR2Object(raw);
+  if (value.version !== 'space-1' || value.bytes !== bytes || typeof value.digests !== 'string')
+    throw new TeamFunctionError('INVALID_RESPONSE');
+  const binary = atob(value.digests);
+  if (binary.length !== parts * 16) throw new TeamFunctionError('INVALID_RESPONSE');
+  const digests: string[] = [];
+  for (let n = 0; n < parts; n += 1) {
+    let hex = '';
+    for (let i = 0; i < 16; i += 1)
+      hex += binary
+        .charCodeAt(n * 16 + i)
+        .toString(16)
+        .padStart(2, '0');
+    digests.push(hex);
+  }
+  return digests;
+}
+
+/**
+ * The whole proof of a copy of a multipart space object: the part MD5s must give back both the
+ * object's content id (the key it was committed under) and R2's ETag, MD5 over the binary part
+ * MD5s. Returns that ETag MD5, which the database compares with the copy's `source_md5`.
+ */
+async function partsDigest(
+  digests: readonly string[],
+  sizeBytes: number,
+  contentId: string
+): Promise<string> {
+  const content = await spaceContentId(sizeBytes, digests);
+  if (!content.ok || content.contentId !== contentId)
+    throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
+  const raw = new Uint8Array(digests.length * 16);
+  digests.forEach((hex, index) => {
+    for (let i = 0; i < 16; i += 1) raw[index * 16 + i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  });
+  return md5Hex(raw);
+}
+
 function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.byteLength !== b.byteLength) return false;
   for (let i = 0; i < a.byteLength; i += 1) if (a[i] !== b[i]) return false;
@@ -325,7 +424,17 @@ async function copyOne(
   try {
     // A complete staging proof no longer depends on Drive being online.
     let drive: CatalogVideoDriveReader | undefined;
-    const getDrive = async () => (drive ??= await deps.driveFor(claim.credentialId, signal));
+    let space: CatalogVideoSpaceSource | undefined;
+    const getSpace = async (): Promise<CatalogVideoSpaceSource> => {
+      if (!deps.spaceFor)
+        throw new TeamFunctionError('VIDEO_R2_PROVIDER_UNAVAILABLE', { retryable: true });
+      return (space ??= await deps.spaceFor(claim.teamId, signal));
+    };
+    const getDrive = async (): Promise<CatalogVideoDriveReader> =>
+      (drive ??=
+        claim.sourceKind === 'space'
+          ? await getSpace()
+          : await deps.driveFor(claim.credentialId!, signal));
     /*
      * 073: the public copy carries no metadata. The plan says which bytes of the Drive file are
      * tags, dates, names or non-media tracks; each part is uploaded with those bytes blanked in
@@ -345,6 +454,29 @@ async function copyOne(
       return patches;
     };
     let sourceMd5 = claim.sourceMd5;
+    /*
+     * 057: a space file's identity is its content id, and the object at its key is what the
+     * server committed under that id. How the copy is proven depends on the object's ETag
+     * (`catalogVideoSpaceProof`); a multipart object is proven part by part, which needs the
+     * copy's parts to be the space's parts.
+     */
+    let spaceProof: CatalogVideoSpaceProof | null = null;
+    if (claim.sourceKind === 'space') {
+      if (claim.sourceVersion !== claim.fileId) throw new TeamFunctionError('SOURCE_CHANGED');
+      const described = await (await getSpace()).describe(claim.fileId);
+      if (described.sizeBytes !== claim.sizeBytes) throw new TeamFunctionError('SOURCE_CHANGED');
+      spaceProof = described.proof;
+      if (
+        spaceProof.mode === 'parts' &&
+        (spaceProof.partBytes !== claim.partBytes || spaceProof.parts !== totalParts)
+      )
+        throw new TeamFunctionError('VIDEO_R2_UNSUPPORTED_FORMAT');
+      const expected = spaceProof.mode === 'bytes' ? spaceProof.md5 : spaceProof.md5OfParts;
+      if (sourceMd5 !== null && sourceMd5 !== expected)
+        throw new TeamFunctionError('SOURCE_CHANGED');
+      sourceMd5 = expected;
+    }
+    const byParts = spaceProof?.mode === 'parts';
     if (sourceMd5 === null) {
       const metadata = await (await getDrive()).getFile(claim.fileId, claim.resourceKey);
       if (metadata.trashed || metadata.id !== claim.fileId || metadata.size !== claim.sizeBytes)
@@ -449,9 +581,13 @@ async function copyOne(
       offset !== Math.min(checked * claim.partBytes, claim.sizeBytes)
     )
       throw new TeamFunctionError('INVALID_RESPONSE');
-    let md5: Md5;
+    let md5: Md5 = new Md5();
+    /** `parts` proof: the MD5 of each source part verified so far, in order. */
+    let partDigests: string[] = [];
     try {
-      md5 = checked === 0 ? new Md5() : Md5.restore(proof.hashState, offset);
+      if (byParts)
+        partDigests = checked === 0 ? [] : restorePartDigests(proof.hashState, offset, checked);
+      else md5 = checked === 0 ? new Md5() : Md5.restore(proof.hashState, offset);
     } catch {
       throw new TeamFunctionError('INVALID_RESPONSE');
     }
@@ -488,16 +624,24 @@ async function copyOne(
       );
       if ((await sha256Hex(bytes)) !== part.sha256)
         throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
-      md5.update(
-        await sourceView(bytes, offset, await patchesFor(n === 1 ? bytes : null), (start, end) =>
-          getDrive().then(reader => readRange(reader, claim, start, end, signal))
-        )
+      const view = await sourceView(
+        bytes,
+        offset,
+        await patchesFor(n === 1 ? bytes : null),
+        (start, end) => getDrive().then(reader => readRange(reader, claim, start, end, signal))
       );
+      if (byParts) partDigests.push(md5Hex(view));
+      else md5.update(view);
       offset += part.sizeBytes;
-      const digest = n === totalParts ? md5.digest() : null;
+      const digest =
+        n !== totalParts
+          ? null
+          : byParts
+            ? await partsDigest(partDigests, claim.sizeBytes, claim.fileId)
+            : md5.digest();
       if (digest !== null && digest !== sourceMd5)
         throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
-      const snapshot = md5.snapshot();
+      const snapshot: unknown = byParts ? partDigestState(partDigests, offset) : md5.snapshot();
       try {
         await rpc('service_catalog_video_r2_verification_advance', {
           ...proofParams,
@@ -513,13 +657,22 @@ async function copyOne(
           saved.partsChecked !== n ||
           saved.bytesChecked !== offset ||
           saved.finalMd5 !== digest ||
-          JSON.stringify(Md5.restore(saved.hashState, offset).snapshot()) !==
-            JSON.stringify(snapshot)
+          (byParts
+            ? JSON.stringify(restorePartDigests(saved.hashState, offset, n)) !==
+              JSON.stringify(partDigests)
+            : JSON.stringify(Md5.restore(saved.hashState, offset).snapshot()) !==
+              JSON.stringify(snapshot))
         )
           throw error;
       }
     }
-    if (offset !== claim.sizeBytes || md5.digest() !== sourceMd5)
+    if (
+      offset !== claim.sizeBytes ||
+      (byParts
+        ? partDigests.length !== totalParts ||
+          (await partsDigest(partDigests, claim.sizeBytes, claim.fileId)) !== sourceMd5
+        : md5.digest() !== sourceMd5)
+    )
       throw new TeamFunctionError('VIDEO_R2_CHECKSUM_MISMATCH');
     if (now() - startedAt > budget - PART_MARGIN_MS) {
       await rpc('service_catalog_video_r2_yield', params);
@@ -619,7 +772,7 @@ async function sweep(
   worker: string,
   signal: AbortSignal
 ): Promise<unknown> {
-  const summary = { retired: 0, deleted: 0, purged: 0, failed: 0 };
+  const summary = { retired: 0, deleted: 0, purged: 0, feeds: 0, failed: 0 };
   for (let i = 0; i < 5 && !signal.aborted; i += 1) {
     if (!(await cleanStaging(deps, rpc, worker, signal))) break;
   }
@@ -680,6 +833,33 @@ async function sweep(
         p_fence: fence,
         p_success: false,
         p_code: code
+      }).catch(() => undefined);
+      summary.failed += 1;
+    }
+  }
+  // 057: the feeds of catalogs deleted for good (`private.catalog_feed_removals`).
+  for (let i = 0; i < 5 && !signal.aborted; i += 1) {
+    const raw = await rpc('service_catalog_feed_claim_removal', { p_worker: worker });
+    if (raw === null) break;
+    const removal = videoR2Object(raw);
+    const feedId = videoR2String(removal.feedId, 32);
+    if (!CATALOG_FEED_ID.test(feedId)) throw new TeamFunctionError('INVALID_RESPONSE');
+    const fence = videoR2Integer(removal.fence);
+    try {
+      await deps.r2.removeFeed(catalogFeedKey(feedId), signal);
+      await rpc('service_catalog_feed_finish_removal', {
+        p_feed_id: feedId,
+        p_fence: fence,
+        p_success: true,
+        p_code: null
+      });
+      summary.feeds += 1;
+    } catch (error) {
+      await rpc('service_catalog_feed_finish_removal', {
+        p_feed_id: feedId,
+        p_fence: fence,
+        p_success: false,
+        p_code: error instanceof TeamFunctionError ? error.code : 'VIDEO_R2_CLEANUP_PARTIAL'
       }).catch(() => undefined);
       summary.failed += 1;
     }
