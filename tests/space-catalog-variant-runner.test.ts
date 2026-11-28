@@ -125,6 +125,17 @@ describe('handing an R2 catalog’s variations to the agent', () => {
     ]);
   });
 
+  it('waits on a variation the background agent holds and makes the rest (T106)', async () => {
+    const f = deps({
+      run: vi.fn(async ({ index }) =>
+        index === 1 ? { state: 'background' as const, index } : runAnswer(index)
+      ) as never
+    });
+    expect(await runSpaceCatalogVariants(input(), f.deps)).toEqual({ kind: 'waiting' });
+    expect(f.made).toEqual([op(0), op(2)]);
+    expect(f.deps.cancel).not.toHaveBeenCalled();
+  });
+
   it('waits on a run the agent is already making, and ends when one cannot be made', async () => {
     const busy = deps({
       process: vi.fn(async request => {

@@ -110,3 +110,35 @@ it('keeps the pass going when pacing the failure itself fails', async () => {
     logged.mockRestore();
   }
 });
+it('057 T106: the R2 lane lists from its own listing and finishes the frozen request the same way', async () => {
+  const body = {
+    teamId,
+    idempotencyKey: key,
+    catalogVideoProtocolVersion: 1,
+    restitchEnabled: true
+  };
+  const rpc = vi.fn(async (name: string) => ({
+    data:
+      name === 'service_list_space_catalog_completions'
+        ? [{ teamId, actorId, idempotencyKey: key }]
+        : body,
+    error: null
+  }));
+  const executeFrozen = vi.fn(async () => ({ outcome: 'created' }));
+  expect(
+    await runInitialCatalogRecovery(
+      { rpc },
+      { enabled: true, executeFrozen, listing: 'service_list_space_catalog_completions' }
+    )
+  ).toMatchObject({ completed: 1, pending: 0 });
+  expect(rpc).toHaveBeenNthCalledWith(1, 'service_list_space_catalog_completions', { p_limit: 3 });
+  expect(rpc).not.toHaveBeenCalledWith('service_list_initial_catalog_recovery', expect.anything());
+  expect(executeFrozen).toHaveBeenCalledWith(body, actorId);
+});
+it('the Drive lane still asks its own listing with the same arguments', async () => {
+  const rpc = vi.fn(async () => ({ data: [], error: null }));
+  await runInitialCatalogRecovery({ rpc }, { enabled: true, executeFrozen: vi.fn() });
+  expect(rpc).toHaveBeenCalledExactlyOnceWith('service_list_initial_catalog_recovery', {
+    p_limit: 3
+  });
+});

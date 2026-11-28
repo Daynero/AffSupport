@@ -816,6 +816,35 @@ describe('background recovery worker', () => {
     expect(f.getSecrets().active).toBeNull();
     expect(f.worker.status(TEAM)).toMatchObject({ state: 'settled' });
   });
+  it.each([
+    [undefined, 'drive-transfer/range', 'drive-ops'],
+    ['r2', 'space-storage/agent/source', 'space-storage']
+  ])(
+    '057 T106: a job of storage %s reads and writes through %s',
+    async (workspaceStorage, transfer, cloud) => {
+      const f = await fixture();
+      f.fetcher.mockImplementation(async (_url, init) => {
+        const body = JSON.parse(String(init?.body));
+        const claimed = brokerClaim();
+        const value =
+          body.action === 'claim'
+            ? {
+                ...claimed,
+                job: { ...claimed.job, ...(workspaceStorage ? { workspaceStorage } : {}) }
+              }
+            : { settled: true, executionAllowed: true };
+        return new Response(JSON.stringify({ ok: true, value }));
+      });
+      await f.worker.load();
+      await vi.advanceTimersByTimeAsync(0);
+      await f.worker.idle();
+      expect(vi.mocked(f.process.process).mock.calls[0]![0]).toMatchObject({
+        operationId: OP,
+        transferUrl: `http://127.0.0.1:54321/functions/v1/${transfer}`,
+        cloudBaseUrl: `http://127.0.0.1:54321/functions/v1/${cloud}`
+      });
+    }
+  );
   it('blocks a rewound accepted checkpoint when the server already reserved execution', async () => {
     const f = await fixture();
     const saved = await f.journal.load();

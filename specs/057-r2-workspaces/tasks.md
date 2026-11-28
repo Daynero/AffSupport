@@ -474,6 +474,26 @@
   `STORAGE_BACKEND_MISMATCH` до запису). Тест: T103.
 - [ ] T105 [US1] Приймання на беті (частина T062): каталог з 10 варіаціями в пілотному R2-просторі,
   агент arm64 і Windows, видалення каталогу — 0 об'єктів у bucket простору й у публічному.
+- [x] T106 [P] [US1] Тест для T107 — фонове доведення варіацій R2-каталогу:
+  `supabase/tests/database/catalog-space-variants-background.test.sql` (33): оренда наступної
+  варіації лише цього члена, сторінка отримує `background`, прив'язка під орендою, серцебиття й
+  `cancel`, відкладення на годину без запуску, запуск простроченої оренди закривається наступним
+  claim і варіація бере наступну спробу, квитанція team-recovery для R2 (`storageBackend`,
+  `outputRecorded`) і незмінна для Drive, список крон-лінії; `tests/space-storage-catalog-variant-recovery.test.ts`
+  (8), `tests/space-storage-isolation.test.ts` (+5: R2-кроки йдуть у space-storage від імені
+  члена квитанції, Drive-claim — у Drive-оновлювач з тим самим тілом), `tests/team-recovery-worker.test.ts`
+  (+2: R2-завдання читає й пише через space-storage), `tests/catalog-initial-recovery.test.ts`
+  (+2), `tests/space-catalog-variant-runner.test.ts` (+1), `tests/space-storage-catalog-variants.test.ts`.
+- [x] T107 [US1] Фонове доведення (research.md R15): міграція
+  `20261226260000_space_storage_catalog_variant_background.sql` (оренда на `space_catalog_variants`,
+  claim/bind/heartbeat/defer/complete, `background` у видачі сторінці, квитанція
+  `service_team_recovery` для R2, `service_list_space_catalog_completions`);
+  `space-storage/catalog-variant-recovery.ts` (claim: картинки з пулів простору квитками
+  `/agent/source`, запуск як у `/catalog-variants/run`); `team-recovery` маршрутизує claim,
+  heartbeat і settle R2-квитанції туди, Drive — як було; агент бере адреси space-storage для
+  `workspaceStorage: 'r2'`; крон `drive-ops /launches/recover` доводить створення, коли всі
+  варіації зроблено (`createSpaceProductCatalog`, та сама лінія `runInitialCatalogRecovery`).
+  Тест: T106.
 
 ### Фаза 5 — US7: відчутно швидше (ядро M1) (P1)
 
@@ -780,7 +800,7 @@
 - **Фази M1.**
   - Фаза 1 → Фаза 2 → US11 (фаза 3).
   - US1 (фаза 4) залежить від US11: `space-storage` і створення простору.
-  - Фаза 4a (T091–T105) залежить від T033/T035 (запуски простору) і T041 (створення каталогу в
+  - Фаза 4a (T091–T107) залежить від T033/T035 (запуски простору) і T041 (створення каталогу в
     R2). T102 — після T100; T105 — після T100 і входить у T062.
   - US7 (фаза 5) залежить від T023, T027, T029. T047 — після T045 (рушій завантаження) і T033 (агент контракту 3).
   - US9 (фаза 6) залежить від T006 і T023.
@@ -820,7 +840,7 @@
 | -------------------------------------- | ----------------------------------------------------- |
 | FR-001, FR-056                         | T077, T080, T081                                      |
 | FR-004, FR-006, FR-057, FR-058         | T076–T079, T090                                       |
-| FR-011                                 | T021–T043, T070–T073, T089, T091–T105                 |
+| FR-011                                 | T021–T043, T070–T073, T089, T091–T107                 |
 | FR-012, FR-038, FR-041                 | T046, T047                                            |
 | FR-013, FR-014                         | T019, T020, T026, T027, T050                          |
 | FR-016, FR-017, FR-045, FR-047, FR-050 | T005, T006, T021–T023, T052, T053                     |

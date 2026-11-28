@@ -72,7 +72,8 @@ export function parseCatalogVariantRunCommand(body: unknown): CatalogVariantRunC
 
 export type CatalogVariantRunAnswer =
   | { state: 'registered'; index: number; outputMaterialId: string }
-  | { state: 'failed' | 'canceled'; index: number }
+  /** T107: the member's delegated agent holds it; the page waits. */
+  | { state: 'failed' | 'canceled' | 'background'; index: number }
   | {
       state: 'run';
       index: number;
@@ -83,7 +84,7 @@ export type CatalogVariantRunAnswer =
       defaults: TeamRestitchDefaults;
     };
 
-async function call(deps: ProcessDeps, name: string, args: Record<string, unknown>) {
+export async function call(deps: ProcessDeps, name: string, args: Record<string, unknown>) {
   try {
     return await deps.rpc(name, args);
   } catch (cause) {
@@ -93,7 +94,7 @@ async function call(deps: ProcessDeps, name: string, args: Record<string, unknow
 }
 
 interface Claim {
-  state: 'registered' | 'failed' | 'canceled' | 'open' | 'running';
+  state: 'registered' | 'failed' | 'canceled' | 'background' | 'open' | 'running';
   index: number;
   outputMaterialId: string | null;
   requestId: string;
@@ -116,7 +117,8 @@ function parseClaim(
     if (!isSpaceUuid(value.outputMaterialId)) return refuse('INVALID_RESPONSE');
     return { state, index, outputMaterialId: value.outputMaterialId };
   }
-  if (state === 'failed' || state === 'canceled') return { state, index, outputMaterialId: null };
+  if (state === 'failed' || state === 'canceled' || state === 'background')
+    return { state, index, outputMaterialId: null };
   if (state !== 'open' && state !== 'running') return refuse('INVALID_RESPONSE');
   const settings = parseTeamRestitchDefaults(value.settings);
   if (
@@ -156,6 +158,68 @@ export function catalogVariantOutputName(sourceName: string, index: number): str
   return displayDriveName(`${stem} restitched ${index + 1}.mp4`);
 }
 
+/**
+ * Opens one attempt of a variation as a tool run of the space, in «Restitched», under
+ * `space-variant:<request>:<attempt>`, and binds it with `bind` (the page's CAS, or the delegated
+ * agent's lease, T107). A run that loses the bind never reaches an agent: it is canceled.
+ */
+export async function openCatalogVariantRun(
+  run: {
+    teamId: string;
+    sourceMaterialId: string;
+    sourceName: string;
+    index: number;
+    requestId: string;
+    attempt: number;
+    toolContractVersion: number;
+  },
+  deps: ProcessDeps,
+  bind: (operationId: string) => Promise<unknown>
+): Promise<OpenedSpaceProcess> {
+  const actorId = deps.actorId ?? refuse('PERMISSION_DENIED');
+  const folder = await call(deps, 'service_mutate_space_materials', {
+    p_actor: actorId,
+    p_team: run.teamId,
+    p_input: { action: 'create_folder', name: SPACE_RESTITCHED_FOLDER_NAME, ensure: true }
+  });
+  const folderId =
+    isRecord(folder) && Array.isArray(folder.materials) && isRecord(folder.materials[0])
+      ? folder.materials[0].id
+      : null;
+  if (!isSpaceUuid(folderId)) return refuse('INVALID_RESPONSE');
+  const started = await openSpaceProcess(
+    {
+      teamId: run.teamId,
+      materialId: run.sourceMaterialId,
+      destinationFolderId: folderId,
+      idempotencyKey: `space-variant:${run.requestId}:${run.attempt}`,
+      toolId: 'restitch',
+      outputName: catalogVariantOutputName(run.sourceName, run.index),
+      conflictMode: 'keep_both',
+      agentContractVersion: SPACE_PROCESS_AGENT_CONTRACT,
+      toolContractVersion: run.toolContractVersion
+    },
+    deps
+  );
+  try {
+    await bind(started.operationId);
+  } catch (cause) {
+    // Another page bound a run first: this one never reaches an agent.
+    if (!started.reused)
+      await call(deps, 'service_transition_team_operation', {
+        p_operation: started.operationId,
+        p_state: 'canceled',
+        p_stage: 'canceled',
+        p_progress: 0,
+        p_result_material: null,
+        p_error_code: null,
+        p_retryable: false
+      }).catch(() => undefined);
+    throw cause;
+  }
+  return started;
+}
+
 export async function runCatalogVariant(
   command: CatalogVariantRunCommand,
   deps: ProcessDeps
@@ -172,7 +236,7 @@ export async function runCatalogVariant(
   );
   if (claim.state === 'registered')
     return { state: 'registered', index: claim.index, outputMaterialId: claim.outputMaterialId! };
-  if (claim.state === 'failed' || claim.state === 'canceled')
+  if (claim.state === 'failed' || claim.state === 'canceled' || claim.state === 'background')
     return { state: claim.state, index: claim.index };
   const run = claim as Claim;
   let opened: Pick<
@@ -189,54 +253,27 @@ export async function runCatalogVariant(
       toolId: 'restitch'
     };
   } else {
-    const folder = await call(deps, 'service_mutate_space_materials', {
-      p_actor: actorId,
-      p_team: command.teamId,
-      p_input: { action: 'create_folder', name: SPACE_RESTITCHED_FOLDER_NAME, ensure: true }
-    });
-    const folderId =
-      isRecord(folder) && Array.isArray(folder.materials) && isRecord(folder.materials[0])
-        ? folder.materials[0].id
-        : null;
-    if (!isSpaceUuid(folderId)) return refuse('INVALID_RESPONSE');
-    const started = await openSpaceProcess(
+    opened = await openCatalogVariantRun(
       {
         teamId: command.teamId,
-        materialId: run.sourceMaterialId,
-        destinationFolderId: folderId,
-        idempotencyKey: `space-variant:${run.requestId}:${run.attempt}`,
-        toolId: 'restitch',
-        outputName: catalogVariantOutputName(run.sourceName, command.index),
-        conflictMode: 'keep_both',
-        agentContractVersion: SPACE_PROCESS_AGENT_CONTRACT,
+        sourceMaterialId: run.sourceMaterialId,
+        sourceName: run.sourceName,
+        index: command.index,
+        requestId: run.requestId,
+        attempt: run.attempt,
         toolContractVersion: command.toolContractVersion
       },
-      deps
+      deps,
+      operationId =>
+        call(deps, 'service_bind_space_catalog_variant_run', {
+          p_team: command.teamId,
+          p_actor: actorId,
+          p_set: command.setId,
+          p_index: command.index,
+          p_attempt: run.attempt,
+          p_operation: operationId
+        })
     );
-    try {
-      await call(deps, 'service_bind_space_catalog_variant_run', {
-        p_team: command.teamId,
-        p_actor: actorId,
-        p_set: command.setId,
-        p_index: command.index,
-        p_attempt: run.attempt,
-        p_operation: started.operationId
-      });
-    } catch (cause) {
-      // Another page bound a run first: this one never reaches an agent.
-      if (!started.reused)
-        await call(deps, 'service_transition_team_operation', {
-          p_operation: started.operationId,
-          p_state: 'canceled',
-          p_stage: 'canceled',
-          p_progress: 0,
-          p_result_material: null,
-          p_error_code: null,
-          p_retryable: false
-        }).catch(() => undefined);
-      throw cause;
-    }
-    opened = started;
   }
   const grants = await issueSpaceProcessGrants(opened, deps);
   const defaults = await sampleCatalogVideoDuration(run.settings, {

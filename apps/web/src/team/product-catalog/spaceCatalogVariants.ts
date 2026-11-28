@@ -17,7 +17,9 @@ import { prepareRestitchScreens } from '../restitch/screens';
  * re-stitch does) and gives the run to the agent, which reads the source from the space and
  * writes the output back to it; the run's finalize registers the output with the catalog. A run
  * outlives the page: a reloaded page hands the same run over again, and an agent already doing
- * it says so (WRONG_STATE) instead of starting twice.
+ * it says so (WRONG_STATE) instead of starting twice. With the page closed, the member's delegated
+ * agent finishes the rest in the background (T107); a variation it holds answers `background`
+ * here, and the page waits for it instead of making it a second time.
  */
 
 export interface SpaceCatalogVariantsDeps {
@@ -125,6 +127,11 @@ export async function runSpaceCatalogVariants(
       }
       if (answer.state !== 'run') {
         if (answer.state === 'registered') break;
+        // The member's agent is making it in the background (T107): look again later.
+        if (answer.state === 'background') {
+          waiting = true;
+          break;
+        }
         return { kind: 'ended' };
       }
       const run = answer;

@@ -7,17 +7,23 @@ const uuid = (value: unknown): value is string =>
   typeof value === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
 /** Existing catalog cron/worker-secret recovery lane. Canonical begin owns all
- * leases; this bounded observer never invents or resamples a browser request. */
+ * leases; this bounded observer never invents or resamples a browser request.
+ * 057 T107: the same lane over `service_list_space_catalog_completions` finishes
+ * the creations of an R2 space whose variations the background agent made. */
 export async function runInitialCatalogRecovery(
   service: ServiceRpcClient,
   options: {
     enabled: boolean;
     executeFrozen(body: Record<string, unknown>, actorId: string): Promise<unknown>;
+    /** The listing this lane takes its intents from; Drive's unless named. */
+    listing?: 'service_list_initial_catalog_recovery' | 'service_list_space_catalog_completions';
   }
 ): Promise<{ enabled: boolean; completed: number; pending: number }> {
   const result = { enabled: options.enabled, completed: 0, pending: 0 };
   if (!options.enabled) return result;
-  const listed = await service.rpc('service_list_initial_catalog_recovery', { p_limit: 3 });
+  const listed = await service.rpc(options.listing ?? 'service_list_initial_catalog_recovery', {
+    p_limit: 3
+  });
   if (listed.error || !Array.isArray(listed.data) || listed.data.length > 3)
     throw new TeamFunctionError('PROCESS_RESULT_UNCERTAIN');
   const seen = new Set<string>();

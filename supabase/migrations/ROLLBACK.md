@@ -3945,3 +3945,15 @@ Drive space's import answers as before. Undo by re-running the two bodies from t
 last defined them, dropping the two functions and, once no job has `source_kind = 'space'`,
 restoring the check to `('local', 'drive')`. Space imports then fail at `begin` with
 `INVALID_INPUT`; jobs already staged from a space fail their entries as unavailable.
+
+## 20261226260000 — 057 background completion of an R2 catalog's variations
+
+Adds the lease columns of `private.space_catalog_variants` (`job_id`, `lease_hash`,
+`lease_expires_at`), the service-only claim/bind/heartbeat/defer/complete functions,
+`service_list_space_catalog_completions` and `private.space_recovery_receipt`; replaces the R2-only
+`service_space_catalog_variant_run` (answers `background` under a live lease) and patches
+`service_team_recovery` so an R2 receipt names `storageBackend`. A Drive receipt is unchanged. Undo
+by re-running `service_team_recovery` and `service_space_catalog_variant_run` from the migrations
+that last defined them (20261226140000 and 20261226250000), then dropping the new functions and the
+three columns. R2 variations then wait for the page that created the catalog again; runs a lease
+had opened stay ordinary runs of the space.

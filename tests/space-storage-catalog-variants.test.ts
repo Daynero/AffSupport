@@ -207,11 +207,13 @@ describe('handing a catalog variation of an R2 space to the agent', () => {
     );
   });
 
-  it('answers a variation made, ended or canceled without opening anything', async () => {
+  it('answers a variation made, ended, canceled or held by the background agent without opening anything', async () => {
     for (const claim of [
       { state: 'registered', outputMaterialId: OUTPUT },
       { state: 'failed' },
-      { state: 'canceled' }
+      { state: 'canceled' },
+      // T106: the member's delegated agent holds it; the page waits.
+      { state: 'background' }
     ]) {
       const f = world(claim);
       const answer = await runCatalogVariant(command, f.deps);

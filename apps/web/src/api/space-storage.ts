@@ -218,7 +218,8 @@ async function callSpaceStorage<T>(
 
 export type SpaceCatalogVariantRun =
   | { state: 'registered'; index: number; outputMaterialId: string }
-  | { state: 'failed' | 'canceled'; index: number }
+  /** `background`: the member's delegated agent holds it (057 T107); the page waits. */
+  | { state: 'failed' | 'canceled' | 'background'; index: number }
   | {
       state: 'run';
       index: number;
@@ -240,7 +241,8 @@ export function parseSpaceCatalogVariantRun(
     return isSpaceUuid(row.outputMaterialId)
       ? { state: 'registered', index, outputMaterialId: row.outputMaterialId }
       : null;
-  if (row.state === 'failed' || row.state === 'canceled') return { state: row.state, index };
+  if (row.state === 'failed' || row.state === 'canceled' || row.state === 'background')
+    return { state: row.state, index };
   if (row.state !== 'run' || !isSpaceUuid(row.operationId)) return null;
   const sourceGrant = parseTeamTransferGrant(row.sourceGrant);
   const finalizeGrant = parseTeamTransferGrant(row.finalizeGrant);

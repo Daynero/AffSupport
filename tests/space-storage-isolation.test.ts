@@ -180,6 +180,99 @@ describe('delegated background work (team-recovery)', () => {
     expect(d.drive).not.toHaveBeenCalled();
   });
 
+  // 057 T106: an R2 credential's steps go to space-storage, as its receipt's member; a Drive one
+  // goes to the Drive updater with exactly the body it always had.
+  const space = () => ({
+    claim: vi.fn(async () => ({ job: null })),
+    heartbeat: vi.fn(async () => ({ cancel: false })),
+    complete: vi.fn(async () => ({ recorded: true }))
+  });
+  const step = (action: string, fields: Record<string, unknown> = {}) =>
+    new Request('https://synthetic.test', {
+      method: 'POST',
+      headers: { 'x-team-recovery-credential': SECRET },
+      body: JSON.stringify({
+        protocolVersion: 2,
+        action,
+        operationId: REQUEST,
+        jobId: REQUEST,
+        leaseToken: SECRET,
+        ...fields
+      })
+    });
+
+  it('claims an R2 space’s work from space-storage as the receipt’s member, never from Drive', async () => {
+    const rpc = vi.fn(async (action: string) =>
+      action === 'claim'
+        ? { teamId: TEAM, actorId: ACTOR, storageBackend: 'r2' }
+        : { job: null, operationCredential: null }
+    );
+    const d = { ...deps(rpc), space: space() };
+    await handleRecovery(claim({ teamWorkspaceContractVersion: 3, restitchContractVersion: 2 }), d);
+    expect(d.space.claim).toHaveBeenCalledWith(ACTOR, { teamId: TEAM, restitchContractVersion: 2 });
+    expect(d.drive).not.toHaveBeenCalled();
+  });
+
+  it('a Drive claim goes to the Drive updater with the body it always had', async () => {
+    const rpc = vi.fn(async (action: string) =>
+      action === 'claim'
+        ? { teamId: TEAM, actorId: ACTOR }
+        : { job: null, operationCredential: null }
+    );
+    const d = { ...deps(rpc), space: space() };
+    await handleRecovery(claim({ restitchContractVersion: 2 }), d);
+    expect(d.drive).toHaveBeenCalledWith('claim', SECRET, {
+      teamId: TEAM,
+      restitchContractVersion: 2
+    });
+    expect(d.space.claim).not.toHaveBeenCalled();
+  });
+
+  it('heartbeats and settles an R2 run through space-storage', async () => {
+    const rpc = vi.fn(async (action: string) =>
+      action === 'authorize_execute'
+        ? {
+            teamId: TEAM,
+            actorId: ACTOR,
+            storageBackend: 'r2',
+            operationState: 'succeeded',
+            outputRecorded: true
+          }
+        : {}
+    );
+    const d = { ...deps(rpc), space: space() };
+    expect(await handleRecovery(step('heartbeat'), d)).toEqual({ cancel: false });
+    expect(d.space.heartbeat).toHaveBeenCalledWith(ACTOR, { jobId: REQUEST, leaseToken: SECRET });
+    expect(await handleRecovery(step('settle'), d)).toEqual({ settled: true, state: 'succeeded' });
+    expect(d.space.complete).toHaveBeenCalledWith(ACTOR, {
+      jobId: REQUEST,
+      leaseToken: SECRET,
+      outcome: 'finalized',
+      errorCode: null
+    });
+    expect(d.drive).not.toHaveBeenCalled();
+  });
+
+  it('an R2 run waits to settle until its variation recorded the output', async () => {
+    const rpc = vi.fn(async () => ({
+      teamId: TEAM,
+      actorId: ACTOR,
+      storageBackend: 'r2',
+      operationState: 'succeeded',
+      outputRecorded: false
+    }));
+    const d = { ...deps(rpc), space: space() };
+    expect(await handleRecovery(step('settle'), d)).toEqual({ pending: true });
+    expect(d.space.complete).not.toHaveBeenCalled();
+  });
+
+  it('without space-storage an R2 claim is refused, not sent to Drive', async () => {
+    const rpc = vi.fn(async () => ({ teamId: TEAM, actorId: ACTOR, storageBackend: 'r2' }));
+    const d = deps(rpc);
+    await expect(handleRecovery(claim(), d)).rejects.toMatchObject({ code: 'STORAGE_UNAVAILABLE' });
+    expect(d.drive).not.toHaveBeenCalled();
+  });
+
   it('the Edge entry keeps AGENT_UPDATE_REQUIRED from the database as that code', () => {
     const source = readFileSync('supabase/functions/team-recovery/index.ts', 'utf8');
     expect(source).toContain("'AGENT_UPDATE_REQUIRED'");

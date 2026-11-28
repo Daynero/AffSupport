@@ -19,6 +19,16 @@ import {
 import { isRecord } from '../_shared/validation.ts';
 import { handleRecovery } from './handler.ts';
 import { recoveryDriveResult } from './drive-response.ts';
+import { BUILD_ID } from '../../../packages/shared/dist/release.js';
+import { publicFunctionEndpoint } from '../_shared/function-endpoints.ts';
+import { writeSpaceStorageJournal } from '../_shared/space-storage-journal.ts';
+import { spaceRpcError } from '../space-storage/handler.ts';
+import {
+  claimSpaceCatalogVariantJob,
+  completeSpaceCatalogVariantJob,
+  heartbeatSpaceCatalogVariantJob,
+  type SpaceVariantRecoveryDeps
+} from '../space-storage/catalog-variant-recovery.ts';
 
 /** Refusals from variant admission that are answers, not lost replies. */
 const DEFINITE_ADMISSION_REFUSALS = [
@@ -42,6 +52,29 @@ Deno.serve(async request => {
       auth: { persistSession: false, autoRefreshToken: false }
     });
     const hash = recoveryTokenHash;
+    const randomToken = () =>
+      btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+        .replaceAll('+', '-')
+        .replaceAll('/', '_')
+        .replace(/=+$/u, '');
+    // 057 T107: an R2 space's background step runs here, as its member, over space-storage's
+    // own modules (the agent then reads and writes through space-storage, never Drive).
+    const spaceDeps = (actorId: string): SpaceVariantRecoveryDeps => ({
+      actorId,
+      rpc: async (name, args) => {
+        const { data, error } = await service.rpc(name, args);
+        if (error) throw spaceRpcError(error);
+        return data;
+      },
+      bucket: null,
+      readGrant: null,
+      journal: entry => writeSpaceStorageJournal(service, entry),
+      operationId: crypto.randomUUID(),
+      client: { kind: 'server', version: BUILD_ID },
+      signal: request.signal,
+      sourceUrl: publicFunctionEndpoint(request, 'space-storage/agent/source'),
+      randomToken
+    });
     const result = await handleRecovery(request, {
       user: async request => (await authorizeCaller(request, service)).userId,
       rpc: async (action, digest, input) => {
@@ -100,6 +133,16 @@ Deno.serve(async request => {
           }
         );
         return recoveryDriveResult(response);
+      },
+      space: {
+        claim: (actorId, body) =>
+          claimSpaceCatalogVariantJob(spaceDeps(actorId), {
+            teamId: String(body.teamId),
+            restitchContractVersion: Number(body.restitchContractVersion),
+            screenRefusals: body.screenRefusals
+          }),
+        heartbeat: (actorId, body) => heartbeatSpaceCatalogVariantJob(spaceDeps(actorId), body),
+        complete: (actorId, body) => completeSpaceCatalogVariantJob(spaceDeps(actorId), body)
       },
       variants: nativeRestitchEnabled({
         enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
@@ -292,11 +335,7 @@ Deno.serve(async request => {
             throw new TeamFunctionError('INVALID_INPUT');
           }
         : undefined,
-      token: () =>
-        btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
-          .replaceAll('+', '-')
-          .replaceAll('/', '_')
-          .replace(/=+$/u, ''),
+      token: randomToken,
       hash
     });
     return successResponse(result, cors ?? {});

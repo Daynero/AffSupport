@@ -2901,6 +2901,85 @@ async function handleEnsureWorkspaceFolder(
 
 /** `list_material_product_catalogs` for a worker without a signed-in caller: the same
  * filters and order, read with the service client. */
+/**
+ * 057: a catalog of an R2 space is the same generator over the space's storage seam
+ * (catalog-space-source.ts), with the space's own video authority when it re-stitches variations
+ * (T096). The member's route and the cron lane that finishes a creation in the background (T107)
+ * both come here; the cron reads the live catalogs with the service client (it has no caller).
+ */
+async function createSpaceProductCatalog(
+  request: Request,
+  configured: ReturnType<typeof clients>,
+  catalogRequest: ReturnType<typeof parseCreateProductCatalogRequest>,
+  actorId: string,
+  overrides: Partial<ProductCatalogDeps> = {}
+): Promise<unknown> {
+  const spaceRequest = spaceCatalogRequest(catalogRequest);
+  assertSpaceCatalogRequest(spaceRequest);
+  // T096: re-stitched variations are the same feature flag as on Drive.
+  const variations = spaceCatalogVariations(spaceRequest);
+  if (
+    variations &&
+    !nativeRestitchEnabled({
+      enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+      environment: Deno.env.get('SOTY_ENVIRONMENT'),
+      oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+      siteUrl: Deno.env.get('WISHLY_SITE_URL')
+    })
+  )
+    throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
+  const feeds = catalogFeedStoreFromEnv(key => Deno.env.get(key));
+  if (!feeds) throw new TeamFunctionError('STORAGE_UNAVAILABLE', { retryable: true });
+  const rpc = (name: string, parameters: Record<string, unknown>) =>
+    rpcValue(configured.service, name, parameters);
+  const binding: SpaceVariantBinding = { setId: null };
+  const space = spaceCatalogDeps({
+    rpc,
+    feeds,
+    signal: request.signal,
+    log: (message, detail) => console.error(message, detail),
+    variationSet: () => binding.setId
+  });
+  const created = createDurableProductCatalog(
+    {
+      ...productCatalogDeps(request, configured.caller, configured.service),
+      ...overrides,
+      ...space,
+      ...(variations
+        ? {
+            initialVideoAuthority: spaceCatalogVideoAuthority({
+              rpc,
+              teamId: spaceRequest.teamId,
+              actorId: actorId,
+              sourceMaterialId: spaceRequest.videoMaterialId,
+              binding
+            })
+          }
+        : {})
+    },
+    catalogIntentStore(
+      configured.service,
+      spaceRequest.teamId,
+      spaceRequest.videoMaterialId,
+      actorId,
+      spaceRequest.idempotencyKey
+    ),
+    space.fullDriveFor,
+    spaceRequest,
+    actorId
+  );
+  // As on Drive: a resume racing another pass for the same key answers its progress.
+  return variations
+    ? await resumeOrReadInitialCatalog(created, () =>
+        readSpaceCatalogVariants(configured.service, actorId, {
+          teamId: spaceRequest.teamId,
+          expectedActorId: actorId,
+          idempotencyKey: spaceRequest.idempotencyKey
+        })
+      )
+    : await created;
+}
+
 async function serviceReadLiveCatalogs(
   service: ReturnType<typeof clients>['service'],
   teamId: string,
@@ -3752,10 +3831,35 @@ Deno.serve(async request => {
           );
         }
       });
+      // 057 T107: an R2 space's creations whose variations the background agent made are
+      // finished here, as the Drive ones above are (same pacing, same frozen request).
+      const spaceCatalogs = await runInitialCatalogRecovery(configured.service, {
+        enabled: nativeRestitchEnabled({
+          enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
+          environment: Deno.env.get('SOTY_ENVIRONMENT'),
+          oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
+          siteUrl: Deno.env.get('WISHLY_SITE_URL')
+        }),
+        listing: 'service_list_space_catalog_completions',
+        executeFrozen: (frozenBody, actorId) =>
+          createSpaceProductCatalog(
+            request,
+            configured,
+            parseCreateProductCatalogRequest(frozenBody),
+            actorId,
+            {
+              readLiveCatalogs: (teamId: string, videoId: string) =>
+                serviceReadLiveCatalogs(configured.service, teamId, videoId)
+            }
+          )
+      }).catch(error => ({ pending: true, errorCode: mapUnknownError(error).code }));
       const catalogRenames = await recoverCatalogRenames(
         catalogRenameDeps(request, configured.service)
       ).catch(error => ({ pending: true, errorCode: mapUnknownError(error).code }));
-      return successResponse({ ...recovered, initialCatalogs, batchOther, catalogRenames }, cors);
+      return successResponse(
+        { ...recovered, initialCatalogs, spaceCatalogs, batchOther, catalogRenames },
+        cors
+      );
     }
 
     if (
@@ -4236,69 +4340,7 @@ Deno.serve(async request => {
           ? 'drive'
           : 'r2';
       if (backend === 'r2') {
-        const spaceRequest = spaceCatalogRequest(catalogRequest);
-        assertSpaceCatalogRequest(spaceRequest);
-        // T096: re-stitched variations are the same feature flag as on Drive.
-        const variations = spaceCatalogVariations(spaceRequest);
-        if (
-          variations &&
-          !nativeRestitchEnabled({
-            enabled: Deno.env.get('SOTY_CATALOG_VIDEO_VARIANTS'),
-            environment: Deno.env.get('SOTY_ENVIRONMENT'),
-            oauthMode: Deno.env.get('DRIVE_OAUTH_MODE'),
-            siteUrl: Deno.env.get('WISHLY_SITE_URL')
-          })
-        )
-          throw new TeamFunctionError('RESTITCH_CLIENT_OUTDATED');
-        const feeds = catalogFeedStoreFromEnv(key => Deno.env.get(key));
-        if (!feeds) throw new TeamFunctionError('STORAGE_UNAVAILABLE', { retryable: true });
-        const rpc = (name: string, parameters: Record<string, unknown>) =>
-          rpcValue(configured.service, name, parameters);
-        const binding: SpaceVariantBinding = { setId: null };
-        const space = spaceCatalogDeps({
-          rpc,
-          feeds,
-          signal: request.signal,
-          log: (message, detail) => console.error(message, detail),
-          variationSet: () => binding.setId
-        });
-        const created = createDurableProductCatalog(
-          {
-            ...productCatalogDeps(request, configured.caller, configured.service),
-            ...space,
-            ...(variations
-              ? {
-                  initialVideoAuthority: spaceCatalogVideoAuthority({
-                    rpc,
-                    teamId: spaceRequest.teamId,
-                    actorId: userId,
-                    sourceMaterialId: spaceRequest.videoMaterialId,
-                    binding
-                  })
-                }
-              : {})
-          },
-          catalogIntentStore(
-            configured.service,
-            spaceRequest.teamId,
-            spaceRequest.videoMaterialId,
-            userId,
-            spaceRequest.idempotencyKey
-          ),
-          space.fullDriveFor,
-          spaceRequest,
-          userId
-        );
-        // As on Drive: a resume racing another pass for the same key answers its progress.
-        value = variations
-          ? await resumeOrReadInitialCatalog(created, () =>
-              readSpaceCatalogVariants(configured.service, userId, {
-                teamId: spaceRequest.teamId,
-                expectedActorId: userId,
-                idempotencyKey: spaceRequest.idempotencyKey
-              })
-            )
-          : await created;
+        value = await createSpaceProductCatalog(request, configured, catalogRequest, userId);
       } else {
         if (
           catalogRequest.catalogVideoProtocolVersion === 1 &&

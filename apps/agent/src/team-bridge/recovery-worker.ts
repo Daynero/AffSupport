@@ -139,6 +139,12 @@ function activeClaim(
     return null;
   const prepared = parseMaterialRestitchPrep(job.options.prepared);
   const root = registration.endpoint.replace(/team-recovery$/u, '');
+  // 057 T107: a run of an R2 space reads its source and writes its output through space-storage,
+  // on this same server; everything else is the Drive updater's job, exactly as before.
+  const endpoints =
+    job.workspaceStorage === 'r2'
+      ? { transferUrl: root + 'space-storage/agent/source', cloudBaseUrl: root + 'space-storage' }
+      : { transferUrl: root + 'drive-transfer/range', cloudBaseUrl: root + 'drive-ops' };
   return {
     jobId: job.jobId,
     leaseToken: job.leaseToken,
@@ -156,8 +162,7 @@ function activeClaim(
       },
       sourceGrant,
       finalizeGrant,
-      transferUrl: root + 'drive-transfer/range',
-      cloudBaseUrl: root + 'drive-ops'
+      ...endpoints
     }
   };
 }

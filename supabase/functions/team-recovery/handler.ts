@@ -36,6 +36,16 @@ export interface RecoveryHandlerDeps {
     credential: string,
     body: Record<string, unknown>
   ): Promise<unknown>;
+  /**
+   * 057 T107: the same three steps for a credential of an R2 space (its receipt says
+   * `storageBackend: 'r2'`): space-storage leases a catalog variation instead of the Drive
+   * updater's job. Absent, an R2 claim is refused rather than sent to Drive.
+   */
+  space?: {
+    claim(actorId: string, body: Record<string, unknown>): Promise<unknown>;
+    heartbeat(actorId: string, body: Record<string, unknown>): Promise<unknown>;
+    complete(actorId: string, body: Record<string, unknown>): Promise<unknown>;
+  };
   variants?: (
     action: CatalogVariantRecoveryAction,
     hash: string,
@@ -79,6 +89,16 @@ function localState(value: unknown): Record<string, unknown> {
   )
     return { localState: { stage: 'blocked', reason: value.reason, code: value.code } };
   return {};
+}
+/** An R2 space's step, as the receipt's member: never Drive, never a body-named actor. */
+function spaceStep(
+  deps: RecoveryHandlerDeps,
+  step: 'claim' | 'heartbeat' | 'complete',
+  authorized: Record<string, unknown>,
+  body: Record<string, unknown>
+): Promise<unknown> {
+  if (!deps.space) throw new TeamFunctionError('STORAGE_UNAVAILABLE');
+  return deps.space[step](uuid(authorized.actorId), body);
 }
 export async function handleRecovery(
   request: Request,
@@ -202,15 +222,19 @@ export async function handleRecovery(
     }
     if (authorized.pending === true) return { pending: true };
     const teamId = uuid(authorized.teamId);
+    const claimBody = {
+      teamId,
+      restitchContractVersion: executorVersion,
+      ...(Array.isArray(body.screenRefusals)
+        ? { screenRefusals: body.screenRefusals.slice(0, 512) }
+        : {})
+    };
     let claimed: unknown;
     try {
-      claimed = await deps.drive('claim', credential, {
-        teamId,
-        restitchContractVersion: executorVersion,
-        ...(Array.isArray(body.screenRefusals)
-          ? { screenRefusals: body.screenRefusals.slice(0, 512) }
-          : {})
-      });
+      claimed =
+        authorized.storageBackend === 'r2'
+          ? await spaceStep(deps, 'claim', authorized, claimBody)
+          : await deps.drive('claim', credential, claimBody);
     } catch (error) {
       if (error instanceof TeamFunctionError && error.code === 'RESTITCH_CLIENT_OUTDATED') {
         // This closed updater refusal occurs before lease/token/process creation.
@@ -252,10 +276,11 @@ export async function handleRecovery(
     return receipt;
   }
   if (action === 'heartbeat') {
-    const value = await deps.drive('heartbeat', credential, {
-      jobId,
-      leaseToken: token(body.leaseToken)
-    });
+    const lease = { jobId, leaseToken: token(body.leaseToken) };
+    const value =
+      authorized.storageBackend === 'r2'
+        ? await spaceStep(deps, 'heartbeat', authorized, lease)
+        : await deps.drive('heartbeat', credential, lease);
     await deps.rpc('heartbeat', hash, { operationId, jobId });
     return value;
   }
@@ -275,7 +300,7 @@ export async function handleRecovery(
   if (state !== 'succeeded' && state !== 'failed' && state !== 'canceled') return { pending: true };
   // A committed upload is not yet proof that the updater owns its output.
   if (state === 'succeeded' && authorized.outputRecorded !== true) return { pending: true };
-  await deps.drive('complete', credential, {
+  const completion = {
     jobId,
     leaseToken: token(body.leaseToken),
     outcome: state === 'succeeded' ? 'finalized' : 'failed',
@@ -285,7 +310,9 @@ export async function handleRecovery(
         : typeof body.failureCode === 'string'
           ? body.failureCode
           : 'PROCESS_FAILED'
-  });
+  };
+  if (authorized.storageBackend === 'r2') await spaceStep(deps, 'complete', authorized, completion);
+  else await deps.drive('complete', credential, completion);
   await deps.rpc('settle', hash, { operationId, jobId });
   return { settled: true, state };
 }
