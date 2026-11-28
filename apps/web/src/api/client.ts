@@ -43,8 +43,11 @@ import {
   teamProcessPauseSupported,
   toolContractCompatible,
   cleanDeliverySupported,
-  isMetadataBearingFileName
+  isMetadataBearingFileName,
+  spaceStorageAgentSupported,
+  TEAM_LANDING_RENDER_CONTRACT
 } from '@video-compressor/shared';
+import { isSpaceRun, spaceStorageAgentEndpoints } from './space-operations';
 import { agentFetchOptions, pairingPath, probeAgent, versionState } from '../connection';
 import { configuredAgentOrigin, publicConfig, servedByAgent } from '../lib/config';
 import { pairingToken } from './pairing-token';
@@ -543,6 +546,12 @@ function teamCloudBaseUrl() {
   return `${publicConfig.value.supabaseUrl}/functions/v1/drive-ops`;
 }
 
+/** 057: where the agent reads and writes an R2 space (space-storage), as the two above for Drive. */
+export function spaceAgentEndpoints(): { transferUrl: string; cloudBaseUrl: string } {
+  if (!publicConfig.ok) throw new Error('SUPABASE_CONFIGURATION_MISSING');
+  return spaceStorageAgentEndpoints(publicConfig.value.supabaseUrl);
+}
+
 export interface TeamAgentPreviewRequest {
   operationId: string;
   transferGrant: TeamTransferGrant;
@@ -597,7 +606,7 @@ export async function renderTeamLanding(
   signal?: AbortSignal
 ): Promise<TeamLandingAgentRenderResult> {
   const health = await request<Partial<HealthResponse>>('/api/health', 'GET', signal);
-  if ((health.toolContracts?.teamWorkspace ?? 0) < AGENT_TOOL_CONTRACTS.teamWorkspace) {
+  if ((health.toolContracts?.teamWorkspace ?? 0) < TEAM_LANDING_RENDER_CONTRACT) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
   const value = await requestBody<Partial<TeamLandingAgentRenderResult>>(
@@ -675,6 +684,15 @@ export async function downloadTeamFileWithAgent(input: {
   if (
     input.process?.tool === 'restitch' &&
     !toolContractCompatible('stitcher', health.toolContracts ?? {})
+  ) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
+  // 057: a file of an R2 space is read through space-storage, which an agent before contract 3
+  // does not know; it would refuse the address rather than save anything.
+  if (
+    publicConfig.ok &&
+    input.transferUrl === spaceAgentEndpoints().transferUrl &&
+    !spaceStorageAgentSupported(health.toolContracts ?? {})
   ) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
@@ -1041,10 +1059,17 @@ export async function startTeamAgentProcess(
   if (!toolContractCompatible(tool, health.toolContracts ?? {})) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
+  // 057: a run opened in an R2 space reads and writes through space-storage, and only an agent
+  // that speaks R2 (team workspace contract 3) is handed it.
+  const space = isSpaceRun(input.operationId);
+  if (space && !spaceStorageAgentSupported(health.toolContracts ?? {})) {
+    throw new Error('AGENT_UPDATE_REQUIRED');
+  }
   const value: unknown = await requestBody('/api/team/process', {
     ...input,
-    transferUrl: teamTransferRangeUrl(),
-    cloudBaseUrl: teamCloudBaseUrl()
+    ...(space
+      ? spaceAgentEndpoints()
+      : { transferUrl: teamTransferRangeUrl(), cloudBaseUrl: teamCloudBaseUrl() })
   });
   const parsed = parseTeamFileOperationResult(value);
   if (!parsed) throw new Error('INVALID_RESPONSE');
@@ -1191,7 +1216,7 @@ export async function landingGalleryOpenTeamSpace(
   snapshot: TeamLandingPreviewCatalogRequest
 ): Promise<LandingPreviewState> {
   const health = await request<Partial<HealthResponse>>('/api/health', 'GET');
-  if ((health.toolContracts?.teamWorkspace ?? 0) < AGENT_TOOL_CONTRACTS.teamWorkspace) {
+  if ((health.toolContracts?.teamWorkspace ?? 0) < TEAM_LANDING_RENDER_CONTRACT) {
     throw new Error('AGENT_UPDATE_REQUIRED');
   }
   return requestBody<LandingPreviewState>('/api/landing-preview/team-space', snapshot);

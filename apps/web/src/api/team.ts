@@ -219,6 +219,7 @@ import {
   spaceStorageRequestHeaders,
   type SpaceMutationInput
 } from './space-storage';
+import { rememberSpaceRun, spaceStorageAgentEndpoints } from './space-operations';
 import { requireSupabaseClient, withFreshSession } from '../lib/supabase';
 import { memberAttempt } from '../team/members/diagnostics';
 import {
@@ -5263,9 +5264,18 @@ export const teamApi = {
     consumer: 'browser' | 'agent'
   ): Promise<TeamDownloadGrantResult> {
     if (isR2Space(teamId)) {
-      // 057: the files host streams any size with Range, so the browser takes every R2 file.
-      // The agent reads R2 through its own route (T033), which this build does not have yet.
-      if (consumer === 'agent') throw new TeamApiError('AGENT_UPDATE_REQUIRED', false);
+      // 057: the files host streams any size with Range, so the browser takes every R2 file. The
+      // agent trades a ticket for the same address at space-storage `/agent/source` (T033).
+      if (consumer === 'agent') {
+        if (!publicConfig.ok) throw new TeamApiError('INVALID_RESPONSE', false);
+        const issued = await spaceStorageApi.agentDownloadGrant(teamId, materialId);
+        return {
+          kind: 'agent',
+          fileName: issued.fileName,
+          transferUrl: spaceStorageAgentEndpoints(publicConfig.value.supabaseUrl).transferUrl,
+          grant: issued.grant
+        };
+      }
       const name = spaceMaterialOf(teamId, materialId)?.name ?? undefined;
       const read = await spaceMaterialUrl({ teamId, materialId, download: name ?? 'download' });
       return {
@@ -5423,6 +5433,13 @@ export const teamApi = {
   },
 
   async startProcess(input: TeamProcessStartInput): Promise<TeamProcessStartResult> {
+    // 057 (T035): a run in an R2 space is opened by space-storage, and remembered so the agent
+    // is handed the space-storage endpoints for it.
+    if (isR2Space(input.teamId)) {
+      const started = await spaceStorageApi.startProcess(input);
+      rememberSpaceRun(started.operationId);
+      return started;
+    }
     const value = await invokeTeamFunction(
       'drive-ops/process/start',
       { ...input },

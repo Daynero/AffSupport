@@ -189,7 +189,8 @@ describe('release identity', () => {
       expect(toolContractCompatible(tool, legacyContracts), tool).toBe(true);
     }
     expect(WEB_TOOL_REQUIREMENTS.teamWorkspace).toEqual({ teamWorkspace: 1 });
-    expect(AGENT_TOOL_CONTRACTS.teamWorkspace).toBe(2);
+    // 057: contract 3 speaks R2; the landing routes stay gated on the contract they came with.
+    expect(AGENT_TOOL_CONTRACTS.teamWorkspace).toBe(3);
 
     const client = readFileSync('apps/web/src/api/client.ts', 'utf8');
     const agentRoutes = readFileSync('apps/agent/src/team-bridge/routes.ts', 'utf8');
@@ -200,7 +201,7 @@ describe('release identity', () => {
     expect(client).toContain('/api/team/library/process');
     expect(agentRoutes).toContain('/api/team/library/process');
     expect(agentTools).toContain('library: CreativeLibraryProcessBridge');
-    expect(client.match(/AGENT_TOOL_CONTRACTS\.teamWorkspace/gu)?.length).toBeGreaterThanOrEqual(2);
+    expect(client.match(/TEAM_LANDING_RENDER_CONTRACT\)/gu)?.length).toBeGreaterThanOrEqual(2);
   });
 
   it('pins production team OAuth and web origin to the shared release identity', () => {

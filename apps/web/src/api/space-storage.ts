@@ -16,6 +16,8 @@ import {
   parseSpacePartUrls,
   parseSpaceReadGrantResult,
   parseSpaceTrashEmptied,
+  parseTeamProcessStartResult,
+  parseTeamTransferGrant,
   spaceContentId,
   spaceFilesUrl,
   spaceMd5HexToBase64,
@@ -34,13 +36,15 @@ import type {
   SpacePartUrl,
   SpaceReadGrantResult,
   SpaceTrashEmptied,
-  StorageBackend
+  StorageBackend,
+  TeamProcessStartResult,
+  TeamTransferGrant
 } from '@video-compressor/shared';
 import type { SiteChannel } from '../lib/config';
 import { privateCacheActorEpoch, registerPrivateCache } from '../team/private-cache-scope';
 // A cycle, as with `team-catalog-video-r2`: `team.ts` routes to this module and this module
 // calls through `team.ts`'s transport. Neither touches the other while it is being loaded.
-import { invokeTeamFunction, TeamApiError } from './team';
+import { invokeTeamFunction, TeamApiError, type TeamProcessStartInput } from './team';
 
 /**
  * 057: the web's side of Soty spaces on R2 (the `space-storage` edge function).
@@ -264,6 +268,36 @@ export const spaceStorageApi = {
         value && typeof value === 'object' && (value as { aborted?: unknown }).aborted === true
           ? { ok: true, value: { aborted: true as const } }
           : { ok: false }
+    );
+  },
+
+  /**
+   * A tool run in an R2 space (T035): the same grants drive-ops answers, opened by space-storage.
+   * The caller (`teamApi.startProcess`) records the run so the agent is handed R2 endpoints.
+   */
+  startProcess(input: TeamProcessStartInput): Promise<TeamProcessStartResult> {
+    return callSpaceStorage<TeamProcessStartResult>('process/start', { ...input }, value => {
+      const parsed = parseTeamProcessStartResult(value);
+      return parsed ? { ok: true, value: parsed } : { ok: false };
+    });
+  },
+
+  /** A ticket for the agent to save one R2 file (T033); the web builds the agent's address. */
+  agentDownloadGrant(
+    teamId: string,
+    materialId: string
+  ): Promise<{ fileName: string; grant: TeamTransferGrant }> {
+    return callSpaceStorage<{ fileName: string; grant: TeamTransferGrant }>(
+      'materials/agent-grant',
+      { teamId, materialId },
+      value => {
+        if (!value || typeof value !== 'object') return { ok: false };
+        const record = value as { fileName?: unknown; grant?: unknown };
+        const grant = parseTeamTransferGrant(record.grant);
+        return grant?.purpose === 'download_range' && typeof record.fileName === 'string'
+          ? { ok: true, value: { fileName: record.fileName, grant } }
+          : { ok: false };
+      }
     );
   },
 

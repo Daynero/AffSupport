@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AGENT_TOOL_CONTRACTS,
+  TEAM_LANDING_RENDER_CONTRACT,
   resolveLandingTileState,
   type CatalogMaterialItem,
   type CatalogSearchFilters,
@@ -135,7 +135,7 @@ export function useTeamLandings(input: { teamId: string; client: TeamLandingsDat
   const agentPaired = agent?.connection === 'connected';
   const agentCompatible =
     agent?.connection === 'connected' &&
-    (agent.toolContracts.teamWorkspace ?? 0) >= AGENT_TOOL_CONTRACTS.teamWorkspace;
+    (agent.toolContracts.teamWorkspace ?? 0) >= TEAM_LANDING_RENDER_CONTRACT;
   const items = useMemo(
     () =>
       deriveLandingGalleryItems(catalog.result?.items ?? [], renders, {
